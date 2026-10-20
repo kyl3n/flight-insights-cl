@@ -1,0 +1,122 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Metric explanation</title>
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&amp;family=IBM+Plex+Sans:wght@400;500;600&amp;display=swap" rel="stylesheet">
+<style>
+body{margin:0;background:#0E1114}
+a{color:#7CC4F0}a:hover{color:#A9D9F7}
+button{font-family:inherit}
+:focus-visible{outline:2px solid #7CC4F0;outline-offset:2px}
+</style>
+</helmet>
+<aside aria-labelledby="mx-title" style="width: 440px; min-height: 1120px; box-sizing: border-box; padding: 20px; background: #12161A; border: 1px solid #262D35; color: #E7EAEE; font-family: 'IBM Plex Sans', system-ui, sans-serif; font-size: 14px; line-height: 1.45; display: flex; flex-direction: column; gap: 18px;">
+
+<div style="display: flex; align-items: flex-start; justify-content: space-between; gap: 8px;">
+<div style="display: flex; flex-direction: column; gap: 3px;">
+<span style="font-size: 12px; color: #A3ACB6;">Metric · Propulsion</span>
+<h2 id="mx-title" style="margin: 0; font-size: 19px; font-weight: 600;">ESC temperature, peak</h2>
+<span style="font-family: 'IBM Plex Mono', ui-monospace, monospace; font-size: 11px; color: #8A949E;">esc.temp.peak · °C</span>
+</div>
+<button type="button" aria-label="Close explanation" style="width: 32px; height: 32px; display: flex; align-items: center; justify-content: center; border: 0; border-radius: 8px; background: transparent; color: #A3ACB6; cursor: pointer;"><svg aria-hidden="true" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M6 6l12 12M18 6L6 18"></path></svg></button>
+</div>
+
+<div style="display: flex; align-items: baseline; gap: 12px; flex-wrap: wrap; padding: 12px 14px; border-radius: 10px; background: #1A1F25; border: 1px solid #3A3226;">
+<span style="font-family: 'IBM Plex Mono', ui-monospace, monospace; font-size: 28px; font-weight: 500; color: #E8A33D;">96 °C</span>
+<span style="font-size: 13px; font-weight: 600; color: #E8A33D;"><span aria-hidden="true" style="font-size: 9px;">▲</span> Caution</span>
+<span style="font-size: 12px; color: #A3ACB6;">ESC 3 · HL-07 · flight 142</span>
+</div>
+
+<section style="display: flex; flex-direction: column; gap: 6px;">
+<h3 style="margin: 0; font-size: 13px; font-weight: 600;">What it is</h3>
+<p style="margin: 0; font-size: 13px; line-height: 1.55; color: #CBD2D9;">The hottest reading from any of the aircraft's ESCs while it was armed. ESCs heat up with the current they switch. Past a set temperature they reduce power to protect themselves, which on a multirotor means less thrust on that arm.</p>
+</section>
+
+<section style="display: flex; flex-direction: column; gap: 6px;">
+<h3 style="margin: 0; font-size: 13px; font-weight: 600;">How it is measured</h3>
+<dl style="margin: 0; display: grid; grid-template-columns: 92px minmax(0, 1fr); gap: 5px 10px; font-size: 12px;">
+<dt style="color: #8A949E;">Source</dt><dd style="margin: 0; color: #CBD2D9;"><span style="font-family: 'IBM Plex Mono', ui-monospace, monospace;">ESC.Temp</span>, every ESC instance</dd>
+<dt style="color: #8A949E;">Sensor</dt><dd style="margin: 0; color: #CBD2D9;">The ESC's own, sent over DShot or serial telemetry</dd>
+<dt style="color: #8A949E;">Calculation</dt><dd style="margin: 0; color: #CBD2D9;">Highest value across all ESCs while armed</dd>
+</dl>
+</section>
+
+<section style="display: flex; flex-direction: column; gap: 8px;">
+<h3 style="margin: 0; font-size: 13px; font-weight: 600;">What the values mean</h3>
+<sc-for list="{{zones}}" as="z" hint-placeholder-count="3">
+<div style="display: grid; grid-template-columns: 96px minmax(0, 1fr); gap: 10px; padding: 9px 10px; border-radius: 8px; background: {{z.bg}};">
+<div style="display: flex; flex-direction: column; gap: 1px;">
+<span style="font-size: 12px; font-weight: 600; color: {{z.c}};"><span aria-hidden="true" style="font-size: 9px;">{{z.g}}</span> {{z.name}}</span>
+<span style="font-family: 'IBM Plex Mono', ui-monospace, monospace; font-size: 12px; color: #E7EAEE;">{{z.range}}</span>
+</div>
+<span style="font-size: 12px; line-height: 1.5; color: #CBD2D9;">{{z.meaning}}</span>
+</div>
+</sc-for>
+<p style="margin: 0; font-size: 11px; line-height: 1.5; color: #8A949E;">Boundaries: this build's ESC protection setting (100 °C) and the 15 °C margin your team set for this platform; ESC behaviour from the BLHeli_32 manual.</p>
+</section>
+
+<section style="display: flex; flex-direction: column; gap: 6px;">
+<h3 style="margin: 0; font-size: 13px; font-weight: 600;">This value</h3>
+<ul style="margin: 0; padding-left: 18px; display: flex; flex-direction: column; gap: 4px; font-size: 13px; line-height: 1.5; color: #CBD2D9;">
+<li>4 °C below the protection setting.</li>
+<li>14 °C above the median of the other seven ESCs.</li>
+<li>This airframe usually peaks at 78–82 °C.</li>
+<li>Rising for 6 flights, since flight 137.</li>
+</ul>
+</section>
+
+<section style="display: flex; flex-direction: column; gap: 8px;">
+<h3 style="margin: 0; font-size: 13px; font-weight: 600;">What moves it</h3>
+<p style="margin: 0; font-size: 13px; line-height: 1.55; color: #CBD2D9;">Load (payload, wind, hard manoeuvres), airflow over the ESC, outside temperature, a worn motor or damaged prop, and noise reaching the motors when filters let it through.</p>
+<div style="display: flex; flex-wrap: wrap; gap: 6px;">
+<sc-for list="{{params}}" as="p" hint-placeholder-count="2">
+<button type="button" style="padding: 4px 9px; border: 1px solid #2D5068; border-radius: 6px; background: rgba(90,176,232,0.10); font-family: 'IBM Plex Mono', ui-monospace, monospace; font-size: 12px; color: #9BD3F5; cursor: pointer;">{{p}}</button>
+</sc-for>
+</div>
+</section>
+
+<section style="display: flex; flex-direction: column; gap: 8px;">
+<h3 style="margin: 0; font-size: 13px; font-weight: 600;">Related, and not to be confused with</h3>
+<div style="display: flex; flex-wrap: wrap; gap: 6px;">
+<sc-for list="{{related}}" as="r" hint-placeholder-count="3">
+<button type="button" style="padding: 4px 9px; border: 1px solid #333B45; border-radius: 6px; background: transparent; font-size: 12px; color: #CBD2D9; cursor: pointer;">{{r}}</button>
+</sc-for>
+</div>
+<p style="margin: 0; font-size: 12px; line-height: 1.5; color: #A3ACB6;">Motor temperature is a separate field, <span style="font-family: 'IBM Plex Mono', ui-monospace, monospace;">ESC.MotTemp</span>, with its own limits from the motor maker.</p>
+</section>
+
+<div style="display: flex; flex-direction: column; gap: 8px; margin-top: auto;">
+<div style="display: flex; gap: 8px; flex-wrap: wrap;">
+<a href="Trends.dc.html" style="flex: 1 1 auto; display: flex; align-items: center; justify-content: center; min-height: 40px; padding: 0 14px; border-radius: 8px; background: #5AB0E8; color: #06121A; font-size: 13px; font-weight: 600; text-decoration: none;">Open trend</a>
+<a href="FlightReport.dc.html" style="flex: 1 1 auto; display: flex; align-items: center; justify-content: center; min-height: 40px; padding: 0 14px; border: 1px solid #333B45; border-radius: 8px; color: #E7EAEE; font-size: 13px; text-decoration: none;">Open evidence</a>
+</div>
+<button type="button" style="min-height: 40px; border: 1px solid #3A3156; border-radius: 8px; background: rgba(169,139,245,0.10); font-size: 13px; color: #CDBBFA; cursor: pointer;">Ask Claude about this value</button>
+<span style="font-size: 11px; color: #6E7883;">Explanation v3 · knowledge pack 2026.10</span>
+</div>
+
+</aside>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":440,"height":1120}}'>
+class Component extends DCLogic {
+  renderVals() {
+    const zones = [
+      ['Target', '●', '#3DBE8B', 'rgba(61,190,139,0.08)', 'below 85', 'Normal operation.'],
+      ['Caution', '▲', '#E8A33D', 'rgba(232,163,61,0.10)', '85 to 100', 'Within 15 °C of the protection setting. Little room left for a heavier payload, a hot day or a longer climb.'],
+      ['Out of range', '■', '#F2716E', 'rgba(240,96,93,0.10)', '100 and up', 'The ESC limits power. BLHeli_32 cuts harder 15 °C above the setting, and the ESC processor stops near 120 °C, which has caused loss of control.']
+    ].map((z) => ({ name: z[0], g: z[1], c: z[2], bg: z[3], range: z[4], meaning: z[5] }));
+    return {
+      zones,
+      params: ['INS_HNTCH_*', 'ATC_RAT_*_D'],
+      related: ['Motor temperature', 'ESC temperature spread', 'Current per RPM²']
+    };
+  }
+}
+</script>
+</body>
+</html>

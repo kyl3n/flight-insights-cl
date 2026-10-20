@@ -1,0 +1,170 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>New platform setup</title>
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&amp;family=IBM+Plex+Sans:wght@400;500;600&amp;display=swap" rel="stylesheet">
+<style>
+body{margin:0;background:#0E1114}
+a{color:#7CC4F0}a:hover{color:#A9D9F7}
+button,input,select{font-family:inherit}
+input::placeholder{color:#6E7883}
+:focus-visible{outline:2px solid #7CC4F0;outline-offset:2px}
+@media (max-width:720px){.rail{flex:1 1 100% !important;width:100% !important;flex-direction:row !important;overflow-x:auto;padding:8px !important}.rail-spacer{display:none !important}}
+</style>
+</helmet>
+<div style="min-height: 100vh; display: flex; flex-wrap: wrap; background: #0E1114; color: #E7EAEE; font-family: 'IBM Plex Sans', system-ui, sans-serif; font-size: 14px; line-height: 1.45;">
+
+<nav class="rail" aria-label="Main navigation" style="flex: 0 0 76px; width: 76px; box-sizing: border-box; background: #0A0C0F; border-right: 1px solid #1E242B; display: flex; flex-direction: column; align-items: center; gap: 4px; padding: 14px 0 16px;">
+<svg role="img" aria-label="Flight Insights" width="36" height="36" viewBox="0 0 36 36" style="flex: 0 0 auto; margin-bottom: 14px;"><rect x="1" y="1" width="34" height="34" rx="9" fill="#13222D" stroke="#2A4558"></rect><path d="M8 25l6-7 5 4 9-12" fill="none" stroke="#5AB0E8" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"></path><circle cx="28" cy="10" r="2.4" fill="#5AB0E8"></circle></svg>
+<a href="Main.dc.html" aria-current="page" style="flex: 0 0 auto; width: 60px; padding: 8px 0 7px; border-radius: 10px; display: flex; flex-direction: column; align-items: center; gap: 4px; font-size: 11px; font-weight: 500; text-decoration: none; color: #9BD3F5; background: rgba(90,176,232,0.15);"><svg aria-hidden="true" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="7" height="7" rx="1.5"></rect><rect x="14" y="3" width="7" height="7" rx="1.5"></rect><rect x="3" y="14" width="7" height="7" rx="1.5"></rect><rect x="14" y="14" width="7" height="7" rx="1.5"></rect></svg>Fleet</a>
+<a href="FlightReport.dc.html" style="flex: 0 0 auto; width: 60px; padding: 8px 0 7px; border-radius: 10px; display: flex; flex-direction: column; align-items: center; gap: 4px; font-size: 11px; font-weight: 500; text-decoration: none; color: #A3ACB6;"><svg aria-hidden="true" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M6 3h9l4 4v14H6z"></path><path d="M14 3v5h5"></path><path d="M9 13h7M9 17h5"></path></svg>Flights</a>
+<a href="Trends.dc.html" style="flex: 0 0 auto; width: 60px; padding: 8px 0 7px; border-radius: 10px; display: flex; flex-direction: column; align-items: center; gap: 4px; font-size: 11px; font-weight: 500; text-decoration: none; color: #A3ACB6;"><svg aria-hidden="true" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M3 17l5-5 4 3 8-8"></path><path d="M15 7h5v5"></path></svg>Trends</a>
+<a href="ConfigReview.dc.html" style="flex: 0 0 auto; width: 60px; padding: 8px 0 7px; border-radius: 10px; display: flex; flex-direction: column; align-items: center; gap: 4px; font-size: 11px; font-weight: 500; text-decoration: none; color: #A3ACB6;"><svg aria-hidden="true" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M4 6h10M18 6h2M4 12h4M12 12h8M4 18h12"></path><circle cx="16" cy="6" r="2"></circle><circle cx="10" cy="12" r="2"></circle><circle cx="18" cy="18" r="2"></circle></svg>Params</a>
+<a href="Plan.dc.html" style="flex: 0 0 auto; width: 60px; padding: 8px 0 7px; border-radius: 10px; display: flex; flex-direction: column; align-items: center; gap: 4px; font-size: 11px; font-weight: 500; text-decoration: none; color: #A3ACB6;"><svg aria-hidden="true" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M10 6h10M10 12h10M10 18h10"></path><path d="M3.5 6l1.5 1.5L7.5 5"></path><path d="M3.5 12l1.5 1.5L7.5 11"></path><circle cx="5" cy="18" r="1.5"></circle></svg>Plan</a>
+<div class="rail-spacer" style="flex: 1 1 auto;"></div>
+</nav>
+
+<div style="flex: 999 1 560px; min-width: 0; display: flex; flex-direction: column;">
+
+<header style="display: flex; flex-wrap: wrap; align-items: center; gap: 12px 16px; padding: 14px 24px; min-height: 60px; box-sizing: border-box; border-bottom: 1px solid #1E242B;">
+<div style="display: flex; flex-direction: column; gap: 2px; min-width: 0;">
+<span style="font-size: 12px; color: #A3ACB6;">New platform · step 3 of 10</span>
+<h1 style="margin: 0; font-size: 20px; font-weight: 600; letter-spacing: -0.01em;">Heavy-lift X8 v5</h1>
+</div>
+<span style="display: inline-flex; align-items: center; gap: 6px; padding: 4px 10px; border-radius: 999px; font-size: 12px; font-weight: 600; color: #E8A33D; background: rgba(232,163,61,0.14);"><span aria-hidden="true" style="font-size: 9px;">▲</span>Not ready for first flight · 5 gaps</span>
+<div style="margin-left: auto; display: flex; gap: 8px; flex-wrap: wrap;">
+<button type="button" style="padding: 8px 12px; border: 1px solid #262D35; border-radius: 8px; background: transparent; font-size: 13px; color: #CBD2D9; cursor: pointer;">Fill from a parameter file</button>
+<button type="button" style="padding: 8px 12px; border: 1px solid #262D35; border-radius: 8px; background: transparent; font-size: 13px; color: #CBD2D9; cursor: pointer;">Copy from Heavy-lift X8 v4</button>
+<button type="button" style="padding: 8px 12px; border: 1px solid #262D35; border-radius: 8px; background: transparent; font-size: 13px; color: #CBD2D9; cursor: pointer;">Save and finish later</button>
+</div>
+</header>
+
+<main style="display: flex; flex-wrap: wrap; gap: 20px; padding: 20px 24px 24px; align-items: flex-start;">
+
+<nav aria-label="Setup steps" style="flex: 1 1 220px; max-width: 250px; min-width: 0;">
+<ol style="list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 2px;">
+<sc-for list="{{steps}}" as="s" hint-placeholder-count="10">
+<li aria-current="{{s.cur}}" style="display: flex; align-items: center; gap: 10px; padding: 9px 10px; border-radius: 9px; background: {{s.bg}};">
+<span aria-hidden="true" style="width: 24px; height: 24px; flex: 0 0 24px; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-family: 'IBM Plex Mono', ui-monospace, monospace; font-size: 12px; color: {{s.nc}}; background: {{s.nbg}};">{{s.mark}}</span>
+<span style="display: flex; flex-direction: column; min-width: 0;">
+<span style="font-size: 13px; font-weight: 500; color: {{s.tc}};">{{s.name}}</span>
+<span style="font-size: 11px; color: {{s.subc}};">{{s.sub}}</span>
+</span>
+</li>
+</sc-for>
+</ol>
+</nav>
+
+<section aria-labelledby="prop-title" style="flex: 999 1 520px; min-width: 0; display: flex; flex-direction: column; gap: 16px;">
+<div style="display: flex; flex-direction: column; gap: 4px;">
+<h2 id="prop-title" style="margin: 0; font-size: 18px; font-weight: 600;">Propulsion</h2>
+<p style="margin: 0; font-size: 13px; color: #A3ACB6;">Motors, propellers and ESCs. These set the filter and gain starting values, the thrust model, the temperature limits and the motor-out margin.</p>
+</div>
+
+<section aria-labelledby="motors-h" style="padding: 16px; border-radius: 12px; background: #151A1F; border: 1px solid #262D35; display: flex; flex-direction: column; gap: 12px;">
+<div style="display: flex; align-items: baseline; justify-content: space-between; gap: 8px; flex-wrap: wrap;">
+<h3 id="motors-h" style="margin: 0; font-size: 14px; font-weight: 600;">Motors</h3>
+<span style="font-size: 12px; color: #7FC8D9;">Detected: 8 motors, octa-quad X layout (FRAME_CLASS 4, FRAME_TYPE 1)</span>
+</div>
+<label style="display: flex; align-items: center; gap: 10px; font-size: 13px; color: #CBD2D9; cursor: pointer;"><input type="checkbox" checked style="width: 16px; height: 16px; accent-color: #5AB0E8;">Same motor on all 8 positions</label>
+<div style="display: grid; grid-template-columns: repeat(auto-fill, minmax(200px, 1fr)); gap: 12px;">
+<label style="display: flex; flex-direction: column; gap: 5px; font-size: 12px; color: #A3ACB6;">Model<input type="text" placeholder="Make and model" style="min-height: 38px; padding: 0 10px; border-radius: 8px; border: 1px solid #333B45; background: #0F1317; color: #E7EAEE; font-size: 14px;"><span style="color: #6E7883;">Shown in reports and component history</span></label>
+<label style="display: flex; flex-direction: column; gap: 5px; font-size: 12px; color: #A3ACB6;">KV<input type="text" value="100" style="min-height: 38px; padding: 0 10px; border-radius: 8px; border: 1px solid #333B45; background: #0F1317; color: #E7EAEE; font-size: 14px; font-family: 'IBM Plex Mono', ui-monospace, monospace;"><span style="color: #6E7883;">Expected motor speed and noise frequency</span></label>
+<label style="display: flex; flex-direction: column; gap: 5px; font-size: 12px; color: #A3ACB6;">Bell temperature limit, from the datasheet<input type="text" placeholder="°C" style="min-height: 38px; padding: 0 10px; border-radius: 8px; border: 1px solid #333B45; background: #0F1317; color: #E7EAEE; font-size: 14px;"><span style="color: #6E7883;">Motor temperature limits</span></label>
+</div>
+<div style="display: flex; flex-wrap: wrap; align-items: center; gap: 10px 16px; padding: 10px 12px; border-radius: 8px; background: #12171C;">
+<span style="flex: 1 1 320px; font-size: 13px; color: #CBD2D9;">Motor positions and spin directions come from ArduPilot's layout for this frame. Confirm on the bench that each motor spins the way the diagram shows.</span>
+<button type="button" style="min-height: 36px; padding: 0 14px; border: 1px solid #333B45; border-radius: 8px; background: transparent; font-size: 13px; color: #E7EAEE; cursor: pointer;">Show layout diagram</button>
+<label style="display: flex; align-items: center; gap: 8px; font-size: 13px; color: #CBD2D9; cursor: pointer;"><input type="checkbox" style="width: 16px; height: 16px; accent-color: #5AB0E8;">Directions checked</label>
+</div>
+</section>
+
+<section aria-labelledby="props-h" style="padding: 16px; border-radius: 12px; background: #151A1F; border: 1px solid #262D35; display: flex; flex-direction: column; gap: 12px;">
+<h3 id="props-h" style="margin: 0; font-size: 14px; font-weight: 600;">Propellers</h3>
+<div style="display: grid; grid-template-columns: repeat(auto-fill, minmax(160px, 1fr)); gap: 12px;">
+<label style="display: flex; flex-direction: column; gap: 5px; font-size: 12px; color: #A3ACB6;">Diameter<input type="text" value="28 in" style="min-height: 38px; padding: 0 10px; border-radius: 8px; border: 1px solid #333B45; background: #0F1317; color: #E7EAEE; font-size: 14px;"></label>
+<label style="display: flex; flex-direction: column; gap: 5px; font-size: 12px; color: #E8A33D;">Pitch · required<input type="text" placeholder="in" aria-invalid="true" style="min-height: 38px; padding: 0 10px; border-radius: 8px; border: 1px solid #8A6A2E; background: #0F1317; color: #E7EAEE; font-size: 14px;"><span style="color: #C9A15E;">Needed for the thrust model's starting values</span></label>
+<label style="display: flex; flex-direction: column; gap: 5px; font-size: 12px; color: #A3ACB6;">Blades<input type="text" value="2" style="min-height: 38px; padding: 0 10px; border-radius: 8px; border: 1px solid #333B45; background: #0F1317; color: #E7EAEE; font-size: 14px;"></label>
+<label style="display: flex; flex-direction: column; gap: 5px; font-size: 12px; color: #A3ACB6;">Material<select style="min-height: 38px; padding: 0 8px; border-radius: 8px; border: 1px solid #333B45; background: #0F1317; color: #E7EAEE; font-size: 14px;"><option>Carbon fibre</option><option>Plastic</option><option>Wood</option></select></label>
+</div>
+</section>
+
+<section aria-labelledby="esc-h" style="padding: 16px; border-radius: 12px; background: #151A1F; border: 1px solid #262D35; display: flex; flex-direction: column; gap: 12px;">
+<h3 id="esc-h" style="margin: 0; font-size: 14px; font-weight: 600;">ESCs</h3>
+<div style="display: grid; grid-template-columns: repeat(auto-fill, minmax(200px, 1fr)); gap: 12px;">
+<label style="display: flex; flex-direction: column; gap: 5px; font-size: 12px; color: #A3ACB6;">Model<input type="text" placeholder="Make and model" style="min-height: 38px; padding: 0 10px; border-radius: 8px; border: 1px solid #333B45; background: #0F1317; color: #E7EAEE; font-size: 14px;"></label>
+<label style="display: flex; flex-direction: column; gap: 5px; font-size: 12px; color: #A3ACB6;">Firmware<select style="min-height: 38px; padding: 0 8px; border-radius: 8px; border: 1px solid #333B45; background: #0F1317; color: #E7EAEE; font-size: 14px;"><option>Choose…</option><option>BLHeli_32</option><option>AM32</option><option>Bluejay</option><option>Other</option></select></label>
+<div style="display: flex; flex-direction: column; gap: 5px; font-size: 12px; color: #A3ACB6;">Protocol and telemetry<span style="min-height: 38px; display: flex; align-items: center; font-size: 13px; color: #E7EAEE;">Bidirectional DShot, RPM telemetry</span><span style="color: #7FC8D9;">Detected from the parameters</span></div>
+<label style="display: flex; flex-direction: column; gap: 5px; font-size: 12px; color: #E8A33D;">Temperature protection setting · required<input type="text" placeholder="°C" aria-invalid="true" style="min-height: 38px; padding: 0 10px; border-radius: 8px; border: 1px solid #8A6A2E; background: #0F1317; color: #E7EAEE; font-size: 14px;"><span style="color: #C9A15E;">Sets the ESC temperature limits in health checks</span></label>
+</div>
+</section>
+
+<div style="display: flex; justify-content: space-between; gap: 8px; flex-wrap: wrap;">
+<button type="button" style="min-height: 40px; padding: 0 16px; border: 1px solid #333B45; border-radius: 8px; background: transparent; font-size: 13px; color: #CBD2D9; cursor: pointer;">Back: Flight controller</button>
+<button type="button" style="min-height: 40px; padding: 0 16px; border: 0; border-radius: 8px; background: #5AB0E8; color: #06121A; font-size: 13px; font-weight: 600; cursor: pointer;">Next: Power</button>
+</div>
+</section>
+
+<aside aria-labelledby="comp-title" style="flex: 1 1 280px; max-width: 330px; min-width: 0; display: flex; flex-direction: column; gap: 12px; padding: 16px; border-radius: 12px; background: #12161A; border: 1px solid #262D35;">
+<h2 id="comp-title" style="margin: 0; font-size: 14px; font-weight: 600;">Before the first flight</h2>
+<div style="display: flex; flex-direction: column; gap: 6px;">
+<div style="display: flex; justify-content: space-between; font-size: 12px; color: #A3ACB6;"><span>Complete</span><span style="font-family: 'IBM Plex Mono', ui-monospace, monospace; color: #E7EAEE;">64%</span></div>
+<span aria-hidden="true" style="display: block; height: 6px; border-radius: 3px; background: #232A31;"><span style="display: block; width: 64%; height: 6px; border-radius: 3px; background: #5AB0E8;"></span></span>
+</div>
+<p style="margin: 0; font-size: 12px; color: #8A949E;">Each gap and what it prevents:</p>
+<ul style="list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 8px;">
+<sc-for list="{{gaps}}" as="g" hint-placeholder-count="5">
+<li style="display: flex; flex-direction: column; gap: 2px; padding: 8px 10px; border-radius: 8px; background: #151A1F;">
+<span style="display: flex; justify-content: space-between; gap: 8px; font-size: 13px;"><span style="color: #E7EAEE;">{{g.what}}</span><span style="font-size: 11px; color: #8A949E;">{{g.step}}</span></span>
+<span style="font-size: 12px; color: #C9A15E;">{{g.blocks}}</span>
+</li>
+</sc-for>
+</ul>
+<p style="margin: 0; font-size: 12px; line-height: 1.45; color: #A3ACB6;">The last step checks the parameter file this aircraft will fly with, so configuration errors are caught before take-off.</p>
+</aside>
+
+</main>
+</div>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":1440,"height":1240}}'>
+class Component extends DCLogic {
+  renderVals() {
+    const raw = [
+      ['Platform', 'Done', 'done'],
+      ['Flight controller', 'Done', 'done'],
+      ['Propulsion', '2 required fields left', 'cur'],
+      ['Power', 'Not started', 'next'],
+      ['Navigation sensors', 'Partly detected', 'next'],
+      ['Links', 'Not started', 'next'],
+      ['Payload and peripherals', 'Not started', 'next'],
+      ['Weights', 'Not started', 'next'],
+      ['Review', 'Completeness check', 'next'],
+      ['First parameter file', 'Configuration review', 'next']
+    ];
+    const steps = raw.map((s, i) => ({
+      name: s[0], sub: s[1], cur: s[2] === 'cur' ? 'step' : 'false',
+      mark: s[2] === 'done' ? '✓' : String(i + 1),
+      bg: s[2] === 'cur' ? '#15212B' : 'transparent',
+      nc: s[2] === 'next' ? '#A3ACB6' : '#06121A', nbg: s[2] === 'done' ? '#3DBE8B' : (s[2] === 'cur' ? '#5AB0E8' : '#232A31'),
+      tc: s[2] === 'next' ? '#A3ACB6' : '#E7EAEE', subc: s[2] === 'cur' ? '#E8A33D' : '#8A949E'
+    }));
+    const gaps = [
+      ['Propeller pitch', 'Propulsion', 'Thrust model starting values'],
+      ['ESC temperature protection', 'Propulsion', 'ESC temperature limits'],
+      ['Battery datasheet limits', 'Power', 'Pack current and temperature limits'],
+      ['Maximum take-off weight', 'Weights', 'Thrust headroom and motor-out margin'],
+      ['Compass mounting', 'Navigation', 'Compass interference checks'],
+    ].map((g) => ({ what: g[0], step: g[1], blocks: g[2] }));
+    return { steps, gaps };
+  }
+}
+</script>
+</body>
+</html>

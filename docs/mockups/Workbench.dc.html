@@ -1,0 +1,302 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Filter workbench</title>
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&amp;family=IBM+Plex+Sans:wght@400;500;600&amp;display=swap" rel="stylesheet">
+<style>
+body{margin:0;background:#0E1114}
+a{color:#7CC4F0}a:hover{color:#A9D9F7}
+button{font-family:inherit}
+:focus-visible{outline:2px solid #7CC4F0;outline-offset:2px}
+@media (max-width:720px){.rail{flex:1 1 100% !important;width:100% !important;flex-direction:row !important;overflow-x:auto;padding:8px !important}.rail-spacer{display:none !important}}
+</style>
+</helmet>
+<div style="min-height: 100vh; display: flex; flex-wrap: wrap; background: #0E1114; color: #E7EAEE; font-family: 'IBM Plex Sans', system-ui, sans-serif; font-size: 14px; line-height: 1.45;">
+
+<nav class="rail" aria-label="Main navigation" style="flex: 0 0 76px; width: 76px; box-sizing: border-box; background: #0A0C0F; border-right: 1px solid #1E242B; display: flex; flex-direction: column; align-items: center; gap: 4px; padding: 14px 0 16px;">
+<svg role="img" aria-label="Flight Insights" width="36" height="36" viewBox="0 0 36 36" style="flex: 0 0 auto; margin-bottom: 14px;"><rect x="1" y="1" width="34" height="34" rx="9" fill="#13222D" stroke="#2A4558"></rect><path d="M8 25l6-7 5 4 9-12" fill="none" stroke="#5AB0E8" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"></path><circle cx="28" cy="10" r="2.4" fill="#5AB0E8"></circle></svg>
+<a href="Main.dc.html" style="flex: 0 0 auto; width: 60px; padding: 8px 0 7px; border-radius: 10px; display: flex; flex-direction: column; align-items: center; gap: 4px; font-size: 11px; font-weight: 500; text-decoration: none; color: #A3ACB6;"><svg aria-hidden="true" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="7" height="7" rx="1.5"></rect><rect x="14" y="3" width="7" height="7" rx="1.5"></rect><rect x="3" y="14" width="7" height="7" rx="1.5"></rect><rect x="14" y="14" width="7" height="7" rx="1.5"></rect></svg>Fleet</a>
+<a href="FlightReport.dc.html" aria-current="page" style="flex: 0 0 auto; width: 60px; padding: 8px 0 7px; border-radius: 10px; display: flex; flex-direction: column; align-items: center; gap: 4px; font-size: 11px; font-weight: 500; text-decoration: none; color: #9BD3F5; background: rgba(90,176,232,0.15);"><svg aria-hidden="true" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M6 3h9l4 4v14H6z"></path><path d="M14 3v5h5"></path><path d="M9 13h7M9 17h5"></path></svg>Flights</a>
+<a href="Trends.dc.html" style="flex: 0 0 auto; width: 60px; padding: 8px 0 7px; border-radius: 10px; display: flex; flex-direction: column; align-items: center; gap: 4px; font-size: 11px; font-weight: 500; text-decoration: none; color: #A3ACB6;"><svg aria-hidden="true" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M3 17l5-5 4 3 8-8"></path><path d="M15 7h5v5"></path></svg>Trends</a>
+<a href="ConfigReview.dc.html" style="flex: 0 0 auto; width: 60px; padding: 8px 0 7px; border-radius: 10px; display: flex; flex-direction: column; align-items: center; gap: 4px; font-size: 11px; font-weight: 500; text-decoration: none; color: #A3ACB6;"><svg aria-hidden="true" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M4 6h10M18 6h2M4 12h4M12 12h8M4 18h12"></path><circle cx="16" cy="6" r="2"></circle><circle cx="10" cy="12" r="2"></circle><circle cx="18" cy="18" r="2"></circle></svg>Params</a>
+<a href="Plan.dc.html" style="flex: 0 0 auto; width: 60px; padding: 8px 0 7px; border-radius: 10px; display: flex; flex-direction: column; align-items: center; gap: 4px; font-size: 11px; font-weight: 500; text-decoration: none; color: #A3ACB6;"><svg aria-hidden="true" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M10 6h10M10 12h10M10 18h10"></path><path d="M3.5 6l1.5 1.5L7.5 5"></path><path d="M3.5 12l1.5 1.5L7.5 11"></path><circle cx="5" cy="18" r="1.5"></circle></svg>Plan</a>
+<button type="button" style="flex: 0 0 auto; width: 60px; padding: 8px 0 7px; border: 0; border-radius: 10px; background: transparent; display: flex; flex-direction: column; align-items: center; gap: 4px; font-size: 11px; font-weight: 500; color: #A3ACB6; cursor: pointer;"><svg aria-hidden="true" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M4 5h16v11H9l-5 4z"></path><path d="M8 10h8"></path></svg>Ask</button>
+<div class="rail-spacer" style="flex: 1 1 auto;"></div>
+<button type="button" style="flex: 0 0 auto; width: 60px; padding: 8px 0 7px; border: 0; border-radius: 10px; background: transparent; display: flex; flex-direction: column; align-items: center; gap: 4px; font-size: 11px; font-weight: 500; color: #A3ACB6; cursor: pointer;"><svg aria-hidden="true" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3v11"></path><path d="M7 9l5 5 5-5"></path><path d="M4 17v3h16v-3"></path></svg>Imports</button>
+<button type="button" style="flex: 0 0 auto; width: 60px; padding: 8px 0 7px; border: 0; border-radius: 10px; background: transparent; display: flex; flex-direction: column; align-items: center; gap: 4px; font-size: 11px; font-weight: 500; color: #A3ACB6; cursor: pointer;"><svg aria-hidden="true" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"></circle><path d="M12 2v3M12 19v3M2 12h3M19 12h3M4.9 4.9L7 7M17 17l2.1 2.1M4.9 19.1L7 17M17 7l2.1-2.1"></path></svg>Settings</button>
+</nav>
+
+<div style="flex: 999 1 560px; min-width: 0; display: flex; flex-direction: column;">
+
+<header style="display: flex; flex-wrap: wrap; align-items: center; gap: 12px 16px; padding: 10px 24px; min-height: 60px; box-sizing: border-box; border-bottom: 1px solid #1E242B;">
+<nav aria-label="Scope" style="display: flex; align-items: center; gap: 4px; flex-wrap: wrap;">
+<button type="button" style="display: flex; align-items: center; gap: 6px; padding: 6px 10px; border: 1px solid transparent; border-radius: 8px; background: transparent; font-size: 13px; color: #CBD2D9; cursor: pointer;">Heavy-lift X8<svg aria-hidden="true" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#7C8691" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M6 9l6 6 6-6"></path></svg></button>
+<svg aria-hidden="true" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#4A535D" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 6l6 6-6 6"></path></svg>
+<button type="button" style="display: flex; align-items: center; gap: 6px; padding: 6px 10px; border: 1px solid transparent; border-radius: 8px; background: transparent; font-family: 'IBM Plex Mono', ui-monospace, monospace; font-size: 13px; color: #CBD2D9; cursor: pointer;">HL-07<svg aria-hidden="true" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#7C8691" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M6 9l6 6 6-6"></path></svg></button>
+<svg aria-hidden="true" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#4A535D" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 6l6 6-6 6"></path></svg>
+<button type="button" style="display: flex; align-items: center; gap: 6px; padding: 6px 10px; border: 1px solid #262D35; border-radius: 8px; background: #151A1F; font-size: 13px; color: #E7EAEE; cursor: pointer;">Flight 142 · 18 Oct 14:06<svg aria-hidden="true" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#7C8691" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M6 9l6 6 6-6"></path></svg></button>
+</nav>
+<button type="button" style="flex: 1 1 200px; max-width: 360px; display: flex; align-items: center; gap: 8px; padding: 8px 12px; border: 1px solid #262D35; border-radius: 8px; background: #12161A; color: #8A949E; font-size: 13px; text-align: left; cursor: pointer;"><svg aria-hidden="true" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><circle cx="11" cy="11" r="6"></circle><path d="M20 20l-4.5-4.5"></path></svg><span style="flex: 1 1 auto;">Search or jump</span><kbd style="font-family: 'IBM Plex Mono', ui-monospace, monospace; font-size: 11px; padding: 2px 6px; border: 1px solid #333B45; border-radius: 5px; color: #A3ACB6;">Ctrl K</kbd></button>
+<div style="margin-left: auto; display: flex; align-items: center; gap: 8px; flex-wrap: wrap;">
+<span style="display: flex; align-items: center; gap: 6px; padding: 5px 10px; border-radius: 999px; background: #151A1F; border: 1px solid #222930; font-size: 12px; color: #A3ACB6;"><span aria-hidden="true" style="width: 7px; height: 7px; border-radius: 50%; background: #3DBE8B;"></span>Claude API</span>
+<button type="button" style="display: flex; align-items: center; gap: 8px; padding: 9px 14px; border: 0; border-radius: 8px; background: #5AB0E8; color: #06121A; font-size: 13px; font-weight: 600; cursor: pointer;"><svg aria-hidden="true" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3v11"></path><path d="M7 9l5 5 5-5"></path><path d="M4 17v3h16v-3"></path></svg>Import logs</button>
+</div>
+</header>
+
+<div style="display: flex; flex-direction: column; gap: 10px; padding: 18px 24px 0;">
+<div style="display: flex; flex-wrap: wrap; align-items: baseline; gap: 8px 16px;">
+<h1 style="margin: 0; font-size: 22px; font-weight: 600; letter-spacing: -0.01em;">Flight 142 · Filters</h1>
+<p style="margin: 0; font-size: 13px; color: #A3ACB6;">Pick a segment, try candidate values, see the predicted result before anything is flown.</p>
+</div>
+<nav aria-label="Flight views" style="display: flex; flex-wrap: wrap; gap: 2px; border-bottom: 1px solid #1E242B;">
+<sc-for list="{{tabs}}" as="t" hint-placeholder-count="10">
+<a href="{{t.href}}" style="padding: 9px 12px 10px; font-size: 13px; font-weight: 500; text-decoration: none; color: {{t.c}}; border-bottom: 2px solid {{t.line}}; margin-bottom: -1px;">{{t.label}}</a>
+</sc-for>
+</nav>
+</div>
+
+<main style="display: flex; flex-wrap: wrap; gap: 20px; padding: 18px 24px 24px; align-items: flex-start;">
+
+<aside aria-labelledby="setup-title" style="flex: 1 1 280px; max-width: 320px; min-width: 0; display: flex; flex-direction: column; gap: 16px; padding: 16px; border-radius: 12px; background: #12161A; border: 1px solid #262D35;">
+<h2 id="setup-title" style="margin: 0; font-size: 14px; font-weight: 600;">Analysis setup</h2>
+
+<div role="group" aria-labelledby="seg-l" style="display: flex; flex-direction: column; gap: 6px;">
+<span id="seg-l" style="font-size: 12px; color: #A3ACB6;">Segment</span>
+<div style="display: flex; flex-wrap: wrap; gap: 6px;">
+<button type="button" aria-pressed="true" style="padding: 6px 10px; border: 1px solid #2D5068; border-radius: 7px; background: rgba(90,176,232,0.14); font-size: 12px; color: #9BD3F5; cursor: pointer;">Hover 14:08–14:12</button>
+<button type="button" aria-pressed="false" style="padding: 6px 10px; border: 1px solid #262D35; border-radius: 7px; background: transparent; font-size: 12px; color: #A3ACB6; cursor: pointer;">Cruise</button>
+<button type="button" aria-pressed="false" style="padding: 6px 10px; border: 1px solid #262D35; border-radius: 7px; background: transparent; font-size: 12px; color: #A3ACB6; cursor: pointer;">All armed</button>
+</div>
+</div>
+
+<div style="display: flex; flex-direction: column; gap: 6px; font-size: 12px;">
+<div style="display: flex; justify-content: space-between; gap: 8px;"><span style="color: #A3ACB6;">Pre-filter data</span><span style="color: #3DBE8B;">● Raw IMU, 2 kHz</span></div>
+<div style="display: flex; justify-content: space-between; gap: 8px;"><span style="color: #A3ACB6;">Notch tracking</span><span style="color: #E7EAEE;">ESC RPM · 0.3% errors</span></div>
+</div>
+
+<div style="display: flex; flex-direction: column; gap: 8px; padding-top: 14px; border-top: 1px solid #222930;">
+<span style="font-size: 12px; color: #A3ACB6;">Candidate values</span>
+<div role="group" aria-labelledby="bw-l" style="display: flex; flex-direction: column; gap: 6px; padding: 10px; border-radius: 9px; background: #151A1F; border: 1px solid #2D5068;">
+<div style="display: flex; justify-content: space-between; align-items: baseline; gap: 8px;">
+<span id="bw-l" style="font-family: 'IBM Plex Mono', ui-monospace, monospace; font-size: 12px; color: #E7EAEE;">INS_HNTCH_BW</span>
+<span style="font-size: 11px; color: #8A949E;">logged 20 Hz</span>
+</div>
+<div style="display: flex; gap: 4px;">
+<sc-for list="{{bwOpts}}" as="o" hint-placeholder-count="4">
+<button type="button" aria-pressed="{{o.on}}" onClick="{{o.pick}}" style="flex: 1 1 0; min-height: 34px; border-radius: 7px; border: 1px solid {{o.bd}}; background: {{o.bg}}; color: {{o.c}}; font-family: 'IBM Plex Mono', ui-monospace, monospace; font-size: 13px; cursor: pointer;">{{o.v}}</button>
+</sc-for>
+</div>
+</div>
+<sc-for list="{{params}}" as="p" hint-placeholder-count="5">
+<div style="display: flex; justify-content: space-between; gap: 8px; padding: 2px 2px;">
+<span style="font-family: 'IBM Plex Mono', ui-monospace, monospace; font-size: 12px; color: #A3ACB6;">{{p.n}}</span>
+<span style="font-size: 12px; color: #CBD2D9; text-align: right;">{{p.v}}</span>
+</div>
+</sc-for>
+</div>
+
+<div aria-live="polite" style="display: flex; flex-direction: column; gap: 8px; padding: 12px; border-radius: 9px; background: #151F27; border: 1px solid #23394A;">
+<span style="font-size: 12px; font-weight: 600; color: #9BD3F5;">Predicted with {{bw}} Hz</span>
+<div style="display: flex; justify-content: space-between; gap: 8px; font-size: 12px;"><span style="color: #A3ACB6;">Noise, 80–120 Hz</span><span style="font-family: 'IBM Plex Mono', ui-monospace, monospace; color: #E7EAEE;">{{pred.noise}}</span></div>
+<div style="display: flex; justify-content: space-between; gap: 8px; font-size: 12px;"><span style="color: #A3ACB6;">Phase lag at 20 Hz</span><span style="font-family: 'IBM Plex Mono', ui-monospace, monospace; color: #E7EAEE;">{{pred.lag}}</span></div>
+<div style="display: flex; justify-content: space-between; gap: 8px; font-size: 12px;"><span style="color: #A3ACB6;">CPU</span><span style="color: #E7EAEE;">No change</span></div>
+<p style="margin: 0; font-size: 12px; line-height: 1.45; color: #CBD2D9;">{{pred.verdict}}</p>
+</div>
+
+<div style="display: flex; gap: 8px; flex-wrap: wrap;">
+<a href="Plan.dc.html" style="flex: 1 1 auto; display: flex; align-items: center; justify-content: center; min-height: 40px; padding: 0 14px; border-radius: 8px; background: #5AB0E8; color: #06121A; font-size: 13px; font-weight: 600; text-decoration: none;">Add to plan</a>
+<button type="button" onClick="{{reset}}" style="min-height: 40px; padding: 0 14px; border: 1px solid #333B45; border-radius: 8px; background: transparent; font-size: 13px; color: #CBD2D9; cursor: pointer;">Reset</button>
+</div>
+</aside>
+
+<section aria-label="Plots" style="flex: 999 1 560px; min-width: 0; display: flex; flex-direction: column; gap: 14px;">
+
+<figure style="margin: 0; padding: 14px 16px 10px; border-radius: 12px; background: #12161A; border: 1px solid #262D35; display: flex; flex-direction: column; gap: 8px;">
+<figcaption style="display: flex; flex-wrap: wrap; align-items: baseline; gap: 6px 16px;">
+<span style="font-size: 14px; font-weight: 600;">Gyro spectrum · roll · hover</span>
+<span style="display: flex; flex-wrap: wrap; gap: 4px 14px; font-size: 12px; color: #A3ACB6;">
+<span><span aria-hidden="true" style="color: #6B7682;">━</span> Before filters</span>
+<span><span aria-hidden="true" style="color: #E7EAEE;">━</span> After filters, as flown</span>
+<span style="color: #9BD3F5;"><span aria-hidden="true">┅</span> Predicted with candidate</span>
+<span><span aria-hidden="true" style="color: #5AB0E8;">▮</span> Notch band</span>
+</span>
+</figcaption>
+<svg role="img" aria-label="Spectrum: as flown, residual motor noise remains at about 90 and 112 hertz either side of the notch; the candidate bandwidth removes it" width="100%" viewBox="0 0 960 236" style="display: block;">
+<sc-for list="{{spec.grid}}" as="gl" hint-placeholder-count="3"><line x1="48" y1="{{gl.y}}" x2="950" y2="{{gl.y}}" stroke="#20262D" stroke-width="1"></line><text x="40" y="{{gl.ty}}" fill="#8A949E" font-size="11" text-anchor="end" font-family="IBM Plex Mono, monospace">{{gl.l}}</text></sc-for>
+<rect x="{{spec.n1x}}" y="12" width="{{spec.n1w}}" height="194" fill="#5AB0E8" fill-opacity="0.10"></rect>
+<rect x="{{spec.n2x}}" y="12" width="{{spec.n2w}}" height="194" fill="#5AB0E8" fill-opacity="0.10"></rect>
+<rect x="{{spec.c1x}}" y="12" width="{{spec.c1w}}" height="194" fill="none" stroke="#5AB0E8" stroke-opacity="0.7" stroke-dasharray="4 4"></rect>
+<rect x="{{spec.c2x}}" y="12" width="{{spec.c2w}}" height="194" fill="none" stroke="#5AB0E8" stroke-opacity="0.7" stroke-dasharray="4 4"></rect>
+<line x1="{{spec.lpx}}" y1="12" x2="{{spec.lpx}}" y2="206" stroke="#8A949E" stroke-width="1" stroke-dasharray="2 4"></line>
+<text x="{{spec.lpTx}}" y="24" fill="#8A949E" font-size="11" font-family="IBM Plex Mono, monospace">low-pass 40 Hz</text>
+<path d="{{spec.pre}}" fill="none" stroke="#6B7682" stroke-width="1.3"></path>
+<path d="{{spec.post}}" fill="none" stroke="#E7EAEE" stroke-width="1.6" stroke-linejoin="round"></path>
+<path d="{{spec.pred}}" fill="none" stroke="#5AB0E8" stroke-width="2" stroke-dasharray="6 4" stroke-linejoin="round"></path>
+<sc-for list="{{spec.fticks}}" as="ft" hint-placeholder-count="6"><text x="{{ft.x}}" y="226" fill="#8A949E" font-size="11" text-anchor="middle" font-family="IBM Plex Mono, monospace">{{ft.l}}</text></sc-for>
+</svg>
+</figure>
+
+<figure style="margin: 0; padding: 14px 16px 10px; border-radius: 12px; background: #12161A; border: 1px solid #262D35; display: flex; flex-direction: column; gap: 8px;">
+<figcaption style="display: flex; flex-wrap: wrap; align-items: baseline; gap: 6px 16px;">
+<span style="font-size: 14px; font-weight: 600;">Spectrogram · whole flight</span>
+<span style="font-size: 12px; color: #A3ACB6;">Motor noise and its 2nd harmonic, with notch centres following ESC RPM <span style="color: #9BD3F5;">(dashed)</span></span>
+<span style="margin-left: auto; font-family: 'IBM Plex Mono', ui-monospace, monospace; font-size: 12px; color: #E7EAEE;">Cursor 14:10:04 · 101 Hz</span>
+</figcaption>
+<svg role="img" aria-label="Spectrogram: motor noise near 100 hertz throughout the flight, tracked by the notch" width="100%" viewBox="0 0 960 206" style="display: block;">
+<defs>
+<linearGradient id="sgBg" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#0E0C18"></stop><stop offset="0.8" stop-color="#151026"></stop><stop offset="1" stop-color="#3A1D3A"></stop></linearGradient>
+</defs>
+<rect x="48" y="8" width="902" height="172" fill="url(#sgBg)"></rect>
+<rect x="{{sg.selX}}" y="8" width="{{sg.selW}}" height="172" fill="#5AB0E8" fill-opacity="0.08" stroke="#5AB0E8" stroke-opacity="0.5"></rect>
+<path d="{{sg.h2}}" fill="none" stroke="#D9762F" stroke-width="16" stroke-opacity="0.10"></path>
+<path d="{{sg.h2}}" fill="none" stroke="#E8A33D" stroke-width="5" stroke-opacity="0.35"></path>
+<path d="{{sg.h1}}" fill="none" stroke="#D9762F" stroke-width="22" stroke-opacity="0.14"></path>
+<path d="{{sg.h1}}" fill="none" stroke="#F2A33A" stroke-width="9" stroke-opacity="0.38"></path>
+<path d="{{sg.h1}}" fill="none" stroke="#FFD27A" stroke-width="2.6" stroke-opacity="0.9"></path>
+<path d="{{sg.h1}}" fill="none" stroke="#7CC4F0" stroke-width="1.3" stroke-dasharray="5 5"></path>
+<path d="{{sg.h2}}" fill="none" stroke="#7CC4F0" stroke-width="1.2" stroke-dasharray="5 5"></path>
+<line x1="{{sg.cx}}" y1="8" x2="{{sg.cx}}" y2="180" stroke="#F2F4F6" stroke-width="1.2"></line>
+<text x="40" y="12" fill="#8A949E" font-size="11" text-anchor="end" font-family="IBM Plex Mono, monospace">250</text>
+<text x="40" y="{{sg.y100}}" fill="#8A949E" font-size="11" text-anchor="end" font-family="IBM Plex Mono, monospace">100</text>
+<text x="40" y="183" fill="#8A949E" font-size="11" text-anchor="end" font-family="IBM Plex Mono, monospace">0 Hz</text>
+<sc-for list="{{sg.ticks}}" as="tk" hint-placeholder-count="5"><text x="{{tk.x}}" y="198" fill="#8A949E" font-size="11" text-anchor="middle" font-family="IBM Plex Mono, monospace">{{tk.l}}</text></sc-for>
+</svg>
+</figure>
+
+<section aria-labelledby="lane-title" style="padding: 14px 16px; border-radius: 12px; background: #12161A; border: 1px solid #262D35; display: flex; flex-direction: column; gap: 8px;">
+<div style="display: flex; align-items: baseline; gap: 12px; flex-wrap: wrap;">
+<h2 id="lane-title" style="margin: 0; font-size: 14px; font-weight: 600;">Event lane</h2>
+<span style="font-size: 12px; color: #8A949E;">Shared time axis: the cursor and segment follow you across every plot</span>
+</div>
+<sc-for list="{{lane}}" as="r" hint-placeholder-count="6">
+<div style="display: grid; grid-template-columns: 120px minmax(0, 1fr); align-items: center; gap: 12px;">
+<span style="font-size: 12px; color: #A3ACB6;">{{r.label}}</span>
+<div style="position: relative; height: 22px; border-radius: 5px; background: #171C21; overflow: hidden;">
+<sc-for list="{{r.blocks}}" as="b" hint-placeholder-count="1">
+<span style="position: absolute; top: 0; bottom: 0; left: {{b.l}}%; width: {{b.w}}%; display: flex; align-items: center; padding: 0 7px; box-sizing: border-box; border-radius: 5px; background: {{b.c}}; font-size: 11px; color: #E7EAEE; white-space: nowrap; overflow: hidden;">{{b.t}}</span>
+</sc-for>
+<sc-if value="{{r.empty}}" hint-placeholder-val="{{ false }}"><span style="position: absolute; left: 8px; top: 3px; font-size: 11px; color: #6E7883;">{{r.emptyText}}</span></sc-if>
+<span aria-hidden="true" style="position: absolute; top: 0; bottom: 0; left: 22%; width: 1px; background: #F2F4F6; opacity: 0.75;"></span>
+</div>
+</div>
+</sc-for>
+<div style="display: grid; grid-template-columns: 120px minmax(0, 1fr); gap: 12px;">
+<span></span>
+<div style="position: relative; height: 16px;">
+<sc-for list="{{laneTicks}}" as="lt" hint-placeholder-count="5"><span style="position: absolute; left: {{lt.l}}%; font-family: 'IBM Plex Mono', ui-monospace, monospace; font-size: 11px; color: #8A949E;">{{lt.t}}</span></sc-for>
+</div>
+</div>
+</section>
+
+</section>
+</main>
+</div>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":1440,"height":1000}}'>
+class Component extends DCLogic {
+  renderVals() {
+    const bw = (this.state && this.state.bw) || 40;
+    const tabNames = [['Overview', 'FlightReport.dc.html'], ['Timeline', 'FlightReport.dc.html'], ['Filters', 'Workbench.dc.html'], ['Tune', 'Workbench.dc.html'], ['Propulsion', 'FlightReport.dc.html'], ['Navigation and GNSS', 'FlightReport.dc.html'], ['Links', 'FlightReport.dc.html'], ['System and buses', 'FlightReport.dc.html'], ['Weather', 'FlightReport.dc.html'], ['Parameters', 'Trends.dc.html']];
+    const tabs = tabNames.map((t, i) => ({ label: t[0], href: t[1], c: i === 2 ? '#E7EAEE' : '#A3ACB6', line: i === 2 ? '#5AB0E8' : 'transparent' }));
+    const bwOpts = [20, 30, 40, 50].map((v) => ({
+      v, on: v === bw,
+      bd: v === bw ? '#5AB0E8' : '#2A3139', bg: v === bw ? 'rgba(90,176,232,0.18)' : 'transparent', c: v === bw ? '#E7EAEE' : '#A3ACB6',
+      pick: () => this.setState({ bw: v })
+    }));
+    const params = [
+      ['INS_HNTCH_MODE', '3 · ESC telemetry'],
+      ['INS_HNTCH_FREQ', '80 Hz'],
+      ['INS_HNTCH_HMNCS', '1st and 2nd'],
+      ['INS_HNTCH_OPTS', 'Notch per motor'],
+      ['INS_GYRO_FILTER', '40 Hz']
+    ].map((p) => ({ n: p[0], v: p[1] }));
+    const P = {
+      20: ['0 dB · as flown', '8.4°', 'This is the logged setting. Motor noise remains either side of the notch.'],
+      30: ['−8 dB', '9.0°', 'Partial. The upper shoulder near 112 Hz still passes.'],
+      40: ['−14 dB', '9.6°', 'Recommended. Clears both shoulders for 1.2° more lag, well inside the budget.'],
+      50: ['−16 dB', '10.5°', 'Diminishing return: 2 dB more for another 0.9° of lag.']
+    };
+    const pred = { noise: P[bw][0], lag: P[bw][1], verdict: P[bw][2] };
+
+    const X0 = 48, X1 = 950, Y0 = 12, Y1 = 206;
+    const fx = (f) => X0 + f / 250 * (X1 - X0);
+    const dy = (d) => Y0 + (-10 - d) / 70 * (Y1 - Y0);
+    const g = (f, c, w) => Math.exp(-Math.pow((f - c) / w, 2));
+    const pre = (f) => -62 + 14 * Math.exp(-f / 10) + 42 * g(f, 100, 15) + 26 * g(f, 200, 18) + 1.4 * Math.sin(f * 0.83) + 0.9 * Math.sin(f * 2.1);
+    const lp = (f) => 6 * Math.log10(1 + Math.pow(f / 40, 4));
+    const notch = (f, c, b) => 38 * Math.exp(-Math.pow((f - c) / (b * 0.55), 2));
+    const post = (f, b) => {
+      const floor = -62 - lp(f) - 3 + 0.8 * Math.sin(f * 1.7);
+      const v = pre(f) - lp(f) - notch(f, 100, b) - 0.9 * notch(f, 200, 2 * b);
+      return Math.max(v, floor);
+    };
+    const path = (fn) => {
+      let d = '';
+      for (let f = 0; f <= 250; f += 1) {
+        const v = Math.max(-80, Math.min(-10, fn(f)));
+        d += (f ? 'L' : 'M') + fx(f).toFixed(1) + ' ' + dy(v).toFixed(1) + ' ';
+      }
+      return d;
+    };
+    const spec = {
+      pre: path(pre), post: path((f) => post(f, 20)), pred: path((f) => post(f, bw)),
+      grid: [-20, -40, -60].map((v) => ({ y: dy(v).toFixed(1), ty: (dy(v) + 4).toFixed(1), l: v })),
+      fticks: [0, 50, 100, 150, 200, 250].map((f) => ({ x: fx(f).toFixed(1), l: f === 250 ? '250 Hz' : String(f) })),
+      n1x: fx(90).toFixed(1), n1w: (fx(110) - fx(90)).toFixed(1),
+      n2x: fx(180).toFixed(1), n2w: (fx(220) - fx(180)).toFixed(1),
+      c1x: fx(100 - bw / 2).toFixed(1), c1w: (fx(100 + bw / 2) - fx(100 - bw / 2)).toFixed(1),
+      c2x: fx(200 - bw).toFixed(1), c2w: (fx(200 + bw) - fx(200 - bw)).toFixed(1),
+      lpx: fx(40).toFixed(1), lpTx: (fx(40) + 6).toFixed(1)
+    };
+
+    const SX0 = 48, SX1 = 950, SY0 = 8, SY1 = 180;
+    const sx = (u) => SX0 + u * (SX1 - SX0);
+    const sy = (f) => SY1 - f / 250 * (SY1 - SY0);
+    const kp = [[0, 55], [0.03, 98], [0.11, 100], [0.33, 100], [0.36, 108], [0.5, 105], [0.6, 107], [0.7, 104], [0.85, 106], [0.88, 96], [0.97, 90], [1, 45]];
+    const f1 = (u) => {
+      for (let i = 1; i < kp.length; i++) {
+        if (u <= kp[i][0]) {
+          const a = kp[i - 1], b = kp[i];
+          const t = (u - a[0]) / (b[0] - a[0]);
+          return a[1] + (b[1] - a[1]) * t + 1.6 * Math.sin(u * 70);
+        }
+      }
+      return 45;
+    };
+    const tr = (m) => {
+      let d = '';
+      for (let i = 0; i <= 180; i++) {
+        const u = i / 180;
+        d += (i ? 'L' : 'M') + sx(u).toFixed(1) + ' ' + sy(f1(u) * m).toFixed(1) + ' ';
+      }
+      return d;
+    };
+    const minutes = 18.5;
+    const sg = {
+      h1: tr(1), h2: tr(2),
+      selX: sx(0.11).toFixed(1), selW: (sx(0.33) - sx(0.11)).toFixed(1),
+      cx: sx(0.22).toFixed(1), y100: (sy(100) + 4).toFixed(1),
+      ticks: [0, 4, 8, 12, 16].map((m) => ({ x: sx(m / minutes).toFixed(1), l: '14:' + String(6 + m).padStart(2, '0') }))
+    };
+    const lane = [
+      { label: 'Flight mode', blocks: [{ l: 0, w: 33, t: 'Loiter', c: '#263646' }, { l: 33, w: 52, t: 'Auto', c: '#22344A' }, { l: 85, w: 15, t: 'RTL', c: '#3A3326' }] },
+      { label: 'Analysis segment', blocks: [{ l: 11, w: 22, t: 'Hover', c: 'rgba(90,176,232,0.35)' }] },
+      { label: 'GNSS', blocks: [{ l: 49, w: 12, t: 'Jamming', c: 'rgba(232,163,61,0.45)' }] },
+      { label: 'Propulsion', blocks: [{ l: 72, w: 26, t: 'ESC 3 above 90 °C', c: 'rgba(232,163,61,0.45)' }] },
+      { label: 'Parameters', blocks: [], empty: true, emptyText: 'No changes in flight' },
+      { label: 'Links', blocks: [{ l: 0, w: 100, t: 'RC and telemetry OK', c: 'rgba(61,190,139,0.18)' }] }
+    ].map((r) => ({ label: r.label, blocks: r.blocks, empty: !!r.empty, emptyText: r.emptyText || '' }));
+    const laneTicks = [0, 4, 8, 12, 16].map((m) => ({ l: (m / minutes * 100).toFixed(1), t: '14:' + String(6 + m).padStart(2, '0') }));
+    return { tabs, bwOpts, params, pred, bw, spec, sg, lane, laneTicks, reset: () => this.setState({ bw: 20 }) };
+  }
+}
+</script>
+</body>
+</html>

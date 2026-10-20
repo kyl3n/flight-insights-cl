@@ -1,0 +1,210 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Tuning plan</title>
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&amp;family=IBM+Plex+Sans:wght@400;500;600&amp;display=swap" rel="stylesheet">
+<style>
+body{margin:0;background:#0E1114}
+a{color:#7CC4F0}a:hover{color:#A9D9F7}
+button{font-family:inherit}
+:focus-visible{outline:2px solid #7CC4F0;outline-offset:2px}
+@media (max-width:720px){.rail{flex:1 1 100% !important;width:100% !important;flex-direction:row !important;overflow-x:auto;padding:8px !important}.rail-spacer{display:none !important}}
+</style>
+</helmet>
+<div style="min-height: 100vh; display: flex; flex-wrap: wrap; background: #0E1114; color: #E7EAEE; font-family: 'IBM Plex Sans', system-ui, sans-serif; font-size: 14px; line-height: 1.45;">
+
+<nav class="rail" aria-label="Main navigation" style="flex: 0 0 76px; width: 76px; box-sizing: border-box; background: #0A0C0F; border-right: 1px solid #1E242B; display: flex; flex-direction: column; align-items: center; gap: 4px; padding: 14px 0 16px;">
+<svg role="img" aria-label="Flight Insights" width="36" height="36" viewBox="0 0 36 36" style="flex: 0 0 auto; margin-bottom: 14px;"><rect x="1" y="1" width="34" height="34" rx="9" fill="#13222D" stroke="#2A4558"></rect><path d="M8 25l6-7 5 4 9-12" fill="none" stroke="#5AB0E8" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"></path><circle cx="28" cy="10" r="2.4" fill="#5AB0E8"></circle></svg>
+<a href="Main.dc.html" style="flex: 0 0 auto; width: 60px; padding: 8px 0 7px; border-radius: 10px; display: flex; flex-direction: column; align-items: center; gap: 4px; font-size: 11px; font-weight: 500; text-decoration: none; color: #A3ACB6;"><svg aria-hidden="true" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="7" height="7" rx="1.5"></rect><rect x="14" y="3" width="7" height="7" rx="1.5"></rect><rect x="3" y="14" width="7" height="7" rx="1.5"></rect><rect x="14" y="14" width="7" height="7" rx="1.5"></rect></svg>Fleet</a>
+<a href="FlightReport.dc.html" style="flex: 0 0 auto; width: 60px; padding: 8px 0 7px; border-radius: 10px; display: flex; flex-direction: column; align-items: center; gap: 4px; font-size: 11px; font-weight: 500; text-decoration: none; color: #A3ACB6;"><svg aria-hidden="true" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M6 3h9l4 4v14H6z"></path><path d="M14 3v5h5"></path><path d="M9 13h7M9 17h5"></path></svg>Flights</a>
+<a href="Trends.dc.html" style="flex: 0 0 auto; width: 60px; padding: 8px 0 7px; border-radius: 10px; display: flex; flex-direction: column; align-items: center; gap: 4px; font-size: 11px; font-weight: 500; text-decoration: none; color: #A3ACB6;"><svg aria-hidden="true" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M3 17l5-5 4 3 8-8"></path><path d="M15 7h5v5"></path></svg>Trends</a>
+<a href="ConfigReview.dc.html" style="flex: 0 0 auto; width: 60px; padding: 8px 0 7px; border-radius: 10px; display: flex; flex-direction: column; align-items: center; gap: 4px; font-size: 11px; font-weight: 500; text-decoration: none; color: #A3ACB6;"><svg aria-hidden="true" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M4 6h10M18 6h2M4 12h4M12 12h8M4 18h12"></path><circle cx="16" cy="6" r="2"></circle><circle cx="10" cy="12" r="2"></circle><circle cx="18" cy="18" r="2"></circle></svg>Params</a>
+<a href="Plan.dc.html" aria-current="page" style="flex: 0 0 auto; width: 60px; padding: 8px 0 7px; border-radius: 10px; display: flex; flex-direction: column; align-items: center; gap: 4px; font-size: 11px; font-weight: 500; text-decoration: none; color: #9BD3F5; background: rgba(90,176,232,0.15);"><svg aria-hidden="true" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M10 6h10M10 12h10M10 18h10"></path><path d="M3.5 6l1.5 1.5L7.5 5"></path><path d="M3.5 12l1.5 1.5L7.5 11"></path><circle cx="5" cy="18" r="1.5"></circle></svg>Plan</a>
+<button type="button" style="flex: 0 0 auto; width: 60px; padding: 8px 0 7px; border: 0; border-radius: 10px; background: transparent; display: flex; flex-direction: column; align-items: center; gap: 4px; font-size: 11px; font-weight: 500; color: #A3ACB6; cursor: pointer;"><svg aria-hidden="true" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M4 5h16v11H9l-5 4z"></path><path d="M8 10h8"></path></svg>Ask</button>
+<div class="rail-spacer" style="flex: 1 1 auto;"></div>
+<button type="button" style="flex: 0 0 auto; width: 60px; padding: 8px 0 7px; border: 0; border-radius: 10px; background: transparent; display: flex; flex-direction: column; align-items: center; gap: 4px; font-size: 11px; font-weight: 500; color: #A3ACB6; cursor: pointer;"><svg aria-hidden="true" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3v11"></path><path d="M7 9l5 5 5-5"></path><path d="M4 17v3h16v-3"></path></svg>Imports</button>
+<button type="button" style="flex: 0 0 auto; width: 60px; padding: 8px 0 7px; border: 0; border-radius: 10px; background: transparent; display: flex; flex-direction: column; align-items: center; gap: 4px; font-size: 11px; font-weight: 500; color: #A3ACB6; cursor: pointer;"><svg aria-hidden="true" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"></circle><path d="M12 2v3M12 19v3M2 12h3M19 12h3M4.9 4.9L7 7M17 17l2.1 2.1M4.9 19.1L7 17M17 7l2.1-2.1"></path></svg>Settings</button>
+</nav>
+
+<div style="flex: 999 1 560px; min-width: 0; display: flex; flex-direction: column;">
+
+<header style="display: flex; flex-wrap: wrap; align-items: center; gap: 12px 16px; padding: 10px 24px; min-height: 60px; box-sizing: border-box; border-bottom: 1px solid #1E242B;">
+<nav aria-label="Scope" style="display: flex; align-items: center; gap: 4px; flex-wrap: wrap;">
+<button type="button" style="display: flex; align-items: center; gap: 6px; padding: 6px 10px; border: 1px solid transparent; border-radius: 8px; background: transparent; font-size: 13px; color: #CBD2D9; cursor: pointer;">Heavy-lift X8<svg aria-hidden="true" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#7C8691" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M6 9l6 6 6-6"></path></svg></button>
+<svg aria-hidden="true" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#4A535D" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 6l6 6-6 6"></path></svg>
+<button type="button" style="display: flex; align-items: center; gap: 6px; padding: 6px 10px; border: 1px solid #262D35; border-radius: 8px; background: #151A1F; font-family: 'IBM Plex Mono', ui-monospace, monospace; font-size: 13px; color: #E7EAEE; cursor: pointer;">HL-07<svg aria-hidden="true" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#7C8691" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M6 9l6 6 6-6"></path></svg></button>
+</nav>
+<button type="button" style="flex: 1 1 200px; max-width: 360px; display: flex; align-items: center; gap: 8px; padding: 8px 12px; border: 1px solid #262D35; border-radius: 8px; background: #12161A; color: #8A949E; font-size: 13px; text-align: left; cursor: pointer;"><svg aria-hidden="true" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><circle cx="11" cy="11" r="6"></circle><path d="M20 20l-4.5-4.5"></path></svg><span style="flex: 1 1 auto;">Search or jump</span><kbd style="font-family: 'IBM Plex Mono', ui-monospace, monospace; font-size: 11px; padding: 2px 6px; border: 1px solid #333B45; border-radius: 5px; color: #A3ACB6;">Ctrl K</kbd></button>
+<div style="margin-left: auto; display: flex; align-items: center; gap: 8px; flex-wrap: wrap;">
+<span style="display: flex; align-items: center; gap: 6px; padding: 5px 10px; border-radius: 999px; background: #151A1F; border: 1px solid #222930; font-size: 12px; color: #A3ACB6;"><span aria-hidden="true" style="width: 7px; height: 7px; border-radius: 50%; background: #3DBE8B;"></span>Claude API</span>
+<button type="button" style="display: flex; align-items: center; gap: 8px; padding: 9px 14px; border: 0; border-radius: 8px; background: #5AB0E8; color: #06121A; font-size: 13px; font-weight: 600; cursor: pointer;"><svg aria-hidden="true" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3v11"></path><path d="M7 9l5 5 5-5"></path><path d="M4 17v3h16v-3"></path></svg>Import logs</button>
+</div>
+</header>
+
+<div style="display: flex; flex-direction: column; gap: 14px; padding: 18px 24px 0;">
+<div style="display: flex; flex-wrap: wrap; align-items: baseline; gap: 8px 16px;">
+<h1 style="margin: 0; font-size: 22px; font-weight: 600; letter-spacing: -0.01em;">HL-07 · Tuning plan</h1>
+<p style="margin: 0; font-size: 13px; color: #A3ACB6;">One stage at a time. Every accepted change is checked against the next flight.</p>
+</div>
+<ol aria-label="Tuning stages" style="list-style: none; margin: 0; padding: 0; display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 6px;">
+<sc-for list="{{stages}}" as="s" hint-placeholder-count="5">
+<li aria-current="{{s.cur}}" style="display: flex; align-items: center; gap: 10px; padding: 10px 12px; border-radius: 9px; background: {{s.bg}}; border: 1px solid {{s.bd}};">
+<span aria-hidden="true" style="width: 24px; height: 24px; flex: 0 0 24px; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-family: 'IBM Plex Mono', ui-monospace, monospace; font-size: 12px; font-weight: 500; color: {{s.nc}}; background: {{s.nbg}};">{{s.mark}}</span>
+<span style="display: flex; flex-direction: column; min-width: 0;">
+<span style="font-size: 13px; font-weight: 500; color: {{s.tc}};">{{s.name}}</span>
+<span style="font-size: 11px; color: #8A949E;">{{s.sub}}</span>
+</span>
+</li>
+</sc-for>
+</ol>
+</div>
+
+<main style="display: flex; flex-wrap: wrap; gap: 20px; padding: 16px 24px 24px; align-items: flex-start;">
+
+<section aria-label="Recommendations" style="flex: 999 1 560px; min-width: 0; display: flex; flex-direction: column; gap: 12px;">
+<sc-for list="{{recs}}" as="r" hint-placeholder-count="4">
+<article style="display: flex; flex-direction: column; gap: 10px; padding: 14px 16px; border-radius: 12px; background: #151A1F; border: 1px solid {{r.bd}};">
+<div style="display: flex; flex-wrap: wrap; align-items: center; gap: 8px 10px;">
+<h2 style="margin: 0; font-size: 15px; font-weight: 600;">{{r.title}}</h2>
+<span style="padding: 2px 8px; border-radius: 6px; background: #1C2229; font-size: 11px; color: #A3ACB6;">{{r.stage}}</span>
+<span style="padding: 2px 8px; border-radius: 6px; font-size: 11px; color: {{r.srcC}}; background: {{r.srcBg}};">{{r.source}}</span>
+<span style="margin-left: auto; display: inline-flex; align-items: center; gap: 5px; font-size: 12px; font-weight: 600; color: {{r.stC}};"><span aria-hidden="true" style="font-size: 9px;">{{r.stG}}</span>{{r.stL}}</span>
+</div>
+<sc-if value="{{r.hasDiff}}" hint-placeholder-val="{{ true }}">
+<div style="overflow-x: auto;">
+<table style="width: 100%; border-collapse: collapse; font-size: 13px;">
+<thead><tr>
+<th scope="col" style="text-align: left; font-weight: 500; font-size: 11px; color: #8A949E; padding: 0 12px 4px 0;">Parameter, 4.7 name</th>
+<th scope="col" style="text-align: right; font-weight: 500; font-size: 11px; color: #8A949E; padding: 0 12px 4px;">Now</th>
+<th scope="col" style="text-align: right; font-weight: 500; font-size: 11px; color: #8A949E; padding: 0 12px 4px;">Proposed</th>
+<th scope="col" style="text-align: left; font-weight: 500; font-size: 11px; color: #8A949E; padding: 0 0 4px 12px;">Unit</th>
+</tr></thead>
+<tbody>
+<sc-for list="{{r.diff}}" as="d" hint-placeholder-count="1">
+<tr>
+<td style="padding: 6px 12px 6px 0; border-top: 1px solid #222930; font-family: 'IBM Plex Mono', ui-monospace, monospace; color: #E7EAEE;">{{d.n}}</td>
+<td style="padding: 6px 12px; border-top: 1px solid #222930; font-family: 'IBM Plex Mono', ui-monospace, monospace; text-align: right; color: #A3ACB6;">{{d.a}}</td>
+<td style="padding: 6px 12px; border-top: 1px solid #222930; font-family: 'IBM Plex Mono', ui-monospace, monospace; text-align: right; color: #9BD3F5;">{{d.b}}</td>
+<td style="padding: 6px 0 6px 12px; border-top: 1px solid #222930; color: #8A949E;">{{d.u}}</td>
+</tr>
+</sc-for>
+</tbody>
+</table>
+</div>
+</sc-if>
+<p style="margin: 0; font-size: 13px; line-height: 1.5; color: #CBD2D9;"><span style="color: #8A949E;">Expected: </span>{{r.expect}}</p>
+<div style="display: flex; flex-wrap: wrap; align-items: center; gap: 6px 14px; font-size: 12px;">
+<sc-for list="{{r.links}}" as="l" hint-placeholder-count="2"><a href="{{l.href}}" style="text-decoration: none;">{{l.t}}</a></sc-for>
+<span style="color: #8A949E;">{{r.check}}</span>
+<span style="margin-left: auto; display: flex; gap: 6px;">
+<button type="button" aria-pressed="{{r.isAcc}}" onClick="{{r.accept}}" style="min-height: 34px; padding: 0 14px; border-radius: 8px; border: 1px solid {{r.aBd}}; background: {{r.aBg}}; color: {{r.aC}}; font-size: 13px; font-weight: 600; cursor: pointer;">Accept</button>
+<button type="button" aria-pressed="{{r.isRej}}" onClick="{{r.reject}}" style="min-height: 34px; padding: 0 14px; border-radius: 8px; border: 1px solid {{r.rBd}}; background: transparent; color: {{r.rC}}; font-size: 13px; cursor: pointer;">Reject</button>
+</span>
+</div>
+</article>
+</sc-for>
+</section>
+
+<aside aria-label="Export and test" style="flex: 1 1 300px; max-width: 380px; min-width: 0; display: flex; flex-direction: column; gap: 14px;">
+
+<section aria-labelledby="exp-title" style="padding: 16px; border-radius: 12px; background: #12161A; border: 1px solid #262D35; display: flex; flex-direction: column; gap: 10px;">
+<h2 id="exp-title" style="margin: 0; font-size: 14px; font-weight: 600;">Export</h2>
+<p style="margin: 0; font-size: 13px; color: #CBD2D9;"><span style="font-family: 'IBM Plex Mono', ui-monospace, monospace; color: #3DBE8B;">{{counts.acc}}</span> accepted · <span style="font-family: 'IBM Plex Mono', ui-monospace, monospace;">{{counts.prop}}</span> still to decide</p>
+<button type="button" style="min-height: 40px; border: 0; border-radius: 8px; background: #5AB0E8; color: #06121A; font-size: 13px; font-weight: 600; cursor: pointer;">Mission Planner file (.param)</button>
+<button type="button" style="min-height: 40px; border: 1px solid #333B45; border-radius: 8px; background: transparent; color: #E7EAEE; font-size: 13px; font-weight: 500; cursor: pointer;">QGroundControl file (.params)</button>
+<p style="margin: 0; font-size: 12px; line-height: 1.45; color: #8A949E;">Accepted changes only, written in this airframe's ArduCopter 4.7 names. Nothing is written to the aircraft from here.</p>
+</section>
+
+<section aria-labelledby="test-title" style="padding: 16px; border-radius: 12px; background: #12161A; border: 1px solid #262D35; display: flex; flex-direction: column; gap: 8px;">
+<h2 id="test-title" style="margin: 0; font-size: 14px; font-weight: 600;">Test flight card</h2>
+<ol style="margin: 0; padding-left: 18px; display: flex; flex-direction: column; gap: 4px; font-size: 13px; color: #CBD2D9;">
+<li>Inspect motor 3 and ESC 3 first</li>
+<li>Hover 4 min at the same 4.2 kg payload</li>
+<li>Roll and pitch steps in AltHold</li>
+</ol>
+<p style="margin: 0; font-size: 12px; line-height: 1.45; color: #8A949E;">After the flight the app confirms each value took effect, then measures the result against flight 142.</p>
+<button type="button" style="min-height: 36px; border: 1px solid #333B45; border-radius: 8px; background: transparent; color: #CBD2D9; font-size: 13px; cursor: pointer;">Print card</button>
+</section>
+
+<section aria-labelledby="out-title" style="padding: 16px; border-radius: 12px; background: #12161A; border: 1px solid #262D35; display: flex; flex-direction: column; gap: 8px;">
+<h2 id="out-title" style="margin: 0; font-size: 14px; font-weight: 600;">Recent outcomes</h2>
+<sc-for list="{{outcomes}}" as="o" hint-placeholder-count="3">
+<div style="display: flex; flex-direction: column; gap: 2px; padding-top: 8px; border-top: 1px solid #222930;">
+<div style="display: flex; justify-content: space-between; gap: 8px; font-size: 12px;"><span style="font-family: 'IBM Plex Mono', ui-monospace, monospace; color: #E7EAEE;">{{o.p}}</span><span style="font-weight: 600; color: {{o.c}};">{{o.s}}</span></div>
+<span style="font-size: 12px; color: #8A949E;">{{o.d}}</span>
+</div>
+</sc-for>
+</section>
+
+</aside>
+</main>
+</div>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":1440,"height":1000}}'>
+class Component extends DCLogic {
+  renderVals() {
+    const st = Object.assign({ notch: 'accepted', inspect: 'proposed', curr: 'proposed', lowmah: 'proposed' }, (this.state && this.state.st) || {});
+    const set = (id, v) => () => this.setState({ st: Object.assign({}, st, { [id]: st[id] === v ? 'proposed' : v }) });
+    const stages = [
+      ['1', 'Health checks', 'Done · flight 131', 'done'],
+      ['2', 'Filters', 'Current stage', 'cur'],
+      ['3', 'Rate loop', 'Autotune review', 'next'],
+      ['4', 'Position and altitude', '', 'next'],
+      ['5', 'Payload profiles', '', 'next']
+    ].map((s) => ({
+      name: s[1], sub: s[2] || 'Not started', cur: s[3] === 'cur' ? 'step' : 'false',
+      mark: s[3] === 'done' ? '✓' : s[0],
+      bg: s[3] === 'cur' ? '#15212B' : '#12161A', bd: s[3] === 'cur' ? '#2D5068' : '#222930',
+      nc: s[3] === 'next' ? '#A3ACB6' : '#06121A', nbg: s[3] === 'done' ? '#3DBE8B' : (s[3] === 'cur' ? '#5AB0E8' : '#232A31'),
+      tc: s[3] === 'next' ? '#A3ACB6' : '#E7EAEE'
+    }));
+    const SM = { accepted: ['Accepted', '●', '#3DBE8B'], proposed: ['Proposed', '◆', '#9FB2C6'], rejected: ['Rejected', '■', '#8A949E'] };
+    const raw = [
+      { id: 'inspect', title: 'Inspect motor 3 and ESC 3 before the next payload flight', stage: 'Health', source: 'Rule · ESC telemetry', ai: false,
+        diff: [], expect: 'Finds the cause of ESC 3 running 14 °C hotter than its siblings. Bearing roughness, a damaged prop or blocked airflow are the likely causes.',
+        links: [['ESC evidence, flight 142', 'FlightReport.dc.html']], check: 'Blocks flights with payload until done' },
+      { id: 'notch', title: 'Widen the harmonic notch', stage: 'Filters', source: 'Rule · filter simulation', ai: false,
+        diff: [['INS_HNTCH_BW', '20', '40', 'Hz']], expect: 'Motor-band noise 14 dB lower in hover, 1.2° more phase lag at 20 Hz, no CPU cost.',
+        links: [['Filter workbench', 'Workbench.dc.html'], ['Trend shift at 137', 'Trends.dc.html']], check: 'Name, range, unit and 4.7 name checked' },
+      { id: 'curr', title: 'Correct the current sensor scale', stage: 'Health', source: 'Rule · 6 charger records', ai: false,
+        diff: [['BATT_AMP_PERVLT', '39.877', '42.43', 'A/V']], expect: 'Logged energy matches the charger within 1%, so battery failsafes trigger where intended.',
+        links: [['Charger comparison', 'FlightReport.dc.html']], check: 'Name, range, unit and 4.7 name checked' },
+      { id: 'lowmah', title: 'Raise the low-battery reserve', stage: 'Failsafes', source: 'Claude · passed the validator', ai: true,
+        diff: [['BATT_LOW_MAH', '4400', '5600', 'mAh']], expect: 'Covers the return energy measured on the 3 longest 4.2 kg flights in headwind, plus 20%. Apply with the sensor correction above.',
+        links: [['Return-energy evidence', 'FlightReport.dc.html']], check: 'Name, range, unit and 4.7 name checked' }
+    ];
+    const recs = raw.map((r) => {
+      const s = st[r.id], m = SM[s];
+      return {
+        title: r.title, stage: r.stage, source: r.source,
+        srcC: r.ai ? '#CDBBFA' : '#A3ACB6', srcBg: r.ai ? 'rgba(169,139,245,0.12)' : '#1C2229',
+        stL: m[0], stG: m[1], stC: m[2],
+        bd: s === 'accepted' ? '#2B4A3E' : '#262D35',
+        hasDiff: r.diff.length > 0, diff: r.diff.map((d) => ({ n: d[0], a: d[1], b: d[2], u: d[3] })),
+        expect: r.expect, links: r.links.map((l) => ({ t: l[0], href: l[1] })), check: r.check,
+        isAcc: s === 'accepted', isRej: s === 'rejected',
+        aBd: s === 'accepted' ? '#3DBE8B' : '#333B45', aBg: s === 'accepted' ? 'rgba(61,190,139,0.16)' : 'transparent', aC: s === 'accepted' ? '#7FE0B5' : '#E7EAEE',
+        rBd: s === 'rejected' ? '#8A949E' : '#333B45', rC: s === 'rejected' ? '#E7EAEE' : '#A3ACB6',
+        accept: set(r.id, 'accepted'), reject: set(r.id, 'rejected')
+      };
+    });
+    const ids = Object.keys(st);
+    const counts = { acc: ids.filter((k) => st[k] === 'accepted').length, prop: ids.filter((k) => st[k] === 'proposed').length };
+    const outcomes = [
+      ['INS_HNTCH_BW 40 → 20', 'Regressed', '#E8A33D', 'Flight 137 · QGroundControl edit, not from this plan'],
+      ['ATC_RAT_RLL_D +10%', 'Confirmed', '#3DBE8B', 'Flight 131 · overshoot 18% → 9%'],
+      ['MOT_THST_EXPO 0.65 → 0.55', 'No effect', '#9FB2C6', 'Flight 129 · thrust-model fit unchanged']
+    ].map((o) => ({ p: o[0], s: o[1], c: o[2], d: o[3] }));
+    return { stages, recs, counts, outcomes };
+  }
+}
+</script>
+</body>
+</html>

@@ -1,0 +1,91 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Metric hover card</title>
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&amp;family=IBM+Plex+Sans:wght@400;500;600&amp;display=swap" rel="stylesheet">
+<style>
+body{margin:0;background:#0E1114}
+a{color:#7CC4F0}a:hover{color:#A9D9F7}
+</style>
+</helmet>
+<div style="width: 560px; height: 560px; box-sizing: border-box; padding: 32px; background: #0E1114; color: #E7EAEE; font-family: 'IBM Plex Sans', system-ui, sans-serif; font-size: 14px; line-height: 1.45; display: flex; flex-direction: column; gap: 8px;">
+
+<article style="width: 300px; background: #151A1F; border: 1px solid #262D35; border-radius: 12px; padding: 16px; display: flex; flex-direction: column; gap: 12px; box-sizing: border-box;">
+<div style="display: flex; align-items: flex-start; justify-content: space-between; gap: 8px;">
+<div style="display: flex; flex-direction: column; gap: 2px;">
+<span style="font-family: 'IBM Plex Mono', ui-monospace, monospace; font-size: 18px; font-weight: 500;">HL-07</span>
+<span style="font-size: 12px; color: #8A949E;">Build v4 · new 28 in props</span>
+</div>
+<span style="display: inline-flex; align-items: center; gap: 5px; padding: 3px 9px; border-radius: 999px; font-size: 12px; font-weight: 600; color: #E8A33D; background: rgba(232,163,61,0.14);"><span aria-hidden="true" style="font-size: 9px;">▲</span>Inspect</span>
+</div>
+<div style="display: flex; flex-direction: column; gap: 6px; padding-top: 12px; border-top: 1px solid #222930;">
+<div style="display: grid; grid-template-columns: 74px minmax(0, 1fr) 70px; align-items: center; gap: 10px; padding: 3px 6px; margin: 0 -6px;">
+<span style="font-size: 12px; color: #A3ACB6;">Vibe Z</span>
+<span aria-hidden="true" style="position: relative; height: 6px; display: flex;"><span style="flex: 50 1 0; background: rgba(61,190,139,0.30); border-radius: 3px 0 0 3px;"></span><span style="flex: 30 1 0; background: rgba(232,163,61,0.30);"></span><span style="flex: 20 1 0; background: rgba(240,96,93,0.30); border-radius: 0 3px 3px 0;"></span><span style="position: absolute; top: -4px; left: 30%; width: 3px; height: 14px; margin-left: -1px; border-radius: 2px; background: #F2F4F6;"></span></span>
+<span style="font-family: 'IBM Plex Mono', ui-monospace, monospace; font-size: 12px; text-align: right;">18 m/s/s</span>
+</div>
+<div style="display: grid; grid-template-columns: 74px minmax(0, 1fr) 70px; align-items: center; gap: 10px; padding: 3px 6px; margin: 0 -6px;">
+<span style="font-size: 12px; color: #A3ACB6;">Hover thr</span>
+<span aria-hidden="true" style="position: relative; height: 6px; display: flex;"><span style="flex: 50 1 0; background: rgba(61,190,139,0.30); border-radius: 3px 0 0 3px;"></span><span style="flex: 30 1 0; background: rgba(232,163,61,0.30);"></span><span style="flex: 20 1 0; background: rgba(240,96,93,0.30); border-radius: 0 3px 3px 0;"></span><span style="position: absolute; top: -4px; left: 34%; width: 3px; height: 14px; margin-left: -1px; border-radius: 2px; background: #F2F4F6;"></span></span>
+<span style="font-family: 'IBM Plex Mono', ui-monospace, monospace; font-size: 12px; text-align: right;">0.41</span>
+</div>
+<button type="button" aria-describedby="hover-card" style="display: grid; grid-template-columns: 74px minmax(0, 1fr) 70px; align-items: center; gap: 10px; padding: 3px 6px; margin: 0 -6px; border: 1px solid #2D5068; border-radius: 6px; background: rgba(90,176,232,0.10); color: inherit; font-family: inherit; text-align: left; cursor: pointer;">
+<span style="font-size: 12px; color: #E7EAEE;">ESC max</span>
+<span aria-hidden="true" style="position: relative; height: 6px; display: flex;"><span style="flex: 50 1 0; background: rgba(61,190,139,0.30); border-radius: 3px 0 0 3px;"></span><span style="flex: 30 1 0; background: rgba(232,163,61,0.30);"></span><span style="flex: 20 1 0; background: rgba(240,96,93,0.30); border-radius: 0 3px 3px 0;"></span><span style="position: absolute; top: -4px; left: 72%; width: 3px; height: 14px; margin-left: -1px; border-radius: 2px; background: #F2F4F6;"></span></span>
+<span style="font-family: 'IBM Plex Mono', ui-monospace, monospace; font-size: 12px; text-align: right; color: #E8A33D;">96 °C</span>
+</button>
+</div>
+</article>
+
+<div style="position: relative; margin-left: 56px; width: 400px;">
+<span aria-hidden="true" style="position: absolute; top: -6px; left: 214px; width: 12px; height: 12px; background: #1A2027; border-left: 1px solid #36404A; border-top: 1px solid #36404A; transform: rotate(45deg);"></span>
+<section id="hover-card" role="tooltip" style="display: flex; flex-direction: column; gap: 10px; padding: 16px; border-radius: 12px; background: #1A2027; border: 1px solid #36404A; box-shadow: 0 16px 40px rgba(0,0,0,0.45);">
+<div style="display: flex; align-items: baseline; justify-content: space-between; gap: 8px;">
+<span style="font-size: 14px; font-weight: 600;">ESC temperature, peak</span>
+<span style="font-family: 'IBM Plex Mono', ui-monospace, monospace; font-size: 11px; color: #8A949E;">°C</span>
+</div>
+<div style="display: flex; align-items: baseline; gap: 12px; flex-wrap: wrap;">
+<span style="font-family: 'IBM Plex Mono', ui-monospace, monospace; font-size: 26px; font-weight: 500; color: #E8A33D;">96 °C</span>
+<span style="font-size: 13px; font-weight: 600; color: #E8A33D;"><span aria-hidden="true" style="font-size: 9px;">▲</span> Caution</span>
+<span style="font-size: 12px; color: #A3ACB6;">ESC 3 · flight 142</span>
+</div>
+<p style="margin: 0; font-size: 13px; line-height: 1.5; color: #CBD2D9;">The hottest reading from any ESC while armed. ESCs heat with current; too hot and they cut power to protect themselves.</p>
+<div style="display: flex; flex-direction: column; gap: 4px;">
+<div aria-hidden="true" style="position: relative; height: 26px;">
+<span style="position: absolute; left: 47.5%; width: 5%; top: 0; height: 4px; border-radius: 2px; background: #A3ACB6;"></span>
+<span style="position: absolute; left: 0; right: 0; top: 10px; height: 8px; display: flex; border-radius: 4px; overflow: hidden;"><span style="flex: 56.25 1 0; background: rgba(61,190,139,0.35);"></span><span style="flex: 18.75 1 0; background: rgba(232,163,61,0.40);"></span><span style="flex: 25 1 0; background: rgba(240,96,93,0.35);"></span></span>
+<span style="position: absolute; left: 70%; top: 6px; width: 3px; height: 16px; margin-left: -1px; border-radius: 2px; background: #F2F4F6;"></span>
+</div>
+<div style="position: relative; height: 16px; font-family: 'IBM Plex Mono', ui-monospace, monospace; font-size: 11px; color: #8A949E;">
+<span style="position: absolute; left: 56.25%; transform: translateX(-50%);">85</span>
+<span style="position: absolute; left: 75%; transform: translateX(-50%);">100</span>
+</div>
+</div>
+<div style="display: flex; flex-direction: column; gap: 3px; font-size: 12px; color: #A3ACB6;">
+<span><span aria-hidden="true" style="display: inline-block; width: 14px; height: 4px; border-radius: 2px; background: #A3ACB6; vertical-align: middle; margin-right: 6px;"></span>Usual for HL-07: 78–82 °C</span>
+<span>4 °C below the ESC protection setting · rising for 6 flights</span>
+</div>
+<div style="display: flex; justify-content: space-between; align-items: center; gap: 8px; padding-top: 10px; border-top: 1px solid #2A3139; font-size: 12px; color: #A3ACB6;">
+<span>Click for the full explanation</span>
+<kbd style="font-family: 'IBM Plex Mono', ui-monospace, monospace; font-size: 11px; padding: 2px 6px; border: 1px solid #3A434D; border-radius: 5px; color: #CBD2D9;">Enter</kbd>
+</div>
+</section>
+</div>
+
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":560,"height":560}}'>
+class Component extends DCLogic {
+  renderVals() {
+    return {};
+  }
+}
+</script>
+</body>
+</html>

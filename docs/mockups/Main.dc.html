@@ -1,0 +1,232 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Fleet overview</title>
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&amp;family=IBM+Plex+Sans:wght@400;500;600&amp;display=swap" rel="stylesheet">
+<style>
+body{margin:0;background:#0E1114}
+a{color:#7CC4F0}a:hover{color:#A9D9F7}
+button{font-family:inherit}
+:focus-visible{outline:2px solid #7CC4F0;outline-offset:2px}
+@media (max-width:720px){.rail{flex:1 1 100% !important;width:100% !important;flex-direction:row !important;overflow-x:auto;padding:8px !important}.rail-spacer{display:none !important}}
+</style>
+</helmet>
+<div style="min-height: 100vh; display: flex; flex-wrap: wrap; background: #0E1114; color: #E7EAEE; font-family: 'IBM Plex Sans', system-ui, sans-serif; font-size: 14px; line-height: 1.45;">
+
+<nav class="rail" aria-label="Main navigation" style="flex: 0 0 76px; width: 76px; box-sizing: border-box; background: #0A0C0F; border-right: 1px solid #1E242B; display: flex; flex-direction: column; align-items: center; gap: 4px; padding: 14px 0 16px;">
+<svg role="img" aria-label="Flight Insights" width="36" height="36" viewBox="0 0 36 36" style="flex: 0 0 auto; margin-bottom: 14px;"><rect x="1" y="1" width="34" height="34" rx="9" fill="#13222D" stroke="#2A4558"></rect><path d="M8 25l6-7 5 4 9-12" fill="none" stroke="#5AB0E8" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"></path><circle cx="28" cy="10" r="2.4" fill="#5AB0E8"></circle></svg>
+<a href="Main.dc.html" aria-current="page" style="flex: 0 0 auto; width: 60px; padding: 8px 0 7px; border-radius: 10px; display: flex; flex-direction: column; align-items: center; gap: 4px; font-size: 11px; font-weight: 500; text-decoration: none; color: #9BD3F5; background: rgba(90,176,232,0.15);"><svg aria-hidden="true" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="7" height="7" rx="1.5"></rect><rect x="14" y="3" width="7" height="7" rx="1.5"></rect><rect x="3" y="14" width="7" height="7" rx="1.5"></rect><rect x="14" y="14" width="7" height="7" rx="1.5"></rect></svg>Fleet</a>
+<a href="FlightReport.dc.html" style="flex: 0 0 auto; width: 60px; padding: 8px 0 7px; border-radius: 10px; display: flex; flex-direction: column; align-items: center; gap: 4px; font-size: 11px; font-weight: 500; text-decoration: none; color: #A3ACB6;"><svg aria-hidden="true" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M6 3h9l4 4v14H6z"></path><path d="M14 3v5h5"></path><path d="M9 13h7M9 17h5"></path></svg>Flights</a>
+<a href="Trends.dc.html" style="flex: 0 0 auto; width: 60px; padding: 8px 0 7px; border-radius: 10px; display: flex; flex-direction: column; align-items: center; gap: 4px; font-size: 11px; font-weight: 500; text-decoration: none; color: #A3ACB6;"><svg aria-hidden="true" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M3 17l5-5 4 3 8-8"></path><path d="M15 7h5v5"></path></svg>Trends</a>
+<a href="ConfigReview.dc.html" style="flex: 0 0 auto; width: 60px; padding: 8px 0 7px; border-radius: 10px; display: flex; flex-direction: column; align-items: center; gap: 4px; font-size: 11px; font-weight: 500; text-decoration: none; color: #A3ACB6;"><svg aria-hidden="true" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M4 6h10M18 6h2M4 12h4M12 12h8M4 18h12"></path><circle cx="16" cy="6" r="2"></circle><circle cx="10" cy="12" r="2"></circle><circle cx="18" cy="18" r="2"></circle></svg>Params</a>
+<a href="Plan.dc.html" style="flex: 0 0 auto; width: 60px; padding: 8px 0 7px; border-radius: 10px; display: flex; flex-direction: column; align-items: center; gap: 4px; font-size: 11px; font-weight: 500; text-decoration: none; color: #A3ACB6;"><svg aria-hidden="true" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M10 6h10M10 12h10M10 18h10"></path><path d="M3.5 6l1.5 1.5L7.5 5"></path><path d="M3.5 12l1.5 1.5L7.5 11"></path><circle cx="5" cy="18" r="1.5"></circle></svg>Plan</a>
+<button type="button" style="flex: 0 0 auto; width: 60px; padding: 8px 0 7px; border: 0; border-radius: 10px; background: transparent; display: flex; flex-direction: column; align-items: center; gap: 4px; font-size: 11px; font-weight: 500; color: #A3ACB6; cursor: pointer;"><svg aria-hidden="true" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M4 5h16v11H9l-5 4z"></path><path d="M8 10h8"></path></svg>Ask</button>
+<div class="rail-spacer" style="flex: 1 1 auto;"></div>
+<button type="button" style="flex: 0 0 auto; width: 60px; padding: 8px 0 7px; border: 0; border-radius: 10px; background: transparent; display: flex; flex-direction: column; align-items: center; gap: 4px; font-size: 11px; font-weight: 500; color: #A3ACB6; cursor: pointer;"><svg aria-hidden="true" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3v11"></path><path d="M7 9l5 5 5-5"></path><path d="M4 17v3h16v-3"></path></svg>Imports</button>
+<button type="button" style="flex: 0 0 auto; width: 60px; padding: 8px 0 7px; border: 0; border-radius: 10px; background: transparent; display: flex; flex-direction: column; align-items: center; gap: 4px; font-size: 11px; font-weight: 500; color: #A3ACB6; cursor: pointer;"><svg aria-hidden="true" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"></circle><path d="M12 2v3M12 19v3M2 12h3M19 12h3M4.9 4.9L7 7M17 17l2.1 2.1M4.9 19.1L7 17M17 7l2.1-2.1"></path></svg>Settings</button>
+</nav>
+
+<div style="flex: 999 1 560px; min-width: 0; display: flex; flex-direction: column;">
+
+<header style="display: flex; flex-wrap: wrap; align-items: center; gap: 12px 16px; padding: 10px 24px; min-height: 60px; box-sizing: border-box; border-bottom: 1px solid #1E242B;">
+<nav aria-label="Scope" style="display: flex; align-items: center; gap: 4px; flex-wrap: wrap;">
+<button type="button" style="display: flex; align-items: center; gap: 6px; padding: 6px 10px; border: 1px solid #262D35; border-radius: 8px; background: #151A1F; font-size: 13px; color: #E7EAEE; cursor: pointer;">All platforms<svg aria-hidden="true" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#7C8691" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M6 9l6 6 6-6"></path></svg></button>
+</nav>
+<button type="button" style="flex: 1 1 240px; max-width: 440px; display: flex; align-items: center; gap: 8px; padding: 8px 12px; border: 1px solid #262D35; border-radius: 8px; background: #12161A; color: #8A949E; font-size: 13px; text-align: left; cursor: pointer;"><svg aria-hidden="true" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><circle cx="11" cy="11" r="6"></circle><path d="M20 20l-4.5-4.5"></path></svg><span style="flex: 1 1 auto;">Search airframes, flights, parameters, findings</span><kbd style="font-family: 'IBM Plex Mono', ui-monospace, monospace; font-size: 11px; padding: 2px 6px; border: 1px solid #333B45; border-radius: 5px; color: #A3ACB6;">Ctrl K</kbd></button>
+<div style="margin-left: auto; display: flex; align-items: center; gap: 8px; flex-wrap: wrap;">
+<span style="display: flex; align-items: center; gap: 6px; padding: 5px 10px; border-radius: 999px; background: #151A1F; border: 1px solid #222930; font-size: 12px; color: #A3ACB6;"><span aria-hidden="true" style="width: 7px; height: 7px; border-radius: 50%; background: #3DBE8B;"></span>Claude API</span>
+<span style="display: flex; align-items: center; gap: 6px; padding: 5px 10px; border-radius: 999px; background: #151A1F; border: 1px solid #222930; font-size: 12px; color: #A3ACB6;"><span aria-hidden="true" style="width: 7px; height: 7px; border-radius: 50%; background: #3DBE8B;"></span>Drive sync · 1 min ago</span>
+<button type="button" style="display: flex; align-items: center; gap: 8px; padding: 9px 14px; border: 0; border-radius: 8px; background: #5AB0E8; color: #06121A; font-size: 13px; font-weight: 600; cursor: pointer;"><svg aria-hidden="true" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3v11"></path><path d="M7 9l5 5 5-5"></path><path d="M4 17v3h16v-3"></path></svg>Import logs</button>
+</div>
+</header>
+
+<main style="display: flex; flex-wrap: wrap; gap: 24px; padding: 24px; align-items: flex-start;">
+
+<section aria-labelledby="fleet-title" style="flex: 999 1 620px; min-width: 0; display: flex; flex-direction: column; gap: 22px;">
+<div style="display: flex; flex-direction: column; gap: 14px;">
+<div style="display: flex; align-items: baseline; gap: 14px; flex-wrap: wrap;">
+<h1 id="fleet-title" style="margin: 0; font-size: 26px; font-weight: 600; letter-spacing: -0.01em;">Fleet</h1>
+<p style="margin: 0; font-size: 13px; color: #A3ACB6;">{{summary}}</p>
+</div>
+<div style="display: flex; flex-wrap: wrap; align-items: center; gap: 10px;">
+<div role="group" aria-label="Show airframes" style="display: flex; flex-wrap: wrap; gap: 2px; padding: 3px; background: #12161A; border: 1px solid #222930; border-radius: 9px;">
+<sc-for list="{{filters}}" as="f" hint-placeholder-count="4">
+<button type="button" aria-pressed="{{f.pressed}}" onClick="{{f.pick}}" style="padding: 6px 12px; border: 0; border-radius: 7px; font-size: 13px; font-weight: 500; cursor: pointer; color: {{f.color}}; background: {{f.bg}};">{{f.label}}</button>
+</sc-for>
+</div>
+<button type="button" style="display: flex; align-items: center; gap: 6px; padding: 7px 12px; border: 1px solid #262D35; border-radius: 8px; background: transparent; font-size: 13px; color: #CBD2D9; cursor: pointer;">Sort: most urgent first<svg aria-hidden="true" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#7C8691" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M6 9l6 6 6-6"></path></svg></button>
+<span style="margin-left: auto; font-size: 12px; color: #8A949E;">Updated 14:31 · 2 logs still analyzing</span>
+</div>
+</div>
+
+<sc-for list="{{groups}}" as="g" hint-placeholder-count="2">
+<section style="display: flex; flex-direction: column; gap: 12px;">
+<div style="display: flex; align-items: baseline; gap: 12px; flex-wrap: wrap;">
+<h2 style="margin: 0; font-size: 15px; font-weight: 600;">{{g.name}}</h2>
+<span style="font-size: 12px; color: #8A949E;">{{g.meta}}</span>
+<a href="Trends.dc.html" style="margin-left: auto; font-size: 12px; text-decoration: none;">Platform trends</a>
+</div>
+<div style="display: grid; grid-template-columns: repeat(auto-fill, minmax(250px, 1fr)); gap: 14px;">
+<sc-for list="{{g.airframes}}" as="a" hint-placeholder-count="3">
+<article style="background: #151A1F; border: 1px solid #262D35; border-radius: 12px; padding: 16px; display: flex; flex-direction: column; gap: 12px;">
+<div style="display: flex; align-items: flex-start; justify-content: space-between; gap: 8px;">
+<div style="display: flex; flex-direction: column; gap: 2px;">
+<a href="FlightReport.dc.html" style="font-family: 'IBM Plex Mono', ui-monospace, monospace; font-size: 18px; font-weight: 500; color: #E7EAEE; text-decoration: none;">{{a.id}}</a>
+<span style="font-size: 12px; color: #8A949E;">{{a.build}}</span>
+</div>
+<span style="display: inline-flex; align-items: center; gap: 5px; padding: 3px 9px; border-radius: 999px; font-size: 12px; font-weight: 600; white-space: nowrap; color: {{a.sc}}; background: {{a.sbg}};"><span aria-hidden="true" style="font-size: 9px;">{{a.glyph}}</span>{{a.statusLabel}}</span>
+</div>
+<div style="display: flex; align-items: center; justify-content: space-between; gap: 8px; font-size: 12px; color: #A3ACB6;">
+<span>Stage {{a.stage}} of 5 · {{a.stageName}}</span>
+<span aria-hidden="true" style="display: flex; gap: 4px;">
+<sc-for list="{{a.dots}}" as="d" hint-placeholder-count="5"><span style="width: 6px; height: 6px; border-radius: 50%; background: {{d.c}};"></span></sc-for>
+</span>
+</div>
+<div style="display: flex; flex-direction: column; gap: 9px; padding-top: 12px; border-top: 1px solid #222930;">
+<sc-for list="{{a.metrics}}" as="m" hint-placeholder-count="3">
+<div style="display: grid; grid-template-columns: 74px minmax(0, 1fr) 76px; align-items: center; gap: 10px;">
+<span style="font-size: 12px; color: #A3ACB6;">{{m.name}}</span>
+<span aria-hidden="true" style="position: relative; height: 6px; display: flex;">
+<span style="flex: 50 1 0; background: rgba(61,190,139,0.30); border-radius: 3px 0 0 3px;"></span>
+<span style="flex: 30 1 0; background: rgba(232,163,61,0.30);"></span>
+<span style="flex: 20 1 0; background: rgba(240,96,93,0.30); border-radius: 0 3px 3px 0;"></span>
+<span style="position: absolute; top: -4px; left: {{m.pos}}%; width: 3px; height: 14px; margin-left: -1px; border-radius: 2px; background: #F2F4F6;"></span>
+</span>
+<span style="font-family: 'IBM Plex Mono', ui-monospace, monospace; font-size: 12px; text-align: right; color: {{m.c}};">{{m.value}}</span>
+</div>
+</sc-for>
+</div>
+<div style="display: flex; justify-content: space-between; gap: 8px; font-size: 12px; color: #8A949E;">
+<span>{{a.last}}</span>
+<span style="color: {{a.fc}};">{{a.findings}}</span>
+</div>
+</article>
+</sc-for>
+</div>
+</section>
+</sc-for>
+</section>
+
+<aside aria-label="Imports and attention" style="flex: 1 1 320px; max-width: 400px; min-width: 0; display: flex; flex-direction: column; gap: 16px;">
+
+<section aria-labelledby="imports-title" style="background: #151A1F; border: 1px solid #262D35; border-radius: 12px; padding: 16px; display: flex; flex-direction: column; gap: 12px;">
+<div style="display: flex; align-items: center; justify-content: space-between; gap: 8px;">
+<h2 id="imports-title" style="margin: 0; font-size: 14px; font-weight: 600;">Imports</h2>
+<button type="button" style="padding: 4px 8px; border: 0; border-radius: 6px; background: transparent; font-size: 12px; color: #7CC4F0; cursor: pointer;">Watch folders</button>
+</div>
+<p style="margin: 0; font-size: 13px; color: #CBD2D9;">3 new logs from <span style="color: #E7EAEE;">QGroundControl · Field tablet 2</span></p>
+<div style="display: flex; flex-direction: column; gap: 10px;">
+<sc-for list="{{imports}}" as="i" hint-placeholder-count="3">
+<div style="display: flex; flex-direction: column; gap: 5px;">
+<div style="display: flex; justify-content: space-between; gap: 8px; font-size: 12px;">
+<span style="font-family: 'IBM Plex Mono', ui-monospace, monospace; color: #E7EAEE;">{{i.name}}</span>
+<span style="color: {{i.c}};">{{i.state}}</span>
+</div>
+<span aria-hidden="true" style="display: block; height: 4px; border-radius: 2px; background: #232A31;"><span style="display: block; height: 4px; border-radius: 2px; width: {{i.pct}}%; background: {{i.bar}};"></span></span>
+</div>
+</sc-for>
+</div>
+<p style="margin: 0; font-size: 13px; color: #CBD2D9; padding-top: 10px; border-top: 1px solid #222930;">From the shared drive: 4 flights from <span style="font-family: 'IBM Plex Mono', ui-monospace, monospace; color: #E7EAEE;">LT-3F9A2C</span> and <span style="font-family: 'IBM Plex Mono', ui-monospace, monospace; color: #E7EAEE;">LT-81C24E</span> · 1 duplicate skipped · 0 quarantined</p>
+<p style="margin: 0; font-size: 12px; color: #8A949E;">Weather is forecast grade now; reanalysis replaces it in about 5 days.</p>
+</section>
+
+<section aria-labelledby="attention-title" style="background: #151A1F; border: 1px solid #262D35; border-radius: 12px; padding: 16px 16px 8px; display: flex; flex-direction: column; gap: 4px;">
+<div style="display: flex; align-items: baseline; justify-content: space-between; gap: 8px; margin-bottom: 6px;">
+<h2 id="attention-title" style="margin: 0; font-size: 14px; font-weight: 600;">Needs attention</h2>
+<span style="font-size: 12px; color: #8A949E;">Most urgent first</span>
+</div>
+<sc-for list="{{feed}}" as="e" hint-placeholder-count="5">
+<a href="{{e.href}}" style="display: flex; flex-direction: column; gap: 5px; padding: 12px 0; border-top: 1px solid #222930; text-decoration: none; color: #E7EAEE;">
+<span style="display: flex; align-items: center; gap: 8px; flex-wrap: wrap; font-size: 12px;">
+<span style="display: inline-flex; align-items: center; gap: 5px; font-weight: 600; color: {{e.sc}};"><span aria-hidden="true" style="font-size: 9px;">{{e.glyph}}</span>{{e.sevLabel}}</span>
+<span style="font-family: 'IBM Plex Mono', ui-monospace, monospace; color: #CBD2D9;">{{e.who}}</span>
+<span style="margin-left: auto; color: #8A949E;">{{e.meta}}</span>
+</span>
+<span style="font-size: 13px; line-height: 1.45; color: #DDE2E7;">{{e.text}}</span>
+</a>
+</sc-for>
+</section>
+
+</aside>
+</main>
+</div>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":1440,"height":1000}}'>
+class Component extends DCLogic {
+  renderVals() {
+    const filter = (this.state && this.state.filter) || 'all';
+    const S = {
+      ok: { label: 'Healthy', glyph: '●', c: '#3DBE8B', bg: 'rgba(61,190,139,0.13)' },
+      inspect: { label: 'Inspect', glyph: '▲', c: '#E8A33D', bg: 'rgba(232,163,61,0.14)' },
+      fix: { label: 'Fix before flight', glyph: '■', c: '#F2716E', bg: 'rgba(240,96,93,0.14)' },
+      info: { label: 'Info', glyph: '◆', c: '#9FB2C6', bg: 'rgba(159,178,198,0.12)' }
+    };
+    const Z = { ok: '#E7EAEE', caution: '#E8A33D', out: '#F2716E' };
+    const raw = [
+      { name: 'Heavy-lift X8', meta: 'Reference build v4 · 6 airframes', airframes: [
+        ['HL-07', 'Build v4 · new 28 in props', 'inspect', 2, 'Filters', [['Vibe Z', '18 m/s/s', 'ok', 30], ['Hover thr', '0.41', 'ok', 34], ['ESC max', '96 °C', 'caution', 72]], 'Today 14:06 · 18 min', '3 findings'],
+        ['HL-11', 'Build v3 · CAN ESCs', 'fix', 1, 'Health checks', [['Vibe Z', '44 m/s/s', 'caution', 62], ['Hover thr', '0.58', 'caution', 57], ['CAN bus', '2 bus-off', 'out', 90]], '16 Oct 09:15 · 6 min', '5 findings'],
+        ['HL-14', 'Build v4', 'inspect', 5, 'Payload profiles', [['Vibe Z', '14 m/s/s', 'ok', 24], ['Hover thr', '0.44', 'ok', 40], ['Pack R', '170 %', 'caution', 70]], 'Today 12:10 · 15 min', '1 finding'],
+        ['HL-03', 'Build v4', 'ok', 5, 'Payload profiles', [['Vibe Z', '12 m/s/s', 'ok', 20], ['Hover thr', '0.38', 'ok', 30], ['ESC max', '71 °C', 'ok', 38]], 'Today 11:42 · 22 min', 'No findings'],
+        ['HL-09', 'Build v4', 'ok', 4, 'Position and altitude', [['Vibe Z', '9 m/s/s', 'ok', 15], ['Hover thr', '0.36', 'ok', 26], ['ESC max', '68 °C', 'ok', 34]], 'Yesterday 16:20 · 24 min', '1 finding'],
+        ['HL-12', 'Build v4', 'ok', 5, 'Payload profiles', [['Vibe Z', '11 m/s/s', 'ok', 18], ['Hover thr', '0.39', 'ok', 31], ['ESC max', '70 °C', 'ok', 37]], 'Today 09:30 · 20 min', '1 finding']
+      ] },
+      { name: 'VTOL mapper', meta: 'Reference build v2 · 3 airframes', airframes: [
+        ['VM-02', 'Build v2', 'inspect', 4, 'Position and altitude', [['Transition', '−6 m', 'caution', 58], ['TECS hgt', '±1.4 m', 'ok', 44], ['Cruise', '21 Wh/km', 'ok', 42]], 'Yesterday 15:48 · 47 min', '2 findings'],
+        ['VM-01', 'Build v2', 'ok', 5, 'Payload profiles', [['Transition', '−3 m', 'ok', 30], ['TECS hgt', '±0.8 m', 'ok', 22], ['Cruise', '19 Wh/km', 'ok', 35]], 'Today 10:02 · 52 min', 'No findings'],
+        ['VM-04', 'Build v2', 'ok', 3, 'Rate tune', [['Transition', '−4 m', 'ok', 40], ['TECS hgt', '±1.0 m', 'ok', 30], ['Cruise', '20 Wh/km', 'ok', 38]], 'Yesterday 11:20 · 38 min', 'No findings']
+      ] }
+    ];
+    const keep = (st, stage) => filter === 'all' || (filter === 'attention' && st !== 'ok') || (filter === 'tuning' && stage < 5) || (filter === 'healthy' && st === 'ok');
+    let total = 0, attention = 0;
+    const groups = raw.map((g) => {
+      const airframes = g.airframes.filter((r) => keep(r[2], r[3])).map((r) => {
+        const s = S[r[2]];
+        const dots = [1, 2, 3, 4, 5].map((n) => ({ c: n < r[3] ? '#5AB0E8' : (n === r[3] ? '#9BD3F5' : '#2C343D') }));
+        return {
+          id: r[0], build: r[1], statusLabel: s.label, glyph: s.glyph, sc: s.c, sbg: s.bg,
+          stage: r[3], stageName: r[4], dots,
+          metrics: r[5].map((m) => ({ name: m[0], value: m[1], c: Z[m[2]], pos: m[3] })),
+          last: r[6], findings: r[7], fc: r[7] === 'No findings' ? '#8A949E' : '#CBD2D9'
+        };
+      });
+      return { name: g.name, meta: g.meta, airframes };
+    }).filter((g) => g.airframes.length > 0);
+    raw.forEach((g) => g.airframes.forEach((r) => { total += 1; if (r[2] !== 'ok') attention += 1; }));
+    const opts = [['all', 'All'], ['attention', 'Needs attention'], ['tuning', 'Tuning'], ['healthy', 'Healthy']];
+    const filters = opts.map((o) => ({
+      label: o[1], pressed: filter === o[0],
+      color: filter === o[0] ? '#E7EAEE' : '#A3ACB6',
+      bg: filter === o[0] ? '#262E37' : 'transparent',
+      pick: () => this.setState({ filter: o[0] })
+    }));
+    const feedRaw = [
+      ['fix', 'HL-11', 'CAN bus 1 went bus-off twice; ESC commands failed to send for 0.4 s.', '16 Oct · Buses', 'FlightReport.dc.html'],
+      ['inspect', 'HL-07', 'ESC 3 runs 14 °C hotter than its siblings, and the gap has grown over 6 flights.', 'Today · Propulsion', 'FlightReport.dc.html'],
+      ['inspect', 'HL-07', 'Motor-band gyro noise up 6 dB since flight 137. Top suspect: INS_HNTCH_BW 40 → 20.', 'Today · Trend shift', 'Trends.dc.html'],
+      ['inspect', 'VM-02 · HL-09', 'GNSS jamming on two airframes in the same hour: likely an outside source, not hardware.', 'Yesterday · GNSS', 'FlightReport.dc.html'],
+      ['inspect', 'HL-14', 'Pack B-17 resistance at 170% of new. End of life is 200%.', 'Today · Power', 'FlightReport.dc.html'],
+      ['info', 'HL-12', 'COMPASS_ORIENT changed with no recorded origin.', 'Today · Parameters', 'FlightReport.dc.html']
+    ];
+    const feed = feedRaw.map((f) => { const s = S[f[0]]; return { sevLabel: f[0] === 'fix' ? 'Fix first' : s.label, glyph: s.glyph, sc: s.c, who: f[1], text: f[2], meta: f[3], href: f[4] }; });
+    const imports = [
+      { name: 'HL-07 · flight 142', state: 'Analyzed', c: '#3DBE8B', pct: 100, bar: '#3DBE8B' },
+      { name: 'HL-09 · flight 88', state: 'Filters 3 of 9', c: '#A3ACB6', pct: 38, bar: '#5AB0E8' },
+      { name: 'HL-09 · flight 89', state: 'Queued', c: '#8A949E', pct: 0, bar: '#5AB0E8' }
+    ];
+    return {
+      groups, filters, feed, imports,
+      summary: raw.length + ' platforms · ' + total + ' airframes · ' + attention + ' need attention'
+    };
+  }
+}
+</script>
+</body>
+</html>

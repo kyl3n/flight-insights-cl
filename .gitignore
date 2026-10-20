@@ -1,0 +1,37 @@
+# Flight data: never commit real logs or parameter files.
+# They contain exact positions and aircraft identifiers.
+*.bin
+*.BIN
+*.tlog
+*.tlog.raw
+*.rlog
+*.log
+*.param
+*.parm
+*.params
+# Scrubbed test fixtures (positions removed or shifted) are allowed only here
+!tests/fixtures/**
+
+# Secrets
+.env
+.env.*
+*.key
+*.pem
+*.p12
+*recovery-key*
+
+# Build output and dependencies
+node_modules/
+target/
+dist/
+build/
+__pycache__/
+*.pyc
+.venv/
+.pytest_cache/
+
+# OS and editor files
+.DS_Store
+Thumbs.db
+.idea/
+.vscode/
