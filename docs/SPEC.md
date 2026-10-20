@@ -83,7 +83,7 @@ The split follows the ecosystems. Python has the ArduPilot tooling (pymavlink's 
 
 | Layer | Technology | Responsibilities |
 | --- | --- | --- |
-| UI | TypeScript, Svelte or React; uPlot for time series; WebGL for spectrograms | Views, plots, recommendation review, flight comparison, chat |
+| UI | TypeScript, Svelte 5; uPlot for time series; WebGL for spectrograms | Views, plots, recommendation review, flight comparison, chat |
 | Shell | Tauri v2 (Rust) | Windows, sidecar start/stop/restart, file dialogs, keys and sign-in tokens in the OS keychain, encrypted Google Drive sync, outbound Claude and weather requests, signed auto-update |
 | Engine | Python 3.12+, frozen with PyInstaller or Nuitka | Ingestion, columnar cache, fingerprint, analyzers, recommendation engine, location scrubber, Claude client |
 | Knowledge pack | Versioned data files, updatable without an app release | Parameter metadata per firmware version, rename and rescale tables, rule packs, curated doc excerpts |

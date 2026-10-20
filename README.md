@@ -6,4 +6,29 @@ A desktop app, for Windows and Linux first, that analyzes ArduPilot `.bin` logs,
 - **Screen mock-ups:** [`docs/mockups/`](docs/mockups/)
 - **Instructions for Claude Code:** [`CLAUDE.md`](CLAUDE.md)
 
-Status: design complete; Phase 0 (foundations) not yet started.
+Status: Phase 0 (foundations) in progress.
+
+## Repository layout
+
+| Path | What it holds |
+| --- | --- |
+| `engine/` | Python 3.12+ analysis engine, run as the shell's sidecar and as the `fi-engine` CLI |
+| `shell/` | Tauri v2 desktop shell (Rust, in `shell/src-tauri/`) |
+| `ui/` | Svelte 5 + TypeScript user interface |
+| `tools/` | Repository checks |
+| `tests/fixtures/` | Scrubbed test logs and parameter files, the only place flight data may be committed |
+
+## Development
+
+Requires [uv](https://docs.astral.sh/uv/), Node 22 with pnpm, and Rust stable. On Linux, Tauri also needs `libwebkit2gtk-4.1-dev`, `libayatana-appindicator3-dev` and `librsvg2-dev`.
+
+```sh
+pnpm install                      # UI and Tauri CLI
+pnpm tauri dev                    # run the desktop app against the UI dev server
+
+cd engine && uv sync && uv run pytest
+cd ui && pnpm check && pnpm test
+cd shell/src-tauri && cargo clippy --all-targets && cargo test
+
+python3 tools/check_repo_files.py # no flight data or keys outside tests/fixtures/
+```
