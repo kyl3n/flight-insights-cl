@@ -19,7 +19,6 @@ from __future__ import annotations
 
 import argparse
 import shutil
-import socket
 import subprocess
 import sys
 import tempfile
@@ -49,6 +48,10 @@ class Vehicle:
 
     def __init__(self, tlog: Path) -> None:
         self.conn = self._connect()
+        # "ArduPilot Ready" is sent once at boot, possibly before any wait below runs,
+        # so watch every message from the moment the link opens.
+        self.ready = False
+        self.conn.message_hooks.append(self._watch)
         self.conn.setup_logfile(str(tlog))
         self.conn.wait_heartbeat(timeout=60)
         self.sys, self.comp = self.conn.target_system, self.conn.target_component
@@ -56,18 +59,28 @@ class Vehicle:
             self.sys, self.comp, mavutil.mavlink.MAV_DATA_STREAM_ALL, 4, 1
         )
 
+    def _watch(self, _conn: object, msg: object) -> None:
+        if getattr(msg, "get_type", lambda: "")() == "STATUSTEXT" and "ArduPilot Ready" in str(
+            getattr(msg, "text", "")
+        ):
+            self.ready = True
+
+    def wait_ready(self, timeout: float = 120) -> None:
+        end = time.monotonic() + timeout
+        while not self.ready:
+            if time.monotonic() > end:
+                raise ScenarioFailed("timed out waiting for start-up")
+            self.conn.recv_match(blocking=True, timeout=0.5)
+
     @staticmethod
     def _connect() -> mavutil.mavfile:
-        deadline = time.monotonic() + 60
-        while time.monotonic() < deadline:
-            try:
-                with socket.create_connection(SERIAL0, timeout=1):
-                    pass
-                break
-            except OSError:
-                time.sleep(0.5)
+        # Connect once, retrying until SITL listens: SITL boots for its first client,
+        # so a throwaway probe connection would take the start-up messages with it.
         return mavutil.mavlink_connection(
-            f"tcp:{SERIAL0[0]}:{SERIAL0[1]}", source_system=255, source_component=190
+            f"tcp:{SERIAL0[0]}:{SERIAL0[1]}",
+            source_system=255,
+            source_component=190,
+            retries=60,
         )
 
     def pump(self, seconds: float) -> None:
@@ -277,12 +290,7 @@ def run(scenario: Scenario, ardupilot: Path, version: str, out_dir: Path) -> Non
         )  # fmt: skip
         try:
             vehicle = Vehicle(stem.with_suffix(".tlog"))
-            vehicle.wait(
-                "start-up",
-                lambda m: "ArduPilot Ready" in m.text,  # type: ignore[attr-defined]
-                "STATUSTEXT",
-                120,
-            )
+            vehicle.wait_ready()
             for name, value in scenario.params.items():
                 new = value(vehicle.get_param(name)) if callable(value) else value
                 vehicle.set_param(name, new)
