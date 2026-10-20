@@ -94,7 +94,7 @@ The split follows the ecosystems. Python has the ArduPilot tooling (pymavlink's 
 **Packaging**
 
 - **Windows:** NSIS or MSI from the Tauri bundler, code-signed. Bump the version on every build: a reported Tauri v2 bug leaves the old sidecar in place on same-version reinstalls ([issue 15134](https://github.com/tauri-apps/tauri/issues/15134)).
-- **Linux:** AppImage and .deb, built on the oldest supported distribution so glibc matches field laptops.
+- **Linux:** RPM and AppImage for recent Fedora and similar distributions, built on the oldest Fedora release still supported so glibc matches field laptops.
 - **Sidecar size:** a frozen Python with NumPy and SciPy runs to tens of megabytes. Acceptable for a desktop tool; keep optional heavy dependencies out of the core build.
 
 **Path to other platforms**
@@ -872,7 +872,7 @@ Claude is called on every analysis, but it only sees derived measurements and a 
 **Location scrubber: deny by default**
 
 - **Allowlist only.** Only engine-built feature objects and allowlisted parameters leave the machine. Raw log messages never do.
-- **Unit-driven field removal.** Any field whose logged unit is latitude or longitude is dropped at decode for the AI path, whatever message it sits in. That covers GPS, estimator and backup-AHRS positions, origin, mission commands, fence points, camera triggers and ADS-B, plus fields in messages added by future firmware. Tlogs get the same treatment from the units in MAVLink's message definitions, and the ground station's own position never leaves.
+- **Unit-driven field removal.** Any field whose logged unit is latitude or longitude is dropped at decode for the AI path, whatever message it sits in. That covers GPS, estimator and backup-AHRS positions, origin, mission commands, fence points, camera triggers and ADS-B, plus fields in messages added by future firmware. Tlogs get the same treatment from the units in MAVLink's message definitions (`degE7`, and degrees for float latitude and longitude fields). Mission and command coordinates carry no units, so `MISSION_ITEM`, `MISSION_ITEM_INT` and `COMMAND_INT` x/y in a global frame, and `COMMAND_LONG` param5/param6, are identified from the `MAV_CMD` parameter definitions. The ground station's own position never leaves.
 - **Whole message types blocked:** raw GNSS observables, terrain data, follow-target data, embedded files and free-text messages.
 - **Location-revealing parameters removed:** AHRS origin, fence and rally settings, magnetic declination, system IDs, serial numbers and board unique IDs.
 - **Side channels coarsened:** altitudes made relative to take-off, timestamps relative to arming with GPS week and time dropped, magnetic field strength and inclination dropped, ambient temperature and pressure rounded. Position-controller data goes out as error statistics, never as trajectories.
@@ -1175,7 +1175,7 @@ The airframe, not the log, is the unit the app reasons about: every flight, para
 
 **Storage.** SQLite for entities, Parquet per flight for decoded columns. The shared Google Drive folder is the permanent record (see Shared storage and sync); each laptop's database is a complete working copy that can be rebuilt from it. Decoded columns can be evicted and rebuilt from the original log; findings and snapshots are kept.
 
-**Encryption at rest.** Local logs and caches contain full GPS tracks. The app requires OS full-disk encryption on the machine and encrypts its own database with a key held in the OS keychain. Position columns are stored apart from the rest under their own key, so analysis and AI paths never touch them. Nothing is deleted: positions are kept, encrypted, like everything else.
+**Encryption at rest.** Local logs and caches contain full GPS tracks. The app requires OS full-disk encryption on the machine and encrypts its own database with SQLCipher, using a key held in the OS keychain. The Parquet cache uses Parquet modular encryption, with position columns under their own key, so analysis and AI paths never touch them. The shell reads both keys from the keychain and passes them to the engine at start-up; they are never written to disk. Nothing is deleted: positions are kept, encrypted, like everything else.
 
 **Fleet signals**
 
@@ -1405,13 +1405,14 @@ A tuning tool earns trust only by being right on real aircraft, so validation is
 
 - **Own fleet logs,** labelled by engineers with archetype, known problems and what fixed them. This is the most valuable asset the project builds.
 - **SITL logs** with injected vibration, sensor faults and parameter errors, generated per firmware version, so every analyzer has positive and negative cases with known answers.
+- **Where the corpus lives.** SITL logs, with their tlogs and parameter files, are committed as test fixtures after their positions are shifted by a random, unrecorded offset; CI checks each against a hash manifest written by the scrubbing tool. Real fleet logs never enter the repository: they stay on engineers' machines, and the decoder gate runs on them there.
 - **Version coverage:** at least one real log per vehicle type for each supported firmware line, starting with 4.7, the oldest in the fleet, and adding each new release as it ships.
 
 **Built-in ground truth for filters.** A log with `INS_RAW_LOG_OPT` = 9 holds both pre- and post-filter gyro data for the filters actually flown. The engine predicts the post-filter spectrum from the pre-filter data and parameters, and compares it with what was logged. The error in the 0-40 Hz band is a release gate.
 
 | Test layer | What it proves | Gate |
 | --- | --- | --- |
-| Decoder | Values and units match pymavlink across firmware lines | Exact match on the reference corpus |
+| Decoder | The same messages, in the same order, with the same values as pymavlink, across firmware lines. pymavlink applies only the scaling implied by format characters (such as `L`, ×10⁻⁷) and skips unparseable bytes one at a time; the engine matches both. Units and SI conversion from FMTU, UNIT and MULT are a separate layer with its own tests | Exact, bit-for-bit match on the reference corpus |
 | Dialect | Parameter names and scaling round-trip between versions | No unmapped parameters in the corpus |
 | Analyzer golden tests | Each analyzer finds what the labels say, within tolerance | No regression on the labelled set |
 | Filter prediction | Simulated post-filter spectrum matches logged post-filter data | Error target set in Phase 1 from the first 50 logs |
@@ -1485,7 +1486,7 @@ The largest risk is a confident wrong recommendation on a heavy aircraft; most o
 | Model access or terms change at short notice | Medium | Model-agnostic packet and schema; the deterministic engine stands alone |
 | Frozen Python sidecar flagged by Windows antivirus | Medium | Code signing; Nuitka as an alternative freezer |
 | Too few labelled logs to calibrate thresholds | Medium | Start labelling in Phase 0 with the fleet's first real logs; SITL cases for every analyzer |
-| GPL obligations from reused code | Low | Re-implement published methods; legal review before any code reuse |
+| GPL and LGPL obligations from reused code | Low | Re-implement published methods; legal review before any code reuse; pymavlink (LGPL-3.0) ships unmodified as a separate, replaceable library |
 | Weather data licences | Low | Show attribution for each weather source in the app, as its licence requires |
 
 **Open questions**
@@ -1494,6 +1495,7 @@ The largest risk is a confident wrong recommendation on a heavy aircraft; most o
 - [ ] Optional, later: request zero data retention (ZDR) from Anthropic's sales team.
 - [ ] Confirm the deployment fits Anthropic's commercial terms and usage policy for the organization's use.
 - [ ] Licensing of ArduPilot WebTools, if any code reuse is wanted.
+- [ ] Legal review of shipping pymavlink (LGPL-3.0) in the frozen engine: it is bundled unmodified for tlog decoding, and must stay replaceable by the user.
 - [ ] Whether to adopt the simulator checks, and in which phase.
 
 ## Sources
