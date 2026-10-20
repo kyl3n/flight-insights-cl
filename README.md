@@ -15,8 +15,8 @@ Status: Phase 0 (foundations) in progress.
 | `engine/` | Python 3.12+ analysis engine, run as the shell's sidecar and as the `fi-engine` CLI |
 | `shell/` | Tauri v2 desktop shell (Rust, in `shell/src-tauri/`) |
 | `ui/` | Svelte 5 + TypeScript user interface |
-| `tools/` | Repository checks |
-| `tests/fixtures/` | Scrubbed test logs and parameter files, the only place flight data may be committed |
+| `tools/` | Repository checks; fixture scrubber and SITL scenarios (`tools/fixtures/`) |
+| `tests/fixtures/` | Scrubbed SITL logs, tlogs and parameter files: the only place flight data may be committed (see its README) |
 
 ## Development
 

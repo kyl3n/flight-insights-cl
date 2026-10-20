@@ -34,6 +34,20 @@ jobs:
           tar xzf gitleaks.tgz gitleaks
           ./gitleaks git --no-banner --redact .
 
+  fixtures:
+    name: Fixtures (scrubber, labels, pymavlink reads)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v6
+      - name: Lint tools
+        run: |
+          uvx ruff@0.17.1 check --config engine/pyproject.toml tools
+          uvx ruff@0.17.1 format --check --config engine/pyproject.toml tools
+      - run: >
+          uv run --no-project --python 3.12 --with pytest --with "pymavlink==2.4.50"
+          --with "pyyaml==6.0.2" --with "jsonschema==4.23.0" pytest tools/fixtures/tests
+
   engine:
     name: Engine (${{ matrix.os }})
     strategy:

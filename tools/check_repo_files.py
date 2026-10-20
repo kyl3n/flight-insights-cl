@@ -2,20 +2,24 @@
 """Fail if git tracks flight data or secrets where they must not be.
 
 Flight logs, tlogs and parameter files reveal positions and aircraft
-identifiers. Scrubbed fixtures are allowed only under tests/fixtures/.
-Key material is never allowed anywhere. See CLAUDE.md, "Location and privacy".
+identifiers. Scrubbed fixtures are allowed only under tests/fixtures/, and
+each one must be listed with its SHA-256 in tests/fixtures/SCRUBBED.sha256,
+which tools/fixtures/scrub_fixture.py writes. Key material is never allowed
+anywhere. See CLAUDE.md, "Location and privacy".
 
 Usage: check_repo_files.py [path ...]   (default: every file git tracks)
 """
 
 from __future__ import annotations
 
+import hashlib
 import subprocess
 import sys
 from collections.abc import Iterable, Sequence
 from pathlib import Path, PurePosixPath
 
 FIXTURES_DIR = PurePosixPath("tests/fixtures")
+MANIFEST = FIXTURES_DIR / "SCRUBBED.sha256"
 
 # Flight data: allowed only under tests/fixtures/.
 FLIGHT_DATA_SUFFIXES = {
@@ -47,25 +51,53 @@ def _is_env_file(name: str) -> bool:
     return name == ".env" or name.startswith(".env.")
 
 
+def is_flight_data(path: PurePosixPath, head: bytes) -> bool:
+    return bool(_suffixes(path) & FLIGHT_DATA_SUFFIXES) or head.startswith(DATAFLASH_MAGIC)
+
+
 def problems_for(path: PurePosixPath, head: bytes) -> list[str]:
     """Return the reasons a tracked file is not allowed, or an empty list."""
     found: list[str] = []
     name = path.name.lower()
-    suffixes = _suffixes(path)
-    in_fixtures = path.is_relative_to(FIXTURES_DIR)
 
-    if suffixes & SECRET_SUFFIXES or _is_env_file(name) or any(
-        part in name for part in SECRET_NAME_PARTS
+    if (
+        _suffixes(path) & SECRET_SUFFIXES
+        or _is_env_file(name)
+        or any(part in name for part in SECRET_NAME_PARTS)
     ):
         found.append("looks like a secret or key file")
 
-    if not in_fixtures:
-        if suffixes & FLIGHT_DATA_SUFFIXES:
+    if not path.is_relative_to(FIXTURES_DIR):
+        if _suffixes(path) & FLIGHT_DATA_SUFFIXES:
             found.append("flight data outside tests/fixtures/")
         elif head.startswith(DATAFLASH_MAGIC):
             found.append("DataFlash log content outside tests/fixtures/")
 
     return found
+
+
+def read_manifest(text: str) -> dict[str, str]:
+    """`sha256sum` format: digest, two spaces, path relative to tests/fixtures/."""
+    entries: dict[str, str] = {}
+    for line in text.splitlines():
+        if line.strip():
+            digest, rel = line.split(None, 1)
+            entries[rel.strip()] = digest
+    return entries
+
+
+def fixture_problems(path: PurePosixPath, content: bytes, manifest: dict[str, str]) -> list[str]:
+    """A fixture must be listed in the manifest with the hash the scrubber recorded."""
+    if not path.is_relative_to(FIXTURES_DIR) or not is_flight_data(
+        path, content[: len(DATAFLASH_MAGIC)]
+    ):
+        return []
+    rel = path.relative_to(FIXTURES_DIR).as_posix()
+    if rel not in manifest:
+        return ["fixture not in SCRUBBED.sha256: was it scrubbed?"]
+    if hashlib.sha256(content).hexdigest() != manifest[rel]:
+        return ["fixture changed since it was scrubbed"]
+    return []
 
 
 def tracked_files(repo: Path) -> list[PurePosixPath]:
@@ -77,13 +109,14 @@ def tracked_files(repo: Path) -> list[PurePosixPath]:
 
 def check(repo: Path, paths: Iterable[PurePosixPath]) -> list[str]:
     errors: list[str] = []
+    manifest_file = repo / MANIFEST
+    manifest = read_manifest(manifest_file.read_text()) if manifest_file.is_file() else {}
     for rel in paths:
         full = repo / rel
-        head = b""
-        if full.is_file():
-            with full.open("rb") as f:
-                head = f.read(len(DATAFLASH_MAGIC))
-        errors.extend(f"{rel}: {reason}" for reason in problems_for(rel, head))
+        content = full.read_bytes() if full.is_file() else b""
+        reasons = problems_for(rel, content[: len(DATAFLASH_MAGIC)])
+        reasons += fixture_problems(rel, content, manifest)
+        errors.extend(f"{rel}: {reason}" for reason in reasons)
     return errors
 
 

@@ -1,0 +1,59 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "Flight log label",
+  "description": "What a log in the test corpus is and what it should show. SITL fixtures carry one beside each log in tests/fixtures/; real fleet logs use the same format, kept with the logs outside the repository. Labels never hold positions, place names or identifiers.",
+  "type": "object",
+  "required": ["source", "vehicle", "firmware", "description", "faults", "expected"],
+  "additionalProperties": false,
+  "properties": {
+    "source": {
+      "enum": ["sitl", "fleet"],
+      "description": "Simulator run or a real aircraft of the fleet"
+    },
+    "vehicle": { "enum": ["copter", "heli", "plane", "quadplane"] },
+    "frame": { "type": "string", "description": "Frame as flown, e.g. 'quad +', 'octo X', 'tiltrotor'" },
+    "archetype": {
+      "type": "string",
+      "description": "Archetype an engineer assigned (spec: Vehicle fingerprinting), e.g. 'heavy-lift with variable payload'"
+    },
+    "firmware": {
+      "type": "string",
+      "pattern": "^[0-9]+\\.[0-9]+\\.[0-9]+",
+      "description": "ArduPilot version, e.g. 4.7.0"
+    },
+    "ardupilot_commit": { "type": "string", "pattern": "^([0-9a-f]{7,40}|unknown)$" },
+    "scenario": { "type": "string", "description": "SITL scenario name, or a short name for the flight" },
+    "description": { "type": "string", "minLength": 1 },
+    "parameters_set": {
+      "type": "object",
+      "description": "Parameters set on purpose for this log, beyond the defaults",
+      "additionalProperties": { "type": ["number", "string"] }
+    },
+    "faults": {
+      "type": "array",
+      "description": "Faults injected (SITL) or known to be present (fleet)",
+      "items": {
+        "type": "object",
+        "required": ["kind", "description"],
+        "additionalProperties": false,
+        "properties": {
+          "kind": { "type": "string", "description": "e.g. vibration, parameter-error, sensor-failure" },
+          "description": { "type": "string" },
+          "parameters": { "type": "array", "items": { "type": "string" } }
+        }
+      }
+    },
+    "expected": {
+      "type": "array",
+      "description": "What an engineer expects the log to show; analyzer golden tests check against these",
+      "items": { "type": "string" }
+    },
+    "fixes": {
+      "type": "array",
+      "description": "Fleet logs: what fixed the known problems",
+      "items": { "type": "string" }
+    },
+    "labelled_by": { "type": "string" },
+    "labelled_on": { "type": "string", "format": "date" }
+  }
+}
