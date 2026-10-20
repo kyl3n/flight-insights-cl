@@ -149,6 +149,15 @@ jobs:
       - uses: Swatinem/rust-cache@v2
         with:
           workspaces: shell/src-tauri
+      - uses: astral-sh/setup-uv@v6
+      - name: Engine for the shell's integration test
+        working-directory: engine
+        run: uv sync --locked
       - run: cargo fmt --check
       - run: cargo clippy --locked --all-targets -- -D warnings
-      - run: cargo test --locked
+      - name: cargo test (with the real engine)
+        env:
+          # Paths relative to shell/src-tauri, where cargo runs the tests.
+          FI_ENGINE_CMD: '["uv", "run", "--project", "../../engine", "python", "-m", "flight_insights", "rpc"]'
+          FI_KNOWLEDGE_DIR: ../../knowledge
+        run: cargo test --locked
