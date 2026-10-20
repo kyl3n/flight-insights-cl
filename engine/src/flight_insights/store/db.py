@@ -210,7 +210,10 @@ def open_store(
     check_laptop_id(laptop_id)
     conn = _sqlcipher.connect(str(path))
     try:
-        conn.execute("PRAGMA cipher_memory_security = ON")
+        # Not cipher_memory_security: its page locking fails once a process passes the
+        # OS lock quota (RLIMIT_MEMLOCK, or the working set behind VirtualLock), after
+        # which SQLCipher logs a warning on every allocation, and on Windows the stack
+        # overflowed. Full-disk encryption, which the spec requires, covers swapped pages.
         conn.execute(f"PRAGMA key = \"x'{keys.database.hex()}'\"")
         try:
             conn.execute("SELECT count(*) FROM sqlite_schema").fetchone()
