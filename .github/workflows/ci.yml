@@ -69,6 +69,22 @@ jobs:
       - name: Phase 0 gate on the committed fixtures
         run: uv run fi-engine gate --corpus ../tests/fixtures --jobs 2
 
+  benchmark:
+    name: Decode benchmark (500 MB, spec target 60 s)
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: engine
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v6
+      - run: uv sync --locked
+      - name: Build a 500 MB raw-IMU log from a fixture
+        run: >
+          uv run python bench/make_large_log.py
+          ../tests/fixtures/sitl/4.7.0/copter-quad-rawimu.bin "$RUNNER_TEMP/large.bin" --megabytes 500
+      - run: uv run python bench/bench_decode.py "$RUNNER_TEMP/large.bin" --max-seconds 60
+
   ui:
     name: UI
     runs-on: ubuntu-latest

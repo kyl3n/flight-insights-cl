@@ -120,6 +120,10 @@ class DfFormat:
         return cls(type_, name, length, fmt, columns, dtype, [""] * len(fmt), [None] * len(fmt))
 
     @property
+    def is_fmt(self) -> bool:
+        return self.name == "FMT"
+
+    @property
     def body_size(self) -> int:
         return self.length - 3
 

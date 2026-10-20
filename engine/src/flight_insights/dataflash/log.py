@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import mmap
+from collections.abc import Iterator
 from functools import cached_property
 from pathlib import Path
 from types import TracebackType
@@ -100,14 +101,24 @@ class DataflashLog:
 
     # --- messages --------------------------------------------------------------------
 
+    @cached_property
+    def _offsets_by_format(self) -> list[np.ndarray[tuple[int], np.dtype[np.int64]]]:
+        """Each format's message offsets in file order, grouped in one pass over the index."""
+        ids = self.index.format_ids
+        order = np.argsort(ids, kind="stable")
+        counts = np.bincount(ids, minlength=len(self.index.formats))
+        return np.split(self.index.offsets[order], np.cumsum(counts)[:-1])
+
+    def offsets(self, fid: int) -> np.ndarray[tuple[int], np.dtype[np.int64]]:
+        return self._offsets_by_format[fid]
+
     def count_format(self, fid: int) -> int:
-        return int(np.count_nonzero(self.index.format_ids == fid))
+        return len(self._offsets_by_format[fid])
 
     def rows(self, fid: int) -> np.ndarray[tuple[int], np.dtype[np.void]]:
         """Stored values of every message written with format `fid`, in file order."""
         if fid not in self._rows:
-            offsets = self.index.offsets[self.index.format_ids == fid]
-            self._rows[fid] = decode_rows(self._bytes, offsets, self.index.formats[fid])
+            self._rows[fid] = decode_rows(self._bytes, self.offsets(fid), self.index.formats[fid])
         return self._rows[fid]
 
     def table(self, name: str) -> pa.Table:
@@ -125,10 +136,42 @@ class DataflashLog:
         if any(not t.schema.equals(tables[0].schema) for t in tables):
             raise ValueError(f"{name} is defined with different columns or types in this log")
         order = np.argsort(
-            np.concatenate([self.index.offsets[self.index.format_ids == i] for i in ids]),
+            np.concatenate([self.offsets(i) for i in ids]),
             kind="stable",
         )
         return pa.concat_tables(tables).take(order)
+
+    def decode_all(self) -> dict[str, pa.Table]:
+        """Every type's table. Types redefined with different columns are left out;
+        read those one definition at a time with rows() or iter_batches().
+
+        Single-threaded on purpose: decoding 500 MB takes about 17 s on one core,
+        and threads measured slower, as the Arrow and string work holds the GIL.
+        """
+        tables = {n: self._table_or_none(n) for n in self.message_types}
+        return {n: t for n, t in tables.items() if t is not None}
+
+    def _table_or_none(self, name: str) -> pa.Table | None:
+        try:
+            return self.table(name)
+        except ValueError:
+            return None  # redefined with different columns: read each format with rows()
+
+    def iter_batches(self, name: str, rows: int = 1 << 16) -> Iterator[pa.RecordBatch]:
+        """A type's messages in file order, `rows` at a time, never all in memory at once.
+
+        For a type redefined part-way through a log, batches follow each definition
+        in turn, so their schemas can differ.
+        """
+        ids = [i for i in self.formats_named(name) if self.count_format(i)]
+        if not ids:
+            raise KeyError(name)
+        for fid in ids:
+            offsets = self.offsets(fid)
+            fmt = self.index.formats[fid]
+            for start in range(0, len(offsets), rows):
+                chunk = decode_rows(self._bytes, offsets[start : start + rows], fmt)
+                yield from to_table(chunk, fmt).to_batches()
 
     def instances(self, name: str) -> dict[int, pa.Table]:
         """A type's messages split by its instance column (IMU, ESC, battery...)."""

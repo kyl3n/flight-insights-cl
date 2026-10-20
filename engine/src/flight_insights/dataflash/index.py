@@ -57,6 +57,8 @@ class LogIndex:
     rejected: list[int] = field(default_factory=list[int])  # headers of undecodable messages
     stop: Stop = "end"
     stop_offset: int = 0
+    # Types seen at a header before any format defined them (skipped as unknown).
+    early_types: set[int] = field(default_factory=set[int])
 
     @property
     def skipped_bytes(self) -> int:
@@ -77,17 +79,24 @@ def _walk(buf: memoryview, active: dict[int, DfFormat]) -> LogIndex:
     n = len(buf)
     head0, head1 = HEAD
     formats: list[DfFormat] = []
-    ids: dict[int, int] = {}
+    ids: dict[DfFormat, int] = {}
     offsets = array("q")
     format_ids = array("H")
+    add_offset, add_id = offsets.append, format_ids.append
+    lookup = active.get
     skipped: list[tuple[int, int]] = []
     rejected: list[int] = []
+    early: set[int] = set()
     skip_start = -1
     stop: Stop = "end"
     o = 0
-    while n - o >= 3:
-        fmt = active.get(buf[o + 2]) if buf[o] == head0 and buf[o + 1] == head1 else None
+    end = n - 3
+    while o <= end:
+        is_head = buf[o] == head0 and buf[o + 1] == head1
+        fmt = lookup(buf[o + 2]) if is_head else None
         if fmt is None:
+            if is_head:
+                early.add(buf[o + 2])
             if skip_start < 0:
                 skip_start = o
             o += 1
@@ -95,30 +104,29 @@ def _walk(buf: memoryview, active: dict[int, DfFormat]) -> LogIndex:
         if skip_start >= 0:
             skipped.append((skip_start, o - skip_start))
             skip_start = -1
-        remaining = n - (o + 3)
-        if remaining < fmt.body_size:
+        if n - (o + 3) < fmt.body_size:
             stop = "truncated"
             break
         if not fmt.decodable:
-            if remaining < TAIL_GARBAGE:
+            if n - (o + 3) < TAIL_GARBAGE:
                 stop = "bad-tail"
                 break
             rejected.append(o)
             o += 3
             continue
-        if fmt.name == "FMT":
+        if fmt.is_fmt:
             new = _parse_fmt(buf, o)
             if new is None:
                 rejected.append(o)
                 o += 3
                 continue
             active[new.type] = new
-        fid = ids.get(id(fmt))
+        fid = ids.get(fmt)
         if fid is None:
-            fid = ids[id(fmt)] = len(formats)
+            fid = ids[fmt] = len(formats)
             formats.append(fmt)
-        offsets.append(o)
-        format_ids.append(fid)
+        add_offset(o)
+        add_id(fid)
         o += fmt.length
     if skip_start >= 0:
         skipped.append((skip_start, o - skip_start))
@@ -130,13 +138,18 @@ def _walk(buf: memoryview, active: dict[int, DfFormat]) -> LogIndex:
         rejected=rejected,
         stop=stop,
         stop_offset=o,
+        early_types=early,
     )
 
 
 def index_log(data: Buffer) -> LogIndex:
     buf = memoryview(data).cast("B")
-    # First pass: learn every format the file defines (pymavlink knows them all
-    # before it reads, from its pre-scan and clock pass). Second pass: the index.
+    # Every format the file defines must be known from the start (pymavlink learns
+    # them all before it reads, in its pre-scan and clock pass). The first pass
+    # learns them; only if it skipped a message whose type was defined later does
+    # a second pass, starting with every format, read the file differently.
     learned: dict[int, DfFormat] = {FMT_TYPE: FMT_FORMAT}
-    _walk(buf, learned)
+    first = _walk(buf, learned)
+    if not first.early_types & learned.keys():
+        return first
     return _walk(buf, dict(learned))
