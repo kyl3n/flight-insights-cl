@@ -66,6 +66,8 @@ jobs:
       - run: uv run ruff format --check .
       - run: uv run pyright
       - run: uv run pytest
+      - name: Phase 0 gate on the committed fixtures
+        run: uv run fi-engine gate --corpus ../tests/fixtures --jobs 2
 
   ui:
     name: UI

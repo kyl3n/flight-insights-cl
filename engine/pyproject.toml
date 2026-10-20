@@ -7,6 +7,8 @@ requires-python = ">=3.12"
 dependencies = [
     "numpy>=2.5.4",
     "pyarrow>=26.0.0",
+    # LGPL-3.0, shipped unmodified: the reference decoder for the gate, and the tlog decoder.
+    "pymavlink==2.4.50",
 ]
 
 [project.scripts]
@@ -21,8 +23,8 @@ packages = ["src/flight_insights"]
 
 [dependency-groups]
 dev = [
+    "hypothesis>=6.170.5",
     "pyarrow-stubs>=20.0.0.20260819",
-    "pymavlink==2.4.50",
     "pyright",
     "pytest",
     "ruff",

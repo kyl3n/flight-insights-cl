@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 
-import array
 import math
 import struct
 from pathlib import Path
@@ -11,10 +10,11 @@ from typing import Any
 import pyarrow as pa
 import pytest
 from df_builder import LogBuilder
-from pymavlink_ref import reference
 
 from flight_insights.dataflash import read_dataflash
 from flight_insights.dataflash.compat import pymavlink_messages
+from flight_insights.dataflash.reference import reference_messages
+from flight_insights.gate import same
 
 FIXTURES = Path(__file__).resolve().parents[2] / "tests" / "fixtures"
 FIXTURE_LOGS = sorted(FIXTURES.rglob("*.bin"))
@@ -26,17 +26,8 @@ def meta(table: pa.Table, column: str) -> dict[bytes, bytes]:
     return metadata
 
 
-def same(a: Any, b: Any) -> bool:
-    """Equal, bit for bit for floats (so -0.0 and NaN payloads count)."""
-    if isinstance(a, array.array):
-        a = a.tolist()  # pyright: ignore[reportUnknownMemberType, reportUnknownVariableType]
-    if isinstance(a, float) or isinstance(b, float):
-        return (
-            isinstance(a, float)
-            and isinstance(b, float)
-            and struct.pack("<d", a) == struct.pack("<d", b)
-        )
-    return type(a) is type(b) and a == b
+def reference(path: Path) -> list[tuple[str, dict[str, Any]]]:
+    return list(reference_messages(path))
 
 
 def assert_matches_pymavlink(path: Path) -> int:
