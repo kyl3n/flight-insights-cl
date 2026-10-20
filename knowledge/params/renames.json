@@ -1,0 +1,64 @@
+{
+  "renames": [
+    {
+      "vehicle": "copter",
+      "from_version": "4.7.0",
+      "to_version": "4.7.1",
+      "old": "PSC_JERK_D",
+      "new": "PSC_D_JERK",
+      "scale": 1.0,
+      "evidence": {
+        "kind": "same storage",
+        "file": "libraries/AC_AttitudeControl/AC_PosControl.cpp",
+        "class": "AC_PosControl",
+        "index": "11",
+        "variable": "_shaping_jerk_d_msss"
+      }
+    },
+    {
+      "vehicle": "copter",
+      "from_version": "4.7.0",
+      "to_version": "4.7.1",
+      "old": "PSC_JERK_NE",
+      "new": "PSC_NE_JERK",
+      "scale": 1.0,
+      "evidence": {
+        "kind": "same storage",
+        "file": "libraries/AC_AttitudeControl/AC_PosControl.cpp",
+        "class": "AC_PosControl",
+        "index": "10",
+        "variable": "_shaping_jerk_ne_msss"
+      }
+    },
+    {
+      "vehicle": "plane",
+      "from_version": "4.7.0",
+      "to_version": "4.7.1",
+      "old": "Q_P_JERK_D",
+      "new": "Q_P_D_JERK",
+      "scale": 1.0,
+      "evidence": {
+        "kind": "same storage",
+        "file": "libraries/AC_AttitudeControl/AC_PosControl.cpp",
+        "class": "AC_PosControl",
+        "index": "11",
+        "variable": "_shaping_jerk_d_msss"
+      }
+    },
+    {
+      "vehicle": "plane",
+      "from_version": "4.7.0",
+      "to_version": "4.7.1",
+      "old": "Q_P_JERK_NE",
+      "new": "Q_P_NE_JERK",
+      "scale": 1.0,
+      "evidence": {
+        "kind": "same storage",
+        "file": "libraries/AC_AttitudeControl/AC_PosControl.cpp",
+        "class": "AC_PosControl",
+        "index": "10",
+        "variable": "_shaping_jerk_ne_msss"
+      }
+    }
+  ]
+}

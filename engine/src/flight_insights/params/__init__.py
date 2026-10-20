@@ -1,5 +1,6 @@
-"""Parameter files and, in later steps, dialects and history."""
+"""Parameter files, dialects and classes."""
 
+from flight_insights.params.dialect import CanonicalParams, Dialect, ParamClass
 from flight_insights.params.files import (
     MethodicStep,
     ParamEntry,
@@ -13,7 +14,10 @@ from flight_insights.params.files import (
 )
 
 __all__ = [
+    "CanonicalParams",
+    "Dialect",
     "MethodicStep",
+    "ParamClass",
     "ParamEntry",
     "ParamFile",
     "format_value",

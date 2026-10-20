@@ -1,0 +1,72 @@
+{
+  "about": "Parameters a release has but ArduPilot's param_parse.py leaves out of its metadata, found because they appear in real logs. Each is copied from the parameter's own documentation comment in the firmware source, cited in 'evidence'. The engine's tests flag an entry once the generated metadata includes it, so it can be removed.",
+  "params": [
+    {
+      "name": "FLTMODE_GCSBLOCK",
+      "from_version": "4.7.0",
+      "vehicles": {
+        "copter": {
+          "display": "Flight mode block from GCS",
+          "description": "Bitmask of flight modes to disable for GCS selection. Mode can still be accessed via RC or failsafe.",
+          "bitmask": {
+            "0": "Stabilize",
+            "1": "Acro",
+            "2": "AltHold",
+            "3": "Auto",
+            "4": "Guided",
+            "5": "Loiter",
+            "6": "Circle",
+            "7": "Drift",
+            "8": "Sport",
+            "9": "Flip",
+            "10": "AutoTune",
+            "11": "PosHold",
+            "12": "Brake",
+            "13": "Throw",
+            "14": "Avoid_ADSB",
+            "15": "Guided_NoGPS",
+            "16": "Smart_RTL",
+            "17": "FlowHold",
+            "18": "Follow",
+            "19": "ZigZag",
+            "20": "SystemID",
+            "21": "Heli_Autorotate",
+            "22": "Auto RTL",
+            "23": "Turtle"
+          },
+          "user": "Standard"
+        },
+        "plane": {
+          "display": "Flight mode block from GCS",
+          "description": "Bitmask of flight modes to disable for GCS selection. Mode can still be accessed via RC or failsafe.",
+          "bitmask": {
+            "0": "Manual",
+            "1": "Circle",
+            "2": "Stabilize",
+            "3": "Training",
+            "4": "ACRO",
+            "5": "FBWA",
+            "6": "FBWB",
+            "7": "CRUISE",
+            "8": "AUTOTUNE",
+            "9": "Auto",
+            "10": "Loiter",
+            "11": "Takeoff",
+            "12": "AVOID_ADSB",
+            "13": "Guided",
+            "14": "THERMAL",
+            "15": "QSTABILIZE",
+            "16": "QHOVER",
+            "17": "QLOITER",
+            "18": "QACRO",
+            "19": "QAUTOTUNE",
+            "20": "Loiter to QLand",
+            "21": "Autoland"
+          },
+          "user": "Standard"
+        }
+      },
+      "evidence": "libraries/AP_Vehicle/AP_Vehicle.cpp: @Param FLTMODE_GCSBLOCK, AP_GROUPINFO index 20 of AP_Vehicle (4.7.0, 4.7.1, 4.7.2)"
+    }
+  ]
+}
