@@ -273,7 +273,18 @@ def build_server(out: IO[str], pack: Pack | None = None) -> Server:
             _int(params, "build_version"),
             _dict(params, "values"),
             "detected" if params.get("detected") else "entered",
+            _sources(params),
         )
+
+    def _sources(params: dict[str, Any]) -> dict[str, str] | None:
+        raw = params.get("sources")
+        if raw is None:
+            return None
+        if not isinstance(raw, dict) or not all(
+            isinstance(v, str) for v in cast(dict[str, Any], raw).values()
+        ):
+            raise RpcError(INVALID_PARAMS, "sources must map field ids to text")
+        return cast(dict[str, str], raw)
 
     @server.method("platform.detect")
     @guarded

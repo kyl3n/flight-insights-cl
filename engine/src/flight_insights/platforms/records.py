@@ -24,15 +24,25 @@ def _spec(row: dict[str, Any] | None) -> Spec:
     return json.loads(row["spec_json"]) if row else {}
 
 
-def _apply(schema: Schema, spec: Spec, values: dict[str, Any], source: str) -> Spec:
-    """Checked values merged into a spec; None removes a field."""
+def _apply(
+    schema: Schema,
+    spec: Spec,
+    values: dict[str, Any],
+    source: str,
+    sources: dict[str, str] | None = None,
+) -> Spec:
+    """Checked values merged into a spec; None removes a field. `sources` gives a
+    field its own provenance, such as "detected: FRAME_CLASS Quad"."""
     out = dict(spec)
     for field_id, value in values.items():
         checked = check_value(schema.field(field_id), value)
         if checked is None:
             out.pop(field_id, None)
         else:
-            out[field_id] = {"value": checked, "source": source}
+            own = (sources or {}).get(field_id, source)
+            if not own.startswith(source):
+                raise SetupError(f"{field_id}: a source must start with {source!r}")
+            out[field_id] = {"value": checked, "source": own[:200]}
     return out
 
 
@@ -102,12 +112,13 @@ def save_answers(
     build_version: int,
     values: dict[str, Any],
     source: str = "entered",
+    sources: dict[str, str] | None = None,
 ) -> dict[str, Any]:
     """Save setup answers on the platform's reference build, which must still be at
     `build_version` (otherwise someone else changed it first)."""
     platform = _require(store, "platform", platform_id)
     build = _require(store, "build_version", platform["reference_build_id"])
-    spec = _apply(schema, _spec(build), values, source)
+    spec = _apply(schema, _spec(build), values, source, sources)
     if "name" in values and "name" not in spec:
         raise SetupError("a platform needs a name")
     if spec.get("vehicle", {}).get("value") not in (None, platform["vehicle"]):

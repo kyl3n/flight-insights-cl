@@ -193,8 +193,13 @@ def test_detected_answers_can_be_saved(store: Store, schema: Schema, pack: Pack)
     build = platform_view(store, schema, pid)["reference_build"]["version"]
     found = detect(FIXTURES / "copter-quad-hover.param", pack)
     values = {k: v["value"] for k, v in found.items() if k != "vehicle"}
-    view = save_answers(store, schema, pid, build, values, source="detected")
-    assert view["spec"]["motor_count"] == {"value": 4, "source": "detected"}
+    sources = {k: v["source"] for k, v in found.items()}
+    view = save_answers(store, schema, pid, build, values, "detected", sources)
+    assert view["spec"]["motor_count"] == {"value": 4, "source": "detected: FRAME_CLASS Quad"}
+    with pytest.raises(SetupError, match="source"):  # a detected value cannot pose as entered
+        save_answers(
+            store, schema, pid, build + 1, {"motor_kv": 1}, "detected", {"motor_kv": "entered"}
+        )
 
 
 def test_an_unrecognisable_file_is_refused(tmp_path: Path, pack: Pack) -> None:
