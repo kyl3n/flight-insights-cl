@@ -1,11 +1,14 @@
 """Command-line entry point: `fi-engine`."""
 
 import argparse
+import json
+import logging
 import multiprocessing
 import os
 import sys
 from collections.abc import Sequence
 from pathlib import Path
+from typing import Any
 
 from flight_insights import __version__
 
@@ -32,7 +35,79 @@ def build_parser() -> argparse.ArgumentParser:
     gate.add_argument(
         "--jobs", type=int, default=os.cpu_count() or 1, help="logs compared in parallel"
     )
+    analyze = commands.add_parser(
+        "analyze",
+        help="validate, segment and fingerprint one .bin log",
+        description=(
+            "Decode a .bin log and report its validation, flights, steady hover, parameter "
+            "set and vehicle fingerprint. The output holds no positions."
+        ),
+    )
+    analyze.add_argument("log", type=Path)
+    analyze.add_argument("--json", action="store_true", help="print the full result as JSON")
+
+    decode = commands.add_parser("decode", help="what a .bin log holds: message types and counts")
+    decode.add_argument("log", type=Path)
+
+    commands.add_parser(
+        "rpc",
+        help="serve JSON-RPC 2.0 on stdin and stdout (how the desktop app runs the engine)",
+    )
     return parser
+
+
+def _print_json(data: object) -> None:
+    from flight_insights.rpc.server import jsonable
+
+    print(json.dumps(jsonable(data), indent=2, allow_nan=False))
+
+
+def _analyze(args: argparse.Namespace) -> int:
+    from flight_insights.analysis import analyze_log
+    from flight_insights.dataflash import read_dataflash
+    from flight_insights.knowledge import load_pack
+
+    path: Path = args.log
+    with read_dataflash(path) as df:
+        result = analyze_log(path, df, load_pack(), None)
+    if args.json:
+        _print_json(result)
+        return 0
+    fp: dict[str, Any] = result["fingerprint"]
+    params: dict[str, Any] = result["parameters"]
+    frame: dict[str, Any] = fp["frame"]["value"] or {}
+    print(f"{path.name}: {params['vehicle']} {params['firmware']}, {frame.get('frame_class')}")
+    print(f"  parameters: {params['count']}, set {params['set_id'][:16]}")
+    for f in result["flights"]:
+        modes = ", ".join(m["name"] for m in f["modes"])
+        print(f"  flight {f['number']}: {f['duration_s']:.1f} s ({modes})")
+    print(f"  steady hover: {fp['hover_s']:.1f} s")
+    for i in result["validation"]["issues"]:
+        print(f"  {i['kind']}: {i['detail']}")
+    best = result["archetypes"]["ranked"][:1]
+    if best:
+        b = best[0]
+        score = f"score {b['score']:.2f}, confidence {b['confidence']:.2f}"
+        print(f"  archetype: {b['archetype']} ({score})")
+    return 0
+
+
+def _decode(args: argparse.Namespace) -> int:
+    from flight_insights.analysis import summary
+    from flight_insights.dataflash import read_dataflash
+
+    with read_dataflash(args.log) as df:
+        _print_json(summary(df))
+    return 0
+
+
+def _rpc() -> int:
+    from flight_insights.rpc import build_server, run_stdio
+
+    logging.basicConfig(
+        stream=sys.stderr, level=logging.INFO, format="%(asctime)s %(levelname)s %(message)s"
+    )
+    return run_stdio(build_server)
 
 
 def _gate(args: argparse.Namespace) -> int:
@@ -61,4 +136,11 @@ def main(argv: Sequence[str] | None = None) -> int:
     args = build_parser().parse_args(argv)
     if args.command == "gate":
         return _gate(args)
+    if args.command == "analyze":
+        return _analyze(args)
+    if args.command == "decode":
+        return _decode(args)
+    if args.command == "rpc":
+        return _rpc()
+    build_parser().print_help()
     return 0

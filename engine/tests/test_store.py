@@ -341,3 +341,18 @@ def test_a_failed_write_leaves_no_file(tmp_path: Path, keys: StoreKeys) -> None:
     cache.write("f", "T", [a])
     cache.evict("f")
     assert cache.names("f") == []
+
+
+def test_threads_share_the_store_safely(tmp_path: Path, keys: StoreKeys) -> None:
+    from concurrent.futures import ThreadPoolExecutor
+
+    with open_store(tmp_path / "fleet.db", keys, LAPTOP) as store:
+
+        def work(n: int) -> None:
+            with store.transaction():
+                pid = store.insert("platform", {"name": f"P{n}", "vehicle": "copter"})
+                store.insert("airframe", {"name": f"A{n}", "platform_id": pid})
+
+        with ThreadPoolExecutor(8) as pool:
+            list(pool.map(work, range(200)))
+        assert store.conn.execute("SELECT count(*) FROM airframe").fetchone() == (200,)
