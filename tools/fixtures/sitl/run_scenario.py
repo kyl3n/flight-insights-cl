@@ -51,6 +51,7 @@ class Vehicle:
         # "ArduPilot Ready" is sent once at boot, possibly before any wait below runs,
         # so watch every message from the moment the link opens.
         self.ready = False
+        self.texts: list[str] = []  # status texts received, for diagnosing failures
         self.conn.message_hooks.append(self._watch)
         self.conn.setup_logfile(str(tlog))
         self.conn.wait_heartbeat(timeout=60)
@@ -60,10 +61,17 @@ class Vehicle:
         )
 
     def _watch(self, _conn: object, msg: object) -> None:
-        if getattr(msg, "get_type", lambda: "")() == "STATUSTEXT" and "ArduPilot Ready" in str(
-            getattr(msg, "text", "")
-        ):
-            self.ready = True
+        kind = getattr(msg, "get_type", lambda: "")()
+        if kind == "STATUSTEXT":
+            text = str(getattr(msg, "text", ""))
+            self.texts = [*self.texts[-29:], text]
+            if "ArduPilot Ready" in text:
+                self.ready = True
+        elif kind == "SYS_STATUS":
+            # Pre-arm checks only pass once start-up has finished.
+            health = int(getattr(msg, "onboard_control_sensors_health", 0))
+            if health & mavutil.mavlink.MAV_SYS_STATUS_PREARM_CHECK:
+                self.ready = True
 
     def wait_ready(self, timeout: float = 120) -> None:
         end = time.monotonic() + timeout
@@ -272,6 +280,22 @@ def write_param_files(params: list[tuple[str, float, int]], out: Path, about: st
     )
 
 
+def _diagnose(proc: subprocess.Popen[bytes], sitl_out: Path, vehicle: Vehicle | None) -> str:
+    """What SITL printed and said, to explain a failure in CI logs."""
+    code = proc.poll()
+    lines = sitl_out.read_text(errors="replace").splitlines()[-25:]
+    texts = vehicle.texts if vehicle else []
+    return "\n".join(
+        [
+            f"  SITL {'exited with ' + str(code) if code is not None else 'still running'}",
+            "  SITL output (last lines):",
+            *(f"    {line}" for line in lines),
+            "  status texts received:",
+            *(f"    {t}" for t in texts),
+        ]
+    )
+
+
 def run(scenario: Scenario, ardupilot: Path, version: str, out_dir: Path) -> None:
     binary = ardupilot / "build" / "sitl" / "bin" / scenario.binary
     if not binary.exists():
@@ -288,6 +312,7 @@ def run(scenario: Scenario, ardupilot: Path, version: str, out_dir: Path) -> Non
             ],
             cwd=work, stdout=sitl_out, stderr=subprocess.STDOUT,
         )  # fmt: skip
+        vehicle: Vehicle | None = None
         try:
             vehicle = Vehicle(stem.with_suffix(".tlog"))
             vehicle.wait_ready()
@@ -304,6 +329,9 @@ def run(scenario: Scenario, ardupilot: Path, version: str, out_dir: Path) -> Non
             scenario.fly(vehicle)
             vehicle.hold(3)  # let the logger flush after disarming
             vehicle.close()
+        except ScenarioFailed as e:
+            sitl_out.flush()
+            raise ScenarioFailed(f"{e}\n{_diagnose(proc, Path(work) / 'sitl.txt', vehicle)}") from e
         finally:
             proc.terminate()
             proc.wait(timeout=30)
