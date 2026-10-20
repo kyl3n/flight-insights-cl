@@ -8,16 +8,18 @@ Versioned data the engine reads, updatable without an app release (spec: System 
 | `params/<version>/copter.json.gz`, `plane.json.gz` | Every parameter of a release: name, display name, description, units, range, values, bitmask, user level and flags (reboot required, read-only, volatile, calibration). Copter includes helicopters, Plane includes QuadPlanes. | `tools/build_param_metadata.py`, which runs ArduPilot's `param_parse.py` |
 | `params/renames.json` | Parameters renamed between releases, each with its proof | `tools/find_renames.py` |
 | `params/classes.json` | How parameters are classed: tuning, calibration, learned, counter, hardware, ground station | Curated |
+| `enums/<version>.json` | Flight-mode names per vehicle and log-event names, by the numbers logs record (MODE.ModeNum, EV.Id) | `tools/build_enums.py`, from the release's `mode.h` and `AP_Logger.h` |
 
 ## Adding a release
 
 ```sh
 python3 knowledge/tools/build_param_metadata.py ~/ardupilot-4.7.3 4.7.3
 python3 knowledge/tools/find_renames.py ~/ardupilot-4.7.2 ~/ardupilot-4.7.3 4.7.2 4.7.3
+python3 knowledge/tools/build_enums.py ~/ardupilot-4.7.3 4.7.3
 ```
 
 `find_renames.py` records a rename only with proof from both releases' source: the old and the new name are stored in the same place in the parameter tables (same group, index and variable), so the value carries over unchanged. It lists every other removed or added parameter for review. A rescale, where the units change and the firmware converts the value, always needs a person. That person adds the entry by hand, with `scale` and an `evidence` that cites the conversion code. The engine's tests reject any entry without evidence.
 
 ## Licensing
 
-The parameter metadata is generated from the documentation comments in ArduPilot's GPLv3 source, as ArduPilot does for ground stations. Shipping it with the app is on the spec's list of items for legal review.
+The parameter metadata and the mode and event names are generated from ArduPilot's GPLv3 source (documentation comments and enums), as ArduPilot does for ground stations. Shipping it with the app is on the spec's list of items for legal review.

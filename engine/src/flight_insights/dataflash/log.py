@@ -7,12 +7,12 @@ from collections.abc import Iterator
 from functools import cached_property
 from pathlib import Path
 from types import TracebackType
-from typing import Any, Self
+from typing import Any, Self, cast
 
 import numpy as np
 import pyarrow as pa
 
-from flight_insights.dataflash.decode import decode_rows, to_table
+from flight_insights.dataflash.decode import BLOCK_ROWS, decode_rows, to_table
 from flight_insights.dataflash.formats import DfFormat, text
 from flight_insights.dataflash.index import LogIndex, index_log
 
@@ -120,6 +120,26 @@ class DataflashLog:
         if fid not in self._rows:
             self._rows[fid] = decode_rows(self._bytes, self.offsets(fid), self.index.formats[fid])
         return self._rows[fid]
+
+    def field(self, fid: int, name: str) -> np.ndarray[tuple[int], np.dtype[Any]]:
+        """One field's stored values for format `fid`, in file order, gathered on its own
+        so whole-log passes (timestamps of every message) need not decode every row."""
+        if fid in self._rows:
+            return self._rows[fid][name]
+        fmt = self.index.formats[fid]
+        fields = cast(dict[str, tuple[Any, ...]], dict(fmt.dtype.fields or {}))
+        if name not in fields:
+            raise KeyError(f"{fmt.name} has no field {name}")
+        dtype: np.dtype[Any] = fields[name][0]
+        offset = int(fields[name][1])
+        offsets = self.offsets(fid)
+        out = np.empty(len(offsets), dtype=dtype)
+        raw = out.view(np.uint8).reshape(len(offsets), dtype.itemsize)
+        body = np.arange(3 + offset, 3 + offset + dtype.itemsize, dtype=np.int64)
+        for start in range(0, len(offsets), BLOCK_ROWS):
+            block = offsets[start : start + BLOCK_ROWS]
+            raw[start : start + len(block)] = self._bytes[block[:, None] + body]
+        return out
 
     def table(self, name: str) -> pa.Table:
         """Every message of a type as an Arrow table, in file order.
