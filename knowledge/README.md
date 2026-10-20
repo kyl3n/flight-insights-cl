@@ -8,6 +8,7 @@ Versioned data the engine reads, updatable without an app release (spec: System 
 | `params/<version>/copter.json.gz`, `plane.json.gz` | Every parameter of a release: name, display name, description, units, range, values, bitmask, user level and flags (reboot required, read-only, volatile, calibration). Copter includes helicopters, Plane includes QuadPlanes. | `tools/build_param_metadata.py`, which runs ArduPilot's `param_parse.py` |
 | `params/renames.json` | Parameters renamed between releases, each with its proof | `tools/find_renames.py` |
 | `params/classes.json` | How parameters are classed: tuning, calibration, learned, counter, hardware, ground station | Curated |
+| `rules/hover.json` | When a multirotor, helicopter or QuadPlane in VTOL flight counts as hovering steadily; starting values, marked uncalibrated | Curated |
 | `enums/<version>.json` | Flight-mode names per vehicle and log-event names, by the numbers logs record (MODE.ModeNum, EV.Id) | `tools/build_enums.py`, from the release's `mode.h` and `AP_Logger.h` |
 
 ## Adding a release
