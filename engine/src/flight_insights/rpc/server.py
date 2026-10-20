@@ -36,6 +36,7 @@ INTERNAL_ERROR = -32603
 LOCKED = -32001  # the store is not unlocked yet
 CANCELLED = -32002
 BAD_INPUT = -32003  # the file or arguments cannot be used
+CONFLICT = -32004  # the record changed since the caller read it
 
 
 class RpcError(Exception):

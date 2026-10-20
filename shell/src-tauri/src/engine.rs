@@ -192,6 +192,16 @@ pub const UI_METHODS: &[&str] = &[
     "log.columns",
     "files.release",
     "source.register",
+    "setup.schema",
+    "platform.create",
+    "platform.list",
+    "platform.get",
+    "platform.save",
+    "platform.detect",
+    "airframe.create",
+    "airframe.list",
+    "airframe.get",
+    "airframe.record_change",
 ];
 
 #[cfg(test)]

@@ -1,0 +1,1021 @@
+{
+ "about": "The guided platform setup (spec: Platforms, airframes and build configuration, 'Setting up a new platform'). Every field says why it is asked; required fields say what a gap prevents, which the completeness check lists. 'detect' names a value the engine can read from a parameter file or a bench log.",
+ "version": 1,
+ "steps": [
+  {
+   "id": "platform",
+   "title": {
+    "en": "Platform",
+    "uk": "Платформа"
+   },
+   "about": {
+    "en": "What the aircraft is and how it flies. These answers decide which checks apply.",
+    "uk": "Що це за апарат і як він літає. Від цих відповідей залежить, які перевірки застосовуються."
+   },
+   "fields": [
+    {
+     "id": "name",
+     "label": {
+      "en": "Name",
+      "uk": "Назва"
+     },
+     "type": "text",
+     "required": true,
+     "why": {
+      "en": "Shown everywhere the platform appears",
+      "uk": "Показується скрізь, де є платформа"
+     },
+     "prevents": {
+      "en": "Saving the platform",
+      "uk": "Збереження платформи"
+     }
+    },
+    {
+     "id": "vehicle",
+     "label": {
+      "en": "Vehicle type",
+      "uk": "Тип апарата"
+     },
+     "type": "choice",
+     "required": true,
+     "why": {
+      "en": "Selects the analyzers and the parameter dialect",
+      "uk": "Визначає аналізатори і діалект параметрів"
+     },
+     "prevents": {
+      "en": "Every analysis",
+      "uk": "Будь-який аналіз"
+     },
+     "detect": "vehicle",
+     "choices": [
+      "copter",
+      "plane"
+     ]
+    },
+    {
+     "id": "frame_class",
+     "label": {
+      "en": "Frame",
+      "uk": "Рама"
+     },
+     "type": "text",
+     "required": false,
+     "why": {
+      "en": "Motor count, coaxial pairs, yaw authority",
+      "uk": "Кількість моторів, співвісні пари, керованість по курсу"
+     },
+     "detect": "frame_class"
+    },
+    {
+     "id": "frame_type",
+     "label": {
+      "en": "Motor layout",
+      "uk": "Розташування моторів"
+     },
+     "type": "text",
+     "required": false,
+     "why": {
+      "en": "Which motor sits where",
+      "uk": "Де стоїть кожен мотор"
+     },
+     "detect": "frame_type"
+    },
+    {
+     "id": "motor_count",
+     "label": {
+      "en": "Motors",
+      "uk": "Мотори"
+     },
+     "type": "integer",
+     "required": true,
+     "why": {
+      "en": "Motor-out margin and per-motor checks",
+      "uk": "Запас при відмові мотора і перевірки кожного мотора"
+     },
+     "prevents": {
+      "en": "Motor-out margin",
+      "uk": "Запас при відмові мотора"
+     },
+     "detect": "motor_count"
+    },
+    {
+     "id": "wheelbase_mm",
+     "label": {
+      "en": "Wheelbase",
+      "uk": "Колісна база"
+     },
+     "type": "number",
+     "required": false,
+     "why": {
+      "en": "Frame size, with the prop size",
+      "uk": "Розмір рами разом із розміром пропелера"
+     },
+     "unit": "mm"
+    },
+    {
+     "id": "payload",
+     "label": {
+      "en": "Payload",
+      "uk": "Корисне навантаження"
+     },
+     "type": "choice",
+     "required": true,
+     "why": {
+      "en": "A changing payload needs a tune that holds across weights",
+      "uk": "Змінне навантаження потребує налаштування, що працює за різної ваги"
+     },
+     "prevents": {
+      "en": "Payload-dependent checks",
+      "uk": "Перевірки, що залежать від навантаження"
+     },
+     "choices": [
+      "none",
+      "fixed",
+      "variable"
+     ]
+    },
+    {
+     "id": "priority",
+     "label": {
+      "en": "What matters most",
+      "uk": "Що найважливіше"
+     },
+     "type": "choice",
+     "required": false,
+     "why": {
+      "en": "Ranks recommendations that trade one goal for another",
+      "uk": "Впорядковує рекомендації, що жертвують однією метою заради іншої"
+     },
+     "choices": [
+      "stability",
+      "agility",
+      "endurance",
+      "efficiency"
+     ]
+    },
+    {
+     "id": "min_temp_c",
+     "label": {
+      "en": "Coldest flying temperature",
+      "uk": "Найнижча температура польотів"
+     },
+     "type": "number",
+     "required": false,
+     "why": {
+      "en": "Battery and motor limits in the cold",
+      "uk": "Межі для батарей і моторів на морозі"
+     },
+     "unit": "°C"
+    },
+    {
+     "id": "max_temp_c",
+     "label": {
+      "en": "Hottest flying temperature",
+      "uk": "Найвища температура польотів"
+     },
+     "type": "number",
+     "required": false,
+     "why": {
+      "en": "ESC and motor temperature margins",
+      "uk": "Температурні запаси регуляторів і моторів"
+     },
+     "unit": "°C"
+    },
+    {
+     "id": "flies_without_gnss",
+     "label": {
+      "en": "Must fly without GNSS",
+      "uk": "Має літати без GNSS"
+     },
+     "type": "boolean",
+     "required": false,
+     "why": {
+      "en": "Enables the readiness checks for flight without GNSS",
+      "uk": "Вмикає перевірки готовності до польоту без GNSS"
+     }
+    }
+   ]
+  },
+  {
+   "id": "flight_controller",
+   "title": {
+    "en": "Flight controller",
+    "uk": "Польотний контролер"
+   },
+   "about": {
+    "en": "The board, its firmware and how it is mounted.",
+    "uk": "Плата, її прошивка і як її закріплено."
+   },
+   "fields": [
+    {
+     "id": "board",
+     "label": {
+      "en": "Board",
+      "uk": "Плата"
+     },
+     "type": "text",
+     "required": true,
+     "why": {
+      "en": "Processor class: which filters and FFT the board can run",
+      "uk": "Клас процесора: які фільтри та FFT плата може виконувати"
+     },
+     "prevents": {
+      "en": "Compute-dependent filter advice",
+      "uk": "Поради щодо фільтрів, що залежать від обчислювальних можливостей"
+     },
+     "detect": "board"
+    },
+    {
+     "id": "firmware",
+     "label": {
+      "en": "Firmware",
+      "uk": "Прошивка"
+     },
+     "type": "text",
+     "required": false,
+     "why": {
+      "en": "Parameter dialect and known issues",
+      "uk": "Діалект параметрів і відомі проблеми"
+     },
+     "detect": "firmware"
+    },
+    {
+     "id": "mounting",
+     "label": {
+      "en": "Mounting",
+      "uk": "Кріплення"
+     },
+     "type": "choice",
+     "required": true,
+     "why": {
+      "en": "Vibration expectations and isolation advice",
+      "uk": "Очікувана вібрація і поради з віброізоляції"
+     },
+     "prevents": {
+      "en": "Vibration isolation advice",
+      "uk": "Поради з віброізоляції"
+     },
+     "choices": [
+      "hard",
+      "foam",
+      "dampers",
+      "isolated frame"
+     ]
+    }
+   ]
+  },
+  {
+   "id": "propulsion",
+   "title": {
+    "en": "Propulsion",
+    "uk": "Силова установка"
+   },
+   "about": {
+    "en": "Motors, propellers and ESCs. These set the filter and gain starting values, the thrust model, the temperature limits and the motor-out margin.",
+    "uk": "Мотори, пропелери та регулятори. Від них залежать початкові значення фільтрів і коефіцієнтів, модель тяги, температурні межі та запас при відмові мотора."
+   },
+   "fields": [
+    {
+     "id": "motor_model",
+     "label": {
+      "en": "Motor model",
+      "uk": "Модель мотора"
+     },
+     "type": "text",
+     "required": false,
+     "why": {
+      "en": "Shown in reports and component history",
+      "uk": "Показується у звітах та історії компонентів"
+     }
+    },
+    {
+     "id": "motor_kv",
+     "label": {
+      "en": "Motor KV",
+      "uk": "KV мотора"
+     },
+     "type": "number",
+     "required": true,
+     "why": {
+      "en": "Expected motor speed and noise frequency",
+      "uk": "Очікувані оберти мотора і частота шуму"
+     },
+     "prevents": {
+      "en": "Expected noise frequency",
+      "uk": "Очікувана частота шуму"
+     },
+     "unit": "rpm/V"
+    },
+    {
+     "id": "motor_temp_limit_c",
+     "label": {
+      "en": "Motor temperature limit, from the datasheet",
+      "uk": "Межа температури мотора з паспорта"
+     },
+     "type": "number",
+     "required": false,
+     "why": {
+      "en": "Motor temperature limits",
+      "uk": "Межі температури мотора"
+     },
+     "prevents": {
+      "en": "Motor temperature limits",
+      "uk": "Межі температури мотора"
+     },
+     "unit": "°C"
+    },
+    {
+     "id": "directions_checked",
+     "label": {
+      "en": "Spin directions checked on the bench",
+      "uk": "Напрям обертання перевірено на стенді"
+     },
+     "type": "boolean",
+     "required": true,
+     "why": {
+      "en": "A motor spinning the wrong way flips the aircraft at take-off",
+      "uk": "Мотор, що обертається не в той бік, перевертає апарат під час зльоту"
+     },
+     "prevents": {
+      "en": "Safe first take-off",
+      "uk": "Безпечний перший зліт"
+     }
+    },
+    {
+     "id": "prop_diameter_in",
+     "label": {
+      "en": "Propeller diameter",
+      "uk": "Діаметр пропелера"
+     },
+     "type": "number",
+     "required": true,
+     "why": {
+      "en": "Prop class: the first split for filter and gain starting values",
+      "uk": "Клас пропелера: перший критерій для початкових значень фільтрів і коефіцієнтів"
+     },
+     "prevents": {
+      "en": "Starting filter values",
+      "uk": "Початкові значення фільтрів"
+     },
+     "unit": "in"
+    },
+    {
+     "id": "prop_pitch_in",
+     "label": {
+      "en": "Propeller pitch",
+      "uk": "Крок пропелера"
+     },
+     "type": "number",
+     "required": true,
+     "why": {
+      "en": "Needed for the thrust model's starting values",
+      "uk": "Потрібен для початкових значень моделі тяги"
+     },
+     "prevents": {
+      "en": "Thrust model starting values",
+      "uk": "Початкові значення моделі тяги"
+     },
+     "unit": "in"
+    },
+    {
+     "id": "prop_blades",
+     "label": {
+      "en": "Blades",
+      "uk": "Лопаті"
+     },
+     "type": "integer",
+     "required": false,
+     "why": {
+      "en": "Blade-pass frequency in the gyro spectrum",
+      "uk": "Частота проходження лопатей у спектрі гіроскопа"
+     }
+    },
+    {
+     "id": "prop_material",
+     "label": {
+      "en": "Propeller material",
+      "uk": "Матеріал пропелера"
+     },
+     "type": "choice",
+     "required": false,
+     "why": {
+      "en": "Stiffness changes vibration",
+      "uk": "Жорсткість впливає на вібрацію"
+     },
+     "choices": [
+      "carbon fibre",
+      "plastic",
+      "wood"
+     ]
+    },
+    {
+     "id": "esc_model",
+     "label": {
+      "en": "ESC model",
+      "uk": "Модель регулятора"
+     },
+     "type": "text",
+     "required": false,
+     "why": {
+      "en": "Shown in reports and component history",
+      "uk": "Показується у звітах та історії компонентів"
+     }
+    },
+    {
+     "id": "esc_firmware",
+     "label": {
+      "en": "ESC firmware",
+      "uk": "Прошивка регулятора"
+     },
+     "type": "choice",
+     "required": false,
+     "why": {
+      "en": "Telemetry and protection behaviour differ by firmware",
+      "uk": "Телеметрія і захист залежать від прошивки"
+     },
+     "choices": [
+      "BLHeli_32",
+      "AM32",
+      "Bluejay",
+      "BLHeli_S",
+      "other"
+     ]
+    },
+    {
+     "id": "esc_protocol",
+     "label": {
+      "en": "Output protocol",
+      "uk": "Протокол виходу"
+     },
+     "type": "text",
+     "required": false,
+     "why": {
+      "en": "Whether RPM telemetry can exist",
+      "uk": "Чи можлива телеметрія обертів"
+     },
+     "detect": "esc_protocol"
+    },
+    {
+     "id": "esc_rpm_telemetry",
+     "label": {
+      "en": "RPM telemetry",
+      "uk": "Телеметрія обертів"
+     },
+     "type": "boolean",
+     "required": false,
+     "why": {
+      "en": "Which notch tracking is possible",
+      "uk": "Яке відстеження режекторного фільтра можливе"
+     },
+     "detect": "esc_rpm_telemetry"
+    },
+    {
+     "id": "esc_temp_protection_c",
+     "label": {
+      "en": "ESC temperature protection setting",
+      "uk": "Поріг температурного захисту регулятора"
+     },
+     "type": "number",
+     "required": true,
+     "why": {
+      "en": "Sets the ESC temperature limits in health checks",
+      "uk": "Задає межі температури регулятора в перевірках стану"
+     },
+     "prevents": {
+      "en": "ESC temperature limits",
+      "uk": "Межі температури регулятора"
+     },
+     "unit": "°C"
+    }
+   ]
+  },
+  {
+   "id": "power",
+   "title": {
+    "en": "Power",
+    "uk": "Живлення"
+   },
+   "about": {
+    "en": "Batteries, the power module and the avionics supply.",
+    "uk": "Батареї, модуль живлення і живлення авіоніки."
+   },
+   "fields": [
+    {
+     "id": "battery_chemistry",
+     "label": {
+      "en": "Battery chemistry",
+      "uk": "Хімія батареї"
+     },
+     "type": "choice",
+     "required": true,
+     "why": {
+      "en": "Cell voltage limits and sag behaviour",
+      "uk": "Межі напруги елементів і просідання"
+     },
+     "prevents": {
+      "en": "Battery voltage limits",
+      "uk": "Межі напруги батареї"
+     },
+     "choices": [
+      "LiPo",
+      "LiHV",
+      "Li-ion",
+      "LiFePO4"
+     ]
+    },
+    {
+     "id": "cells",
+     "label": {
+      "en": "Cells in series",
+      "uk": "Елементів послідовно"
+     },
+     "type": "integer",
+     "required": true,
+     "why": {
+      "en": "Voltage limits and failsafe checks",
+      "uk": "Межі напруги і перевірки аварійних режимів"
+     },
+     "prevents": {
+      "en": "Battery failsafe checks",
+      "uk": "Перевірки аварійних режимів батареї"
+     },
+     "detect": "cells"
+    },
+    {
+     "id": "capacity_mah",
+     "label": {
+      "en": "Capacity",
+      "uk": "Ємність"
+     },
+     "type": "number",
+     "required": true,
+     "why": {
+      "en": "Endurance and failsafe reserve",
+      "uk": "Тривалість польоту і резерв для аварійного режиму"
+     },
+     "prevents": {
+      "en": "Endurance estimates",
+      "uk": "Оцінки тривалості польоту"
+     },
+     "detect": "capacity_mah",
+     "unit": "mAh"
+    },
+    {
+     "id": "max_current_a",
+     "label": {
+      "en": "Maximum continuous current, from the datasheet",
+      "uk": "Максимальний тривалий струм з паспорта"
+     },
+     "type": "number",
+     "required": true,
+     "why": {
+      "en": "Pack current limits",
+      "uk": "Межі струму батареї"
+     },
+     "prevents": {
+      "en": "Pack current limits",
+      "uk": "Межі струму батареї"
+     },
+     "unit": "A"
+    },
+    {
+     "id": "max_pack_temp_c",
+     "label": {
+      "en": "Maximum pack temperature, from the datasheet",
+      "uk": "Максимальна температура батареї з паспорта"
+     },
+     "type": "number",
+     "required": false,
+     "why": {
+      "en": "Pack temperature limits",
+      "uk": "Межі температури батареї"
+     },
+     "prevents": {
+      "en": "Pack temperature limits",
+      "uk": "Межі температури батареї"
+     },
+     "unit": "°C"
+    },
+    {
+     "id": "power_module",
+     "label": {
+      "en": "Power module",
+      "uk": "Модуль живлення"
+     },
+     "type": "text",
+     "required": false,
+     "why": {
+      "en": "Current and voltage sensing accuracy",
+      "uk": "Точність вимірювання струму і напруги"
+     }
+    },
+    {
+     "id": "power_module_calibrated",
+     "label": {
+      "en": "Power module calibrated",
+      "uk": "Модуль живлення відкалібровано"
+     },
+     "type": "boolean",
+     "required": false,
+     "why": {
+      "en": "Energy and resistance figures depend on it",
+      "uk": "Від цього залежать дані про енергію та опір"
+     }
+    }
+   ]
+  },
+  {
+   "id": "navigation",
+   "title": {
+    "en": "Navigation sensors",
+    "uk": "Навігаційні сенсори"
+   },
+   "about": {
+    "en": "GNSS, compasses and the other sources the estimator uses.",
+    "uk": "GNSS, компаси та інші джерела, які використовує оцінювач стану."
+   },
+   "fields": [
+    {
+     "id": "gnss_count",
+     "label": {
+      "en": "GNSS receivers",
+      "uk": "GNSS-приймачі"
+     },
+     "type": "integer",
+     "required": false,
+     "why": {
+      "en": "Redundancy and blending checks",
+      "uk": "Перевірки резервування і змішування"
+     },
+     "detect": "gnss_count"
+    },
+    {
+     "id": "gnss_model",
+     "label": {
+      "en": "GNSS model",
+      "uk": "Модель GNSS"
+     },
+     "type": "text",
+     "required": false,
+     "why": {
+      "en": "Jamming resilience and RTK capability",
+      "uk": "Стійкість до глушіння і підтримка RTK"
+     }
+    },
+    {
+     "id": "rtk",
+     "label": {
+      "en": "RTK",
+      "uk": "RTK"
+     },
+     "type": "boolean",
+     "required": false,
+     "why": {
+      "en": "Position accuracy expectations",
+      "uk": "Очікувана точність позиції"
+     },
+     "detect": "rtk"
+    },
+    {
+     "id": "compass_count",
+     "label": {
+      "en": "Compasses",
+      "uk": "Компаси"
+     },
+     "type": "integer",
+     "required": false,
+     "why": {
+      "en": "Compass consistency checks",
+      "uk": "Перевірки узгодженості компасів"
+     },
+     "detect": "compass_count"
+    },
+    {
+     "id": "compass_mounting",
+     "label": {
+      "en": "Compass mounting",
+      "uk": "Розміщення компаса"
+     },
+     "type": "choice",
+     "required": true,
+     "why": {
+      "en": "Distance from power wiring decides interference",
+      "uk": "Відстань від силових проводів визначає завади"
+     },
+     "prevents": {
+      "en": "Compass interference checks",
+      "uk": "Перевірки завад компаса"
+     },
+     "choices": [
+      "mast",
+      "GNSS module",
+      "on the flight controller",
+      "other"
+     ]
+    },
+    {
+     "id": "rangefinder",
+     "label": {
+      "en": "Rangefinder",
+      "uk": "Далекомір"
+     },
+     "type": "text",
+     "required": false,
+     "why": {
+      "en": "Low-altitude and landing checks",
+      "uk": "Перевірки на малій висоті і при посадці"
+     },
+     "detect": "rangefinder"
+    },
+    {
+     "id": "optical_flow",
+     "label": {
+      "en": "Optical flow",
+      "uk": "Оптичний потік"
+     },
+     "type": "text",
+     "required": false,
+     "why": {
+      "en": "Flight without GNSS",
+      "uk": "Політ без GNSS"
+     },
+     "detect": "optical_flow"
+    },
+    {
+     "id": "visual_odometry",
+     "label": {
+      "en": "Visual odometry",
+      "uk": "Візуальна одометрія"
+     },
+     "type": "text",
+     "required": false,
+     "why": {
+      "en": "Flight without GNSS",
+      "uk": "Політ без GNSS"
+     },
+     "detect": "visual_odometry"
+    }
+   ]
+  },
+  {
+   "id": "links",
+   "title": {
+    "en": "Links",
+    "uk": "Зв'язок"
+   },
+   "about": {
+    "en": "RC, telemetry and video links on the aircraft, and every antenna. Ground-side equipment has its own profile.",
+    "uk": "Канали керування, телеметрії та відео на апараті і всі антени. Наземне обладнання має окремий профіль."
+   },
+   "fields": [
+    {
+     "id": "rc_protocol",
+     "label": {
+      "en": "RC protocol",
+      "uk": "Протокол керування"
+     },
+     "type": "text",
+     "required": false,
+     "why": {
+      "en": "RC failsafe behaviour",
+      "uk": "Поведінка при втраті керування"
+     },
+     "detect": "rc_protocol"
+    },
+    {
+     "id": "rc_receiver",
+     "label": {
+      "en": "RC receiver",
+      "uk": "Приймач керування"
+     },
+     "type": "text",
+     "required": false,
+     "why": {
+      "en": "Link range and failsafe checks",
+      "uk": "Перевірки дальності і аварійних режимів"
+     }
+    },
+    {
+     "id": "telemetry_radio",
+     "label": {
+      "en": "Telemetry radio",
+      "uk": "Радіомодем телеметрії"
+     },
+     "type": "choice",
+     "required": false,
+     "why": {
+      "en": "Link analysis expectations",
+      "uk": "Очікування для аналізу зв'язку"
+     },
+     "choices": [
+      "SiK",
+      "RFD",
+      "wfb-ng",
+      "other",
+      "none"
+     ]
+    },
+    {
+     "id": "video_link",
+     "label": {
+      "en": "Video link",
+      "uk": "Відеоканал"
+     },
+     "type": "text",
+     "required": false,
+     "why": {
+      "en": "Interference with other links",
+      "uk": "Завади для інших каналів"
+     }
+    },
+    {
+     "id": "antennas",
+     "label": {
+      "en": "Antennas: model, gain, polarisation, placement",
+      "uk": "Антени: модель, підсилення, поляризація, розміщення"
+     },
+     "type": "text",
+     "required": false,
+     "why": {
+      "en": "Predicted signal and fade margin",
+      "uk": "Прогнозований сигнал і запас на завмирання"
+     }
+    }
+   ]
+  },
+  {
+   "id": "payload",
+   "title": {
+    "en": "Payload and peripherals",
+    "uk": "Навантаження і периферія"
+   },
+   "about": {
+    "en": "Mounts, gimbal and camera, companion computer and CAN nodes.",
+    "uk": "Кріплення, підвіс і камера, супутній комп'ютер і вузли CAN."
+   },
+   "fields": [
+    {
+     "id": "payload_mount",
+     "label": {
+      "en": "Payload mount and release",
+      "uk": "Кріплення і скидання вантажу"
+     },
+     "type": "text",
+     "required": false,
+     "why": {
+      "en": "Payload events in the log",
+      "uk": "Події навантаження в лозі"
+     }
+    },
+    {
+     "id": "gimbal",
+     "label": {
+      "en": "Gimbal and camera",
+      "uk": "Підвіс і камера"
+     },
+     "type": "text",
+     "required": false,
+     "why": {
+      "en": "Vibration reaching the camera",
+      "uk": "Вібрація, що доходить до камери"
+     }
+    },
+    {
+     "id": "companion_computer",
+     "label": {
+      "en": "Companion computer",
+      "uk": "Супутній комп'ютер"
+     },
+     "type": "text",
+     "required": false,
+     "why": {
+      "en": "Processor load and link checks",
+      "uk": "Перевірки навантаження і зв'язку"
+     }
+    },
+    {
+     "id": "can_nodes",
+     "label": {
+      "en": "CAN nodes",
+      "uk": "Вузли CAN"
+     },
+     "type": "text",
+     "required": false,
+     "why": {
+      "en": "Bus health checks",
+      "uk": "Перевірки стану шини"
+     }
+    }
+   ]
+  },
+  {
+   "id": "weights",
+   "title": {
+    "en": "Weights",
+    "uk": "Маса"
+   },
+   "about": {
+    "en": "Empty, typical and maximum take-off weight.",
+    "uk": "Порожня, типова і максимальна злітна маса."
+   },
+   "fields": [
+    {
+     "id": "empty_kg",
+     "label": {
+      "en": "Empty weight",
+      "uk": "Маса порожнього апарата"
+     },
+     "type": "number",
+     "required": true,
+     "why": {
+      "en": "Payload estimates from hover throttle",
+      "uk": "Оцінка навантаження за газом висіння"
+     },
+     "prevents": {
+      "en": "Payload estimates",
+      "uk": "Оцінки навантаження"
+     },
+     "unit": "kg"
+    },
+    {
+     "id": "typical_takeoff_kg",
+     "label": {
+      "en": "Typical take-off weight",
+      "uk": "Типова злітна маса"
+     },
+     "type": "number",
+     "required": true,
+     "why": {
+      "en": "The reference for hover checks",
+      "uk": "Еталон для перевірок висіння"
+     },
+     "prevents": {
+      "en": "Hover throttle checks",
+      "uk": "Перевірки газу висіння"
+     },
+     "unit": "kg"
+    },
+    {
+     "id": "max_takeoff_kg",
+     "label": {
+      "en": "Maximum take-off weight",
+      "uk": "Максимальна злітна маса"
+     },
+     "type": "number",
+     "required": true,
+     "why": {
+      "en": "Thrust headroom and motor-out margin",
+      "uk": "Запас тяги і запас при відмові мотора"
+     },
+     "prevents": {
+      "en": "Thrust headroom and motor-out margin",
+      "uk": "Запас тяги і запас при відмові мотора"
+     },
+     "unit": "kg"
+    }
+   ]
+  },
+  {
+   "id": "review",
+   "title": {
+    "en": "Review",
+    "uk": "Перевірка"
+   },
+   "about": {
+    "en": "Every gap and what it prevents.",
+    "uk": "Усі прогалини і що вони унеможливлюють."
+   },
+   "fields": []
+  },
+  {
+   "id": "first_params",
+   "title": {
+    "en": "First parameter file",
+    "uk": "Перший файл параметрів"
+   },
+   "about": {
+    "en": "The file the aircraft will fly with goes through the configuration review before the first flight.",
+    "uk": "Файл, з яким апарат полетить, проходить перевірку конфігурації до першого польоту."
+   },
+   "fields": [
+    {
+     "id": "param_file",
+     "label": {
+      "en": "Parameter file",
+      "uk": "Файл параметрів"
+     },
+     "type": "source",
+     "required": true,
+     "why": {
+      "en": "Configuration errors are caught before take-off",
+      "uk": "Помилки конфігурації виявляються до зльоту"
+     },
+     "prevents": {
+      "en": "Configuration review before the first flight",
+      "uk": "Перевірка конфігурації до першого польоту"
+     }
+    }
+   ]
+  }
+ ]
+}
