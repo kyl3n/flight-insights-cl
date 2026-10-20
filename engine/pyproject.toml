@@ -5,10 +5,12 @@ description = "Flight Insights analysis engine: decoding, analysis and recommend
 readme = "README.md"
 requires-python = ">=3.12"
 dependencies = [
+    "cryptography>=46",
     "numpy>=2.5.4",
     "pyarrow>=26.0.0",
     # LGPL-3.0, shipped unmodified: the reference decoder for the gate, and the tlog decoder.
     "pymavlink==2.4.50",
+    "sqlcipher3==0.6.3",
 ]
 
 [project.scripts]
