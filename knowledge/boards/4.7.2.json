@@ -1,0 +1,2615 @@
+{
+ "version": "4.7.2",
+ "boards": {
+  "3DR-L431-ASAUAV": {
+   "hwdef": "3DR-L431-ASAUAV",
+   "mcu": "STM32L431xx",
+   "family": "L4",
+   "apj_board_id": 1165
+  },
+  "3DRControlZeroG": {
+   "hwdef": "3DRControlZeroG",
+   "mcu": "STM32H743xx",
+   "family": "H7",
+   "apj_board_id": 1124
+  },
+  "ACNS-CM4Pilot": {
+   "hwdef": "ACNS-CM4Pilot",
+   "mcu": "STM32F405xx",
+   "family": "F4",
+   "apj_board_id": 1115
+  },
+  "ACNS-F405AIO": {
+   "hwdef": "ACNS-F405AIO",
+   "mcu": "STM32F405xx",
+   "family": "F4",
+   "apj_board_id": 1116
+  },
+  "AEDROXH7": {
+   "hwdef": "AEDROXH7",
+   "mcu": "STM32H743xx",
+   "family": "H7",
+   "apj_board_id": 1198
+  },
+  "AEROFOX-H7": {
+   "hwdef": "AEROFOX-H7",
+   "mcu": "STM32H743xx",
+   "family": "H7",
+   "apj_board_id": 7110
+  },
+  "AET-H743-Basic": {
+   "hwdef": "AET-H743-Basic",
+   "mcu": "STM32H743xx",
+   "family": "H7",
+   "apj_board_id": 2024
+  },
+  "AIRBRAINH743": {
+   "hwdef": "AIRBRAINH743",
+   "mcu": "STM32H743xx",
+   "family": "H7",
+   "apj_board_id": 1209
+  },
+  "AIRLink": {
+   "hwdef": "AIRLink",
+   "mcu": "STM32F767xx",
+   "family": "F7",
+   "apj_board_id": 55
+  },
+  "AR-F407SmartBat": {
+   "hwdef": "AR-F407SmartBat",
+   "mcu": "CKS32F407xx",
+   "family": "F4",
+   "apj_board_id": 1134
+  },
+  "ARKV6S": {
+   "hwdef": "ARKV6S",
+   "mcu": "STM32H743xx",
+   "family": "H7",
+   "apj_board_id": 61
+  },
+  "ARKV6X": {
+   "hwdef": "ARKV6X",
+   "mcu": "STM32H743xx",
+   "family": "H7",
+   "apj_board_id": 57
+  },
+  "ARKV6X-bdshot": {
+   "hwdef": "ARKV6X-bdshot",
+   "mcu": "STM32H743xx",
+   "family": "H7",
+   "apj_board_id": 57
+  },
+  "ARK_CANNODE": {
+   "hwdef": "ARK_CANNODE",
+   "mcu": "STM32F412Rx",
+   "family": "F4",
+   "apj_board_id": 83
+  },
+  "ARK_FPV": {
+   "hwdef": "ARK_FPV",
+   "mcu": "STM32H743xx",
+   "family": "H7",
+   "apj_board_id": 59
+  },
+  "ARK_GPS": {
+   "hwdef": "ARK_GPS",
+   "mcu": "STM32F412Rx",
+   "family": "F4",
+   "apj_board_id": 81
+  },
+  "ARK_PI6X": {
+   "hwdef": "ARK_PI6X",
+   "mcu": "STM32H743xx",
+   "family": "H7",
+   "apj_board_id": 58
+  },
+  "ARK_RTK_GPS": {
+   "hwdef": "ARK_RTK_GPS",
+   "mcu": "STM32F412Rx",
+   "family": "F4",
+   "apj_board_id": 82
+  },
+  "ATOMRCF405NAVI-Deluxe": {
+   "hwdef": "ATOMRCF405NAVI-Deluxe",
+   "mcu": "STM32F405xx",
+   "family": "F4",
+   "apj_board_id": 1143
+  },
+  "AcctonGodwit_GA1": {
+   "hwdef": "AcctonGodwit_GA1",
+   "mcu": "STM32H743xx",
+   "family": "H7",
+   "apj_board_id": 7120
+  },
+  "AeroCogito-H7Digital": {
+   "hwdef": "AeroCogito-H7Digital",
+   "mcu": "STM32H743xx",
+   "family": "H7",
+   "apj_board_id": 4300
+  },
+  "AeroFox-Airspeed": {
+   "hwdef": "AeroFox-Airspeed",
+   "mcu": "STM32F103xB",
+   "family": "F1",
+   "apj_board_id": 1077
+  },
+  "AeroFox-Airspeed-DLVR": {
+   "hwdef": "AeroFox-Airspeed-DLVR",
+   "mcu": "STM32F103xB",
+   "family": "F1",
+   "apj_board_id": 1104
+  },
+  "AeroFox-GNSS_F9P": {
+   "hwdef": "AeroFox-GNSS_F9P",
+   "mcu": "STM32L431xx",
+   "family": "L4",
+   "apj_board_id": 1109
+  },
+  "AeroFox-PMU": {
+   "hwdef": "AeroFox-PMU",
+   "mcu": "STM32L431xx",
+   "family": "L4",
+   "apj_board_id": 1080
+  },
+  "Aeromind6X": {
+   "hwdef": "Aeromind6X",
+   "mcu": "STM32H743xx",
+   "family": "H7",
+   "apj_board_id": 1850
+  },
+  "Airvolute-DCS2": {
+   "hwdef": "Airvolute-DCS2",
+   "mcu": "STM32H743xx",
+   "family": "H7",
+   "apj_board_id": 5200
+  },
+  "AnyleafH7": {
+   "hwdef": "AnyleafH7",
+   "mcu": "STM32H743xx",
+   "family": "H7",
+   "apj_board_id": 1146
+  },
+  "Aocoda-RC-H743Dual": {
+   "hwdef": "Aocoda-RC-H743Dual",
+   "mcu": "STM32H743xx",
+   "family": "H7",
+   "apj_board_id": 5210
+  },
+  "Atlas-Control": {
+   "hwdef": "Atlas-Control",
+   "mcu": "STM32H743xx",
+   "family": "H7",
+   "apj_board_id": 1227
+  },
+  "AtomRCF405NAVI": {
+   "hwdef": "AtomRCF405NAVI",
+   "mcu": "STM32F405xx",
+   "family": "F4",
+   "apj_board_id": 1078
+  },
+  "BCubeF745v2": {
+   "hwdef": "BCubeF745v2",
+   "mcu": "STM32F745xx",
+   "family": "F7",
+   "apj_board_id": 1511
+  },
+  "BETAFPV-F405": {
+   "hwdef": "BETAFPV-F405",
+   "mcu": "STM32F405xx",
+   "family": "F4",
+   "apj_board_id": 1125
+  },
+  "BETAFPV-F405-I2C": {
+   "hwdef": "BETAFPV-F405-I2C",
+   "mcu": "STM32F405xx",
+   "family": "F4",
+   "apj_board_id": 1125
+  },
+  "BOTWINGF405": {
+   "hwdef": "BOTWINGF405",
+   "mcu": "STM32F405xx",
+   "family": "F4",
+   "apj_board_id": 2501
+  },
+  "BROTHERHOBBYF405v3": {
+   "hwdef": "BROTHERHOBBYF405v3",
+   "mcu": "STM32F405xx",
+   "family": "F4",
+   "apj_board_id": 5811
+  },
+  "BROTHERHOBBYH743": {
+   "hwdef": "BROTHERHOBBYH743",
+   "mcu": "STM32H743xx",
+   "family": "H7",
+   "apj_board_id": 5810
+  },
+  "BeastF7": {
+   "hwdef": "BeastF7",
+   "mcu": "STM32F745xx",
+   "family": "F7",
+   "apj_board_id": 1026
+  },
+  "BeastF7v2": {
+   "hwdef": "BeastF7v2",
+   "mcu": "STM32F745xx",
+   "family": "F7",
+   "apj_board_id": 1057
+  },
+  "BeastH7": {
+   "hwdef": "BeastH7",
+   "mcu": "STM32H743xx",
+   "family": "H7",
+   "apj_board_id": 1025
+  },
+  "BeastH7v2": {
+   "hwdef": "BeastH7v2",
+   "mcu": "STM32H743xx",
+   "family": "H7",
+   "apj_board_id": 1056
+  },
+  "BirdCANdy": {
+   "hwdef": "BirdCANdy",
+   "mcu": "STM32F412Rx",
+   "family": "F4",
+   "apj_board_id": 1044
+  },
+  "BlitzF745": {
+   "hwdef": "BlitzF745",
+   "mcu": "STM32F745xx",
+   "family": "F7",
+   "apj_board_id": 1164
+  },
+  "BlitzF745AIO": {
+   "hwdef": "BlitzF745AIO",
+   "mcu": "STM32F745xx",
+   "family": "F7",
+   "apj_board_id": 1117
+  },
+  "BlitzH743Pro": {
+   "hwdef": "BlitzH743Pro",
+   "mcu": "STM32H743xx",
+   "family": "H7",
+   "apj_board_id": 1162
+  },
+  "BlitzMiniF745": {
+   "hwdef": "BlitzMiniF745",
+   "mcu": "STM32F745xx",
+   "family": "F7",
+   "apj_board_id": 1163
+  },
+  "BlitzWingH743": {
+   "hwdef": "BlitzWingH743",
+   "mcu": "STM32H743xx",
+   "family": "H7",
+   "apj_board_id": 1168
+  },
+  "BotBloxDroneNet": {
+   "hwdef": "BotBloxDroneNet",
+   "mcu": "STM32H723xx",
+   "family": "H7",
+   "apj_board_id": 1148
+  },
+  "BrahmaF4": {
+   "hwdef": "BrahmaF4",
+   "mcu": "STM32F405xx",
+   "family": "F4",
+   "apj_board_id": 1184
+  },
+  "C-RTK2-HP": {
+   "hwdef": "C-RTK2-HP",
+   "mcu": "STM32F412Rx",
+   "family": "F4",
+   "apj_board_id": 1085
+  },
+  "CBU-H7-LC-Stamp": {
+   "hwdef": "CBU-H7-LC-Stamp",
+   "mcu": "STM32H743xx",
+   "family": "H7",
+   "apj_board_id": 1182
+  },
+  "CBU-H7-Stamp": {
+   "hwdef": "CBU-H7-Stamp",
+   "mcu": "STM32H743xx",
+   "family": "H7",
+   "apj_board_id": 1156
+  },
+  "CORVON405V2_1": {
+   "hwdef": "CORVON405V2_1",
+   "mcu": "STM32F405xx",
+   "family": "F4",
+   "apj_board_id": 1187
+  },
+  "CORVON743V1": {
+   "hwdef": "CORVON743V1",
+   "mcu": "STM32H743xx",
+   "family": "H7",
+   "apj_board_id": 1189
+  },
+  "CORVON743V2": {
+   "hwdef": "CORVON743V2",
+   "mcu": "STM32H743xx",
+   "family": "H7",
+   "apj_board_id": 1229
+  },
+  "CORVON_V5": {
+   "hwdef": "CORVON_V5",
+   "mcu": "STM32F767xx",
+   "family": "F7",
+   "apj_board_id": 1211
+  },
+  "CSKY405": {
+   "hwdef": "CSKY405",
+   "mcu": "STM32F405xx",
+   "family": "F4",
+   "apj_board_id": 1158
+  },
+  "CSKY_PMU": {
+   "hwdef": "CSKY_PMU",
+   "mcu": "STM32F412Rx",
+   "family": "F4",
+   "apj_board_id": 1212
+  },
+  "CUAV-7-Nano": {
+   "hwdef": "CUAV-7-Nano",
+   "mcu": "STM32H743xx",
+   "family": "H7",
+   "apj_board_id": 7000
+  },
+  "CUAV-7-Nano-ODID": {
+   "hwdef": "CUAV-7-Nano-ODID",
+   "mcu": "STM32H743xx",
+   "family": "H7",
+   "apj_board_id": 17000
+  },
+  "CUAV-Nora": {
+   "hwdef": "CUAV-Nora",
+   "mcu": "STM32H743xx",
+   "family": "H7",
+   "apj_board_id": 1009
+  },
+  "CUAV-Nora-ODID": {
+   "hwdef": "CUAV-Nora-ODID",
+   "mcu": "STM32H743xx",
+   "family": "H7",
+   "apj_board_id": 11009
+  },
+  "CUAV-Nora-bdshot": {
+   "hwdef": "CUAV-Nora-bdshot",
+   "mcu": "STM32H743xx",
+   "family": "H7",
+   "apj_board_id": 1009
+  },
+  "CUAV-Pixhack-v3": {
+   "hwdef": "CUAV-Pixhack-v3",
+   "mcu": "STM32F427xx",
+   "family": "F4",
+   "apj_board_id": 9
+  },
+  "CUAV-V6X-v2": {
+   "hwdef": "CUAV-V6X-v2",
+   "mcu": "STM32H743xx",
+   "family": "H7",
+   "apj_board_id": 7001
+  },
+  "CUAV-V6X-v2-ODID": {
+   "hwdef": "CUAV-V6X-v2-ODID",
+   "mcu": "STM32H743xx",
+   "family": "H7",
+   "apj_board_id": 17001
+  },
+  "CUAV-X25-EVO": {
+   "hwdef": "CUAV-X25-EVO",
+   "mcu": "STM32H743xx",
+   "family": "H7",
+   "apj_board_id": 7002
+  },
+  "CUAV-X25-EVO-ODID": {
+   "hwdef": "CUAV-X25-EVO-ODID",
+   "mcu": "STM32H743xx",
+   "family": "H7",
+   "apj_board_id": 17002
+  },
+  "CUAV-X25-MEGA": {
+   "hwdef": "CUAV-X25-MEGA",
+   "mcu": "STM32H743xx",
+   "family": "H7",
+   "apj_board_id": 7004
+  },
+  "CUAV-X25-MEGA-ODID": {
+   "hwdef": "CUAV-X25-MEGA-ODID",
+   "mcu": "STM32H743xx",
+   "family": "H7",
+   "apj_board_id": 17004
+  },
+  "CUAV-X7": {
+   "hwdef": "CUAV-X7",
+   "mcu": "STM32H743xx",
+   "family": "H7",
+   "apj_board_id": 1010
+  },
+  "CUAV-X7-ODID": {
+   "hwdef": "CUAV-X7-ODID",
+   "mcu": "STM32H743xx",
+   "family": "H7",
+   "apj_board_id": 11010
+  },
+  "CUAV-X7-bdshot": {
+   "hwdef": "CUAV-X7-bdshot",
+   "mcu": "STM32H743xx",
+   "family": "H7",
+   "apj_board_id": 1010
+  },
+  "CUAV_GPS": {
+   "hwdef": "CUAV_GPS",
+   "mcu": "STM32F412Rx",
+   "family": "F4",
+   "apj_board_id": 1001
+  },
+  "CUAVv5": {
+   "hwdef": "CUAVv5",
+   "mcu": "STM32F767xx",
+   "family": "F7",
+   "apj_board_id": 50
+  },
+  "CUAVv5-bdshot": {
+   "hwdef": "CUAVv5-bdshot",
+   "mcu": "STM32F767xx",
+   "family": "F7",
+   "apj_board_id": 50
+  },
+  "CUAVv5Nano": {
+   "hwdef": "CUAVv5Nano",
+   "mcu": "STM32F767xx",
+   "family": "F7",
+   "apj_board_id": 50
+  },
+  "CUAVv5Nano-bdshot": {
+   "hwdef": "CUAVv5Nano-bdshot",
+   "mcu": "STM32F767xx",
+   "family": "F7",
+   "apj_board_id": 50
+  },
+  "CarbonixF405": {
+   "hwdef": "CarbonixF405",
+   "mcu": "STM32F405xx",
+   "family": "F4",
+   "apj_board_id": 1064
+  },
+  "CoreWingF405WMiniV2": {
+   "hwdef": "CoreWingF405WMiniV2",
+   "mcu": "STM32F405xx",
+   "family": "F4",
+   "apj_board_id": 7131
+  },
+  "CoreWingF405WingV2": {
+   "hwdef": "CoreWingF405WingV2",
+   "mcu": "STM32F405xx",
+   "family": "F4",
+   "apj_board_id": 7130
+  },
+  "CrazyF405": {
+   "hwdef": "CrazyF405",
+   "mcu": "STM32F405xx",
+   "family": "F4",
+   "apj_board_id": 1177
+  },
+  "CubeBlack": {
+   "hwdef": "CubeBlack",
+   "mcu": "STM32F427xx",
+   "family": "F4",
+   "apj_board_id": 9
+  },
+  "CubeBlack+": {
+   "hwdef": "CubeBlack+",
+   "mcu": "STM32F427xx",
+   "family": "F4",
+   "apj_board_id": 1003
+  },
+  "CubeBlack-periph": {
+   "hwdef": "CubeBlack-periph",
+   "mcu": "STM32F427xx",
+   "family": "F4",
+   "apj_board_id": 1401
+  },
+  "CubeGreen-solo": {
+   "hwdef": "CubeGreen-solo",
+   "mcu": "STM32F427xx",
+   "family": "F4",
+   "apj_board_id": 9
+  },
+  "CubeNode": {
+   "hwdef": "CubeNode",
+   "mcu": "STM32H757xx",
+   "family": "H7",
+   "apj_board_id": 1079
+  },
+  "CubeNode-ETH": {
+   "hwdef": "CubeNode-ETH",
+   "mcu": "STM32H757xx",
+   "family": "H7",
+   "apj_board_id": 1079
+  },
+  "CubeOrange": {
+   "hwdef": "CubeOrange",
+   "mcu": "STM32H743xx",
+   "family": "H7",
+   "apj_board_id": 140
+  },
+  "CubeOrange+SimOnHW": {
+   "hwdef": "CubeOrangePlus-SimOnHardWare",
+   "mcu": "STM32H757xx",
+   "family": "H7",
+   "apj_board_id": 1063
+  },
+  "CubeOrange-ODID": {
+   "hwdef": "CubeOrange-ODID",
+   "mcu": "STM32H743xx",
+   "family": "H7",
+   "apj_board_id": 10140
+  },
+  "CubeOrange-bdshot": {
+   "hwdef": "CubeOrange-bdshot",
+   "mcu": "STM32H743xx",
+   "family": "H7",
+   "apj_board_id": 140
+  },
+  "CubeOrange-joey": {
+   "hwdef": "CubeOrange-joey",
+   "mcu": "STM32H743xx",
+   "family": "H7",
+   "apj_board_id": 1033
+  },
+  "CubeOrange-periph": {
+   "hwdef": "CubeOrange-periph",
+   "mcu": "STM32H743xx",
+   "family": "H7",
+   "apj_board_id": 1400
+  },
+  "CubeOrange-periph-heavy": {
+   "hwdef": "CubeOrange-periph-heavy",
+   "mcu": "STM32H743xx",
+   "family": "H7",
+   "apj_board_id": 1400
+  },
+  "CubeOrangePlus": {
+   "hwdef": "CubeOrangePlus",
+   "mcu": "STM32H757xx",
+   "family": "H7",
+   "apj_board_id": 1063
+  },
+  "CubeOrangePlus-ODID": {
+   "hwdef": "CubeOrangePlus-ODID",
+   "mcu": "STM32H757xx",
+   "family": "H7",
+   "apj_board_id": 11063
+  },
+  "CubeOrangePlus-bdshot": {
+   "hwdef": "CubeOrangePlus-bdshot",
+   "mcu": "STM32H757xx",
+   "family": "H7",
+   "apj_board_id": 1063
+  },
+  "CubeOrangeSimOnHardWare": {
+   "hwdef": "CubeOrange-SimOnHardWare",
+   "mcu": "STM32H743xx",
+   "family": "H7",
+   "apj_board_id": 140
+  },
+  "CubePurple": {
+   "hwdef": "CubePurple",
+   "mcu": "STM32F427xx",
+   "family": "F4",
+   "apj_board_id": 9
+  },
+  "CubeRedPrimary": {
+   "hwdef": "CubeRedPrimary",
+   "mcu": "STM32H757xx",
+   "family": "H7",
+   "apj_board_id": 1069
+  },
+  "CubeRedPrimary-PPPGW": {
+   "hwdef": "CubeRedPrimary-PPPGW",
+   "mcu": "STM32H757xx",
+   "family": "H7",
+   "apj_board_id": 1409
+  },
+  "CubeRedSecondary": {
+   "hwdef": "CubeRedSecondary",
+   "mcu": "STM32H757xx",
+   "family": "H7",
+   "apj_board_id": 1070
+  },
+  "CubeRedSecondary-IO": {
+   "hwdef": "CubeRedSecondary-IO",
+   "mcu": "STM32H757xx",
+   "family": "H7",
+   "apj_board_id": 1070
+  },
+  "CubeSolo": {
+   "hwdef": "CubeSolo",
+   "mcu": "STM32F427xx",
+   "family": "F4",
+   "apj_board_id": 9
+  },
+  "CubeYellow": {
+   "hwdef": "CubeYellow",
+   "mcu": "STM32F777xx",
+   "family": "F7",
+   "apj_board_id": 120
+  },
+  "CubeYellow-bdshot": {
+   "hwdef": "CubeYellow-bdshot",
+   "mcu": "STM32F777xx",
+   "family": "F7",
+   "apj_board_id": 120
+  },
+  "DAKEFPVF405": {
+   "hwdef": "DAKEFPVF405",
+   "mcu": "STM32F405xx",
+   "family": "F4",
+   "apj_board_id": 1190
+  },
+  "DAKEFPVH743": {
+   "hwdef": "DAKEFPVH743",
+   "mcu": "STM32H743xx",
+   "family": "H7",
+   "apj_board_id": 1193
+  },
+  "DAKEFPVH743Pro": {
+   "hwdef": "DAKEFPVH743Pro",
+   "mcu": "STM32H743xx",
+   "family": "H7",
+   "apj_board_id": 1194
+  },
+  "DAKEFPVH743_SLIM": {
+   "hwdef": "DAKEFPVH743_SLIM",
+   "mcu": "STM32H743xx",
+   "family": "H7",
+   "apj_board_id": 1208
+  },
+  "DevEBoxH7v2": {
+   "hwdef": "DevEBoxH7v2",
+   "mcu": "STM32H750xx",
+   "family": "H7",
+   "apj_board_id": 1061
+  },
+  "DroneerF405": {
+   "hwdef": "DroneerF405",
+   "mcu": "STM32F405xx",
+   "family": "F4",
+   "apj_board_id": 5800
+  },
+  "DrotekP3Pro": {
+   "hwdef": "DrotekP3Pro",
+   "mcu": "STM32F469xx",
+   "family": "F4",
+   "apj_board_id": 13
+  },
+  "Durandal": {
+   "hwdef": "Durandal",
+   "mcu": "STM32H743xx",
+   "family": "H7",
+   "apj_board_id": 139
+  },
+  "Durandal-bdshot": {
+   "hwdef": "Durandal-bdshot",
+   "mcu": "STM32H743xx",
+   "family": "H7",
+   "apj_board_id": 139
+  },
+  "F35Lightning": {
+   "hwdef": "F35Lightning",
+   "mcu": "STM32F405xx",
+   "family": "F4",
+   "apj_board_id": 135
+  },
+  "F4BY": {
+   "hwdef": "F4BY",
+   "mcu": "STM32F407xx",
+   "family": "F4",
+   "apj_board_id": 20
+  },
+  "F4BY_F427": {
+   "hwdef": "F4BY_F427",
+   "mcu": "STM32F427xx",
+   "family": "F4",
+   "apj_board_id": 1530
+  },
+  "F4BY_H743": {
+   "hwdef": "F4BY_H743",
+   "mcu": "STM32H743xx",
+   "family": "H7",
+   "apj_board_id": 1531
+  },
+  "FlyingMoonF407": {
+   "hwdef": "FlyingMoonF407",
+   "mcu": "STM32F407xx",
+   "family": "F4",
+   "apj_board_id": 1067
+  },
+  "FlyingMoonF427": {
+   "hwdef": "FlyingMoonF427",
+   "mcu": "STM32F427xx",
+   "family": "F4",
+   "apj_board_id": 1068
+  },
+  "FlyingMoonH743": {
+   "hwdef": "FlyingMoonH743",
+   "mcu": "STM32H743xx",
+   "family": "H7",
+   "apj_board_id": 1112
+  },
+  "FlysparkF4": {
+   "hwdef": "FlysparkF4",
+   "mcu": "STM32F405xx",
+   "family": "F4",
+   "apj_board_id": 1361
+  },
+  "FlywooF405HD-AIOv2": {
+   "hwdef": "FlywooF405HD-AIOv2",
+   "mcu": "STM32F405xx",
+   "family": "F4",
+   "apj_board_id": 1180
+  },
+  "FlywooF405Pro": {
+   "hwdef": "FlywooF405Pro",
+   "mcu": "STM32F405xx",
+   "family": "F4",
+   "apj_board_id": 1137
+  },
+  "FlywooF405S-AIO": {
+   "hwdef": "FlywooF405S-AIO",
+   "mcu": "STM32F405xx",
+   "family": "F4",
+   "apj_board_id": 1099
+  },
+  "FlywooF745": {
+   "hwdef": "FlywooF745",
+   "mcu": "STM32F745xx",
+   "family": "F7",
+   "apj_board_id": 1027
+  },
+  "FlywooF745Nano": {
+   "hwdef": "FlywooF745Nano",
+   "mcu": "STM32F745xx",
+   "family": "F7",
+   "apj_board_id": 1042
+  },
+  "FlywooH743Pro": {
+   "hwdef": "FlywooH743Pro",
+   "mcu": "STM32H743xx",
+   "family": "H7",
+   "apj_board_id": 1181
+  },
+  "FoxeerF405v2": {
+   "hwdef": "FoxeerF405v2",
+   "mcu": "STM32F405xx",
+   "family": "F4",
+   "apj_board_id": 1157
+  },
+  "FoxeerH743v1": {
+   "hwdef": "FoxeerH743v1",
+   "mcu": "STM32H743xx",
+   "family": "H7",
+   "apj_board_id": 1089
+  },
+  "FreeflyRTK": {
+   "hwdef": "FreeflyRTK",
+   "mcu": "STM32F732xx",
+   "family": "F7",
+   "apj_board_id": 1028
+  },
+  "G4-ESC": {
+   "hwdef": "G4-ESC",
+   "mcu": "STM32G474xx",
+   "family": "G4",
+   "apj_board_id": 1027
+  },
+  "GEPRCF745BTHD": {
+   "hwdef": "GEPRCF745BTHD",
+   "mcu": "STM32F745xx",
+   "family": "F7",
+   "apj_board_id": 1501
+  },
+  "GEPRC_TAKER_H743": {
+   "hwdef": "GEPRC_TAKER_H743",
+   "mcu": "STM32H743xx",
+   "family": "H7",
+   "apj_board_id": 1502
+  },
+  "GPILOT_P1": {
+   "hwdef": "GPILOT_P1",
+   "mcu": "STM32H753xx",
+   "family": "H7",
+   "apj_board_id": 1275
+  },
+  "GreenSightUltraBlue": {
+   "hwdef": "GreenSightUltraBlue",
+   "mcu": "STM32H743xx",
+   "family": "H7",
+   "apj_board_id": 1071
+  },
+  "H757I_EVAL": {
+   "hwdef": "H757I_EVAL",
+   "mcu": "STM32H757xx",
+   "family": "H7",
+   "apj_board_id": 146
+  },
+  "H757I_EVAL_intf": {
+   "hwdef": "H757I_EVAL_intf",
+   "mcu": "STM32H757xx",
+   "family": "H7",
+   "apj_board_id": 146
+  },
+  "HEEWING-F405": {
+   "hwdef": "HEEWING-F405",
+   "mcu": "STM32F405xx",
+   "family": "F4",
+   "apj_board_id": 1119
+  },
+  "HEEWING-F405v2": {
+   "hwdef": "HEEWING-F405v2",
+   "mcu": "STM32F405xx",
+   "family": "F4",
+   "apj_board_id": 1119
+  },
+  "HWH7": {
+   "hwdef": "HWH7",
+   "mcu": "STM32H743xx",
+   "family": "H7",
+   "apj_board_id": 1223
+  },
+  "Here4AP": {
+   "hwdef": "Here4AP",
+   "mcu": "STM32H757xx",
+   "family": "H7",
+   "apj_board_id": 1043
+  },
+  "Here4FC": {
+   "hwdef": "Here4FC",
+   "mcu": "STM32H757xx",
+   "family": "H7",
+   "apj_board_id": 1043
+  },
+  "Hitec-Airspeed": {
+   "hwdef": "Hitec-Airspeed",
+   "mcu": "STM32G441xx",
+   "family": "G4",
+   "apj_board_id": 1046
+  },
+  "HitecMosaic": {
+   "hwdef": "HitecMosaic",
+   "mcu": "STM32F303xC",
+   "family": "F3",
+   "apj_board_id": 1016
+  },
+  "HolybroF4_PMU": {
+   "hwdef": "HolybroF4_PMU",
+   "mcu": "STM32F405xx",
+   "family": "F4",
+   "apj_board_id": 5401
+  },
+  "HolybroG4_Airspeed": {
+   "hwdef": "HolybroG4_Airspeed",
+   "mcu": "STM32G474xx",
+   "family": "G4",
+   "apj_board_id": 5405
+  },
+  "HolybroG4_Compass": {
+   "hwdef": "HolybroG4_Compass",
+   "mcu": "STM32G474xx",
+   "family": "G4",
+   "apj_board_id": 1088
+  },
+  "HolybroG4_GPS": {
+   "hwdef": "HolybroG4_GPS",
+   "mcu": "STM32G474xx",
+   "family": "G4",
+   "apj_board_id": 1053
+  },
+  "HolybroGPS": {
+   "hwdef": "HolybroGPS",
+   "mcu": "STM32F412Rx",
+   "family": "F4",
+   "apj_board_id": 1035
+  },
+  "IFLIGHT_2RAW_H7": {
+   "hwdef": "IFLIGHT_2RAW_H7",
+   "mcu": "STM32H743xx",
+   "family": "H7",
+   "apj_board_id": 1173
+  },
+  "JFB100": {
+   "hwdef": "JFB100",
+   "mcu": "STM32F767xx",
+   "family": "F7",
+   "apj_board_id": 1084
+  },
+  "JFB110": {
+   "hwdef": "JFB110",
+   "mcu": "STM32H755xx",
+   "family": "H7",
+   "apj_board_id": 1110
+  },
+  "JFB200": {
+   "hwdef": "JFB200",
+   "mcu": "STM32H755xx",
+   "family": "H7",
+   "apj_board_id": 1200
+  },
+  "JHEMCU-GSF405A": {
+   "hwdef": "JHEMCU-GSF405A",
+   "mcu": "STM32F405xx",
+   "family": "F4",
+   "apj_board_id": 1059
+  },
+  "JHEMCU-GSF405A-RX2": {
+   "hwdef": "JHEMCU-GSF405A-RX2",
+   "mcu": "STM32F405xx",
+   "family": "F4",
+   "apj_board_id": 1059
+  },
+  "JHEMCU-H743HD": {
+   "hwdef": "JHEMCU-H743HD",
+   "mcu": "STM32H743xx",
+   "family": "H7",
+   "apj_board_id": 1411
+  },
+  "JHEMCUF405PRO": {
+   "hwdef": "JHEMCUF405PRO",
+   "mcu": "STM32F405xx",
+   "family": "F4",
+   "apj_board_id": 1412
+  },
+  "JHEMCUF405WING": {
+   "hwdef": "JHEMCUF405WING",
+   "mcu": "STM32F405xx",
+   "family": "F4",
+   "apj_board_id": 1169
+  },
+  "JHEM_JHEF405": {
+   "hwdef": "JHEM_JHEF405",
+   "mcu": "STM32F405xx",
+   "family": "F4",
+   "apj_board_id": 1081
+  },
+  "KT-FMU-F1": {
+   "hwdef": "KT-FMU-F1",
+   "mcu": "STM32H743xx",
+   "family": "H7",
+   "apj_board_id": 1250
+  },
+  "KakuteF4": {
+   "hwdef": "KakuteF4",
+   "mcu": "STM32F405xx",
+   "family": "F4",
+   "apj_board_id": 122
+  },
+  "KakuteF4-Wing": {
+   "hwdef": "KakuteF4-Wing",
+   "mcu": "STM32F405xx",
+   "family": "F4",
+   "apj_board_id": 5406
+  },
+  "KakuteF4Mini": {
+   "hwdef": "KakuteF4Mini",
+   "mcu": "STM32F405xx",
+   "family": "F4",
+   "apj_board_id": 1030
+  },
+  "KakuteF7": {
+   "hwdef": "KakuteF7",
+   "mcu": "STM32F745xx",
+   "family": "F7",
+   "apj_board_id": 123
+  },
+  "KakuteF7-bdshot": {
+   "hwdef": "KakuteF7-bdshot",
+   "mcu": "STM32F745xx",
+   "family": "F7",
+   "apj_board_id": 123
+  },
+  "KakuteF7Mini": {
+   "hwdef": "KakuteF7Mini",
+   "mcu": "STM32F745xx",
+   "family": "F7",
+   "apj_board_id": 145
+  },
+  "KakuteH7": {
+   "hwdef": "KakuteH7",
+   "mcu": "STM32H743xx",
+   "family": "H7",
+   "apj_board_id": 1048
+  },
+  "KakuteH7-Wing": {
+   "hwdef": "KakuteH7-Wing",
+   "mcu": "STM32H743xx",
+   "family": "H7",
+   "apj_board_id": 1105
+  },
+  "KakuteH7-bdshot": {
+   "hwdef": "KakuteH7-bdshot",
+   "mcu": "STM32H743xx",
+   "family": "H7",
+   "apj_board_id": 1048
+  },
+  "KakuteH7Mini": {
+   "hwdef": "KakuteH7Mini",
+   "mcu": "STM32H743xx",
+   "family": "H7",
+   "apj_board_id": 1058
+  },
+  "KakuteH7Mini-Nand": {
+   "hwdef": "KakuteH7Mini-Nand",
+   "mcu": "STM32H743xx",
+   "family": "H7",
+   "apj_board_id": 1058
+  },
+  "KakuteH7v2": {
+   "hwdef": "KakuteH7v2",
+   "mcu": "STM32H743xx",
+   "family": "H7",
+   "apj_board_id": 1048
+  },
+  "Lectron-Pi5-H7": {
+   "hwdef": "Lectron-Pi5-H7",
+   "mcu": "STM32H753xx",
+   "family": "H7",
+   "apj_board_id": 7140
+  },
+  "LongBowF405WING": {
+   "hwdef": "LongBowF405WING",
+   "mcu": "STM32F405xx",
+   "family": "F4",
+   "apj_board_id": 1422
+  },
+  "LumenierLUXF765-NDAA": {
+   "hwdef": "LumenierLUXF765-NDAA",
+   "mcu": "STM32F767xx",
+   "family": "F7",
+   "apj_board_id": 4500
+  },
+  "MFE_AirSpeed_CAN": {
+   "hwdef": "MFE_AirSpeed_CAN",
+   "mcu": "STM32F103xB",
+   "family": "F1",
+   "apj_board_id": 6103
+  },
+  "MFE_PDB_CAN": {
+   "hwdef": "MFE_PDB_CAN",
+   "mcu": "STM32L431xx",
+   "family": "L4",
+   "apj_board_id": 6100
+  },
+  "MFE_POS3_CAN": {
+   "hwdef": "MFE_POS3_CAN",
+   "mcu": "STM32F427xx",
+   "family": "F4",
+   "apj_board_id": 6101
+  },
+  "MFT-SEMA100": {
+   "hwdef": "MFT-SEMA100",
+   "mcu": "STM32H743xx",
+   "family": "H7",
+   "apj_board_id": 2000
+  },
+  "MUPilot": {
+   "hwdef": "MUPilot",
+   "mcu": "STM32F767xx",
+   "family": "F7",
+   "apj_board_id": 1222
+  },
+  "MambaF405-2022": {
+   "hwdef": "MambaF405-2022",
+   "mcu": "STM32F405xx",
+   "family": "F4",
+   "apj_board_id": 1038
+  },
+  "MambaF405US-I2C": {
+   "hwdef": "MambaF405US-I2C",
+   "mcu": "STM32F405xx",
+   "family": "F4",
+   "apj_board_id": 1038
+  },
+  "MambaF405v2": {
+   "hwdef": "MambaF405v2",
+   "mcu": "STM32F405xx",
+   "family": "F4",
+   "apj_board_id": 1019
+  },
+  "MambaH743v4": {
+   "hwdef": "MambaH743v4",
+   "mcu": "STM32H743xx",
+   "family": "H7",
+   "apj_board_id": 1073
+  },
+  "MatekF405": {
+   "hwdef": "MatekF405",
+   "mcu": "STM32F405xx",
+   "family": "F4",
+   "apj_board_id": 125
+  },
+  "MatekF405-CAN": {
+   "hwdef": "MatekF405-CAN",
+   "mcu": "STM32F405xx",
+   "family": "F4",
+   "apj_board_id": 1014
+  },
+  "MatekF405-STD": {
+   "hwdef": "MatekF405-STD",
+   "mcu": "STM32F405xx",
+   "family": "F4",
+   "apj_board_id": 125
+  },
+  "MatekF405-TE": {
+   "hwdef": "MatekF405-TE",
+   "mcu": "STM32F405xx",
+   "family": "F4",
+   "apj_board_id": 1054
+  },
+  "MatekF405-TE-bdshot": {
+   "hwdef": "MatekF405-TE-bdshot",
+   "mcu": "STM32F405xx",
+   "family": "F4",
+   "apj_board_id": 1054
+  },
+  "MatekF405-Wing": {
+   "hwdef": "MatekF405-Wing",
+   "mcu": "STM32F405xx",
+   "family": "F4",
+   "apj_board_id": 127
+  },
+  "MatekF405-Wing-bdshot": {
+   "hwdef": "MatekF405-Wing-bdshot",
+   "mcu": "STM32F405xx",
+   "family": "F4",
+   "apj_board_id": 127
+  },
+  "MatekF405-bdshot": {
+   "hwdef": "MatekF405-bdshot",
+   "mcu": "STM32F405xx",
+   "family": "F4",
+   "apj_board_id": 125
+  },
+  "MatekF765-SE": {
+   "hwdef": "MatekF765-SE",
+   "mcu": "STM32F767xx",
+   "family": "F7",
+   "apj_board_id": 143
+  },
+  "MatekF765-Wing": {
+   "hwdef": "MatekF765-Wing",
+   "mcu": "STM32F767xx",
+   "family": "F7",
+   "apj_board_id": 143
+  },
+  "MatekF765-Wing-bdshot": {
+   "hwdef": "MatekF765-Wing-bdshot",
+   "mcu": "STM32F767xx",
+   "family": "F7",
+   "apj_board_id": 143
+  },
+  "MatekG474-DShot": {
+   "hwdef": "MatekG474-DShot",
+   "mcu": "STM32G474xx",
+   "family": "G4",
+   "apj_board_id": 1170
+  },
+  "MatekG474-GPS": {
+   "hwdef": "MatekG474-GPS",
+   "mcu": "STM32G474xx",
+   "family": "G4",
+   "apj_board_id": 1170
+  },
+  "MatekG474-Periph": {
+   "hwdef": "MatekG474-Periph",
+   "mcu": "STM32G474xx",
+   "family": "G4",
+   "apj_board_id": 1170
+  },
+  "MatekH743": {
+   "hwdef": "MatekH743",
+   "mcu": "STM32H743xx",
+   "family": "H7",
+   "apj_board_id": 1013
+  },
+  "MatekH743-bdshot": {
+   "hwdef": "MatekH743-bdshot",
+   "mcu": "STM32H743xx",
+   "family": "H7",
+   "apj_board_id": 1013
+  },
+  "MatekH743-periph": {
+   "hwdef": "MatekH743-periph",
+   "mcu": "STM32H743xx",
+   "family": "H7",
+   "apj_board_id": 1013
+  },
+  "MatekH7A3": {
+   "hwdef": "MatekH7A3",
+   "mcu": "STM32H7A3xx",
+   "family": "H7",
+   "apj_board_id": 1149
+  },
+  "MatekH7A3-Wing": {
+   "hwdef": "MatekH7A3-Wing",
+   "mcu": "STM32H7A3xx",
+   "family": "H7",
+   "apj_board_id": 1228
+  },
+  "MatekL431-ADSB": {
+   "hwdef": "MatekL431-ADSB",
+   "mcu": "STM32L431xx",
+   "family": "L4",
+   "apj_board_id": 1062
+  },
+  "MatekL431-APDTelem": {
+   "hwdef": "MatekL431-APDTelem",
+   "mcu": "STM32L431xx",
+   "family": "L4",
+   "apj_board_id": 1062
+  },
+  "MatekL431-AUAV": {
+   "hwdef": "MatekL431-AUAV",
+   "mcu": "STM32L431xx",
+   "family": "L4",
+   "apj_board_id": 1062
+  },
+  "MatekL431-Airspeed": {
+   "hwdef": "MatekL431-Airspeed",
+   "mcu": "STM32L431xx",
+   "family": "L4",
+   "apj_board_id": 1062
+  },
+  "MatekL431-BattMon": {
+   "hwdef": "MatekL431-BattMon",
+   "mcu": "STM32L431xx",
+   "family": "L4",
+   "apj_board_id": 1062
+  },
+  "MatekL431-BatteryTag": {
+   "hwdef": "MatekL431-BatteryTag",
+   "mcu": "STM32L431xx",
+   "family": "L4",
+   "apj_board_id": 1062
+  },
+  "MatekL431-DShot": {
+   "hwdef": "MatekL431-DShot",
+   "mcu": "STM32L431xx",
+   "family": "L4",
+   "apj_board_id": 1062
+  },
+  "MatekL431-EFI": {
+   "hwdef": "MatekL431-EFI",
+   "mcu": "STM32L431xx",
+   "family": "L4",
+   "apj_board_id": 1062
+  },
+  "MatekL431-GPS": {
+   "hwdef": "MatekL431-GPS",
+   "mcu": "STM32L431xx",
+   "family": "L4",
+   "apj_board_id": 1062
+  },
+  "MatekL431-HWTelem": {
+   "hwdef": "MatekL431-HWTelem",
+   "mcu": "STM32L431xx",
+   "family": "L4",
+   "apj_board_id": 1062
+  },
+  "MatekL431-MagHiRes": {
+   "hwdef": "MatekL431-MagHiRes",
+   "mcu": "STM32L431xx",
+   "family": "L4",
+   "apj_board_id": 1062
+  },
+  "MatekL431-Periph": {
+   "hwdef": "MatekL431-Periph",
+   "mcu": "STM32L431xx",
+   "family": "L4",
+   "apj_board_id": 1062
+  },
+  "MatekL431-Proximity": {
+   "hwdef": "MatekL431-Proximity",
+   "mcu": "STM32L431xx",
+   "family": "L4",
+   "apj_board_id": 1062
+  },
+  "MatekL431-RC": {
+   "hwdef": "MatekL431-RC",
+   "mcu": "STM32L431xx",
+   "family": "L4",
+   "apj_board_id": 1062
+  },
+  "MatekL431-Rangefinder": {
+   "hwdef": "MatekL431-Rangefinder",
+   "mcu": "STM32L431xx",
+   "family": "L4",
+   "apj_board_id": 1062
+  },
+  "MatekL431-Serial": {
+   "hwdef": "MatekL431-Serial",
+   "mcu": "STM32L431xx",
+   "family": "L4",
+   "apj_board_id": 1062
+  },
+  "MatekL431-bdshot": {
+   "hwdef": "MatekL431-bdshot",
+   "mcu": "STM32L431xx",
+   "family": "L4",
+   "apj_board_id": 1062
+  },
+  "MazzyStarDrone": {
+   "hwdef": "MazzyStarDrone",
+   "mcu": "STM32F745xx",
+   "family": "F7",
+   "apj_board_id": 188
+  },
+  "MicoAir405Mini": {
+   "hwdef": "MicoAir405Mini",
+   "mcu": "STM32F405xx",
+   "family": "F4",
+   "apj_board_id": 1161
+  },
+  "MicoAir405v2": {
+   "hwdef": "MicoAir405v2",
+   "mcu": "STM32F405xx",
+   "family": "F4",
+   "apj_board_id": 1150
+  },
+  "MicoAir743": {
+   "hwdef": "MicoAir743",
+   "mcu": "STM32H743xx",
+   "family": "H7",
+   "apj_board_id": 1166
+  },
+  "MicoAir743-AIO": {
+   "hwdef": "MicoAir743-AIO",
+   "mcu": "STM32H743xx",
+   "family": "H7",
+   "apj_board_id": 1176
+  },
+  "MicoAir743-Lite": {
+   "hwdef": "MicoAir743-Lite",
+   "mcu": "STM32H743xx",
+   "family": "H7",
+   "apj_board_id": 1202
+  },
+  "MicoAir743v2": {
+   "hwdef": "MicoAir743v2",
+   "mcu": "STM32H743xx",
+   "family": "H7",
+   "apj_board_id": 1179
+  },
+  "Morakot": {
+   "hwdef": "Morakot",
+   "mcu": "STM32H743xx",
+   "family": "H7",
+   "apj_board_id": 1210
+  },
+  "NWBLUE_PROH757": {
+   "hwdef": "NWBLUE_PROH757",
+   "mcu": "STM32H757xx",
+   "family": "H7",
+   "apj_board_id": 5730
+  },
+  "NarinFC-H5": {
+   "hwdef": "NarinFC-H5",
+   "mcu": "STM32H743xx",
+   "family": "H7",
+   "apj_board_id": 1188
+  },
+  "NarinFC-H7": {
+   "hwdef": "NarinFC-H7",
+   "mcu": "STM32H743xx",
+   "family": "H7",
+   "apj_board_id": 1183
+  },
+  "NarinFC-X3": {
+   "hwdef": "NarinFC-X3",
+   "mcu": "STM32H743xx",
+   "family": "H7",
+   "apj_board_id": 1199
+  },
+  "Nucleo-G491": {
+   "hwdef": "Nucleo-G491",
+   "mcu": "STM32G491xx",
+   "family": "G4",
+   "apj_board_id": 1040
+  },
+  "Nucleo-L476": {
+   "hwdef": "Nucleo-L476",
+   "mcu": "STM32L476xx",
+   "family": "L4",
+   "apj_board_id": 1051
+  },
+  "Nucleo-L496": {
+   "hwdef": "Nucleo-L496",
+   "mcu": "STM32L496xx",
+   "family": "L4",
+   "apj_board_id": 1047
+  },
+  "NucleoH743": {
+   "hwdef": "NucleoH743",
+   "mcu": "STM32H743xx",
+   "family": "H7",
+   "apj_board_id": 139
+  },
+  "NucleoH753ZI": {
+   "hwdef": "NucleoH753ZI",
+   "mcu": "STM32H753xx",
+   "family": "H7",
+   "apj_board_id": 1207
+  },
+  "NucleoH755": {
+   "hwdef": "NucleoH755",
+   "mcu": "STM32H757xx",
+   "family": "H7",
+   "apj_board_id": 139
+  },
+  "NxtPX4v2": {
+   "hwdef": "NxtPX4v2",
+   "mcu": "STM32H743xx",
+   "family": "H7",
+   "apj_board_id": 1159
+  },
+  "OMNIBUSF7V2": {
+   "hwdef": "OMNIBUSF7V2",
+   "mcu": "STM32F745xx",
+   "family": "F7",
+   "apj_board_id": 121
+  },
+  "ORBITH743": {
+   "hwdef": "ORBITH743",
+   "mcu": "STM32H743xx",
+   "family": "H7",
+   "apj_board_id": 1191
+  },
+  "ORBITH743v2": {
+   "hwdef": "ORBITH743v2",
+   "mcu": "STM32H743xx",
+   "family": "H7",
+   "apj_board_id": 1219
+  },
+  "OmnibusNanoV6": {
+   "hwdef": "OmnibusNanoV6",
+   "mcu": "STM32F405xx",
+   "family": "F4",
+   "apj_board_id": 133
+  },
+  "OmnibusNanoV6-bdshot": {
+   "hwdef": "OmnibusNanoV6-bdshot",
+   "mcu": "STM32F405xx",
+   "family": "F4",
+   "apj_board_id": 133
+  },
+  "OrqaF405Pro": {
+   "hwdef": "OrqaF405Pro",
+   "mcu": "STM32F405xx",
+   "family": "F4",
+   "apj_board_id": 1155
+  },
+  "OrqaH7QuadCore": {
+   "hwdef": "OrqaH7QuadCore",
+   "mcu": "STM32H743xx",
+   "family": "H7",
+   "apj_board_id": 1204
+  },
+  "PH4-mini": {
+   "hwdef": "PH4-mini",
+   "mcu": "STM32F767xx",
+   "family": "F7",
+   "apj_board_id": 50
+  },
+  "PH4-mini-bdshot": {
+   "hwdef": "PH4-mini-bdshot",
+   "mcu": "STM32F767xx",
+   "family": "F7",
+   "apj_board_id": 50
+  },
+  "PilotGaeaSH7V1-bdshot": {
+   "hwdef": "PilotGaeaSH7V1-bdshot",
+   "mcu": "STM32H743xx",
+   "family": "H7",
+   "apj_board_id": 1213
+  },
+  "Pix32v5": {
+   "hwdef": "Pix32v5",
+   "mcu": "STM32F767xx",
+   "family": "F7",
+   "apj_board_id": 50
+  },
+  "PixC4-Jetson": {
+   "hwdef": "PixC4-Jetson",
+   "mcu": "STM32H743xx",
+   "family": "H7",
+   "apj_board_id": 1032
+  },
+  "PixFlamingo": {
+   "hwdef": "PixFlamingo",
+   "mcu": "STM32L4R5xx",
+   "family": "L4",
+   "apj_board_id": 1090
+  },
+  "PixFlamingo-F767": {
+   "hwdef": "PixFlamingo-F767",
+   "mcu": "STM32F767xx",
+   "family": "F7",
+   "apj_board_id": 1131
+  },
+  "PixPilot-C3": {
+   "hwdef": "PixPilot-C3",
+   "mcu": "STM32F427xx",
+   "family": "F4",
+   "apj_board_id": 1140
+  },
+  "PixPilot-V3": {
+   "hwdef": "PixPilot-V3",
+   "mcu": "STM32F427xx",
+   "family": "F4",
+   "apj_board_id": 1096
+  },
+  "PixPilot-V6": {
+   "hwdef": "PixPilot-V6",
+   "mcu": "STM32H743xx",
+   "family": "H7",
+   "apj_board_id": 1083
+  },
+  "PixPilot-V6PRO": {
+   "hwdef": "PixPilot-V6PRO",
+   "mcu": "STM32H743xx",
+   "family": "H7",
+   "apj_board_id": 1160
+  },
+  "PixSurveyA1": {
+   "hwdef": "PixSurveyA1",
+   "mcu": "STM32F427xx",
+   "family": "F4",
+   "apj_board_id": 1076
+  },
+  "PixSurveyA1-IND": {
+   "hwdef": "PixSurveyA1-IND",
+   "mcu": "STM32F427xx",
+   "family": "F4",
+   "apj_board_id": 1107
+  },
+  "PixSurveyA2-IND": {
+   "hwdef": "PixSurveyA2-IND",
+   "mcu": "STM32H743xx",
+   "family": "H7",
+   "apj_board_id": 6104
+  },
+  "Pixhawk1": {
+   "hwdef": "Pixhawk1",
+   "mcu": "STM32F427xx",
+   "family": "F4",
+   "apj_board_id": 9
+  },
+  "Pixhawk1-1M": {
+   "hwdef": "Pixhawk1-1M",
+   "mcu": "STM32F427xx",
+   "family": "F4",
+   "apj_board_id": 9
+  },
+  "Pixhawk1-1M-bdshot": {
+   "hwdef": "Pixhawk1-1M-bdshot",
+   "mcu": "STM32F427xx",
+   "family": "F4",
+   "apj_board_id": 9
+  },
+  "Pixhawk1-bdshot": {
+   "hwdef": "Pixhawk1-bdshot",
+   "mcu": "STM32F427xx",
+   "family": "F4",
+   "apj_board_id": 9
+  },
+  "Pixhawk4": {
+   "hwdef": "Pixhawk4",
+   "mcu": "STM32F767xx",
+   "family": "F7",
+   "apj_board_id": 50
+  },
+  "Pixhawk4-bdshot": {
+   "hwdef": "Pixhawk4-bdshot",
+   "mcu": "STM32F767xx",
+   "family": "F7",
+   "apj_board_id": 50
+  },
+  "Pixhawk5X": {
+   "hwdef": "Pixhawk5X",
+   "mcu": "STM32F767xx",
+   "family": "F7",
+   "apj_board_id": 51
+  },
+  "Pixhawk6C": {
+   "hwdef": "Pixhawk6C",
+   "mcu": "STM32H743xx",
+   "family": "H7",
+   "apj_board_id": 56
+  },
+  "Pixhawk6C-bdshot": {
+   "hwdef": "Pixhawk6C-bdshot",
+   "mcu": "STM32H743xx",
+   "family": "H7",
+   "apj_board_id": 56
+  },
+  "Pixhawk6X": {
+   "hwdef": "Pixhawk6X",
+   "mcu": "STM32H743xx",
+   "family": "H7",
+   "apj_board_id": 53
+  },
+  "Pixhawk6X-ODID": {
+   "hwdef": "Pixhawk6X-ODID",
+   "mcu": "STM32H743xx",
+   "family": "H7",
+   "apj_board_id": 10053
+  },
+  "Pixhawk6X-PPPGW": {
+   "hwdef": "Pixhawk6X-PPPGW",
+   "mcu": "STM32H743xx",
+   "family": "H7",
+   "apj_board_id": 1408
+  },
+  "Pixhawk6X-bdshot": {
+   "hwdef": "Pixhawk6X-bdshot",
+   "mcu": "STM32H743xx",
+   "family": "H7",
+   "apj_board_id": 53
+  },
+  "Pixracer": {
+   "hwdef": "Pixracer",
+   "mcu": "STM32F427xx",
+   "family": "F4",
+   "apj_board_id": 11
+  },
+  "Pixracer-bdshot": {
+   "hwdef": "Pixracer-bdshot",
+   "mcu": "STM32F427xx",
+   "family": "F4",
+   "apj_board_id": 11
+  },
+  "Pixracer-periph": {
+   "hwdef": "Pixracer-periph",
+   "mcu": "STM32F427xx",
+   "family": "F4",
+   "apj_board_id": 1402
+  },
+  "QioTekAdeptF407": {
+   "hwdef": "QioTekAdeptF407",
+   "mcu": "CKS32F407xx",
+   "family": "F4",
+   "apj_board_id": 1065
+  },
+  "QioTekZealotF427": {
+   "hwdef": "QioTekZealotF427",
+   "mcu": "STM32F427xx",
+   "family": "F4",
+   "apj_board_id": 1021
+  },
+  "QioTekZealotH743": {
+   "hwdef": "QioTekZealotH743",
+   "mcu": "STM32H743xx",
+   "family": "H7",
+   "apj_board_id": 1036
+  },
+  "QioTekZealotH743-bdshot": {
+   "hwdef": "QioTekZealotH743-bdshot",
+   "mcu": "STM32H743xx",
+   "family": "H7",
+   "apj_board_id": 1036
+  },
+  "R9Pilot": {
+   "hwdef": "R9Pilot",
+   "mcu": "STM32F767xx",
+   "family": "F7",
+   "apj_board_id": 1008
+  },
+  "RADIX2HD": {
+   "hwdef": "RADIX2HD",
+   "mcu": "STM32H750xx",
+   "family": "H7",
+   "apj_board_id": 1118
+  },
+  "RadiolinkF405": {
+   "hwdef": "RadiolinkF405",
+   "mcu": "STM32F405xx",
+   "family": "F4",
+   "apj_board_id": 1417
+  },
+  "RadiolinkPIX6": {
+   "hwdef": "RadiolinkPIX6",
+   "mcu": "STM32F767xx",
+   "family": "F7",
+   "apj_board_id": 1410
+  },
+  "ReaperF745": {
+   "hwdef": "ReaperF745",
+   "mcu": "STM32F745xx",
+   "family": "F7",
+   "apj_board_id": 1074
+  },
+  "ResoluteH7": {
+   "hwdef": "ResoluteH7",
+   "mcu": "STM32H743xx",
+   "family": "H7",
+   "apj_board_id": 1445
+  },
+  "SDMODELH7V1": {
+   "hwdef": "SDMODELH7V1",
+   "mcu": "STM32H743xx",
+   "family": "H7",
+   "apj_board_id": 1111
+  },
+  "SDMODELH7V2": {
+   "hwdef": "SDMODELH7V2",
+   "mcu": "STM32H743xx",
+   "family": "H7",
+   "apj_board_id": 1167
+  },
+  "SIYI_N7": {
+   "hwdef": "SIYI_N7",
+   "mcu": "STM32H743xx",
+   "family": "H7",
+   "apj_board_id": 1123
+  },
+  "SPEDIXF405": {
+   "hwdef": "SPEDIXF405",
+   "mcu": "STM32F405xx",
+   "family": "F4",
+   "apj_board_id": 1197
+  },
+  "SPEDIXH743": {
+   "hwdef": "SPEDIXH743",
+   "mcu": "STM32H743xx",
+   "family": "H7",
+   "apj_board_id": 1196
+  },
+  "SPRacingH7": {
+   "hwdef": "SPRacingH7",
+   "mcu": "STM32H750xx",
+   "family": "H7",
+   "apj_board_id": 1060
+  },
+  "SPRacingH7RF": {
+   "hwdef": "SPRacingH7RF",
+   "mcu": "STM32H730xx",
+   "family": "H7",
+   "apj_board_id": 1108
+  },
+  "SULILGH7-P1-P2": {
+   "hwdef": "SULILGH7-P1-P2",
+   "mcu": "STM32H743xx",
+   "family": "H7",
+   "apj_board_id": 2005
+  },
+  "SVehicle-E2": {
+   "hwdef": "SVehicle-E2",
+   "mcu": "STM32H743xx",
+   "family": "H7",
+   "apj_board_id": 6110
+  },
+  "SequreH743": {
+   "hwdef": "SequreH743",
+   "mcu": "STM32H743xx",
+   "family": "H7",
+   "apj_board_id": 1195
+  },
+  "Sierra-F405": {
+   "hwdef": "Sierra-F405",
+   "mcu": "STM32F405xx",
+   "family": "F4",
+   "apj_board_id": 1052
+  },
+  "Sierra-F412": {
+   "hwdef": "Sierra-F412",
+   "mcu": "STM32F412Rx",
+   "family": "F4",
+   "apj_board_id": 1055
+  },
+  "Sierra-F9P": {
+   "hwdef": "Sierra-F9P",
+   "mcu": "STM32F412Rx",
+   "family": "F4",
+   "apj_board_id": 1034
+  },
+  "Sierra-L431": {
+   "hwdef": "Sierra-L431",
+   "mcu": "STM32L431xx",
+   "family": "L4",
+   "apj_board_id": 1050
+  },
+  "Sierra-PrecisionPoint": {
+   "hwdef": "Sierra-PrecisionPoint",
+   "mcu": "STM32F412Rx",
+   "family": "F4",
+   "apj_board_id": 1095
+  },
+  "Sierra-TrueNavIC": {
+   "hwdef": "Sierra-TrueNavIC",
+   "mcu": "STM32L431xx",
+   "family": "L4",
+   "apj_board_id": 5302
+  },
+  "Sierra-TrueNavPro": {
+   "hwdef": "Sierra-TrueNavPro",
+   "mcu": "STM32L431xx",
+   "family": "L4",
+   "apj_board_id": 1091
+  },
+  "Sierra-TrueNavPro-G4": {
+   "hwdef": "Sierra-TrueNavPro-G4",
+   "mcu": "STM32G491xx",
+   "family": "G4",
+   "apj_board_id": 5301
+  },
+  "Sierra-TrueNorth": {
+   "hwdef": "Sierra-TrueNorth",
+   "mcu": "STM32L431xx",
+   "family": "L4",
+   "apj_board_id": 1093
+  },
+  "Sierra-TrueSpeed": {
+   "hwdef": "Sierra-TrueSpeed",
+   "mcu": "STM32L431xx",
+   "family": "L4",
+   "apj_board_id": 1094
+  },
+  "SkyDroid-S3": {
+   "hwdef": "SkyDroid-S3",
+   "mcu": "STM32H743xx",
+   "family": "H7",
+   "apj_board_id": 11300
+  },
+  "SkyRukh_Surge_H7": {
+   "hwdef": "SkyRukh_Surge_H7",
+   "mcu": "STM32H743xx",
+   "family": "H7",
+   "apj_board_id": 2815
+  },
+  "SkySakuraH743": {
+   "hwdef": "SkySakuraH743",
+   "mcu": "STM32H743xx",
+   "family": "H7",
+   "apj_board_id": 2714
+  },
+  "SkystarsF405v2": {
+   "hwdef": "SkystarsF405v2",
+   "mcu": "STM32F405xx",
+   "family": "F4",
+   "apj_board_id": 1201
+  },
+  "SkystarsH7HD": {
+   "hwdef": "SkystarsH7HD",
+   "mcu": "STM32H743xx",
+   "family": "H7",
+   "apj_board_id": 1075
+  },
+  "SkystarsH7HD-bdshot": {
+   "hwdef": "SkystarsH7HD-bdshot",
+   "mcu": "STM32H743xx",
+   "family": "H7",
+   "apj_board_id": 1075
+  },
+  "SkystarsH7HDv2": {
+   "hwdef": "SkystarsH7HDv2",
+   "mcu": "STM32H743xx",
+   "family": "H7",
+   "apj_board_id": 1075
+  },
+  "SpeedyBeeF405AIO": {
+   "hwdef": "SpeedyBeeF405AIO",
+   "mcu": "STM32F405xx",
+   "family": "F4",
+   "apj_board_id": 5271
+  },
+  "SpeedyBeeF405Mini": {
+   "hwdef": "SpeedyBeeF405Mini",
+   "mcu": "STM32F405xx",
+   "family": "F4",
+   "apj_board_id": 1135
+  },
+  "SpeedyBeeF405WING": {
+   "hwdef": "SpeedyBeeF405WING",
+   "mcu": "STM32F405xx",
+   "family": "F4",
+   "apj_board_id": 1106
+  },
+  "StellarF4": {
+   "hwdef": "StellarF4",
+   "mcu": "STM32F405xx",
+   "family": "F4",
+   "apj_board_id": 1500
+  },
+  "StellarF4V2": {
+   "hwdef": "StellarF4V2",
+   "mcu": "STM32F405xx",
+   "family": "F4",
+   "apj_board_id": 1504
+  },
+  "StellarH7V2": {
+   "hwdef": "StellarH7V2",
+   "mcu": "STM32H743xx",
+   "family": "H7",
+   "apj_board_id": 1503
+  },
+  "SuccexF4": {
+   "hwdef": "SuccexF4",
+   "mcu": "STM32F405xx",
+   "family": "F4",
+   "apj_board_id": 1011
+  },
+  "Swan-K1": {
+   "hwdef": "Swan-K1",
+   "mcu": "STM32F767xx",
+   "family": "F7",
+   "apj_board_id": 50
+  },
+  "TBS-Colibri-F7": {
+   "hwdef": "TBS-Colibri-F7",
+   "mcu": "STM32F767xx",
+   "family": "F7",
+   "apj_board_id": 50
+  },
+  "TBS-L431-Airspeed": {
+   "hwdef": "TBS-L431-Airspeed",
+   "mcu": "STM32L431xx",
+   "family": "L4",
+   "apj_board_id": 5252
+  },
+  "TBS-L431-BattMon": {
+   "hwdef": "TBS-L431-BattMon",
+   "mcu": "STM32L431xx",
+   "family": "L4",
+   "apj_board_id": 5252
+  },
+  "TBS-L431-CurrMon": {
+   "hwdef": "TBS-L431-CurrMon",
+   "mcu": "STM32L431xx",
+   "family": "L4",
+   "apj_board_id": 5252
+  },
+  "TBS-L431-PWM": {
+   "hwdef": "TBS-L431-PWM",
+   "mcu": "STM32L431xx",
+   "family": "L4",
+   "apj_board_id": 5252
+  },
+  "TBS_LUCID_H7": {
+   "hwdef": "TBS_LUCID_H7",
+   "mcu": "STM32H743xx",
+   "family": "H7",
+   "apj_board_id": 5250
+  },
+  "TBS_LUCID_H7V3": {
+   "hwdef": "TBS_LUCID_H7V3",
+   "mcu": "STM32H743xx",
+   "family": "H7",
+   "apj_board_id": 5256
+  },
+  "TBS_LUCID_H7_OEM": {
+   "hwdef": "TBS_LUCID_H7_OEM",
+   "mcu": "STM32H743xx",
+   "family": "H7",
+   "apj_board_id": 5255
+  },
+  "TBS_LUCID_H7_WING": {
+   "hwdef": "TBS_LUCID_H7_WING",
+   "mcu": "STM32H743xx",
+   "family": "H7",
+   "apj_board_id": 5253
+  },
+  "TBS_LUCID_H7_WING_AIO": {
+   "hwdef": "TBS_LUCID_H7_WING_AIO",
+   "mcu": "STM32H743xx",
+   "family": "H7",
+   "apj_board_id": 5254
+  },
+  "TBS_LUCID_PRO": {
+   "hwdef": "TBS_LUCID_PRO",
+   "mcu": "STM32F405xx",
+   "family": "F4",
+   "apj_board_id": 5251
+  },
+  "TMotorH743": {
+   "hwdef": "TMotorH743",
+   "mcu": "STM32H743xx",
+   "family": "H7",
+   "apj_board_id": 1138
+  },
+  "VM-L431-BMS": {
+   "hwdef": "VM-L431-BMS",
+   "mcu": "STM32L431xx",
+   "family": "L4",
+   "apj_board_id": 5820
+  },
+  "VM-L431-BatteryTag": {
+   "hwdef": "VM-L431-BatteryTag",
+   "mcu": "STM32L431xx",
+   "family": "L4",
+   "apj_board_id": 1407
+  },
+  "VM-L431-Periph-Pico": {
+   "hwdef": "VM-L431-Periph-Pico",
+   "mcu": "STM32L431xx",
+   "family": "L4",
+   "apj_board_id": 1407
+  },
+  "VM-L431-SRV-Hub-4CHP": {
+   "hwdef": "VM-L431-SRV-Hub-4CHP",
+   "mcu": "STM32L431xx",
+   "family": "L4",
+   "apj_board_id": 1407
+  },
+  "VRBrain-v51": {
+   "hwdef": "VRBrain-v51",
+   "mcu": "STM32F407xx",
+   "family": "F4",
+   "apj_board_id": 1151
+  },
+  "VRBrain-v52": {
+   "hwdef": "VRBrain-v52",
+   "mcu": "STM32F407xx",
+   "family": "F4",
+   "apj_board_id": 1152
+  },
+  "VRBrain-v54": {
+   "hwdef": "VRBrain-v54",
+   "mcu": "STM32F427xx",
+   "family": "F4",
+   "apj_board_id": 1154
+  },
+  "VRCore-v10": {
+   "hwdef": "VRCore-v10",
+   "mcu": "STM32F407xx",
+   "family": "F4",
+   "apj_board_id": 1910
+  },
+  "VRUBrain-v51": {
+   "hwdef": "VRUBrain-v51",
+   "mcu": "STM32F407xx",
+   "family": "F4",
+   "apj_board_id": 1351
+  },
+  "VUAV-TinyV7": {
+   "hwdef": "VUAV-TinyV7",
+   "mcu": "STM32H743xx",
+   "family": "H7",
+   "apj_board_id": 7101
+  },
+  "VUAV-V7pro": {
+   "hwdef": "VUAV-V7pro",
+   "mcu": "STM32H743xx",
+   "family": "H7",
+   "apj_board_id": 7100
+  },
+  "X-MAV-AP-H743r1": {
+   "hwdef": "X-MAV-AP-H743r1",
+   "mcu": "STM32H743xx",
+   "family": "H7",
+   "apj_board_id": 1203
+  },
+  "X-MAV-AP-H743v2": {
+   "hwdef": "X-MAV-AP-H743v2",
+   "mcu": "STM32H743xx",
+   "family": "H7",
+   "apj_board_id": 1174
+  },
+  "YARIV6X": {
+   "hwdef": "YARIV6X",
+   "mcu": "STM32H743xx",
+   "family": "H7",
+   "apj_board_id": 1234
+  },
+  "YJUAV_A6": {
+   "hwdef": "YJUAV_A6",
+   "mcu": "STM32H743xx",
+   "family": "H7",
+   "apj_board_id": 1113
+  },
+  "YJUAV_A6SE": {
+   "hwdef": "YJUAV_A6SE",
+   "mcu": "STM32H750xx",
+   "family": "H7",
+   "apj_board_id": 1127
+  },
+  "YJUAV_A6SE_H743": {
+   "hwdef": "YJUAV_A6SE_H743",
+   "mcu": "STM32H743xx",
+   "family": "H7",
+   "apj_board_id": 1141
+  },
+  "YJUAV_A6Ultra": {
+   "hwdef": "YJUAV_A6Ultra",
+   "mcu": "STM32H743xx",
+   "family": "H7",
+   "apj_board_id": 1144
+  },
+  "ZeroOneX6": {
+   "hwdef": "ZeroOneX6",
+   "mcu": "STM32H743xx",
+   "family": "H7",
+   "apj_board_id": 5600
+  },
+  "ZeroOneX6_Air": {
+   "hwdef": "ZeroOneX6_Air",
+   "mcu": "STM32H743xx",
+   "family": "H7",
+   "apj_board_id": 5600
+  },
+  "ZubaxGNSS": {
+   "hwdef": "ZubaxGNSS",
+   "mcu": "STM32F105xC",
+   "family": "F1",
+   "apj_board_id": 1005
+  },
+  "airbotf4": {
+   "hwdef": "airbotf4",
+   "mcu": "STM32F405xx",
+   "family": "F4",
+   "apj_board_id": 128
+  },
+  "crazyflie2": {
+   "hwdef": "crazyflie2",
+   "mcu": "STM32F405xx",
+   "family": "F4",
+   "apj_board_id": 12
+  },
+  "f103-ADSB": {
+   "hwdef": "f103-ADSB",
+   "mcu": "STM32F103xB",
+   "family": "F1",
+   "apj_board_id": 1000
+  },
+  "f103-Airspeed": {
+   "hwdef": "f103-Airspeed",
+   "mcu": "STM32F103xB",
+   "family": "F1",
+   "apj_board_id": 1000
+  },
+  "f103-GPS": {
+   "hwdef": "f103-GPS",
+   "mcu": "STM32F103xB",
+   "family": "F1",
+   "apj_board_id": 1000
+  },
+  "f103-HWESC": {
+   "hwdef": "f103-HWESC",
+   "mcu": "STM32F103xB",
+   "family": "F1",
+   "apj_board_id": 1000
+  },
+  "f103-QiotekPeriph": {
+   "hwdef": "f103-QiotekPeriph",
+   "mcu": "STM32F103xB",
+   "family": "F1",
+   "apj_board_id": 1000
+  },
+  "f103-RangeFinder": {
+   "hwdef": "f103-RangeFinder",
+   "mcu": "STM32F103xB",
+   "family": "F1",
+   "apj_board_id": 1000
+  },
+  "f103-Trigger": {
+   "hwdef": "f103-Trigger",
+   "mcu": "STM32F103xB",
+   "family": "F1",
+   "apj_board_id": 1000
+  },
+  "f303-GPS": {
+   "hwdef": "f303-GPS",
+   "mcu": "STM32F303xC",
+   "family": "F3",
+   "apj_board_id": 1004
+  },
+  "f303-HWESC": {
+   "hwdef": "f303-HWESC",
+   "mcu": "STM32F303xC",
+   "family": "F3",
+   "apj_board_id": 1004
+  },
+  "f303-M10025": {
+   "hwdef": "f303-M10025",
+   "mcu": "STM32F303xC",
+   "family": "F3",
+   "apj_board_id": 1004
+  },
+  "f303-M10070": {
+   "hwdef": "f303-M10070",
+   "mcu": "STM32F303xC",
+   "family": "F3",
+   "apj_board_id": 1004
+  },
+  "f303-MatekGPS": {
+   "hwdef": "f303-MatekGPS",
+   "mcu": "STM32F303xC",
+   "family": "F3",
+   "apj_board_id": 1004
+  },
+  "f303-PWM": {
+   "hwdef": "f303-PWM",
+   "mcu": "STM32F303xC",
+   "family": "F3",
+   "apj_board_id": 1004
+  },
+  "f303-TempSensor": {
+   "hwdef": "f303-TempSensor",
+   "mcu": "STM32F303xC",
+   "family": "F3",
+   "apj_board_id": 1004
+  },
+  "f303-Universal": {
+   "hwdef": "f303-Universal",
+   "mcu": "STM32F303xC",
+   "family": "F3",
+   "apj_board_id": 1004
+  },
+  "f405-MatekAirspeed": {
+   "hwdef": "f405-MatekAirspeed",
+   "mcu": "STM32F405xx",
+   "family": "F4",
+   "apj_board_id": 1014
+  },
+  "f405-MatekGPS": {
+   "hwdef": "f405-MatekGPS",
+   "mcu": "STM32F405xx",
+   "family": "F4",
+   "apj_board_id": 1014
+  },
+  "fmuv2": {
+   "hwdef": "fmuv2",
+   "mcu": "STM32F427xx",
+   "family": "F4",
+   "apj_board_id": 9
+  },
+  "fmuv3": {
+   "hwdef": "fmuv3",
+   "mcu": "STM32F427xx",
+   "family": "F4",
+   "apj_board_id": 9
+  },
+  "fmuv3-bdshot": {
+   "hwdef": "fmuv3-bdshot",
+   "mcu": "STM32F427xx",
+   "family": "F4",
+   "apj_board_id": 9
+  },
+  "fmuv5": {
+   "hwdef": "fmuv5",
+   "mcu": "STM32F767xx",
+   "family": "F7",
+   "apj_board_id": 50
+  },
+  "iomcu": {
+   "hwdef": "iomcu",
+   "mcu": "STM32F100xB",
+   "family": "F1",
+   "apj_board_id": 5713
+  },
+  "iomcu-dshot": {
+   "hwdef": "iomcu-dshot",
+   "mcu": "STM32F100xB",
+   "family": "F1",
+   "apj_board_id": 5713
+  },
+  "iomcu-f103": {
+   "hwdef": "iomcu-f103",
+   "mcu": "STM32F103xB",
+   "family": "F1",
+   "apj_board_id": 5711
+  },
+  "iomcu-f103-8MHz-dshot": {
+   "hwdef": "iomcu-f103-8MHz-dshot",
+   "mcu": "STM32F103xB",
+   "family": "F1",
+   "apj_board_id": 5712
+  },
+  "iomcu-f103-dshot": {
+   "hwdef": "iomcu-f103-dshot",
+   "mcu": "STM32F103xB",
+   "family": "F1",
+   "apj_board_id": 5711
+  },
+  "iomcu_f103_8MHz": {
+   "hwdef": "iomcu_f103_8MHz",
+   "mcu": "STM32F103xB",
+   "family": "F1",
+   "apj_board_id": 5712
+  },
+  "kha_eth": {
+   "hwdef": "kha_eth",
+   "mcu": "STM32H743xx",
+   "family": "H7",
+   "apj_board_id": 1315
+  },
+  "luminousbee4": {
+   "hwdef": "luminousbee4",
+   "mcu": "STM32F427xx",
+   "family": "F4",
+   "apj_board_id": 11
+  },
+  "luminousbee5": {
+   "hwdef": "luminousbee5",
+   "mcu": "STM32H743xx",
+   "family": "H7",
+   "apj_board_id": 1029
+  },
+  "mRo-M10095": {
+   "hwdef": "mRo-M10095",
+   "mcu": "STM32G491xx",
+   "family": "G4",
+   "apj_board_id": 1041
+  },
+  "mRoCANPWM-M10126": {
+   "hwdef": "mRoCANPWM-M10126",
+   "mcu": "STM32G474xx",
+   "family": "G4",
+   "apj_board_id": 1098
+  },
+  "mRoCZeroOEMH7-bdshot": {
+   "hwdef": "mRoCZeroOEMH7-bdshot",
+   "mcu": "STM32H743xx",
+   "family": "H7",
+   "apj_board_id": 1024
+  },
+  "mRoControlZeroClassic": {
+   "hwdef": "mRoControlZeroClassic",
+   "mcu": "STM32H743xx",
+   "family": "H7",
+   "apj_board_id": 1022
+  },
+  "mRoControlZeroF7": {
+   "hwdef": "mRoControlZeroF7",
+   "mcu": "STM32F777xx",
+   "family": "F7",
+   "apj_board_id": 141
+  },
+  "mRoControlZeroH7": {
+   "hwdef": "mRoControlZeroH7",
+   "mcu": "STM32H743xx",
+   "family": "H7",
+   "apj_board_id": 1023
+  },
+  "mRoControlZeroH7-bdshot": {
+   "hwdef": "mRoControlZeroH7-bdshot",
+   "mcu": "STM32H743xx",
+   "family": "H7",
+   "apj_board_id": 1023
+  },
+  "mRoControlZeroOEMH7": {
+   "hwdef": "mRoControlZeroOEMH7",
+   "mcu": "STM32H743xx",
+   "family": "H7",
+   "apj_board_id": 1024
+  },
+  "mRoKitCANrevC": {
+   "hwdef": "mRoKitCANrevC",
+   "mcu": "STM32F303xC",
+   "family": "F3",
+   "apj_board_id": 1145
+  },
+  "mRoNexus": {
+   "hwdef": "mRoNexus",
+   "mcu": "STM32H743xx",
+   "family": "H7",
+   "apj_board_id": 1015
+  },
+  "mRoPixracerPro": {
+   "hwdef": "mRoPixracerPro",
+   "mcu": "STM32H743xx",
+   "family": "H7",
+   "apj_board_id": 1017
+  },
+  "mRoPixracerPro-bdshot": {
+   "hwdef": "mRoPixracerPro-bdshot",
+   "mcu": "STM32H743xx",
+   "family": "H7",
+   "apj_board_id": 1017
+  },
+  "mRoX21": {
+   "hwdef": "mRoX21",
+   "mcu": "STM32F427xx",
+   "family": "F4",
+   "apj_board_id": 9
+  },
+  "mRoX21-777": {
+   "hwdef": "mRoX21-777",
+   "mcu": "STM32F777xx",
+   "family": "F7",
+   "apj_board_id": 136
+  },
+  "mindpx-v2": {
+   "hwdef": "mindpx-v2",
+   "mcu": "STM32F427xx",
+   "family": "F4",
+   "apj_board_id": 88
+  },
+  "mini-pix": {
+   "hwdef": "mini-pix",
+   "mcu": "STM32F405xx",
+   "family": "F4",
+   "apj_board_id": 3
+  },
+  "modalai_fc-v1": {
+   "hwdef": "modalai_fc-v1",
+   "mcu": "STM32F767xx",
+   "family": "F7",
+   "apj_board_id": 41775
+  },
+  "omnibusf4": {
+   "hwdef": "omnibusf4",
+   "mcu": "STM32F405xx",
+   "family": "F4",
+   "apj_board_id": 1002
+  },
+  "omnibusf4pro": {
+   "hwdef": "omnibusf4pro",
+   "mcu": "STM32F405xx",
+   "family": "F4",
+   "apj_board_id": 131
+  },
+  "omnibusf4pro-bdshot": {
+   "hwdef": "omnibusf4pro-bdshot",
+   "mcu": "STM32F405xx",
+   "family": "F4",
+   "apj_board_id": 131
+  },
+  "omnibusf4pro-one": {
+   "hwdef": "omnibusf4pro-one",
+   "mcu": "STM32F405xx",
+   "family": "F4",
+   "apj_board_id": 131
+  },
+  "omnibusf4v6": {
+   "hwdef": "omnibusf4v6",
+   "mcu": "STM32F405xx",
+   "family": "F4",
+   "apj_board_id": 137
+  },
+  "rFCU": {
+   "hwdef": "rFCU",
+   "mcu": "STM32H743xx",
+   "family": "H7",
+   "apj_board_id": 1102
+  },
+  "rGNSS": {
+   "hwdef": "rGNSS",
+   "mcu": "STM32G491xx",
+   "family": "G4",
+   "apj_board_id": 1103
+  },
+  "revo-mini": {
+   "hwdef": "revo-mini",
+   "mcu": "STM32F405xx",
+   "family": "F4",
+   "apj_board_id": 124
+  },
+  "revo-mini-bdshot": {
+   "hwdef": "revo-mini-bdshot",
+   "mcu": "STM32F405xx",
+   "family": "F4",
+   "apj_board_id": 124
+  },
+  "revo-mini-i2c": {
+   "hwdef": "revo-mini-i2c",
+   "mcu": "STM32F405xx",
+   "family": "F4",
+   "apj_board_id": 124
+  },
+  "revo-mini-i2c-bdshot": {
+   "hwdef": "revo-mini-i2c-bdshot",
+   "mcu": "STM32F405xx",
+   "family": "F4",
+   "apj_board_id": 124
+  },
+  "revo-mini-sd": {
+   "hwdef": "revo-mini-sd",
+   "mcu": "STM32F405xx",
+   "family": "F4",
+   "apj_board_id": 124
+  },
+  "skyviper-f412": {
+   "hwdef": "skyviper-f412-rev1",
+   "mcu": "STM32F412Rx",
+   "family": "F4",
+   "apj_board_id": 9
+  },
+  "skyviper-jour": {
+   "hwdef": "skyviper-journey",
+   "mcu": "STM32F412Rx",
+   "family": "F4",
+   "apj_board_id": 9
+  },
+  "skyviper-v245": {
+   "hwdef": "skyviper-v2450",
+   "mcu": "STM32F427xx",
+   "family": "F4",
+   "apj_board_id": 9
+  },
+  "sparky2": {
+   "hwdef": "sparky2",
+   "mcu": "STM32F405xx",
+   "family": "F4",
+   "apj_board_id": 130
+  },
+  "speedybeef4": {
+   "hwdef": "speedybeef4",
+   "mcu": "STM32F405xx",
+   "family": "F4",
+   "apj_board_id": 134
+  },
+  "speedybeef4v3": {
+   "hwdef": "speedybeef4v3",
+   "mcu": "STM32F405xx",
+   "family": "F4",
+   "apj_board_id": 1082
+  },
+  "speedybeef4v4": {
+   "hwdef": "speedybeef4v4",
+   "mcu": "STM32F405xx",
+   "family": "F4",
+   "apj_board_id": 1136
+  },
+  "speedybeef4v5": {
+   "hwdef": "speedybeef4v5",
+   "mcu": "STM32F405xx",
+   "family": "F4",
+   "apj_board_id": 5272
+  },
+  "sw-boom-f407": {
+   "hwdef": "sw-boom-f407",
+   "mcu": "STM32F407xx",
+   "family": "F4",
+   "apj_board_id": 6001
+  },
+  "sw-nav-f405": {
+   "hwdef": "sw-nav-f405",
+   "mcu": "STM32F405xx",
+   "family": "F4",
+   "apj_board_id": 6002
+  },
+  "sw-spar-f407": {
+   "hwdef": "sw-spar-f407",
+   "mcu": "STM32F407xx",
+   "family": "F4",
+   "apj_board_id": 6000
+  },
+  "thepeach-k1": {
+   "hwdef": "thepeach-k1",
+   "mcu": "STM32F427xx",
+   "family": "F4",
+   "apj_board_id": 212
+  },
+  "thepeach-r1": {
+   "hwdef": "thepeach-r1",
+   "mcu": "STM32F427xx",
+   "family": "F4",
+   "apj_board_id": 213
+  },
+  "uav-dev-auav-g4": {
+   "hwdef": "uav-dev-auav-g4",
+   "mcu": "STM32G474xx",
+   "family": "G4",
+   "apj_board_id": 5234
+  },
+  "uav-dev-fc-um982": {
+   "hwdef": "uav-dev-fc-um982",
+   "mcu": "STM32H743xx",
+   "family": "H7",
+   "apj_board_id": 5230
+  },
+  "uav-dev-powermodule": {
+   "hwdef": "uav-dev-powermodule",
+   "mcu": "STM32G474xx",
+   "family": "G4",
+   "apj_board_id": 5233
+  },
+  "uav-dev_m10s": {
+   "hwdef": "uav-dev_m10s",
+   "mcu": "STM32L431xx",
+   "family": "L4",
+   "apj_board_id": 5222
+  }
+ }
+}

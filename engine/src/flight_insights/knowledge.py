@@ -71,6 +71,15 @@ class Pack:
         choice = _nearest(sorted(entries, key=version_key), firmware)
         return self.json(entries[choice.version]["file"])
 
+    def boards(self, firmware: str) -> dict[str, dict[str, Any]]:
+        """Board short name -> {hwdef, mcu, family, apj_board_id} for a release (or the
+        nearest earlier one in the pack)."""
+        entries: dict[str, Any] = self.manifest.get("boards", {})
+        if not entries:
+            raise KnowledgeError("the knowledge pack has no board table")
+        choice = _nearest(sorted(entries, key=version_key), firmware)
+        return self.json(entries[choice.version]["file"])["boards"]
+
     def metadata(self, version: str, vehicle: Vehicle) -> dict[str, dict[str, Any]]:
         """Every parameter of a release: ArduPilot's generated metadata plus the curated
         supplement (params/supplement.json) for parameters the generator leaves out."""
