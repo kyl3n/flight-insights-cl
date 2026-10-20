@@ -1,0 +1,129 @@
+{
+  "about": "Rule pack v0 for the archetype scorer (spec: Vehicle fingerprinting, 'Archetypes'). Each archetype applies to some vehicle classes and lists weighted conditions on fingerprint features. A condition counts only when its feature is known; a parameter still at its firmware default is not known, since nobody chose it for this vehicle. Score: the weight of the conditions met over the weight of the conditions known. Confidence: the weight known over the weight listed. Prop class comes first, as ArduPilot's tuning guide scales its starting values with prop size (https://ardupilot.org/copter/docs/setting-up-for-tuning.html): MOT_THST_EXPO about 0.55, 0.65, 0.75 and 0.8, and INS_GYRO_FILTER about 80, 40, 20 and 10 Hz, for 5, 10, 20 and 30 inch props. Motor frequencies at hover are rough starting values. Nothing here is calibrated yet: calibration uses the labelled log corpus.",
+  "version": "v0",
+  "calibrated": false,
+  "archetypes": [
+    {
+      "id": "small agile copter",
+      "vehicle_class": ["multirotor"],
+      "conditions": [
+        {"feature": "motor_hz_at_hover", "min": 250, "weight": 3, "why": "Props of about 7 inches and less hover above 250 Hz"},
+        {"feature": "thst_expo", "max": 0.6, "weight": 1, "why": "Tuning guide: about 0.55 for 5 inch props"},
+        {"feature": "gyro_filter_hz", "min": 60, "weight": 1, "why": "Tuning guide: about 80 Hz for 5 inch props"},
+        {"feature": "capacity_mah", "max": 3000, "weight": 1, "why": "Small packs"},
+        {"feature": "coaxial", "equals": false, "weight": 1, "why": "Small agile frames are flat"}
+      ]
+    },
+    {
+      "id": "mid-size utility copter",
+      "vehicle_class": ["multirotor"],
+      "conditions": [
+        {"feature": "motor_hz_at_hover", "min": 100, "max": 250, "weight": 3, "why": "Props of about 10 to 15 inches"},
+        {"feature": "thst_expo", "min": 0.6, "max": 0.7, "weight": 1, "why": "Tuning guide: about 0.65 for 10 inch props"},
+        {"feature": "gyro_filter_hz", "min": 30, "max": 60, "weight": 1, "why": "Tuning guide: about 40 Hz for 10 inch props"},
+        {"feature": "cells", "min": 4, "max": 6, "weight": 1, "why": "4S to 6S packs"},
+        {"feature": "coaxial", "equals": false, "weight": 1, "why": "Coaxial frames have their own archetype"}
+      ]
+    },
+    {
+      "id": "heavy-lift copter",
+      "vehicle_class": ["multirotor"],
+      "conditions": [
+        {"feature": "motor_hz_at_hover", "max": 100, "weight": 3, "why": "Props of about 20 inches and more"},
+        {"feature": "thst_expo", "min": 0.7, "weight": 1, "why": "Tuning guide: about 0.75 to 0.8 for 20 to 30 inch props"},
+        {"feature": "gyro_filter_hz", "max": 30, "weight": 1, "why": "Tuning guide: about 20 to 10 Hz for 20 to 30 inch props"},
+        {"feature": "cells", "min": 10, "weight": 1, "why": "High-voltage packs, 12S and more"},
+        {"feature": "payload_device", "equals": false, "weight": 1, "why": "No gripper or winch: a fixed payload"}
+      ]
+    },
+    {
+      "id": "heavy-lift copter with variable payload",
+      "vehicle_class": ["multirotor"],
+      "conditions": [
+        {"feature": "motor_hz_at_hover", "max": 100, "weight": 3, "why": "Props of about 20 inches and more"},
+        {"feature": "thst_expo", "min": 0.7, "weight": 1, "why": "Tuning guide: large props"},
+        {"feature": "gyro_filter_hz", "max": 30, "weight": 1, "why": "Tuning guide: large props"},
+        {"feature": "cells", "min": 10, "weight": 1, "why": "High-voltage packs"},
+        {"feature": "payload_device", "equals": true, "weight": 2, "why": "A gripper or winch drops or picks up load in flight"}
+      ]
+    },
+    {
+      "id": "coaxial X8",
+      "vehicle_class": ["multirotor"],
+      "conditions": [
+        {"feature": "frame_class", "equals": "OctaQuad", "weight": 4, "why": "FRAME_CLASS OctaQuad is the coaxial X8"},
+        {"feature": "motor_hz_at_hover", "max": 150, "weight": 1, "why": "Usually mid-size or larger props"}
+      ]
+    },
+    {
+      "id": "small electric fixed-wing",
+      "vehicle_class": ["plane"],
+      "conditions": [
+        {"feature": "ice", "equals": false, "weight": 2, "why": "No internal combustion engine configured"},
+        {"feature": "airspeed_cruise_m_s", "max": 18, "weight": 1, "why": "Slow cruise"},
+        {"feature": "capacity_mah", "max": 6000, "weight": 1, "why": "Small packs"}
+      ]
+    },
+    {
+      "id": "large electric fixed-wing",
+      "vehicle_class": ["plane"],
+      "conditions": [
+        {"feature": "ice", "equals": false, "weight": 2, "why": "No internal combustion engine configured"},
+        {"feature": "airspeed_cruise_m_s", "min": 18, "weight": 1, "why": "Fast cruise"},
+        {"feature": "capacity_mah", "min": 6000, "weight": 1, "why": "Large packs"}
+      ]
+    },
+    {
+      "id": "small ICE fixed-wing",
+      "vehicle_class": ["plane"],
+      "conditions": [
+        {"feature": "ice", "equals": true, "weight": 2, "why": "ICE_ENABLE: an internal combustion engine"},
+        {"feature": "airspeed_cruise_m_s", "max": 18, "weight": 1, "why": "Slow cruise"}
+      ]
+    },
+    {
+      "id": "large ICE fixed-wing",
+      "vehicle_class": ["plane"],
+      "conditions": [
+        {"feature": "ice", "equals": true, "weight": 2, "why": "ICE_ENABLE: an internal combustion engine"},
+        {"feature": "airspeed_cruise_m_s", "min": 18, "weight": 1, "why": "Fast cruise"}
+      ]
+    },
+    {
+      "id": "standard QuadPlane",
+      "vehicle_class": ["quadplane"],
+      "conditions": [{"feature": "vtol", "equals": "standard", "weight": 4, "why": "Separate lift and forward motors"}]
+    },
+    {
+      "id": "tiltrotor QuadPlane",
+      "vehicle_class": ["quadplane"],
+      "conditions": [{"feature": "vtol", "equals": "tiltrotor", "weight": 4, "why": "Q_TILT_ENABLE"}]
+    },
+    {
+      "id": "tailsitter QuadPlane",
+      "vehicle_class": ["quadplane"],
+      "conditions": [{"feature": "vtol", "equals": "tailsitter", "weight": 4, "why": "Q_TAILSIT_ENABLE"}]
+    },
+    {
+      "id": "electric single-rotor helicopter",
+      "vehicle_class": ["helicopter"],
+      "conditions": [
+        {"feature": "heli", "equals": "single", "weight": 4, "why": "FRAME_CLASS Heli"},
+        {"feature": "ice", "equals": false, "weight": 1, "why": "No combustion engine configured"}
+      ]
+    },
+    {
+      "id": "ICE single-rotor helicopter",
+      "vehicle_class": ["helicopter"],
+      "conditions": [
+        {"feature": "heli", "equals": "single", "weight": 4, "why": "FRAME_CLASS Heli"},
+        {"feature": "ice", "equals": true, "weight": 1, "why": "A combustion engine"}
+      ]
+    },
+    {
+      "id": "dual-rotor helicopter",
+      "vehicle_class": ["helicopter"],
+      "conditions": [{"feature": "heli", "equals": "dual", "weight": 4, "why": "FRAME_CLASS Heli_Dual"}]
+    }
+  ]
+}

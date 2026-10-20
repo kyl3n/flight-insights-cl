@@ -11,6 +11,7 @@ fallbacks.
 from __future__ import annotations
 
 import hashlib
+import math
 import re
 from collections.abc import Sequence
 from dataclasses import dataclass, field
@@ -61,6 +62,14 @@ class Snapshot:
     time_us: int | None = None  # log time the set applies from, for log snapshots
     # Changes after the snapshot, while the same log was recording.
     changes: tuple[ParamChange, ...] = field(default=())
+    # The firmware's default for each parameter, where the log records it (PARM.Default).
+    # Not part of the snapshot's identity: it describes the firmware, not the vehicle.
+    defaults: dict[str, float] = field(default_factory=dict[str, float], compare=False)
+
+    def is_default(self, name: str) -> bool:
+        """True when the value is the firmware's default: nobody chose it for this vehicle."""
+        d = self.defaults.get(name)
+        return d is not None and name in self.values and same_value(self.values[name], d)
 
     def dialect(self, pack: Pack) -> Dialect:
         return Dialect(pack, self.vehicle, self.firmware)
@@ -116,6 +125,7 @@ def from_log(df: DataflashLog, at_us: int | None = None) -> Snapshot:
         raise SnapshotError("the log has no PARM messages")
     initial: dict[str, float] = {}
     current: dict[str, float] = {}
+    defaults: dict[str, float] = {}
     dump_end = 0
     changes: list[ParamChange] = []
     for r in sorted(df.table("PARM").to_pylist(), key=lambda r: r["TimeUS"]):
@@ -123,6 +133,9 @@ def from_log(df: DataflashLog, at_us: int | None = None) -> Snapshot:
         if name not in initial:
             initial[name] = current[name] = value  # the start-of-log dump
             dump_end = max(dump_end, r["TimeUS"])
+            default = r.get("Default")
+            if default is not None and not math.isnan(default):
+                defaults[name] = float(default)
         elif not same_value(current[name], value):
             changes.append(ParamChange(r["TimeUS"], name, current[name], value))
             current[name] = value
@@ -134,7 +147,7 @@ def from_log(df: DataflashLog, at_us: int | None = None) -> Snapshot:
         if c.time_us <= at:
             values[c.name] = c.new
     after = tuple(c for c in changes if c.time_us > at)
-    return Snapshot(values, vehicle, firmware, "log start", "primary", at, after)
+    return Snapshot(values, vehicle, firmware, "log start", "primary", at, after, defaults)
 
 
 def from_tlog_download(download: ParamDownload, vehicle: Vehicle, firmware: str) -> Snapshot:
