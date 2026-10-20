@@ -274,3 +274,29 @@ def test_doubles_survive_exactly(tmp_path: Path, value: float) -> None:
     log.write("DBL", 1, value)
     with read_dataflash(write(tmp_path, log)) as df:
         assert df.table("DBL").column("V").to_pylist() == [value]
+
+
+def test_unit_messages_with_unexpected_column_kinds_are_ignored(tmp_path: Path) -> None:
+    """Found by fuzzing: an FMTU whose FmtType is a string must not crash the decoder."""
+    log = LogBuilder(units=False)
+    log.fmt(0x83, "FMTU", "QNNN", "TimeUS,FmtType,UnitIds,MultIds")
+    log.fmt(0x91, "BARO", "Qf", "TimeUS,Alt")
+    log.write("FMTU", 0, b"ts---", b"sm", b"F0")
+    log.write("BARO", 1, 2.0)
+    with read_dataflash(write(tmp_path, log)) as df:
+        assert df.table("BARO").num_rows == 1
+        assert meta(df.table("BARO"), "Alt")[b"unit"] == b""
+
+
+def test_a_redefinition_that_changes_only_types_is_refused_cleanly(tmp_path: Path) -> None:
+    """Found by fuzzing: same column names, different types, must not reach Arrow's concat."""
+    log = LogBuilder()
+    log.fmt(0x92, "RATE", "Qf", "TimeUS,R")
+    log.write("RATE", 1, 0.5)
+    log.fmt(0x92, "RATE", "Qi", "TimeUS,R")
+    log.write("RATE", 2, 7)
+    with (
+        read_dataflash(write(tmp_path, log)) as df,
+        pytest.raises(ValueError, match="different columns or types"),
+    ):
+        df.table("RATE")

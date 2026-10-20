@@ -6,7 +6,7 @@ import mmap
 from functools import cached_property
 from pathlib import Path
 from types import TracebackType
-from typing import Self
+from typing import Any, Self
 
 import numpy as np
 import pyarrow as pa
@@ -53,24 +53,28 @@ class DataflashLog:
     # --- formats and units ---------------------------------------------------------
 
     def _apply_units(self) -> None:
-        """Attach FMTU units to every format of the type they name, wherever FMTU sits."""
+        """Attach FMTU units to every format of the type they name, wherever FMTU sits.
+
+        UNIT, MULT and FMTU are used only when their columns have the kinds the
+        format gives them (ids as integers, labels as strings, multipliers as
+        numbers); a log that defines them otherwise simply has no units.
+        """
         units: dict[str, str] = {}
         mults: dict[str, float] = {}
         fmtu: dict[int, tuple[str, str]] = {}
         for fid, fmt in enumerate(self.index.formats):
-            if fmt.name not in ("UNIT", "MULT", "FMTU"):
-                continue
-            rows = self.rows(fid)
-            names = fmt.field_names
-            if fmt.name == "UNIT" and {"Id", "Label"} <= set(names):
-                for r in rows:
+            if fmt.name == "UNIT" and _kinds(fmt, Id="iu", Label="S"):
+                for r in self.rows(fid):
                     units[chr(int(r["Id"]) & 0xFF)] = text(bytes(r["Label"]))
-            elif fmt.name == "MULT" and {"Id", "Mult"} <= set(names):
-                for r in rows:
+            elif fmt.name == "MULT" and _kinds(fmt, Id="iu", Mult="iuf"):
+                for r in self.rows(fid):
                     mults[chr(int(r["Id"]) & 0xFF)] = float(r["Mult"])
-            elif fmt.name == "FMTU" and {"FmtType", "UnitIds", "MultIds"} <= set(names):
-                for r in rows:
-                    fmtu[int(r["FmtType"])] = (text(bytes(r["UnitIds"])), text(bytes(r["MultIds"])))
+            elif fmt.name == "FMTU" and _kinds(fmt, FmtType="iu", UnitIds="S", MultIds="S"):
+                for r in self.rows(fid):
+                    fmtu[int(r["FmtType"])] = (
+                        text(bytes(r["UnitIds"])),
+                        text(bytes(r["MultIds"])),
+                    )
         for fmt in self.index.formats:
             if fmt.type in fmtu:
                 fmt.apply_units(*fmtu[fmt.type], units, mults)
@@ -110,7 +114,7 @@ class DataflashLog:
         """Every message of a type as an Arrow table, in file order.
 
         A type redefined part-way through a log keeps one table only if every
-        definition has the same columns; otherwise this raises ValueError.
+        definition has the same columns and types; otherwise this raises ValueError.
         """
         ids = [i for i in self.formats_named(name) if self.count_format(i)]
         if not ids:
@@ -118,8 +122,8 @@ class DataflashLog:
         tables = [to_table(self.rows(i), self.index.formats[i]) for i in ids]
         if len(tables) == 1:
             return tables[0]
-        if any(t.schema.names != tables[0].schema.names for t in tables):
-            raise ValueError(f"{name} is defined with different columns in this log")
+        if any(not t.schema.equals(tables[0].schema) for t in tables):
+            raise ValueError(f"{name} is defined with different columns or types in this log")
         order = np.argsort(
             np.concatenate([self.index.offsets[self.index.format_ids == i] for i in ids]),
             kind="stable",
@@ -134,6 +138,15 @@ class DataflashLog:
             return {0: table}
         values: np.ndarray[tuple[int], np.dtype[np.integer]] = table.column(column).to_numpy()
         return {int(v): table.filter(values == v) for v in np.unique(values)}
+
+
+def _kinds(fmt: DfFormat, **expected: str) -> bool:
+    """True if each named column exists with a numpy kind among those given ("iu", "S"...)."""
+    fields: dict[str, Any] = {str(k): v for k, v in (fmt.dtype.fields or {}).items()}
+    return all(
+        name in fields and fields[name][0].kind in kinds and fields[name][0].shape == ()
+        for name, kinds in expected.items()
+    )
 
 
 def read_dataflash(path: Path | str) -> DataflashLog:
