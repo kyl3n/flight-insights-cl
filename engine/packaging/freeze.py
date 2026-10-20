@@ -36,7 +36,8 @@ EXCLUDE = ["tkinter", "matplotlib", "IPython", "pytest", "hypothesis"]
 def target_triple() -> str:
     try:
         out = subprocess.run(["rustc", "-vV"], capture_output=True, text=True, check=True).stdout
-        return next(line.split(": ", 1)[1] for line in out.splitlines() if line.startswith("host: "))
+        host = (line for line in out.splitlines() if line.startswith("host: "))
+        return next(host).split(": ", 1)[1]
     except (OSError, subprocess.CalledProcessError, StopIteration):
         key = (platform.system(), platform.machine())
         if key not in TRIPLES:
