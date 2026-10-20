@@ -26,6 +26,48 @@
     },
     {
       "class": "learned",
+      "why": "Helicopter hover collective learned in flight while hover learning is on",
+      "names": ["H_COL_HOVER"],
+      "when": {"H_HOVER_LEARN": [1, 2]}
+    },
+    {
+      "class": "learned",
+      "why": "Airspeed sensor offset, re-zeroed by the automatic calibration at every boot unless it is skipped",
+      "names": ["ARSPD_OFFSET"],
+      "when": {"ARSPD_SKIP_CAL": [0]}
+    },
+    {
+      "class": "learned",
+      "why": "Airspeed sensor offset, re-zeroed by the automatic calibration at every boot unless it is skipped",
+      "names": ["ARSPD2_OFFSET"],
+      "when": {"ARSPD2_SKIP_CAL": [0]}
+    },
+    {
+      "class": "learned",
+      "why": "Airspeed sensor offset, re-zeroed by the automatic calibration at every boot unless it is skipped",
+      "names": ["ARSPD3_OFFSET"],
+      "when": {"ARSPD3_SKIP_CAL": [0]}
+    },
+    {
+      "class": "learned",
+      "why": "Airspeed sensor offset, re-zeroed by the automatic calibration at every boot unless it is skipped",
+      "names": ["ARSPD4_OFFSET"],
+      "when": {"ARSPD4_SKIP_CAL": [0]}
+    },
+    {
+      "class": "learned",
+      "why": "Airspeed sensor offset, re-zeroed by the automatic calibration at every boot unless it is skipped",
+      "names": ["ARSPD5_OFFSET"],
+      "when": {"ARSPD5_SKIP_CAL": [0]}
+    },
+    {
+      "class": "learned",
+      "why": "Airspeed sensor offset, re-zeroed by the automatic calibration at every boot unless it is skipped",
+      "names": ["ARSPD6_OFFSET"],
+      "when": {"ARSPD6_SKIP_CAL": [0]}
+    },
+    {
+      "class": "learned",
       "why": "Compass offsets learned in flight while compass learning is on",
       "names": ["COMPASS_OFS_?", "COMPASS_OFS?_?"],
       "when": {"COMPASS_LEARN": [2, 3]}
@@ -41,6 +83,11 @@
       "metadata": "calibration"
     },
     {
+      "class": "calibration",
+      "why": "Airspeed sensor offset kept from a calibration, when the boot calibration is skipped",
+      "names": ["ARSPD_OFFSET", "ARSPD?_OFFSET"]
+    },
+    {
       "class": "ground station",
       "why": "Telemetry stream rates, which Mission Planner and QGroundControl request differently: used by the link analyzer, not as a cause of flight performance",
       "names": [
@@ -48,6 +95,11 @@
         "MAV?_ADSB", "MAV?_EXTRA1", "MAV?_EXTRA2", "MAV?_EXTRA3", "MAV?_EXT_STAT",
         "MAV?_PARAMS", "MAV?_POSITION", "MAV?_RAW_CTRL", "MAV?_RAW_SENS", "MAV?_RC_CHAN"
       ]
+    },
+    {
+      "class": "ground station",
+      "why": "Counts of the mission, fence and rally items a ground station uploads: they change with every upload, not with tuning",
+      "names": ["MIS_TOTAL", "FENCE_TOTAL", "RALLY_TOTAL"]
     },
     {
       "class": "tuning",

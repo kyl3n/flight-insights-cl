@@ -19,6 +19,7 @@ from __future__ import annotations
 
 import argparse
 import shutil
+import struct
 import subprocess
 import sys
 import tempfile
@@ -253,7 +254,16 @@ class Vehicle:
 
 
 def format_value(value: float) -> str:
-    return f"{value:.7g}"
+    """The shortest text that reads back as the same float32, as the autopilot holds it.
+
+    Seven significant digits are not always enough: 25.018352 needs eight.
+    """
+    stored = struct.unpack("<f", struct.pack("<f", value))[0]
+    for digits in range(6, 10):
+        text = f"{stored:.{digits}g}"
+        if struct.unpack("<f", struct.pack("<f", float(text)))[0] == stored:
+            return text
+    return repr(stored)
 
 
 def write_param_files(params: list[tuple[str, float, int]], out: Path, about: str) -> None:
