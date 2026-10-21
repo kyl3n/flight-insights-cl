@@ -257,11 +257,18 @@ impl LaptopIdentity {
     }
 
     /// The engine.unlock params, written straight into memory that is wiped on drop.
-    pub fn unlock_params(&self, data_dir: &str) -> Result<Zeroizing<String>, String> {
+    /// `host` is this computer's host name, which the engine keeps only as a
+    /// keyed hash, to recognise the ground station it runs on.
+    pub fn unlock_params(
+        &self,
+        data_dir: &str,
+        host: Option<&str>,
+    ) -> Result<Zeroizing<String>, String> {
         let k = &self.store_keys;
         let dir = serde_json::to_string(data_dir).map_err(|e| e.to_string())?;
+        let host = serde_json::to_string(&host).map_err(|e| e.to_string())?;
         Ok(Zeroizing::new(format!(
-            r#"{{"laptop_id":"{}","data_dir":{dir},"keys":{{"database":"{}","cache":"{}","positions":"{}","board_id":"{}"}}}}"#,
+            r#"{{"laptop_id":"{}","data_dir":{dir},"host":{host},"keys":{{"database":"{}","cache":"{}","positions":"{}","board_id":"{}"}}}}"#,
             self.laptop_id_hex(),
             hex::encode(*k.database),
             hex::encode(*k.cache),
@@ -345,9 +352,15 @@ mod tests {
     #[test]
     fn unlock_params_are_valid_json_with_every_key() {
         let (id, _) = LaptopIdentity::load_or_create(&MemoryStore::default()).unwrap();
-        let text = id.unlock_params("C:\\Users\\pilot \"x\"\\data").unwrap();
+        let text = id
+            .unlock_params("C:\\Users\\pilot \"x\"\\data", Some("GCS \"1\""))
+            .unwrap();
         let v: serde_json::Value = serde_json::from_str(&text).unwrap();
         assert_eq!(v["laptop_id"], id.laptop_id_hex());
+        assert_eq!(v["host"], "GCS \"1\"");
+        let none: serde_json::Value =
+            serde_json::from_str(&id.unlock_params("d", None).unwrap()).unwrap();
+        assert!(none["host"].is_null());
         assert_eq!(v["data_dir"], "C:\\Users\\pilot \"x\"\\data");
         for k in ["database", "cache", "positions", "board_id"] {
             assert_eq!(v["keys"][k].as_str().unwrap().len(), 64);

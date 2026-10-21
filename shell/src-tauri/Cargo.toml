@@ -22,9 +22,11 @@ getrandom = "0.4.3"
 ed25519-dalek = { version = "3.0.0", features = ["zeroize"] }
 x25519-dalek = { version = "3.0.0", features = ["static_secrets", "zeroize"] }
 keyring-core = "1.0.0"
+sysinfo = { version = "0.39.6", default-features = false, features = ["system", "disk"] }
 
 [target.'cfg(target_os = "windows")'.dependencies]
 windows-native-keyring-store = "1.1.0"
+windows = { version = "0.62.2", features = ["Win32_System_Power"] }
 
 [target.'cfg(all(unix, not(target_os = "macos")))'.dependencies]
 zbus-secret-service-keyring-store = { version = "1.0.1", features = ["rt-async-io-crypto-rust"] }

@@ -129,7 +129,10 @@ impl Engine {
     /// Open the encrypted store with this laptop's keys.
     pub fn unlock(&self, identity: &LaptopIdentity, data_dir: &Path) -> Result<Value, RpcError> {
         let dir = data_dir.to_string_lossy();
-        let params = identity.unlock_params(&dir).map_err(RpcError::Io)?;
+        let host = crate::station::host_name();
+        let params = identity
+            .unlock_params(&dir, host.as_deref())
+            .map_err(RpcError::Io)?;
         self.client
             .call_raw("engine.unlock", &params, START_TIMEOUT)
     }
@@ -202,6 +205,13 @@ pub const UI_METHODS: &[&str] = &[
     "airframe.list",
     "airframe.get",
     "airframe.record_change",
+    "station.schema",
+    "station.create",
+    "station.list",
+    "station.get",
+    "station.rename",
+    "station.save",
+    "station.detect_software",
 ];
 
 #[cfg(test)]
@@ -223,6 +233,8 @@ mod tests {
     fn the_ui_can_never_unlock_or_stop_the_engine() {
         assert!(!UI_METHODS.contains(&"engine.unlock"));
         assert!(!UI_METHODS.contains(&"engine.shutdown"));
+        // this computer's facts come from the shell, never from the interface
+        assert!(!UI_METHODS.contains(&"station.record_computer"));
     }
 
     #[test]
@@ -282,6 +294,30 @@ mod tests {
             .unwrap();
         assert_eq!(first["duplicate"], false);
         assert_eq!(again["duplicate"], true);
+        let station = engine
+            .client
+            .call(
+                "station.create",
+                json!({ "name": "Field laptop" }),
+                CALL_TIMEOUT,
+            )
+            .unwrap();
+        let detected = engine
+            .client
+            .call(
+                "station.record_computer",
+                json!({
+                    "id": station["id"],
+                    "version": station["version"],
+                    "facts": crate::station::computer_facts(&data),
+                }),
+                CALL_TIMEOUT,
+            )
+            .unwrap();
+        assert_eq!(detected["this_computer"], true);
+        assert!(
+            detected["current"]["profile"]["computer"]["memory_gb"]["value"].as_f64() > Some(0.0)
+        );
         // the engine's log never holds the keys
         let log = engine.log_tail().join("\n");
         assert!(!log.contains(&hex::encode(*identity.store_keys.database)));

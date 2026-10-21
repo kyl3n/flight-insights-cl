@@ -269,7 +269,9 @@ Link and MAVLink performance depend as much on the ground side as on the aircraf
 | Antennas | Model, type (omni, patch, helical, Yagi), gain, polarisation, cable type and length, connectors, mast height, tracker | Entered once; the setup walks through each one |
 | Clock | Time synchronisation of the computer, which time-stamps the tlogs | Yes |
 
-**Versions and flights.** Any change, such as a new antenna, radio firmware, an operating system update or a different laptop, creates a new ground station version. Each flight records the ground station version it was flown with, so link changes are attributed the same way as parameter and build changes.
+**Versions and flights.** Any change, such as a new antenna, radio firmware, an operating system update or a different laptop, creates a new ground station version. Each flight records the ground station version it was flown with, so link changes are attributed the same way as parameter and build changes. A version can be edited freely while it is being set up, until a flight or file refers to it. Values that change from minute to minute, such as free disk space, clock speed, battery or mains power, and clock synchronisation, are refreshed on the current version and never create one on their own.
+
+**Recognising the computer.** The app recognises the computer it runs on from its host name, which is stored only as a keyed hash, never as the name itself. The software detected there is filled in from the computer's own install records. A person's own choice of ground station program stands over what is detected.
 
 **Session monitor.** While the app is open on the ground station computer during a flight, it records, once a second and locally, processor load, memory in use, disk activity, serial and USB errors, and network status. Tlog gaps can then be told apart: computer-side stalls (a busy processor, a USB port put to sleep, the laptop suspending) versus link losses that the radio's own statistics confirm.
 

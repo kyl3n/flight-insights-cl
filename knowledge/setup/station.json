@@ -1,0 +1,90 @@
+{
+  "about": "Ground station profiles (spec: Ground station profiles). Each step is one part of the profile. 'repeat' steps hold a list, one entry per radio or antenna. 'detect' marks a value read from this computer when the app runs on it. 'volatile' values change from minute to minute (free disk space, clock speed, power source, clock sync): they update the current version instead of making a new one.",
+  "version": 1,
+  "steps": [
+    {
+      "id": "computer",
+      "title": {"en": "Computer", "uk": "Комп'ютер"},
+      "about": {"en": "The computer that runs the ground station software and records the tlogs.", "uk": "Комп'ютер, на якому працює наземна станція і записуються tlog-файли."},
+      "fields": [
+        {"id": "make_model", "label": {"en": "Make and model", "uk": "Виробник і модель"}, "type": "text", "required": false, "why": {"en": "Telling computers apart in comparisons", "uk": "Розрізнення комп'ютерів при порівнянні"}},
+        {"id": "os", "label": {"en": "Operating system", "uk": "Операційна система"}, "type": "text", "required": false, "why": {"en": "Driver and USB behaviour differ by system", "uk": "Драйвери і робота USB залежать від системи"}, "detect": "os"},
+        {"id": "os_version", "label": {"en": "System version", "uk": "Версія системи"}, "type": "text", "required": false, "why": {"en": "An update can change serial and USB behaviour", "uk": "Оновлення може змінити роботу послідовних портів і USB"}, "detect": "os_version"},
+        {"id": "cpu", "label": {"en": "Processor", "uk": "Процесор"}, "type": "text", "required": false, "why": {"en": "Computer-side stalls in the tlog", "uk": "Затримки на боці комп'ютера в tlog"}, "detect": "cpu"},
+        {"id": "cpu_cores", "label": {"en": "Processor cores", "uk": "Ядра процесора"}, "type": "integer", "required": false, "why": {"en": "Computer-side stalls in the tlog", "uk": "Затримки на боці комп'ютера в tlog"}, "detect": "cpu_cores"},
+        {"id": "cpu_mhz", "label": {"en": "Clock speed", "uk": "Тактова частота"}, "type": "number", "unit": "MHz", "required": false, "volatile": true, "why": {"en": "Power saving lowers it", "uk": "Енергозбереження її знижує"}, "detect": "cpu_mhz"},
+        {"id": "memory_gb", "label": {"en": "Memory", "uk": "Пам'ять"}, "type": "number", "unit": "GB", "required": false, "why": {"en": "Computer-side stalls in the tlog", "uk": "Затримки на боці комп'ютера в tlog"}, "detect": "memory_gb"},
+        {"id": "disk_gb", "label": {"en": "Disk capacity", "uk": "Обсяг диска"}, "type": "number", "unit": "GB", "required": false, "why": {"en": "Room for tlogs and video", "uk": "Місце для tlog і відео"}, "detect": "disk_gb"},
+        {"id": "disk_free_gb", "label": {"en": "Free disk space", "uk": "Вільне місце на диску"}, "type": "number", "unit": "GB", "required": false, "volatile": true, "why": {"en": "A full disk stops tlog recording", "uk": "Заповнений диск зупиняє запис tlog"}, "detect": "disk_free_gb"},
+        {"id": "power", "label": {"en": "Power source", "uk": "Живлення"}, "type": "choice", "required": false, "volatile": true, "choices": ["battery", "mains"], "why": {"en": "On battery, power saving can interrupt serial links", "uk": "Від батареї енергозбереження може переривати послідовні з'єднання"}, "detect": "power"},
+        {"id": "power_plan", "label": {"en": "Power plan", "uk": "Схема живлення"}, "type": "text", "required": false, "why": {"en": "Sleep and processor throttling during a flight", "uk": "Сон і обмеження процесора під час польоту"}},
+        {"id": "usb_power_saving", "label": {"en": "USB power saving", "uk": "Енергозбереження USB"}, "type": "choice", "required": false, "choices": ["on", "off"], "why": {"en": "A USB port put to sleep drops the telemetry radio", "uk": "Приспаний порт USB відключає радіомодем телеметрії"}}
+      ]
+    },
+    {
+      "id": "software",
+      "title": {"en": "Software", "uk": "Програми"},
+      "about": {"en": "The ground station program and anything that forwards MAVLink.", "uk": "Програма наземної станції і все, що пересилає MAVLink."},
+      "fields": [
+        {"id": "gcs", "label": {"en": "Ground station software", "uk": "Програма наземної станції"}, "type": "choice", "required": true, "choices": ["Mission Planner", "QGroundControl", "other"], "why": {"en": "Each requests different streams and saves parameters differently", "uk": "Кожна запитує різні потоки і по-різному зберігає параметри"}, "prevents": {"en": "Reading stream rates and parameter files correctly", "uk": "Правильне читання частот потоків і файлів параметрів"}, "detect": "gcs"},
+        {"id": "gcs_version", "label": {"en": "Version", "uk": "Версія"}, "type": "text", "required": false, "why": {"en": "Behaviour changes between versions", "uk": "Поведінка змінюється між версіями"}, "detect": "gcs_version"},
+        {"id": "installed_gcs", "label": {"en": "Installed on this computer", "uk": "Встановлено на цьому комп'ютері"}, "type": "text", "required": false, "why": {"en": "Which program saved a file", "uk": "Яка програма зберегла файл"}, "detect": "installed_gcs"},
+        {"id": "mavlink_forwarding", "label": {"en": "MAVLink forwarding", "uk": "Пересилання MAVLink"}, "type": "text", "required": false, "why": {"en": "Forwarding adds latency and can drop packets", "uk": "Пересилання додає затримку і може губити пакети"}}
+      ]
+    },
+    {
+      "id": "connections",
+      "title": {"en": "Connections", "uk": "З'єднання"},
+      "about": {"en": "How the telemetry reaches the computer.", "uk": "Як телеметрія потрапляє на комп'ютер."},
+      "fields": [
+        {"id": "link_type", "label": {"en": "Connection", "uk": "З'єднання"}, "type": "choice", "required": false, "choices": ["serial", "UDP", "TCP"], "why": {"en": "Where packets can be lost", "uk": "Де можуть губитися пакети"}},
+        {"id": "serial_port", "label": {"en": "Serial port", "uk": "Послідовний порт"}, "type": "text", "required": false, "why": {"en": "Matching sessions to the radio", "uk": "Зіставлення сесій з радіомодемом"}},
+        {"id": "baud", "label": {"en": "Baud rate", "uk": "Швидкість порту"}, "type": "integer", "unit": "baud", "required": false, "why": {"en": "Checked against stream rates and the radio's air data rate", "uk": "Порівнюється з частотами потоків і швидкістю радіоканалу"}},
+        {"id": "usb_path", "label": {"en": "USB", "uk": "USB"}, "type": "choice", "required": false, "choices": ["direct", "hub"], "why": {"en": "Hubs add power and latency problems", "uk": "Концентратори додають проблеми живлення і затримки"}},
+        {"id": "network", "label": {"en": "Network", "uk": "Мережа"}, "type": "choice", "required": false, "choices": ["Ethernet", "Wi-Fi", "none"], "why": {"en": "Wi-Fi adds loss and jitter to UDP and TCP telemetry", "uk": "Wi-Fi додає втрати і нестабільність для телеметрії UDP і TCP"}}
+      ]
+    },
+    {
+      "id": "radios",
+      "repeat": true,
+      "title": {"en": "Radios", "uk": "Радіомодулі"},
+      "about": {"en": "Each ground-side radio: telemetry radio, RC transmitter module and video receiver.", "uk": "Кожен наземний радіомодуль: модем телеметрії, модуль передавача керування і відеоприймач."},
+      "fields": [
+        {"id": "radio_role", "label": {"en": "Role", "uk": "Призначення"}, "type": "choice", "required": true, "choices": ["telemetry", "RC", "video"], "why": {"en": "Which link it serves", "uk": "Який канал він обслуговує"}, "prevents": {"en": "Link budget for that link", "uk": "Енергетичний розрахунок цього каналу"}},
+        {"id": "radio_model", "label": {"en": "Model", "uk": "Модель"}, "type": "text", "required": true, "why": {"en": "Expected range and settings", "uk": "Очікувана дальність і налаштування"}, "prevents": {"en": "Link budget for that link", "uk": "Енергетичний розрахунок цього каналу"}},
+        {"id": "radio_firmware", "label": {"en": "Firmware", "uk": "Прошивка"}, "type": "text", "required": false, "why": {"en": "Link changes after a firmware update", "uk": "Зміни зв'язку після оновлення прошивки"}},
+        {"id": "radio_band", "label": {"en": "Frequency band", "uk": "Частотний діапазон"}, "type": "text", "required": false, "why": {"en": "Path loss and interference", "uk": "Втрати на трасі і завади"}},
+        {"id": "radio_power_dbm", "label": {"en": "Transmit power", "uk": "Потужність передавача"}, "type": "number", "unit": "dBm", "required": false, "why": {"en": "Link budget", "uk": "Енергетичний розрахунок каналу"}},
+        {"id": "radio_air_rate", "label": {"en": "Air data rate", "uk": "Швидкість радіоканалу"}, "type": "integer", "unit": "kbit/s", "required": false, "why": {"en": "Checked against stream rates", "uk": "Порівнюється з частотами потоків"}},
+        {"id": "radio_net_id", "label": {"en": "Net ID", "uk": "Ідентифікатор мережі"}, "type": "integer", "required": false, "why": {"en": "Pairing with the aircraft's radio", "uk": "Сполучення з радіомодемом апарата"}},
+        {"id": "radio_ecc", "label": {"en": "Error correction", "uk": "Корекція помилок"}, "type": "boolean", "required": false, "why": {"en": "Halves the useful data rate", "uk": "Вдвічі зменшує корисну швидкість"}}
+      ]
+    },
+    {
+      "id": "antennas",
+      "repeat": true,
+      "title": {"en": "Antennas", "uk": "Антени"},
+      "about": {"en": "Each ground-side antenna with its cable.", "uk": "Кожна наземна антена з кабелем."},
+      "fields": [
+        {"id": "antenna_model", "label": {"en": "Model", "uk": "Модель"}, "type": "text", "required": true, "why": {"en": "Gain and pattern", "uk": "Підсилення і діаграма спрямованості"}, "prevents": {"en": "Link budget", "uk": "Енергетичний розрахунок каналу"}},
+        {"id": "antenna_type", "label": {"en": "Type", "uk": "Тип"}, "type": "choice", "required": false, "choices": ["omni", "patch", "helical", "Yagi", "other"], "why": {"en": "Coverage against heading and elevation", "uk": "Покриття залежно від напрямку і кута місця"}},
+        {"id": "antenna_gain_dbi", "label": {"en": "Gain", "uk": "Підсилення"}, "type": "number", "unit": "dBi", "required": false, "why": {"en": "Link budget", "uk": "Енергетичний розрахунок каналу"}},
+        {"id": "antenna_polarisation", "label": {"en": "Polarisation", "uk": "Поляризація"}, "type": "choice", "required": false, "choices": ["vertical", "horizontal", "RHCP", "LHCP"], "why": {"en": "A mismatch with the aircraft costs signal", "uk": "Невідповідність з антеною апарата коштує сигналу"}},
+        {"id": "antenna_cable", "label": {"en": "Cable type", "uk": "Тип кабелю"}, "type": "text", "required": false, "why": {"en": "Cable loss", "uk": "Втрати в кабелі"}},
+        {"id": "antenna_cable_m", "label": {"en": "Cable length", "uk": "Довжина кабелю"}, "type": "number", "unit": "m", "required": false, "why": {"en": "Cable loss", "uk": "Втрати в кабелі"}},
+        {"id": "antenna_connectors", "label": {"en": "Connectors", "uk": "Роз'єми"}, "type": "text", "required": false, "why": {"en": "Each adds loss", "uk": "Кожен додає втрат"}},
+        {"id": "antenna_mast_m", "label": {"en": "Mast height", "uk": "Висота щогли"}, "type": "number", "unit": "m", "required": false, "why": {"en": "Radio horizon and ground reflection", "uk": "Радіогоризонт і відбиття від землі"}},
+        {"id": "antenna_tracker", "label": {"en": "Antenna tracker", "uk": "Антенний трекер"}, "type": "boolean", "required": false, "why": {"en": "Directional gain while tracking", "uk": "Підсилення спрямованої антени під час стеження"}}
+      ]
+    },
+    {
+      "id": "clock",
+      "title": {"en": "Clock", "uk": "Годинник"},
+      "about": {"en": "The computer's clock time-stamps the tlogs.", "uk": "Годинник комп'ютера ставить мітки часу в tlog."},
+      "fields": [
+        {"id": "time_sync", "label": {"en": "Time synchronisation", "uk": "Синхронізація часу"}, "type": "choice", "required": false, "volatile": true, "choices": ["synchronised", "not synchronised"], "why": {"en": "Aligning tlogs with onboard logs and weather", "uk": "Узгодження tlog з бортовими журналами і погодою"}, "detect": "time_sync"},
+        {"id": "time_source", "label": {"en": "Time source", "uk": "Джерело часу"}, "type": "text", "required": false, "why": {"en": "Aligning tlogs with onboard logs and weather", "uk": "Узгодження tlog з бортовими журналами і погодою"}, "detect": "time_source"}
+      ]
+    }
+  ]
+}
