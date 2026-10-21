@@ -55,7 +55,7 @@ def load_schema(pack: Pack) -> Schema:
 def _load(root: Path) -> Schema:
     import json
 
-    raw: dict[str, Any] = json.loads((root / "setup" / "platform.json").read_text())
+    raw: dict[str, Any] = json.loads((root / "setup" / "platform.json").read_text(encoding="utf-8"))
     fields: dict[str, Field] = {}
     for step in raw["steps"]:
         for f in step["fields"]:

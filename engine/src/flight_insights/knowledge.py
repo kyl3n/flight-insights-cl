@@ -89,7 +89,7 @@ class Pack:
         return _generated(self.root, version, vehicle)
 
     def json(self, rel: str) -> Any:
-        return json.loads((self.root / rel).read_text())
+        return json.loads((self.root / rel).read_text(encoding="utf-8"))
 
 
 def _nearest(versions: list[str], firmware: str) -> VersionChoice:
@@ -104,7 +104,7 @@ def _metadata(root: Path, version: str, vehicle: Vehicle) -> dict[str, dict[str,
     merged = dict(_generated(root, version, vehicle))
     supplement = root / "params" / "supplement.json"
     if supplement.is_file():
-        for p in json.loads(supplement.read_text())["params"]:
+        for p in json.loads(supplement.read_text(encoding="utf-8"))["params"]:
             if vehicle in p["vehicles"] and version_key(version) >= version_key(p["from_version"]):
                 merged.setdefault(p["name"], p["vehicles"][vehicle] | {"supplement": True})
     return merged
@@ -112,7 +112,7 @@ def _metadata(root: Path, version: str, vehicle: Vehicle) -> dict[str, dict[str,
 
 @cache
 def _generated(root: Path, version: str, vehicle: Vehicle) -> dict[str, dict[str, Any]]:
-    manifest = json.loads((root / "manifest.json").read_text())
+    manifest = json.loads((root / "manifest.json").read_text(encoding="utf-8"))
     try:
         rel = manifest["params"][version]["files"][vehicle]
     except KeyError as e:
@@ -126,4 +126,4 @@ def load_pack(root: Path | None = None) -> Pack:
     manifest_path = root / "manifest.json"
     if not manifest_path.is_file():
         raise KnowledgeError(f"no manifest.json in {root}")
-    return Pack(root, json.loads(manifest_path.read_text()))
+    return Pack(root, json.loads(manifest_path.read_text(encoding="utf-8")))
