@@ -63,7 +63,12 @@ class LogIndex:
         return sum(n for _, n in self.skipped)
 
 
-def _parse_fmt(buf: memoryview, o: int) -> DfFormat | None:
+def _parse_fmt(buf: memoryview, o: int, length: int) -> DfFormat | None:
+    """The format an FMT message at `o` defines, or None if it cannot be read. A log
+    may redefine FMT itself with a shorter body; such a message, or one cut off at
+    the end of the file, is not read past its own end."""
+    if length < 3 + FMT_STRUCT.size or len(buf) - (o + 3) < FMT_STRUCT.size:
+        return None
     t, length, name, f, cols = FMT_STRUCT.unpack_from(buf, o + 3)
     columns = text(cols).split(",") if text(cols) else []
     try:
@@ -107,7 +112,7 @@ def _walk(buf: memoryview, active: dict[int, DfFormat]) -> LogIndex:
             o += 3
             continue
         if fmt.name == "FMT":
-            new = _parse_fmt(buf, o)
+            new = _parse_fmt(buf, o, fmt.length)
             if new is None:
                 rejected.append(o)
                 o += 3

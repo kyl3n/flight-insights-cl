@@ -300,3 +300,19 @@ def test_a_redefinition_that_changes_only_types_is_refused_cleanly(tmp_path: Pat
         pytest.raises(ValueError, match="different columns or types"),
     ):
         df.table("RATE")
+
+
+def test_a_shortened_fmt_definition_cannot_overrun_the_buffer(tmp_path: Path) -> None:
+    """A log that redefines FMT's own layout shorter, then ends in an FMT message that
+    fits the short layout but not the real one (found by fuzzing): the message is
+    rejected, never read past the end of the file."""
+    b = LogBuilder(units=False)
+    b.fmt(0x90, "TEST", "QB", "TimeUS,V")
+    b.write("TEST", 1, 7)
+    b.fmt(0x80, "FMT", "BB", "Type,Length")  # FMT now claims a 2-byte body
+    b.raw(b"\xa3\x95\x80\x01\x02")  # an FMT message the short layout accepts, at the end
+    path = tmp_path / "short-fmt.bin"
+    path.write_bytes(b.bytes())
+    with read_dataflash(path) as log:
+        assert log.table("TEST").num_rows == 1
+        assert log.index.rejected or log.index.stop != "end"
