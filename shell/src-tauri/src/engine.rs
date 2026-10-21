@@ -212,6 +212,10 @@ pub const UI_METHODS: &[&str] = &[
     "station.rename",
     "station.save",
     "station.detect_software",
+    "import.scan",
+    "import.commit",
+    "import.held",
+    "import.resolve",
 ];
 
 #[cfg(test)]

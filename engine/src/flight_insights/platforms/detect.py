@@ -97,7 +97,7 @@ def _from_params(p: _Params, vehicle: str) -> dict[str, dict[str, Any]]:
     return out
 
 
-def _vehicle_of_params(names: set[str]) -> str:
+def vehicle_of_params(names: set[str]) -> str:
     if "FRAME_CLASS" in names:
         return "copter"
     if names & {"Q_ENABLE", "TECS_CLMB_MAX", "AIRSPEED_CRUISE"}:
@@ -111,7 +111,7 @@ def detect(path: Path, pack: Pack) -> dict[str, dict[str, Any]]:
         return _from_log(path, pack)
     params = read_param_file(path)
     names = {e.name for e in params.entries}
-    vehicle = _vehicle_of_params(names)
+    vehicle = vehicle_of_params(names)
     # A parameter file does not name its firmware: read it in the newest dialect.
     snapshot = from_param_file(params, vehicle, pack.versions[-1])
     return _from_params(_Params(snapshot, pack), vehicle)
