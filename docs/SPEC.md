@@ -95,7 +95,8 @@ The split follows the ecosystems. Python has the ArduPilot tooling (pymavlink's 
 
 - **Windows:** NSIS or MSI from the Tauri bundler, code-signed. Bump the version on every build: a reported Tauri v2 bug leaves the old sidecar in place on same-version reinstalls ([issue 15134](https://github.com/tauri-apps/tauri/issues/15134)).
 - **Linux:** RPM and AppImage for recent Fedora and similar distributions, built on the oldest Fedora release still supported so glibc matches field laptops.
-- **Sidecar size:** a frozen Python with NumPy and SciPy runs to tens of megabytes. Acceptable for a desktop tool; keep optional heavy dependencies out of the core build.
+- **Sidecar size:** a frozen Python with NumPy and SciPy runs to tens of megabytes. Acceptable for a desktop tool; keep optional heavy dependencies out of the core build. The engine leaves out the parts of its libraries it never uses, such as pyarrow's Flight RPC and cloud filesystems.
+- **Versions and checks:** every CI build is numbered 0.1.<build number>, so each installer carries a new version. The knowledge pack ships beside the app, outside the frozen engine. Before a package is kept, CI installs it on a clean system and runs its bundled engine on a fixture log, including an encrypted import.
 
 **Path to other platforms**
 
