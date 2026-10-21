@@ -433,6 +433,7 @@ def test_import_over_rpc(tmp_path: Path, pack: Pack) -> None:
     scanned = call(server, out, 4, "import.scan", paths=paths)["result"]
     files = {f["id"]: f for f in scanned["files"]}
     assert files["f1"]["kind"] == "dataflash" and files["f1"]["flights"][0]["known"] is False
+    assert files["f1"]["flights"][0]["arm_us"] > 0  # take-off is boot UTC plus this
     assert files["f2"]["proposal"]["status"] == "ready"
     assert "bid1-" not in json.dumps(scanned)  # the board's hash stays in the engine
     done = call(

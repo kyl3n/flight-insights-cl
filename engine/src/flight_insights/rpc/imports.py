@@ -50,6 +50,7 @@ def _view(item: Scanned, proposal: Proposal) -> dict[str, Any]:
                 "key": f.key,
                 "duration_s": f.duration_s,
                 "boot_utc_us": f.boot_utc_us,
+                "arm_us": f.arm_us,
                 "known": f.known_id is not None,
             }
             for f in item.flights
