@@ -177,4 +177,4 @@ def report(results: Iterable[LogResult]) -> dict[str, Any]:
 
 
 def write_report(data: dict[str, Any], path: Path) -> None:
-    path.write_text(json.dumps(data, indent=2) + "\n")
+    path.write_text(json.dumps(data, indent=2) + "\n", encoding="utf-8")
