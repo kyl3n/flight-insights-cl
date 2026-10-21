@@ -11,6 +11,7 @@ pub mod engine;
 pub mod identity;
 pub mod rpc;
 pub mod station;
+pub mod watch;
 
 use std::path::PathBuf;
 use std::sync::{Arc, Mutex};
@@ -43,6 +44,7 @@ pub struct Status {
 }
 
 struct Shell {
+    watch: Mutex<watch::Watcher>,
     identity: Mutex<Option<Arc<LaptopIdentity>>>,
     engine: Mutex<Option<Arc<Engine>>>,
     status: Mutex<Status>,
@@ -147,6 +149,103 @@ async fn detect_this_computer(app: AppHandle, id: String, version: i64) -> Resul
     .map_err(|e| e.to_string())?
 }
 
+/// Ask the engine which of `paths` are new, and offer those. Returns whether the
+/// offered files changed. Only a running engine is asked; the watcher never starts one.
+fn check_files(app: &AppHandle, ask: Vec<PathBuf>) -> Result<bool, String> {
+    let shell = app.state::<Shell>();
+    let Some(engine) = shell
+        .engine
+        .lock()
+        .expect("engine")
+        .clone()
+        .filter(|e| e.is_running())
+    else {
+        return Ok(false);
+    };
+    let mut new: Vec<String> = Vec::new();
+    for chunk in ask.chunks(500) {
+        let paths: Vec<String> = chunk
+            .iter()
+            .map(|p| p.to_string_lossy().into_owned())
+            .collect();
+        let reply = engine
+            .client
+            .call(
+                "import.unknown",
+                serde_json::json!({ "paths": paths }),
+                CALL_TIMEOUT,
+            )
+            .map_err(|e| e.to_string())?;
+        new.extend(serde_json::from_value::<Vec<String>>(reply).map_err(|e| e.to_string())?);
+    }
+    let mut w = shell.watch.lock().expect("watcher");
+    let before = w.pending().to_vec();
+    w.checked(&ask, &new);
+    Ok(w.pending() != before.as_slice())
+}
+
+/// One poll of the watched folders.
+fn poll_folders(app: &AppHandle) -> Result<(), String> {
+    let shell = app.state::<Shell>();
+    let Some(engine) = shell
+        .engine
+        .lock()
+        .expect("engine")
+        .clone()
+        .filter(|e| e.is_running())
+    else {
+        return Ok(());
+    };
+    let reply = engine
+        .client
+        .call("station.folders", serde_json::json!({}), CALL_TIMEOUT)
+        .map_err(|e| e.to_string())?;
+    let folders: Vec<watch::Folder> = serde_json::from_value(reply).map_err(|e| e.to_string())?;
+    let (ready, before) = {
+        let mut w = shell.watch.lock().expect("watcher");
+        let before = w.pending().to_vec();
+        (w.poll(&folders), before)
+    };
+    let changed = if ready.is_empty() {
+        false
+    } else {
+        check_files(app, ready)?
+    };
+    let pending = shell.watch.lock().expect("watcher").pending().to_vec();
+    if changed || pending != before {
+        let _ = app.emit("import-pending", pending);
+    }
+    Ok(())
+}
+
+/// New files found in watched folders, waiting to be offered. With `refresh`, the
+/// engine is asked again first, after an import or a dismissal.
+#[tauri::command]
+async fn pending_imports(app: AppHandle, refresh: bool) -> Result<Vec<watch::Pending>, String> {
+    tauri::async_runtime::spawn_blocking(move || {
+        if refresh {
+            let ask = app
+                .state::<Shell>()
+                .watch
+                .lock()
+                .expect("watcher")
+                .recheck();
+            if !ask.is_empty() {
+                check_files(&app, ask)?;
+            }
+        }
+        Ok(app
+            .state::<Shell>()
+            .watch
+            .lock()
+            .expect("watcher")
+            .pending()
+            .to_vec())
+    })
+    .await
+    .map_err(|e| e.to_string())?
+}
+
 fn start_up(app: &AppHandle) {
     let shell = app.state::<Shell>();
     let identifier = app.config().identifier.clone();
@@ -176,6 +275,17 @@ fn start_up(app: &AppHandle) {
         shell.set_failed(e);
     }
     let _ = app.emit("shell-status", shell.status.lock().expect("status").clone());
+    let watcher = app.clone();
+    let _ = std::thread::Builder::new()
+        .name("folder-watch".into())
+        .spawn(move || {
+            loop {
+                if let Err(e) = poll_folders(&watcher) {
+                    eprintln!("watched folders: {e}");
+                }
+                std::thread::sleep(watch::POLL);
+            }
+        });
 }
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
@@ -188,6 +298,7 @@ pub fn run() {
                 .map(PathBuf::from)
                 .or_else(|| app.path().resource_dir().ok().map(|d| d.join("knowledge")));
             app.manage(Shell {
+                watch: Mutex::new(watch::Watcher::default()),
                 identity: Mutex::new(None),
                 engine: Mutex::new(None),
                 status: Mutex::new(Status::default()),
@@ -203,7 +314,8 @@ pub fn run() {
         .invoke_handler(tauri::generate_handler![
             shell_status,
             engine_call,
-            detect_this_computer
+            detect_this_computer,
+            pending_imports
         ])
         .build(tauri::generate_context!())
         .expect("error while building Flight Insights");

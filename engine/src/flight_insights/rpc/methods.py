@@ -21,6 +21,7 @@
 | station.save | Saves profile answers: in place while set up, otherwise a new version |
 | station.detect_software | Ground station programs installed on this computer |
 | station.record_computer | This computer's facts, read by the shell (the shell's own call) |
+| station.folders / .add_folder / .remove_folder | Save folders this laptop watches, per station |
 | import.scan / .commit / .held / .resolve | Importing logs: see rpc/imports.py |
 
 Position columns are never written to an IPC file in Phase 0. Keys arrive over
@@ -433,6 +434,31 @@ def build_server(out: IO[str], pack: Pack | None = None) -> Server:
             stations.installed_software(),
             state.host_hash,
         )
+
+    @server.method("station.folders")
+    @guarded
+    def station_folders(_ctx: Context, params: dict[str, Any]) -> list[dict[str, Any]]:
+        sid = params.get("id")
+        if sid is not None and not isinstance(sid, str):
+            raise RpcError(INVALID_PARAMS, "id must be text")
+        return stations.list_folders(state.require_store(), sid)
+
+    @server.method("station.add_folder")
+    @guarded
+    def station_add_folder(_ctx: Context, params: dict[str, Any]) -> list[dict[str, Any]]:
+        software = params.get("software")
+        if software is not None and not isinstance(software, str):
+            raise RpcError(INVALID_PARAMS, "software must be text")
+        store = state.require_store()
+        sid = _str(params, "id")
+        stations.add_folder(store, sid, _str(params, "path"), software)
+        return stations.list_folders(store, sid)
+
+    @server.method("station.remove_folder")
+    @guarded
+    def station_remove_folder(_ctx: Context, params: dict[str, Any]) -> dict[str, Any]:
+        stations.remove_folder(state.require_store(), _str(params, "folder_id"))
+        return {}
 
     add_import_methods(server, state, guarded)
     return server

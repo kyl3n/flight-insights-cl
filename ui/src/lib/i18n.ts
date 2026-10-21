@@ -186,6 +186,14 @@ const en = {
   "stations.noEntries": "None recorded.",
   "stations.error.required": "Needed in a filled entry",
   "stations.unavailable": "Ground stations need the engine, which runs only inside the desktop app.",
+  "import.watched": "{count} new files found in watched folders",
+  "import.watched.review": "Review them",
+  "stations.folders.title": "Save folders",
+  "stations.folders.about": "The app looks here for new logs, tlogs and parameter files and offers them for import. Nothing is imported until you confirm.",
+  "stations.folders.add": "Add folder",
+  "stations.folders.remove": "Stop watching",
+  "stations.folders.none": "No folders watched.",
+  "stations.folders.software": "Software",
 } as const;
 
 export type MessageKey = keyof typeof en;
@@ -371,6 +379,14 @@ const uk: Record<MessageKey, string> = {
   "stations.noEntries": "Нічого не записано.",
   "stations.error.required": "Потрібно в заповненому записі",
   "stations.unavailable": "Для наземних станцій потрібен рушій, який працює лише в настільному застосунку.",
+  "import.watched": "Нових файлів у теках, що відстежуються: {count}",
+  "import.watched.review": "Переглянути",
+  "stations.folders.title": "Теки збереження",
+  "stations.folders.about": "Застосунок шукає тут нові логи, tlog-файли та файли параметрів і пропонує їх імпортувати. Нічого не імпортується без вашого підтвердження.",
+  "stations.folders.add": "Додати теку",
+  "stations.folders.remove": "Не відстежувати",
+  "stations.folders.none": "Теки не відстежуються.",
+  "stations.folders.software": "Програма",
 };
 
 export const CATALOGS: Record<Locale, Record<MessageKey, string>> = { en, uk };

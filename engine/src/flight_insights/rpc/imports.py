@@ -7,6 +7,8 @@ changed").
 | import.commit | Stores the batch as the person decided; undecided logs go to the hold queue |
 | import.held | The flights waiting in the hold queue, with why and their candidates |
 | import.resolve | Gives held flights an airframe, existing or new |
+| import.unknown | Which of the files found in watched folders are new (the shell's own call) |
+| import.ignore | Sets aside files a person chose not to import, so they are not offered again |
 
 A scanned batch stays in the engine's memory until it is committed or the engine
 stops; the interface holds only its id.
@@ -185,6 +187,19 @@ def add_import_methods(server: Server, state: EngineState, guarded: Callable[[An
     @guarded
     def import_held(_ctx: Context, _params: dict[str, Any]) -> list[dict[str, Any]]:
         return imports.held(state.require_store())
+
+    @server.method("import.unknown")
+    @guarded
+    def import_unknown(_ctx: Context, params: dict[str, Any]) -> list[str]:
+        paths = [Path(p) for p in _strings(params.get("paths"), "paths")][:MAX_FILES]
+        return [str(p) for p in imports.watch.unknown(state.require_store(), paths)]
+
+    @server.method("import.ignore")
+    @guarded
+    def import_ignore(_ctx: Context, params: dict[str, Any]) -> dict[str, int]:
+        paths = [Path(p) for p in _strings(params.get("paths"), "paths")][:MAX_FILES]
+        with state.lock:
+            return {"ignored": imports.watch.ignore(state.require_store(), paths)}
 
     @server.method("import.resolve")
     @guarded

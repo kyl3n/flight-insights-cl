@@ -5,6 +5,7 @@
   import type { MessageKey } from "../lib/i18n";
   import {
     PARTS,
+    declined,
     decisions,
     describeChange,
     fileStatus,
@@ -13,6 +14,7 @@
     resultCounts,
     undecided,
     whenText,
+    withStations,
     type ChangeKind,
     type Choice,
     type CommitResult,
@@ -22,7 +24,7 @@
     type ScannedFile,
   } from "../lib/imports";
   import type { AirframeView, PlatformView } from "../lib/setup";
-  import { engineCall, inDesktopApp, onProgress } from "../lib/shell";
+  import { engineCall, inDesktopApp, onProgress, pendingImports } from "../lib/shell";
   import type { StationView } from "../lib/stations";
 
   type Phase = "pick" | "scanning" | "review" | "committing" | "done";
@@ -99,7 +101,11 @@
       filters: [{ name: t("import.pick.hint"), extensions: ["bin", "BIN", "tlog", "param", "params"] }],
     });
     const paths = Array.isArray(picked) ? picked : picked ? [picked] : [];
-    if (!paths.length) return;
+    if (paths.length) await scanPaths(paths);
+  }
+
+  async function scanPaths(paths: string[]) {
+    error = "";
     phase = "scanning";
     try {
       scanned = await engineCall<ScanResult>("import.scan", { paths });
@@ -116,10 +122,14 @@
     phase = "committing";
     try {
       const partName = (p: Part) => t(`import.part.${p}` as MessageKey);
+      const pending = app.pending;
       results = await engineCall<CommitResult[]>("import.commit", {
         batch: scanned.batch,
-        decisions: decisions(files, choices, partName, station || null),
+        decisions: withStations(decisions(files, choices, partName, station || null), files, pending),
       });
+      const setAside = declined(files, choices, pending);
+      if (setAside.length) await engineCall("import.ignore", { paths: setAside });
+      app.pending = await pendingImports(true);
       phase = "done";
     } catch (e) {
       error = t("setup.error.engine", { message: String(e) });
@@ -194,6 +204,19 @@
     {#if !inDesktopApp()}
       <p class="faint">{t("import.unavailable")}</p>
     {:else if phase === "pick" || phase === "scanning"}
+      {#if app.pending.length}
+        <section class="watched">
+          <p>{t("import.watched", { count: app.pending.length })}</p>
+          <ul>
+            {#each app.pending.slice(0, 6) as p (p.path)}
+              <li><span class="mono">{p.name}</span> <span class="faint">{p.station}</span></li>
+            {/each}
+          </ul>
+          <button type="button" class="primary" onclick={() => scanPaths(app.pending.map((p) => p.path))} disabled={phase === "scanning"}>
+            {t("import.watched.review")}
+          </button>
+        </section>
+      {/if}
       <section class="pick">
         <button type="button" class="primary" onclick={choose} disabled={phase === "scanning"}>{t("import.pick")}</button>
         <p class="faint">{phase === "scanning" ? t("import.scanning", { name: progress || "…" }) : t("import.pick.hint")}</p>
@@ -432,6 +455,22 @@
   .faint {
     font-size: 12px;
     color: var(--text-faint);
+  }
+  .watched {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    padding: 14px 16px;
+    border: 1px solid color-mix(in srgb, var(--accent) 45%, var(--border));
+    border-radius: 10px;
+    font-size: 13px;
+  }
+  .watched ul {
+    margin: 0;
+    padding-left: 18px;
+  }
+  .watched button {
+    align-self: flex-start;
   }
   .pick {
     display: flex;

@@ -216,6 +216,8 @@ def test_the_engine_makes_no_network_use(tmp_path: Path) -> None:
         ("station.detect_software", {}),
         ("import.scan", {"paths": [str(LOG), str(LOG.with_suffix(".tlog"))]}),
         ("import.held", {}),
+        ("station.folders", {}),
+        ("import.unknown", {"paths": [str(LOG)]}),
         ("engine.shutdown", {}),
     ]
     stdin = "".join(

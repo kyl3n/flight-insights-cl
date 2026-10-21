@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import {
+  declined,
   decisions,
   fileStatus,
   initialChoice,
@@ -9,6 +10,7 @@ import {
   resultCounts,
   undecided,
   whenText,
+  withStations,
   type LogChoices,
   type Proposal,
   type ScannedFile,
@@ -31,6 +33,7 @@ const proposal = (extra: Partial<Proposal> = {}): Proposal => ({
 const file = (extra: Partial<ScannedFile> = {}, p: Partial<Proposal> = {}): ScannedFile => ({
   id: "f1",
   name: "00000089.BIN",
+  path: "/logs/00000089.BIN",
   kind: "dataflash",
   size: 1,
   error: null,
@@ -147,5 +150,26 @@ describe("the table's words", () => {
     ]);
     expect(r.imported).toBe(2);
     expect(r.held).toBe(1);
+  });
+});
+
+describe("files from watched folders", () => {
+  const pending = [{ path: "/logs/00000089.BIN", name: "00000089.BIN", size: 1, station_id: "s", station: "Tablet", station_version_id: "gsv-9" }];
+
+  it("are recorded against their folder's station", () => {
+    const files = [file(), file({ id: "f2", path: "/elsewhere/a.BIN" })];
+    const c = Object.fromEntries(files.map((x) => [x.id, initialChoices(x)])) as Record<string, LogChoices>;
+    const out = withStations(decisions(files, c, names, "gsv-1"), files, pending);
+    expect(out[0]?.station_version_id).toBe("gsv-9");
+    expect(out[1]?.station_version_id).toBe("gsv-1");
+  });
+
+  it("are set aside when a person declines them, and only then", () => {
+    const files = [file(), file({ id: "f2", path: "/elsewhere/a.BIN" })];
+    const c = Object.fromEntries(files.map((x) => [x.id, initialChoices(x)])) as Record<string, LogChoices>;
+    expect(declined(files, c, pending)).toEqual([]);
+    c.f1!.choice = { kind: "skip" };
+    c.f2!.choice = { kind: "skip" };
+    expect(declined(files, c, pending)).toEqual(["/logs/00000089.BIN"]);
   });
 });

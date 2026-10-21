@@ -216,6 +216,10 @@ pub const UI_METHODS: &[&str] = &[
     "import.commit",
     "import.held",
     "import.resolve",
+    "import.ignore",
+    "station.folders",
+    "station.add_folder",
+    "station.remove_folder",
 ];
 
 #[cfg(test)]
@@ -239,6 +243,8 @@ mod tests {
         assert!(!UI_METHODS.contains(&"engine.shutdown"));
         // this computer's facts come from the shell, never from the interface
         assert!(!UI_METHODS.contains(&"station.record_computer"));
+        // which watched files are new is the watcher's question
+        assert!(!UI_METHODS.contains(&"import.unknown"));
     }
 
     #[test]

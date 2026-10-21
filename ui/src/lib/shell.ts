@@ -55,6 +55,27 @@ export async function detectThisComputer<T>(id: string, version: number): Promis
   return invoke<T>("detect_this_computer", { id, version });
 }
 
+/** A new file found in a watched save folder, waiting to be offered for import. */
+export interface PendingFile {
+  path: string;
+  name: string;
+  size: number;
+  station_id: string;
+  station: string;
+  station_version_id: string | null;
+}
+
+/** Files found in watched folders. With `refresh`, the engine is asked again first. */
+export async function pendingImports(refresh = false): Promise<PendingFile[]> {
+  if (!inDesktopApp()) return [];
+  return invoke<PendingFile[]>("pending_imports", { refresh });
+}
+
+export async function onPendingImports(handler: (files: PendingFile[]) => void): Promise<UnlistenFn> {
+  if (!inDesktopApp()) return () => {};
+  return listen<PendingFile[]>("import-pending", (e) => handler(e.payload));
+}
+
 export async function onShellStatus(handler: (s: ShellStatus) => void): Promise<UnlistenFn> {
   if (!inDesktopApp()) return () => {};
   return listen<ShellStatus>("shell-status", (e) => handler(e.payload));
