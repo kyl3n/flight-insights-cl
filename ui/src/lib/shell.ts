@@ -48,6 +48,13 @@ export async function engineCall<T>(method: string, params: object = {}): Promis
   return invoke<T>("engine_call", { method, params });
 }
 
+/** Record this computer's facts on a ground station. The shell reads them; the
+ * interface never sees the host name. */
+export async function detectThisComputer<T>(id: string, version: number): Promise<T> {
+  if (!inDesktopApp()) throw new Error("detection runs only inside the desktop app");
+  return invoke<T>("detect_this_computer", { id, version });
+}
+
 export async function onShellStatus(handler: (s: ShellStatus) => void): Promise<UnlistenFn> {
   if (!inDesktopApp()) return () => {};
   return listen<ShellStatus>("shell-status", (e) => handler(e.payload));
