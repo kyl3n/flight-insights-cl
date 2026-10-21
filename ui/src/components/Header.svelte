@@ -48,7 +48,7 @@
     <button type="button" class="ghost" onclick={onTheme}>
       {app.theme === "dark" ? t("header.theme.light") : t("header.theme.dark")}
     </button>
-    <button type="button" class="primary" disabled title={t("header.importLater")}>
+    <button type="button" class="primary" onclick={() => (app.importOpen = true)}>
       {t("header.import")}
     </button>
   </div>
