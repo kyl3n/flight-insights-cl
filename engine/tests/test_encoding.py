@@ -56,26 +56,30 @@ def test_every_text_read_and_write_names_its_encoding() -> None:
     assert not missing, "text I/O without encoding=:\n" + "\n".join(missing)
 
 
-def test_the_protocol_is_utf8_under_a_legacy_locale(tmp_path: Path) -> None:
-    """Non-ASCII names round-trip when the process's own encoding is cp1252."""
-    keys = {k: secrets.token_hex(32) for k in ("database", "cache", "positions", "board_id")}
-    name = "Важкий X8 №2"
-    requests: list[tuple[str, dict[str, Any]]] = [
-        ("engine.unlock", {"laptop_id": "c" * 32, "data_dir": str(tmp_path), "keys": keys}),
-        ("platform.create", {"name": name, "vehicle": "copter"}),
-        ("platform.list", {}),
-        ("engine.shutdown", {}),
-    ]
+def _engine(requests: list[tuple[str, dict[str, Any]]]) -> dict[Any, Any]:
+    """Run the engine on raw UTF-8 requests, as the shell sends them, with the
+    process's own encoding set to cp1252 as on Windows. Returns replies by id."""
     stdin = "".join(
         json.dumps({"jsonrpc": "2.0", "id": i, "method": m, "params": p}, ensure_ascii=False) + "\n"
         for i, (m, p) in enumerate(requests)
-    ).encode("utf-8")  # as the shell sends it: raw UTF-8, not escaped
+    ).encode("utf-8")
     env = {**os.environ, "PYTHONIOENCODING": "cp1252", "PYTHONUTF8": "0"}
     run = subprocess.run(
         [sys.executable, "-m", "flight_insights", "rpc"], input=stdin, capture_output=True,
         cwd=ENGINE, env=env, timeout=120,
     )  # fmt: skip
     assert run.returncode == 0, run.stderr.decode("utf-8", "replace")
-    replies = {m["id"]: m for m in map(json.loads, run.stdout.decode("utf-8").splitlines())}
-    assert replies[1]["result"]["name"] == name
-    assert [p["name"] for p in replies[2]["result"]] == [name]
+    return {m["id"]: m for m in map(json.loads, run.stdout.decode("utf-8").splitlines())}
+
+
+def test_the_protocol_is_utf8_under_a_legacy_locale(tmp_path: Path) -> None:
+    """Non-ASCII names round-trip when the process's own encoding is cp1252."""
+    keys = {k: secrets.token_hex(32) for k in ("database", "cache", "positions", "board_id")}
+    unlock = ("engine.unlock", {"laptop_id": "c" * 32, "data_dir": str(tmp_path), "keys": keys})
+    name = "Важкий X8 №2"
+    created = _engine([unlock, ("platform.create", {"name": name, "vehicle": "copter"}),
+                       ("engine.shutdown", {})])  # fmt: skip
+    assert created[1]["result"]["name"] == name
+    # Requests between the barriers run concurrently, so read it back in a new run.
+    listed = _engine([unlock, ("platform.list", {}), ("engine.shutdown", {})])
+    assert [p["name"] for p in listed[1]["result"]] == [name]
