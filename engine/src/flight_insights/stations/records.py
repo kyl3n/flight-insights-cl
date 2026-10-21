@@ -138,7 +138,7 @@ def create_station(store: Store, name: str) -> str:
         version = store.insert(
             "ground_station_version",
             {"ground_station_id": station, "number": 1, "reason_kind": "setup",
-             "reason": "set up", "effective_date": date.today().isoformat()},
+             "effective_date": date.today().isoformat()},
         )  # fmt: skip
         store.update("ground_station", station, 1, {"current_version_id": version})
     return station
