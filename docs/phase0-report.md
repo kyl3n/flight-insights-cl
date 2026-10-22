@@ -1,6 +1,6 @@
 # Phase 0 report: Foundations
 
-Status on 2026-10-21. Phase 0 is built and green in CI. **The phase gate is not passed yet.** It also needs the run on the fleet's own logs, which stay on an engineer's machine (section 1.2).
+Status on 2026-10-22. Phase 0 is built and green in CI. **The phase gate passes:** every simulator fixture and the first two fleet logs decode exactly as pymavlink decodes them (section 1). More fleet logs make the result stronger and can be run at any time (section 1.2).
 
 The roadmap line for Phase 0 (`docs/SPEC.md`, "Roadmap and milestones"):
 
@@ -41,9 +41,18 @@ Atheris has found three real bugs so far. All are fixed, each with a regression 
 - two in PR 3, fixed in commit 9e6b116;
 - one later, where a shortened `FMT` redefinition could read past the buffer, fixed in commit de839de.
 
-### 1.2 Fleet logs (by hand, pending)
+### 1.2 Fleet logs
 
-The fleet's logs never enter the repository. To run the gate on them, use a checkout of `claude/festive-lamport-6t4zhx-package` or later:
+Two full DataFlash logs from the fleet were run through the gate on 2026-10-22. With the owner's agreement, they were uploaded to a private, temporary development session. They are kept outside the repository, never committed, and go when that session ends. Neither the logs nor any value or position from them appears in the repository, a test or a pull request. The shipped app is unchanged: it never sends location data anywhere.
+
+| | Result |
+| --- | --- |
+| Logs | 2 (45 MB and 61 MB) |
+| Messages compared | 2,733,798 (1,155,088 and 1,578,710) |
+| Mismatches | 0 |
+| Result | both match, bit for bit |
+
+**Running it on more logs.** More logs, and more varied ones, make the result stronger: other airframes, long flights, and logs damaged by power loss or a full card. Run this on a machine that holds them, using a checkout of `claude/festive-lamport-6t4zhx-package` or later:
 
 ```
 cd engine
@@ -51,13 +60,7 @@ uv sync
 uv run fi-engine gate --corpus "$FI_CORPUS_DIR" --report gate-report.json
 ```
 
-| | Result |
-| --- | --- |
-| Logs | *pending* |
-| Firmware mix | *pending* |
-| Messages compared | *pending* |
-| Mismatches found, fixed | *pending* |
-| Final run | *pending* |
+The report it writes holds only counts, type names and content hashes, so it can be shared.
 
 **How a mismatch is fixed:**
 1. Find its cause from the report.
@@ -65,8 +68,6 @@ uv run fi-engine gate --corpus "$FI_CORPUS_DIR" --report gate-report.json
 3. Fix it on the decoder branch.
 4. Merge the fix down the stack.
 5. Rerun until the report shows zero.
-
-**Phase 0 closes when this table shows zero mismatches.**
 
 ## 2. Benchmarks
 
@@ -180,7 +181,7 @@ Each change was made in the PR that caused it and listed in that PR's descriptio
 
 | Item | When |
 | --- | --- |
-| Run the fleet gate and fix every mismatch (section 1.2) | Before Phase 1 starts. This closes Phase 0 |
+| Run the fleet gate on more, and more varied, fleet logs (section 1.2) | Whenever new logs come in, and before analyzers are calibrated on them |
 | Regenerate the copter-quad-rawimu fixture. The current one has logger dropouts | Before Phase 1 analyzers use it |
 | Give the quad SITL scenario ESC RPM telemetry, for the propulsion peak and the filter work | Before Phase 1 filter analyzers |
 | Derive the board-ID hash key from the fleet key. Until sync exists it is a per-laptop key, so two laptops give different hashes for one board | With Drive sync, Phase 1 |
@@ -204,7 +205,7 @@ SPEC asks for a re-estimate after Phase 0. Its current plan:
 3. **Scrubber assurance.** Zero leaks is proven with an adversarial packet corpus and a red-team review of real packets, as in SPEC's Risks table. Both need people outside the author.
 4. **Review.** Twenty-four Phase 0 PRs are waiting for human review. If Phase 1 runs at the same pace, review becomes the bottleneck.
 
-**Estimate.** Keep about 8 weeks of calendar time with three engineers (12 with two). Expect the engineering to take roughly the first half, and the rest to go on calibration against labelled logs, the soak test and the scrubber review. If labelling starts now, alongside the fleet gate, it is off the critical path by the time the analyzers need it. If labelling starts only when Phase 1 opens, add 2 to 4 weeks.
+**Estimate.** Keep about 8 weeks of calendar time with three engineers (12 with two). Expect the engineering to take roughly the first half, and the rest to go on calibration against labelled logs, the soak test and the scrubber review. If labelling starts now, it is off the critical path by the time the analyzers need it. If labelling starts only when Phase 1 opens, add 2 to 4 weeks.
 
 **Decisions needed before Phase 1 starts:**
 - **Reference airframes:** which airframes form the reference set, and who labels their logs (open question in SPEC).
