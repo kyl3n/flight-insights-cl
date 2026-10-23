@@ -16,6 +16,8 @@
 | flight.list | Flights, newest first, with a summary of each one's latest analysis |
 | fleet.overview | Each airframe's status, stage, key metrics and last flight; what is urgent |
 | filter.workbench | A flight's spectra before, as flown and with candidate filter values |
+| flight.propulsion | A flight's motor outputs, ESC telemetry and battery, reduced for display |
+| flight.system | A flight's loop load and timing, logging drops and errors, for display |
 
 Analysing a flight also grades its airframe's earlier recommendations against it.
 
@@ -30,7 +32,7 @@ from collections.abc import Callable
 from pathlib import Path
 from typing import TYPE_CHECKING, Any, cast
 
-from flight_insights import analyzers, recommend, trends
+from flight_insights import analyzers, recommend, trends, views
 from flight_insights.analyzers.registry import LANGUAGES
 from flight_insights.filters import workbench
 from flight_insights.rpc.server import (
@@ -163,6 +165,35 @@ def add_analysis_methods(server: Server, state: EngineState, guarded: Callable[[
         return metric, segment
 
     benches: dict[str, workbench.Bench | None] = {}  # the last few flights opened
+
+    def _view(params: dict[str, Any], build: Callable[..., dict[str, Any]]) -> dict[str, Any]:
+        store, cache = state.require_store(), state.cache
+        assert cache is not None
+        raw: Any = params.get("window_s")
+        span: tuple[float, float] | None = None
+        if raw is not None:
+            values = cast(list[Any], raw) if isinstance(raw, list) else []
+            if len(values) != 2 or not all(
+                isinstance(v, int | float) and not isinstance(v, bool) and math.isfinite(v)
+                for v in values
+            ):
+                raise RpcError(INVALID_PARAMS, "window_s must be [start, end] in seconds")
+            span = (float(values[0]), float(values[1]))
+        try:
+            flight = analyzers.FlightData.load(store, cache, state.pack, _flight(params))
+            return build(flight, state.pack, span)
+        except (analyzers.FlightError, ValueError) as e:
+            raise RpcError(BAD_INPUT, str(e)) from None
+
+    @server.method("flight.propulsion")
+    @guarded
+    def flight_propulsion(_ctx: Context, params: dict[str, Any]) -> dict[str, Any]:
+        return _view(params, views.propulsion)
+
+    @server.method("flight.system")
+    @guarded
+    def flight_system(_ctx: Context, params: dict[str, Any]) -> dict[str, Any]:
+        return _view(params, views.system)
 
     @server.method("filter.workbench")
     @guarded

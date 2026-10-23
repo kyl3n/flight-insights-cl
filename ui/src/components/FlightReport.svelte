@@ -28,6 +28,8 @@
   import { STATUS } from "../lib/status";
   import StatusBadge from "./StatusBadge.svelte";
   import Value from "./Value.svelte";
+  import PropulsionView from "./PropulsionView.svelte";
+  import SystemView from "./SystemView.svelte";
   import Workbench from "./Workbench.svelte";
 
   let { flightId }: { flightId: string } = $props();
@@ -38,7 +40,7 @@
   let busy = $state(false);
   let error = $state("");
   let selected = $state<string | null>(null);
-  let tab = $state<"report" | "filters">("report");
+  let tab = $state<"report" | "filters" | "propulsion" | "system">("report");
 
   async function load(force = false) {
     busy = true;
@@ -125,13 +127,17 @@
   </header>
 
   <div role="tablist" class="tabs" aria-label={t("report.findings")}>
-    {#each [["report", "report.tab.report"], ["filters", "report.tab.filters"]] as const as [id, label] (id)}
+    {#each [["report", "report.tab.report"], ["filters", "report.tab.filters"], ["propulsion", "report.tab.propulsion"], ["system", "report.tab.system"]] as const as [id, label] (id)}
       <button type="button" role="tab" aria-selected={tab === id} onclick={() => (tab = id)}>{t(label)}</button>
     {/each}
   </div>
 
   {#if tab === "filters"}
     <Workbench {flightId} />
+  {:else if tab === "propulsion"}
+    <PropulsionView {flightId} />
+  {:else if tab === "system"}
+    <SystemView {flightId} />
   {:else}
   {#if error}<p class="error">{t("report.error", { error })}</p>{/if}
   {#if analysis && !analysis.current}<p class="notice">{t("report.stale")}</p>{/if}
