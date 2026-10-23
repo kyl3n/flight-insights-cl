@@ -1,0 +1,14 @@
+source: sitl
+vehicle: plane
+frame: conventional fixed-wing
+firmware: 4.7.0
+ardupilot_commit: 1511f27194f1dcc3728270883047bdf022b3fd53
+scenario: plane-circuit
+description: AUTO take-off and a three-waypoint circuit, then RTL.
+parameters_set: {}
+faults: []
+expected:
+- AUTO take-off to 50 m
+- a circuit of three waypoints at 80 m
+- RTL for about 20 s
+- the log ends with a forced disarm in the air (end of scenario, not a fault)

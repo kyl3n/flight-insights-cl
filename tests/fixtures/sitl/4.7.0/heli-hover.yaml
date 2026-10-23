@@ -1,0 +1,15 @@
+source: sitl
+vehicle: heli
+frame: single-rotor heli
+firmware: 4.7.0
+ardupilot_commit: 1511f27194f1dcc3728270883047bdf022b3fd53
+scenario: heli-hover
+description: Rotor run-up, GUIDED take-off to 10 m, 20 s hover, LAND.
+parameters_set:
+  RC_OVERRIDE_TIME: -1
+faults: []
+expected:
+- motor interlock enabled before take-off
+- about 15 s of rotor run-up on the ground
+- about 20 s of steady hover
+- landing in LAND, interlock off, disarm

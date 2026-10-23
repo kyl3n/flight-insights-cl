@@ -1,0 +1,70 @@
+name: SITL fixtures
+
+# Flies the SITL scenarios in tools/fixtures/sitl/ against an ArduPilot release,
+# scrubs the results and uploads tests/fixtures/ with them added. An engineer
+# reviews the artifact and commits it; this workflow never pushes.
+on:
+  workflow_dispatch:
+    inputs:
+      version:
+        description: ArduPilot release, e.g. 4.7.2
+        required: true
+        default: "4.7.0"
+      scenarios:
+        description: Scenarios to fly, separated by spaces
+        required: true
+        default: copter-quad-hover copter-quad-rawimu heli-hover plane-circuit quadplane-hover
+  pull_request:
+    paths:
+      - tools/fixtures/**
+      - .github/workflows/fixtures.yml
+
+permissions:
+  contents: read
+
+jobs:
+  generate:
+    name: Generate fixtures (ArduPilot ${{ inputs.version || '4.7.0' }})
+    runs-on: ubuntu-24.04
+    timeout-minutes: 90
+    env:
+      VERSION: ${{ inputs.version || '4.7.0' }}
+      SCENARIOS: ${{ inputs.scenarios || 'copter-quad-hover copter-quad-rawimu heli-hover plane-circuit quadplane-hover' }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v6
+      - run: echo "ARDUPILOT=$RUNNER_TEMP/ardupilot" >> "$GITHUB_ENV"
+
+      # Copter-X.Y.Z and Plane-X.Y.Z tag the same commit for 4.7.x releases.
+      - name: Check out ArduPilot ${{ env.VERSION }}
+        run: |
+          git clone --depth 1 --branch "Copter-${VERSION}" https://github.com/ArduPilot/ardupilot.git "$ARDUPILOT"
+          git -C "$ARDUPILOT" submodule update --init --recursive --depth 1
+
+      - uses: actions/cache@v4
+        with:
+          path: ${{ runner.temp }}/ardupilot/build
+          key: ardupilot-sitl-${{ env.VERSION }}-${{ runner.os }}
+
+      - name: Build SITL (copter, heli, plane)
+        run: |
+          uv venv "$RUNNER_TEMP/apbuild" --python 3.12
+          uv pip install --python "$RUNNER_TEMP/apbuild" "empy==3.3.4" pexpect future dronecan "pymavlink==2.4.50" lxml setuptools
+          source "$RUNNER_TEMP/apbuild/bin/activate"
+          cd "$ARDUPILOT"
+          ./waf configure --board sitl
+          ./waf copter heli plane
+
+      - name: Fly, scrub and label
+        run: tools/fixtures/sitl/make_fixtures.sh "$ARDUPILOT" "$VERSION" tests/fixtures $SCENARIOS
+
+      - name: Check the fixtures
+        run: |
+          uv run --no-project --python 3.12 --with pytest --with "pymavlink==2.4.50" \
+            --with "pyyaml==6.0.2" --with "jsonschema==4.23.0" pytest tools/fixtures/tests
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: fixtures-ardupilot-${{ env.VERSION }}
+          path: tests/fixtures
+          if-no-files-found: error

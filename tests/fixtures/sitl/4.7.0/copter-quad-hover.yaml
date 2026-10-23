@@ -1,0 +1,14 @@
+source: sitl
+vehicle: copter
+frame: quad +
+firmware: 4.7.0
+ardupilot_commit: 1511f27194f1dcc3728270883047bdf022b3fd53
+scenario: copter-quad-hover
+description: GUIDED take-off to 10 m, 20 s hover, LAND.
+parameters_set: {}
+faults: []
+expected:
+- one armed period
+- take-off to about 10 m in GUIDED
+- about 20 s of steady hover
+- landing in LAND, then automatic disarm

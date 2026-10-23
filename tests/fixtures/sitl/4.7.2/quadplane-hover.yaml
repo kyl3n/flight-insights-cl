@@ -1,0 +1,14 @@
+source: sitl
+vehicle: quadplane
+frame: quadplane, quad +
+firmware: 4.7.2
+ardupilot_commit: fb773567896014da007bca58358704d4a0d8516f
+scenario: quadplane-hover
+description: QLOITER climb to 10 m on the VTOL motors, 20 s hover, QLAND.
+parameters_set:
+  RC_OVERRIDE_TIME: -1
+faults: []
+expected:
+- VTOL flight only, no transition
+- about 20 s of hover in QLOITER
+- landing in QLAND, then automatic disarm

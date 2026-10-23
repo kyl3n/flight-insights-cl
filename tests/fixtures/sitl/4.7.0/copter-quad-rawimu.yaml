@@ -1,0 +1,16 @@
+source: sitl
+vehicle: copter
+frame: quad +
+firmware: 4.7.0
+ardupilot_commit: 1511f27194f1dcc3728270883047bdf022b3fd53
+scenario: copter-quad-rawimu
+description: Short hover with pre- and post-filter primary gyro logged at full rate.
+parameters_set:
+  INS_RAW_LOG_OPT: 9
+  LOG_BITMASK: default with bit 19 (raw IMU) set
+  SIM_ESC_TELEM: 0
+faults: []
+expected:
+- 'INS_RAW_LOG_OPT = 9: primary gyro, pre- and post-filter'
+- raw IMU messages for the whole armed period
+- about 10 s of steady hover

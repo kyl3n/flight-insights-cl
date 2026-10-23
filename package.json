@@ -1,0 +1,8 @@
+{
+  "name": "flight-insights",
+  "private": true,
+  "packageManager": "pnpm@10.28.0",
+  "scripts": {
+    "tauri": "pnpm --filter shell tauri"
+  }
+}

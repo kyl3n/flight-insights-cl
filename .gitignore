@@ -9,6 +9,9 @@
 *.param
 *.parm
 *.params
+# Mission files hold coordinates
+*.waypoints
+*.plan
 # Scrubbed test fixtures (positions removed or shifted) are allowed only here
 !tests/fixtures/**
 
@@ -18,6 +21,7 @@
 *.key
 *.pem
 *.p12
+*.pfx
 *recovery-key*
 
 # Build output and dependencies
@@ -29,6 +33,7 @@ __pycache__/
 *.pyc
 .venv/
 .pytest_cache/
+.ruff_cache/
 
 # OS and editor files
 .DS_Store

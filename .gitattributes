@@ -1,0 +1,2 @@
+# Fixtures are hashed in tests/fixtures/SCRUBBED.sha256: never convert line endings.
+tests/fixtures/** -text
