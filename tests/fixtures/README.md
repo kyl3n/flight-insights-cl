@@ -17,12 +17,14 @@ The only place in the repository where flight data may be committed. Every log, 
 | Scenario | Vehicle | What it covers |
 | --- | --- | --- |
 | `copter-quad-hover` | Copter, quad + | GUIDED take-off, 20 s hover, LAND; simulated ESC telemetry |
-| `copter-quad-rawimu` | Copter, quad + | 10 s hover with pre- and post-filter gyro logged at full rate (`INS_RAW_LOG_OPT` = 9) |
+| `copter-quad-rawimu` | Copter, quad + | 6 s hover at 4 m with simulated motor vibration, ESC RPM and an RPM-tracking harmonic notch; pre- and post-filter gyro logged at full rate (`INS_RAW_LOG_OPT` = 9) |
+| `copter-heavylift-light` | Copter, coaxial X8 | ArduPilot's Callisto heavy-lift model (32.5 kg, 30-inch props): 15 s hover at 5 m with motor vibration and ESC RPM, raw IMU logged during the hover only. Planted: a throttle-tracking notch although ESC RPM is present, and hover learning off |
+| `copter-heavylift-loaded` | Copter, coaxial X8 | The same airframe and motors carrying 8 kg more (hover throttle 0.47 against 0.38), so it pairs with the light flight as one airframe with and without payload |
 | `heli-hover` | Traditional helicopter | Rotor run-up, take-off, 20 s hover, LAND |
 | `plane-circuit` | Fixed-wing | AUTO take-off, three-waypoint circuit, RTL; ends with a forced disarm in the air |
 | `quadplane-hover` | QuadPlane | QLOITER climb and 20 s hover on the VTOL motors, QLAND |
 
-All five are committed for 4.7.0, the oldest supported firmware. For the newest release, `copter-quad-hover` and `quadplane-hover` cover one Copter and one Plane build. Each label records the exact ArduPilot commit.
+All of them are committed for 4.7.0, the oldest supported firmware. For the newest release, `copter-quad-hover` and `quadplane-hover` cover one Copter and one Plane build. Each label records the exact ArduPilot commit.
 
 SITL always logs its own state (`SIM`, `SIM2`), which real logs do not have. That is the larger part of some of these files.
 
