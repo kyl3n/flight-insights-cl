@@ -2,11 +2,13 @@ import { describe, expect, it } from "vitest";
 import {
   declined,
   decisions,
+  detectedApplies,
   fileStatus,
   initialChoice,
   initialChoices,
   matchKey,
   packList,
+  partKey,
   resultCounts,
   undecided,
   whenText,
@@ -46,8 +48,6 @@ const file = (extra: Partial<ScannedFile> = {}, p: Partial<Proposal> = {}): Scan
   proposal: proposal(p),
   ...extra,
 });
-
-const names = (p: string) => p.toUpperCase();
 
 describe("first choices follow the proposal", () => {
   it("takes a matched airframe, holds what matches nothing and asks about a new board", () => {
@@ -89,7 +89,7 @@ describe("decisions for import.commit", () => {
     c.otherReason = "failure";
     c.packs = "B-12, B-14, B-12";
     c.payload = " camera ";
-    const [d] = decisions([f], { f1: c }, names, "gsv-1");
+    const [d] = decisions([f], { f1: c }, partKey, "gsv-1");
     expect(d).toEqual({
       log: "f1",
       action: "import",
@@ -97,7 +97,7 @@ describe("decisions for import.commit", () => {
       station_version_id: "gsv-1",
       changes: [
         { part: "board", reason_kind: "detected", reason: "known board → new board" },
-        { part: "PROPELLERS", reason_kind: "failure", reason: "" },
+        { part: "propellers", reason_kind: "failure", reason: "" },
       ],
       packs: ["B-12", "B-14"],
       payload: "camera",
@@ -110,11 +110,44 @@ describe("decisions for import.commit", () => {
     c.f1!.choice = { kind: "undecided" };
     c.f2!.choice = { kind: "hold" };
     c.f3!.choice = { kind: "new", platform_id: "p-1", name: " HL-10 " };
-    const out = decisions(files, c, names, null);
+    const out = decisions(files, c, partKey, null);
     expect(out[0]).toEqual({ log: "f1", action: "skip" });
     expect(out[1]).toEqual({ log: "f2", action: "import" });
     expect(out[2]).toMatchObject({ new_airframe: { platform_id: "p-1", name: "HL-10" } });
     expect(out[3]).toEqual({ log: "f4", action: "import" });
+  });
+
+  it("records ticked parts under their stable key, not the label shown", () => {
+    const f = file();
+    const c = initialChoices(f);
+    c.other = ["propellers", "gnss"];
+    expect(decisions([f], { f1: c }, partKey, null)[0]?.changes?.map((x) => x.part)).toEqual(["propellers", "gnss"]);
+    expect(partKey("escs")).toBe("escs");
+  });
+
+  it("records detected changes only on the airframe they were found against", () => {
+    const f = file({}, { changes: [{ part: "board", before: "known board", after: "new board", evidence: "system ID" }] });
+    const parts = (choice: LogChoices["choice"]) => {
+      const c = initialChoices(f);
+      c.choice = choice;
+      return decisions([f], { f1: c }, partKey, null)[0]?.changes?.map((x) => x.part);
+    };
+    expect(parts({ kind: "airframe", airframe_id: "af-1" })).toEqual(["board"]);
+    expect(parts({ kind: "airframe", airframe_id: "af-2" })).toBeUndefined();
+    expect(parts({ kind: "new", platform_id: "p-1", name: "HL-10" })).toBeUndefined();
+    expect(detectedApplies(f, { kind: "airframe", airframe_id: "af-1" })).toBe(true);
+    expect(detectedApplies(f, { kind: "hold" })).toBe(false);
+    expect(detectedApplies(file({}, { airframe_id: null }), { kind: "airframe", airframe_id: "af-1" })).toBe(false);
+  });
+
+  it("keeps a person's own ticked parts when the airframe differs from the proposal", () => {
+    const f = file({}, { changes: [{ part: "board", before: "a", after: "b", evidence: "system ID" }] });
+    const c = initialChoices(f);
+    c.choice = { kind: "airframe", airframe_id: "af-2" };
+    c.other = ["motors"];
+    expect(decisions([f], { f1: c }, partKey, null)[0]?.changes).toEqual([
+      { part: "motors", reason_kind: "upgrade", reason: "" },
+    ]);
   });
 
   it("reads pack codes from a list typed by hand", () => {
@@ -159,7 +192,7 @@ describe("files from watched folders", () => {
   it("are recorded against their folder's station", () => {
     const files = [file(), file({ id: "f2", path: "/elsewhere/a.BIN" })];
     const c = Object.fromEntries(files.map((x) => [x.id, initialChoices(x)])) as Record<string, LogChoices>;
-    const out = withStations(decisions(files, c, names, "gsv-1"), files, pending);
+    const out = withStations(decisions(files, c, partKey, "gsv-1"), files, pending);
     expect(out[0]?.station_version_id).toBe("gsv-9");
     expect(out[1]?.station_version_id).toBe("gsv-1");
   });

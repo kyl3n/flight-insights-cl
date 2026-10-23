@@ -30,9 +30,9 @@ SITL always logs its own state (`SIM`, `SIM2`), which real logs do not have. Tha
 
 Positions are found from what the files say about themselves, not from message names: in DataFlash logs, every field whose FMTU unit is a latitude or longitude; in tlogs, every MAVLink field in `degE7` or degrees named as a latitude or longitude, plus command coordinates whose `MAV_CMD` definition says so. All of them, and parameters named `*_LAT`, `*_LNG` or `*_LON`, move by one random shift per session. The shift is never printed or stored. Values at or within about 1 km of 0,0 (no fix yet) are left alone, so they cannot give the shift away.
 
-The scrubber also sets `COMPASS_DEC` to 0, zeroes board unique IDs (in `MSG`/`STATUSTEXT` text and `AUTOPILOT_VERSION`) and blanks the embedded `@SYS/storage.bin`, which copies every parameter and the mission.
+Bytes in a DataFlash log that are not a complete message, such as junk between messages or a message cut off at the end of the file, are zeroed in place, because nobody can tell whether they hold part of a position. The scrubber also sets `COMPASS_DEC` to 0, zeroes board unique IDs (in `MSG`/`STATUSTEXT` text and `AUTOPILOT_VERSION`) and blanks the embedded `@SYS/storage.bin`, which copies every parameter and the mission.
 
-It then checks its own output against the input with pymavlink, independently of how it made the changes: the same messages in the same order, every position moved by exactly the shift, everything else unchanged, and none of the original positions anywhere in the bytes, whether as an integer ×10⁷, a float, a double or decimal text. If any check fails, it writes nothing.
+It then checks its own output against the input with pymavlink, independently of how it made the changes: the same messages in the same order, every position moved by exactly the shift, everything else unchanged, and none of the original positions (every sample of every position field) anywhere in the bytes, whether as an integer ×10⁷, a float, a double or decimal text. If any check fails, it writes nothing.
 
 ## Adding fixtures
 

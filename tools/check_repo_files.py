@@ -7,7 +7,14 @@ each one must be listed with its SHA-256 in tests/fixtures/SCRUBBED.sha256,
 which tools/fixtures/scrub_fixture.py writes. Key material is never allowed
 anywhere. See CLAUDE.md, "Location and privacy".
 
-Usage: check_repo_files.py [path ...]   (default: every file git tracks)
+A file is flight data if its name has a flight-data suffix, or if its content
+starts like a DataFlash log or a tlog, whatever it is called.
+
+Usage:
+  check_repo_files.py [path ...]          every file git tracks, or the paths given
+  check_repo_files.py --commits BASE..HEAD
+      every file added or modified by each commit in the range, as it was in
+      that commit, so flight data added and later deleted is caught too
 """
 
 from __future__ import annotations
@@ -40,6 +47,11 @@ SECRET_NAME_PARTS = ("recovery-key",)
 
 # A DataFlash log starts with an FMT message: header 0xA3 0x95, then id 0x80.
 DATAFLASH_MAGIC = b"\xa3\x95\x80"
+# A tlog is records of an 8-byte big-endian time and one MAVLink packet.
+TLOG_MIN_RECORDS = 3
+# Enough of a file's start to see TLOG_MIN_RECORDS of the largest MAVLink packets.
+HEAD_SIZE = 1024
+GITLINK_MODE = "160000"
 
 
 def _suffixes(path: PurePosixPath) -> set[str]:
@@ -51,8 +63,34 @@ def _is_env_file(name: str) -> bool:
     return name == ".env" or name.startswith(".env.")
 
 
+def looks_like_tlog(head: bytes) -> bool:
+    """True if `head` starts with TLOG_MIN_RECORDS tlog records, or is a whole shorter tlog."""
+    o = records = 0
+    while records < TLOG_MIN_RECORDS and o + 10 <= len(head):
+        magic, length = head[o + 8], head[o + 9]
+        if magic == 0xFE:  # MAVLink 1: 6-byte header, payload, 2-byte CRC
+            size = 8 + length
+        elif magic == 0xFD:  # MAVLink 2: 10-byte header, payload, CRC, optional signature
+            size = 12 + length + (13 if o + 10 < len(head) and head[o + 10] & 0x01 else 0)
+        else:
+            return False
+        o += 8 + size
+        if o > len(head):
+            return False
+        records += 1
+    return records >= TLOG_MIN_RECORDS or (records > 0 and o == len(head))
+
+
+def flight_data_content(head: bytes) -> str | None:
+    if head.startswith(DATAFLASH_MAGIC):
+        return "DataFlash log"
+    if looks_like_tlog(head):
+        return "tlog"
+    return None
+
+
 def is_flight_data(path: PurePosixPath, head: bytes) -> bool:
-    return bool(_suffixes(path) & FLIGHT_DATA_SUFFIXES) or head.startswith(DATAFLASH_MAGIC)
+    return bool(_suffixes(path) & FLIGHT_DATA_SUFFIXES) or flight_data_content(head) is not None
 
 
 def problems_for(path: PurePosixPath, head: bytes) -> list[str]:
@@ -70,8 +108,8 @@ def problems_for(path: PurePosixPath, head: bytes) -> list[str]:
     if not path.is_relative_to(FIXTURES_DIR):
         if _suffixes(path) & FLIGHT_DATA_SUFFIXES:
             found.append("flight data outside tests/fixtures/")
-        elif head.startswith(DATAFLASH_MAGIC):
-            found.append("DataFlash log content outside tests/fixtures/")
+        elif (content := flight_data_content(head)) is not None:
+            found.append(f"{content} content outside tests/fixtures/")
 
     return found
 
@@ -88,9 +126,7 @@ def read_manifest(text: str) -> dict[str, str]:
 
 def fixture_problems(path: PurePosixPath, content: bytes, manifest: dict[str, str]) -> list[str]:
     """A fixture must be listed in the manifest with the hash the scrubber recorded."""
-    if not path.is_relative_to(FIXTURES_DIR) or not is_flight_data(
-        path, content[: len(DATAFLASH_MAGIC)]
-    ):
+    if not path.is_relative_to(FIXTURES_DIR) or not is_flight_data(path, content[:HEAD_SIZE]):
         return []
     rel = path.relative_to(FIXTURES_DIR).as_posix()
     if rel not in manifest:
@@ -114,10 +150,48 @@ def check(repo: Path, paths: Iterable[PurePosixPath]) -> list[str]:
     for rel in paths:
         full = repo / rel
         content = full.read_bytes() if full.is_file() else b""
-        reasons = problems_for(rel, content[: len(DATAFLASH_MAGIC)])
+        reasons = problems_for(rel, content[:HEAD_SIZE])
         reasons += fixture_problems(rel, content, manifest)
         errors.extend(f"{rel}: {reason}" for reason in reasons)
     return errors
+
+
+def _git(repo: Path, *args: str) -> bytes:
+    return subprocess.run(["git", *args], cwd=repo, check=True, capture_output=True).stdout
+
+
+def changed_blobs(repo: Path, commit: str) -> list[tuple[PurePosixPath, str]]:
+    """(path, blob id) for every file the commit adds, modifies or retypes, against each parent."""
+    out = _git(
+        repo, "diff-tree", "--no-commit-id", "-r", "-m", "--root", "-z", "--diff-filter=AMT", commit
+    )
+    fields = out.split(b"\0")
+    found: dict[tuple[PurePosixPath, str], None] = {}
+    for meta, path in zip(fields[0::2], fields[1::2], strict=False):
+        # ":<old mode> <new mode> <old blob> <new blob> <status>", then the path
+        _, new_mode, _, new_blob, _ = meta.decode().lstrip(":").split(" ")
+        if new_mode != GITLINK_MODE:
+            found[(PurePosixPath(path.decode()), new_blob)] = None
+    return list(found)
+
+
+def check_commits(repo: Path, revision_range: str) -> tuple[int, list[str]]:
+    """Check every path added or modified in each commit of the range, as of that commit."""
+    commits = _git(repo, "rev-list", "--reverse", revision_range).decode().split()
+    errors: list[str] = []
+    checked = 0
+    for commit in commits:
+        try:
+            manifest = read_manifest(_git(repo, "show", f"{commit}:{MANIFEST}").decode())
+        except subprocess.CalledProcessError:
+            manifest = {}
+        for rel, blob in changed_blobs(repo, commit):
+            content = _git(repo, "cat-file", "blob", blob)
+            reasons = problems_for(rel, content[:HEAD_SIZE])
+            reasons += fixture_problems(rel, content, manifest)
+            errors.extend(f"{commit[:12]} {rel}: {reason}" for reason in reasons)
+            checked += 1
+    return checked, errors
 
 
 def main(argv: Sequence[str]) -> int:
@@ -126,11 +200,19 @@ def main(argv: Sequence[str]) -> int:
             ["git", "rev-parse", "--show-toplevel"], check=True, capture_output=True, text=True
         ).stdout.strip()
     )
-    if argv:
-        paths = [PurePosixPath(Path(p).resolve().relative_to(repo).as_posix()) for p in argv]
+    if argv[:1] == ["--commits"]:
+        if len(argv) != 2:
+            print("usage: check_repo_files.py --commits BASE..HEAD", file=sys.stderr)
+            return 2
+        count, errors = check_commits(repo, argv[1])
+        what = f"file version(s) in {argv[1]}"
     else:
-        paths = tracked_files(repo)
-    errors = check(repo, paths)
+        if argv:
+            paths = [PurePosixPath(Path(p).resolve().relative_to(repo).as_posix()) for p in argv]
+        else:
+            paths = tracked_files(repo)
+        count, errors = len(paths), check(repo, paths)
+        what = "file(s)"
     for e in errors:
         print(e, file=sys.stderr)
     if errors:
@@ -140,7 +222,7 @@ def main(argv: Sequence[str]) -> int:
             file=sys.stderr,
         )
         return 1
-    print(f"Checked {len(paths)} file(s): OK")
+    print(f"Checked {count} {what}: OK")
     return 0
 
 
