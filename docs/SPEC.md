@@ -1176,7 +1176,7 @@ The airframe, not the log, is the unit the app reasons about: every flight, para
 | Laptop | Laptop ID, name, public signing and encryption keys, enrolled and revoked dates |
 | Sync object | Object key, type, laptop, sequence, size, status (sent, applied, skipped as duplicate, quarantined) |
 
-**Airframe identity.** A hash of the board's unique ID proposes a match; the user names and confirms airframes and can merge or split them when a flight controller moves between frames. The raw unique ID is never stored or sent.
+**Airframe identity.** A hash of the board's unique ID proposes a match; the user names and confirms airframes and can merge or split them when a flight controller moves between frames. The raw unique ID is never stored or sent. The hash is keyed (HMAC-SHA-256 with a key derived from the fleet key), so every laptop gets the same hash for the same board, but nobody holding only the hash can test it against a known board's ID. The engine hashes the ID the moment it reads it from the log's system-ID message.
 
 **Storage.** SQLite for entities, Parquet per flight for decoded columns. The shared Google Drive folder is the permanent record (see Shared storage and sync); each laptop's database is a complete working copy that can be rebuilt from it. Decoded columns can be evicted and rebuilt from the original log; findings and snapshots are kept.
 
