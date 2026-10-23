@@ -22,7 +22,7 @@ from flight_insights.store.cache import ColumnCache
 from flight_insights.store.db import Store
 
 
-def _answers(store: Store, build_id: str | None) -> dict[str, Any]:
+def build_answers(store: Store, build_id: str | None) -> dict[str, Any]:
     """The answers the build holds: its platform's reference answers, then the
     airframe's own changes on top (spec: Platforms, airframes and build configuration)."""
     if build_id is None:
@@ -54,7 +54,7 @@ class FlightData:
     disarm_us: int
     params: Mapping[str, float]  # canonical names, as the flight started
     fingerprint: Mapping[str, Any]
-    cache: ColumnCache
+    cache: ColumnCache | None  # None: a parameter file, with no log behind it
     # The log checks overlapping the flight, from import; None for a flight imported
     # before they were kept.
     validation: Mapping[str, Any] | None = None
@@ -89,7 +89,7 @@ class FlightData:
             fingerprint=json.loads(row["fingerprint_json"]),
             cache=cache,
             validation=json.loads(row["validation_json"]) if row["validation_json"] else None,
-            answers=_answers(store, row["build_version_id"]),
+            answers=build_answers(store, row["build_version_id"]),
             defaults=defaults,
         )
 
@@ -102,15 +102,24 @@ class FlightData:
         """Flown in ArduPilot's simulator, where timing is the host computer's."""
         return self.fingerprint.get("board", {}).get("hal") == "SITL"
 
+    @property
+    def logged(self) -> bool:
+        """Whether there is a log behind these parameters (a parameter file has none)."""
+        return self.cache is not None
+
     def has(self, name: str) -> bool:
-        return name in self.cache.names(self.key)
+        return self.cache is not None and name in self.cache.names(self.key)
 
     def table(self, name: str, columns: list[str] | None = None) -> pa.Table | None:
         """A message type's cached columns for this flight, or None if the log has none.
         Positions are never returned."""
         key = (name, tuple(columns) if columns is not None else None)
         if key not in self._tables:
-            self._tables[key] = self.cache.read(self.key, name, columns) if self.has(name) else None
+            self._tables[key] = (
+                self.cache.read(self.key, name, columns)
+                if self.cache is not None and self.has(name)
+                else None
+            )
         return self._tables[key]
 
     @property

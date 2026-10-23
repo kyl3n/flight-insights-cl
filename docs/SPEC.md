@@ -307,6 +307,15 @@ The right settings depend on facts a log only partly shows. The app fills in wha
 | Which non-GNSS sources are fitted (optical flow, rangefinder, visual odometry)? | GNSS loss is always assumed, so these decide how the aircraft holds position and gets home without it | Estimator source parameters |
 | Links in use | Failsafe timing and telemetry rates | Parameters and tlogs |
 
+**Checking a parameter file.** A `.param` or `.params` file gets the same review before it is flown: setup step 10's first parameter file, or any change someone proposes.
+
+- **How it is read:** as a flight with no log behind it, through the parameter audit and Better options, against the airframe's answers. Analyzers that need a log do not run.
+- **Firmware:** the file does not name its firmware version. It is read in the version the airframe last flew, or the newest the knowledge pack knows when there is no flight; the result says which.
+- **Defaults:** a file records no defaults. They are borrowed from the log of a flight on the same firmware and vehicle, the airframe's own first. Without one, values left at default can be flagged too, and the result says so.
+- **The simulator:** a file holding `SIM_` parameters is treated as the simulator's, as a SITL log's board is.
+- **Unknown, not false:** what only a log shows (ESC telemetry and its reliability, raw IMU logging) is unknown, so Better options asks about it rather than assuming.
+- **Nothing is kept:** the result is findings and a staged plan, nothing is stored, and nothing reaches the aircraft.
+
 ### What the review finds
 
 | Category | Examples |

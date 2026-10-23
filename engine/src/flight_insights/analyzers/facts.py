@@ -87,6 +87,9 @@ def facts(flight: FlightData, m: MotorPicture) -> dict[str, Fact]:
         "motor_count": float(len(ms)) or None,
         "cells": float(cells) if cells else None,
     }
+    if not flight.logged:  # a parameter file: what only a log shows is unknown, not false
+        for name in ("esc_telemetry", "esc_rpm_reliable", "raw_imu_logged"):
+            out[name] = None
     if volts is not None and cells:
         out["batt_volt_max"] = round(volts[0] * float(cells), 2)
         out["batt_volt_min"] = round(volts[1] * float(cells), 2)

@@ -73,7 +73,7 @@ def run_analysis(
         except Exception as e:  # one analyzer failing leaves the others' results standing
             log.exception("analyzer %s failed on flight %s", a.name, flight_id)
             r = Result(skipped=f"failed: {type(e).__name__}: {e}")
-        _check(a, r, reg)
+        check_result(a, r, reg)
         outcomes[a.name] = {"version": a.version, "skipped": r.skipped}
         results.append((a, r))
     evidence: dict[str, Evidence] = {}
@@ -134,7 +134,7 @@ def declares(a: Analyzer, code: str) -> bool:
     return any(code == d or (d.endswith(".*") and code.startswith(d[:-1])) for d in a.findings)
 
 
-def _check(a: Analyzer, r: Result, reg: Registry) -> None:
+def check_result(a: Analyzer, r: Result, reg: Registry) -> None:
     """What an analyzer emits must be declared by it and described in the registry."""
     for m in r.metrics:
         if m.metric not in a.metrics or m.metric not in reg.metrics:
