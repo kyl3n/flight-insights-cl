@@ -42,6 +42,13 @@ class Scenario:
     expected: list[str]
     fly: Callable[[Vehicle], None]
     params: dict[str, float | SetBits] = field(default_factory=dict)
+    boot_params: dict[str, float] = field(default_factory=dict)  # read at boot, as defaults
+    # A frame model from ArduPilot's Tools/autotest/models with some values changed,
+    # for example a heavier mass to carry a payload.
+    model_json: str | None = None
+    model_overrides: dict[str, float] = field(default_factory=dict)
+    speedup: int | None = None  # slower than the runner's default where logging is heavy
+    faults: list[dict[str, Any]] = field(default_factory=list)  # planted on purpose, for the label
 
     def label(self, version: str, commit: str) -> dict[str, Any]:
         return {
@@ -55,7 +62,7 @@ class Scenario:
             "parameters_set": {
                 k: v.note if isinstance(v, SetBits) else v for k, v in self.params.items()
             },
-            "faults": [],
+            "faults": self.faults,
             "expected": self.expected,
         }
 
@@ -142,6 +149,62 @@ def quadplane_hover(v: Vehicle) -> None:
 
 COPTER = dict(binary="arducopter", model="+", defaults=["default_params/copter.parm"])
 
+# Motor vibration and ESC telemetry as ArduPilot's DynamicRpmNotches autotest simulates
+# them, with raw IMU logging, so filter analysis has a motor peak to find and both the
+# pre- and post-filter gyro to check its prediction against.
+VIBRATING = {
+    "SIM_VIB_MOT_MAX": 350,
+    "SIM_GYR1_RND": 20,
+    "SIM_ESC_TELEM": 1,
+    "INS_RAW_LOG_OPT": 9,
+    "LOG_DISARMED": 0,
+    "LOG_FILE_BUFSIZE": 64,
+}
+RAW_SPEEDUP = 2  # full-rate raw IMU logging drops data at the default speed-up
+
+# ArduPilot's heavy-lift SITL model: Callisto, a 32.5 kg coaxial octocopter on 30-inch
+# props, with the autotest's own defaults (which turn hover learning off).
+CALLISTO = dict(
+    binary="arducopter",
+    model="octa-quad",
+    model_json="Callisto.json",
+    defaults=[
+        "default_params/copter.parm",
+        "default_params/copter-octaquad.parm",
+        "models/Callisto.param",
+    ],
+    speedup=RAW_SPEEDUP,
+)
+# The notch follows throttle, though ESC RPM arrives: the better option is to track it.
+THROTTLE_NOTCH = {
+    "INS_HNTCH_ENABLE": 1,
+    "INS_HNTCH_MODE": 1,
+    "INS_HNTCH_FREQ": 40,
+    "INS_HNTCH_REF": 0.48,
+    "INS_HNTCH_BW": 20,
+    "INS_HNTCH_HMNCS": 3,
+    "INS_HNTCH_ATT": 40,
+}
+HEAVY_LIFT_FAULTS = [
+    {
+        "kind": "filter-setting",
+        "description": "harmonic notch tracks throttle although ESC RPM telemetry is present",
+        "parameters": ["INS_HNTCH_MODE"],
+    },
+    {
+        "kind": "parameter-error",
+        "description": "hover-throttle learning off on an aircraft flown with and without payload",
+        "parameters": ["MOT_HOVER_LEARN"],
+    },
+]
+HEAVY_LIFT_EXPECTED = [
+    "one armed period with about 15 s of steady hover at 10 m",
+    "ESC RPM from all eight motors",
+    "a motor vibration peak in the pre-filter gyro",
+    "a throttle-tracking notch: the better option is ESC RPM tracking (INS_HNTCH_MODE 3)",
+    "MOT_HOVER_LEARN 0: hover learning should be on for a variable payload",
+]
+
 SCENARIOS: dict[str, Scenario] = {
     s.name: s
     for s in [
@@ -163,19 +226,59 @@ SCENARIOS: dict[str, Scenario] = {
             name="copter-quad-rawimu",
             vehicle="copter",
             frame="quad +",
-            description="Short hover with pre- and post-filter primary gyro logged at full rate.",
+            description=(
+                "Short hover with simulated motor vibration, ESC RPM and an RPM-tracking"
+                " harmonic notch, with pre- and post-filter primary gyro logged at full rate."
+            ),
             expected=[
                 "INS_RAW_LOG_OPT = 9: primary gyro, pre- and post-filter",
-                "raw IMU messages for the whole armed period",
+                "raw IMU messages for the whole armed period, with no logging gaps",
                 "about 10 s of steady hover",
+                "a motor vibration peak in the pre-filter gyro, attenuated after the filters",
+                "the notch centre tracking ESC RPM (INS_HNTCH_MODE 3)",
             ],
             fly=copter_hover(10),
-            params={
-                "INS_RAW_LOG_OPT": 9,
-                "LOG_BITMASK": LOG_IMU_RAW,
-                "SIM_ESC_TELEM": 0,  # not needed here; keeps the log small
+            params={"LOG_BITMASK": LOG_IMU_RAW},
+            boot_params=VIBRATING
+            | {
+                "INS_HNTCH_ENABLE": 1,
+                "INS_HNTCH_MODE": 3,
+                "INS_HNTCH_FREQ": 80,
+                "INS_HNTCH_REF": 1,
+                "INS_HNTCH_HMNCS": 5,
+                "INS_HNTCH_ATT": 50,
+                "INS_HNTCH_BW": 40,
             },
+            speedup=RAW_SPEEDUP,
             **COPTER,  # type: ignore[arg-type]
+        ),
+        Scenario(
+            name="copter-heavylift-light",
+            vehicle="copter",
+            frame="octo coaxial X8",
+            description="Heavy-lift X8 without payload: GUIDED take-off to 10 m, 15 s hover, LAND.",
+            expected=HEAVY_LIFT_EXPECTED,
+            fly=copter_hover(15),
+            params={"LOG_BITMASK": LOG_IMU_RAW},
+            boot_params=VIBRATING | THROTTLE_NOTCH,
+            faults=HEAVY_LIFT_FAULTS,
+            **CALLISTO,  # type: ignore[arg-type]
+        ),
+        Scenario(
+            name="copter-heavylift-loaded",
+            vehicle="copter",
+            frame="octo coaxial X8",
+            description=(
+                "The same heavy-lift X8 carrying 8 kg more (40.5 kg in all):"
+                " GUIDED take-off to 10 m, 15 s hover, LAND."
+            ),
+            expected=[*HEAVY_LIFT_EXPECTED, "hover throttle higher than the light flight's"],
+            fly=copter_hover(15),
+            params={"LOG_BITMASK": LOG_IMU_RAW},
+            boot_params=VIBRATING | THROTTLE_NOTCH,
+            model_overrides={"mass": 40.5},
+            faults=HEAVY_LIFT_FAULTS,
+            **CALLISTO,  # type: ignore[arg-type]
         ),
         Scenario(
             name="heli-hover",
