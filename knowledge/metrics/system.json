@@ -1,0 +1,138 @@
+{
+  "about": "System health (spec: Analyzers common to all vehicles, 'System health'; Processor load, timing and latency; Reference range library, 'Processor, buses and environment'): main-loop timing, internal errors, failsafes and errors the autopilot logged.",
+  "metrics": {
+    "system.slow_loops": {
+      "name": {
+        "en": "Slow main loops",
+        "uk": "Повільні головні цикли"
+      },
+      "unit": "%",
+      "direction": "lower",
+      "definition": {
+        "en": "The share of main loops that ran more than 20% over their time, so the controllers acted late. A rising share means the processor is running out of time.",
+        "uk": "Частка головних циклів, що тривали понад 20% довше відведеного часу, тож регулятори спрацьовували із запізненням. Зростання частки означає, що процесору бракує часу."
+      },
+      "method": {
+        "en": "PM.NLon (long loops) over PM.NL (loops) added over every performance record between arming and disarming.",
+        "uk": "PM.NLon (довгі цикли) відносно PM.NL (усі цикли), підсумовані за всіма записами продуктивності між взведенням і зняттям зі зброї."
+      },
+      "messages": ["PM"],
+      "zones": {
+        "target": [null, 5],
+        "caution": [5, 15],
+        "out": [15, null]
+      },
+      "source": {
+        "kind": "ardupilot",
+        "title": "ArduPilot: Downloading and analyzing data logs, PM (slow loops should never be above 15%; the 5% start of the caution band is the app's)",
+        "url": "https://ardupilot.org/copter/docs/common-downloading-and-analyzing-data-logs-in-mission-planner.html"
+      }
+    },
+    "system.max_loop_time": {
+      "name": {
+        "en": "Longest main loop",
+        "uk": "Найдовший головний цикл"
+      },
+      "unit": "%",
+      "direction": "lower",
+      "definition": {
+        "en": "The longest main loop of the flight, as a share of the loop period the scheduler aims for. One long loop delays every controller once; above 120% it counts as a long loop.",
+        "uk": "Найдовший головний цикл польоту як частка періоду циклу, на який розрахований планувальник. Один довгий цикл раз затримує всі регулятори; понад 120% він вважається довгим."
+      },
+      "method": {
+        "en": "The highest PM.MaxT between arming and disarming, leaving out the record that spans the moment of arming, over the period 1/PM.LR.",
+        "uk": "Найбільше PM.MaxT між взведенням і зняттям зі зброї, без запису, що охоплює момент взведення, відносно періоду 1/PM.LR."
+      },
+      "messages": ["PM"],
+      "zones": {
+        "target": [null, 100],
+        "caution": [100, 120],
+        "out": [120, null]
+      },
+      "source": {
+        "kind": "ardupilot",
+        "title": "ArduPilot: Downloading and analyzing data logs, PM (MaxT shouldn't exceed 120% of the loop period, but is much higher while the motors arm)",
+        "url": "https://ardupilot.org/copter/docs/common-downloading-and-analyzing-data-logs-in-mission-planner.html"
+      }
+    }
+  },
+  "findings": {
+    "system.slow_loops": {
+      "stage": "setup",
+      "title": {
+        "en": "{percent}% of the main loops ran late",
+        "uk": "{percent}% головних циклів запізнювалися"
+      },
+      "action": {
+        "en": "The processor is out of time. Look at what was added last: more harmonic notches, in-flight FFT, raw IMU logging, scripts or a higher loop rate. The CPU load was {load}%.",
+        "uk": "Процесору бракує часу. Перевірте, що додали останнім: більше гармонійних режекторних фільтрів, FFT у польоті, сирий запис IMU, скрипти чи вищу частоту циклу. Завантаження процесора було {load}%."
+      }
+    },
+    "system.long_loop": {
+      "stage": "setup",
+      "title": {
+        "en": "The longest main loop took {percent}% of the loop period",
+        "uk": "Найдовший головний цикл тривав {percent}% періоду циклу"
+      },
+      "action": {
+        "en": "{over} of {records} performance records had a loop this long. Line it up with what happened at the time: a mode change, a mission or parameter download, or a logging burst.",
+        "uk": "{over} з {records} записів продуктивності мали такий довгий цикл. Зіставте це з подіями того часу: зміною режиму, завантаженням місії чи параметрів або сплеском запису журналу."
+      }
+    },
+    "system.internal_error": {
+      "stage": "mechanical",
+      "title": {
+        "en": "The autopilot reported internal errors: {errors}",
+        "uk": "Автопілот повідомив про внутрішні помилки: {errors}"
+      },
+      "action": {
+        "en": "Internal errors mean the firmware or the board hit a condition it should never reach. Do not fly again until it is understood: check the board's power and wiring, and report it to ArduPilot with this log.",
+        "uk": "Внутрішні помилки означають, що прошивка або плата потрапили в стан, якого не повинно бути. Не літайте, доки причину не з'ясовано: перевірте живлення й проводку плати та повідомте ArduPilot, додавши цей журнал."
+      }
+    },
+    "system.failsafe": {
+      "stage": "operations",
+      "title": {
+        "en": "Failsafe in flight: {subsystem} ({count} times)",
+        "uk": "Аварійний режим у польоті: {subsystem} ({count} разів)"
+      },
+      "action": {
+        "en": "Check what led to it in the timeline before the first one, at {first_s} s into the flight, and whether the aircraft did what its failsafe settings say.",
+        "uk": "Перевірте на часовій шкалі, що до цього призвело перед першим разом, на {first_s} с польоту, і чи апарат діяв так, як передбачають налаштування аварійного режиму."
+      }
+    },
+    "system.crash_check": {
+      "stage": "operations",
+      "title": {
+        "en": "The autopilot detected {what} in flight",
+        "uk": "Автопілот виявив у польоті: {what}"
+      },
+      "action": {
+        "en": "Inspect the aircraft before the next flight. The timeline before {first_s} s into the flight shows what led to it: motor outputs, vibration and attitude error.",
+        "uk": "Огляньте апарат перед наступним польотом. Часова шкала до {first_s} с польоту показує, що до цього призвело: виходи моторів, вібрацію та похибку положення."
+      }
+    },
+    "system.error": {
+      "stage": "evidence",
+      "title": {
+        "en": "Error logged in flight: {subsystem}, {code} ({count} times)",
+        "uk": "У польоті записано помилку: {subsystem}, {code} ({count} разів)"
+      },
+      "action": {
+        "en": "First at {first_s} s into the flight. The analyzer for that system looks at what caused it.",
+        "uk": "Уперше на {first_s} с польоту. Аналізатор цієї системи з'ясовує причину."
+      }
+    },
+    "system.emergency_stop": {
+      "stage": "operations",
+      "title": {
+        "en": "The motors were emergency-stopped in flight",
+        "uk": "Мотори аварійно зупинили в польоті"
+      },
+      "action": {
+        "en": "At {first_s} s into the flight. Check whether it was commanded on purpose, and that the emergency stop switch cannot be hit by accident.",
+        "uk": "На {first_s} с польоту. Перевірте, чи це зробили навмисно, і чи перемикач аварійної зупинки не можна зачепити випадково."
+      }
+    }
+  }
+}

@@ -1,0 +1,105 @@
+{
+  "about": "What the analyzers need in a log, and which LOG_BITMASK bits log it (spec: Analyzers common to all vehicles, 'Logging adequacy'). A message the log lacks while none of its bits is set is a logging gap with a parameter fix, which sets the 'add' bit; one that is missing although a bit is set has another cause, which the analyzer that needs it reports. Bits are per vehicle, read from the release's source; a vehicle not listed is not checked for them yet.",
+  "source": {
+    "copter": "ArduCopter/defines.h MASK_LOG_* and the logging loops in ArduCopter/Copter.cpp, at Copter-4.7.0 (1511f27)"
+  },
+  "needs": [
+    {
+      "message": "VIBE",
+      "for": "vibration and clipping",
+      "bits": {
+        "copter": [
+          7,
+          18,
+          19
+        ]
+      },
+      "add": {
+        "copter": 7
+      }
+    },
+    {
+      "message": "IMU",
+      "for": "IMU error counts and accelerometer data",
+      "bits": {
+        "copter": [
+          7,
+          18
+        ]
+      },
+      "add": {
+        "copter": 7
+      }
+    },
+    {
+      "message": "PM",
+      "for": "system health: loop timing and CPU load",
+      "bits": {
+        "copter": [
+          3
+        ]
+      },
+      "add": {
+        "copter": 3
+      }
+    },
+    {
+      "message": "RATE",
+      "for": "filter phase lag and rate tuning",
+      "bits": {
+        "copter": [
+          0,
+          1
+        ]
+      },
+      "add": {
+        "copter": 0
+      }
+    },
+    {
+      "message": "BAT",
+      "for": "power and battery",
+      "bits": {
+        "copter": [
+          9
+        ]
+      },
+      "add": {
+        "copter": 9
+      }
+    },
+    {
+      "message": "MOTB",
+      "for": "thrust and battery voltage compensation",
+      "bits": {
+        "copter": [
+          17
+        ]
+      },
+      "add": {
+        "copter": 17
+      }
+    },
+    {
+      "message": "RCOU",
+      "for": "motor outputs and ESC health",
+      "bits": {
+        "copter": [
+          10
+        ]
+      },
+      "add": {
+        "copter": 10
+      }
+    }
+  ],
+  "raw_gyro": {
+    "about": "INS_RAW_LOG_OPT bits, from libraries/AP_InertialSensor/AP_InertialSensor.h RAW_LOGGING_OPTION at 4.7.0. GYR holds pre-filter samples unless 'post filter' is set without 'pre and post filter'; with 'pre and post filter' the post-filter samples are logged as instance + the number of gyros.",
+    "primary_gyro_only": 0,
+    "all_gyros": 1,
+    "post_filter": 2,
+    "pre_and_post_filter": 3,
+    "log_bitmask_raw_imu": 19,
+    "recommended": 9
+  }
+}

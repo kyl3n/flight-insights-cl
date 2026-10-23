@@ -1,4 +1,5 @@
-"""One flight as analyzers see it: its cached columns, parameters and fingerprint.
+"""One flight as analyzers see it: its cached columns, parameters, fingerprint and log
+checks.
 
 Columns come from the encrypted cache, where position columns stay under their own
 key: an analyzer cannot read a position even by asking for it. Everything is full
@@ -36,6 +37,9 @@ class FlightData:
     params: Mapping[str, float]  # canonical names, as the flight started
     fingerprint: Mapping[str, Any]
     cache: ColumnCache
+    # The log checks overlapping the flight, from import; None for a flight imported
+    # before they were kept.
+    validation: Mapping[str, Any] | None = None
     _tables: dict[tuple[str, tuple[str, ...] | None], pa.Table | None] = field(
         default_factory=dict[tuple[str, tuple[str, ...] | None], pa.Table | None]
     )
@@ -59,11 +63,17 @@ class FlightData:
             params=params,
             fingerprint=json.loads(row["fingerprint_json"]),
             cache=cache,
+            validation=json.loads(row["validation_json"]) if row["validation_json"] else None,
         )
 
     @property
     def vehicle(self) -> str:
         return str(self.fingerprint.get("vehicle", ""))
+
+    @property
+    def simulated(self) -> bool:
+        """Flown in ArduPilot's simulator, where timing is the host computer's."""
+        return self.fingerprint.get("board", {}).get("hal") == "SITL"
 
     def has(self, name: str) -> bool:
         return name in self.cache.names(self.key)

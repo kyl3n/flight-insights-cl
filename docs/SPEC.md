@@ -580,6 +580,8 @@ Every data path inside the aircraft (CAN, serial ports, sensor buses, the IO co-
 
 **Budget before recommending.** The fleet's history gives the measured CPU cost of each feature per board type, for example the cost of one more notch per motor on an H7. The recommendation engine checks every proposed change against the airframe's remaining headroom and will not propose a filter or logging change that the board cannot carry.
 
+**Simulator logs.** In ArduPilot's simulator, loop timing is the host computer's, so timing metrics are measured but not judged against these ranges.
+
 **Spikes in context.** CPU and loop-time spikes are aligned with flight events (mode changes, mission uploads, parameter downloads, logging bursts, scripts starting), so a spike gets a named cause rather than a shrug.
 
 ## Copter analyzers
@@ -1162,8 +1164,8 @@ Every range the app draws comes from the most authoritative source available, an
 
 | Metric | Target | Caution | Out of range | Source |
 | --- | --- | --- | --- | --- |
-| Slow main loops | Near zero | Rising | Above 15% of loops | [ArduPilot: logs](https://ardupilot.org/copter/docs/common-downloading-and-analyzing-data-logs-in-mission-planner.html) |
-| Maximum loop time | Within the loop period | Approaching 120% of it | Above 120% of the loop period outside arming | ArduPilot: logs |
+| Slow main loops | Below 5% of loops | 5% to 15% (the app's band), and rising against the airframe's baseline | Above 15% of loops | [ArduPilot: logs](https://ardupilot.org/copter/docs/common-downloading-and-analyzing-data-logs-in-mission-planner.html) |
+| Maximum loop time | Within the loop period | 100% to 120% of it | Above 120% of the loop period outside arming (the performance record that spans arming is left out) | ArduPilot: logs |
 | Bus and sensor error counts (CAN, IMU, IO co-processor) | Zero | Isolated errors | Growing through a flight, or recurring across flights | No published range; app rule against the airframe's own baseline |
 | GNSS interference events | None | Jamming episodes the aircraft rode through | Any spoofing indication, or GPS still trusted by the estimator during a spoofing event | App rule |
 | Geomagnetic activity (context only) | Kp below 4 | Kp 4 or above, where NOAA starts issuing warnings |  | [NOAA SWPC](https://swpc-drupal.woc.noaa.gov/products/planetary-k-index) |

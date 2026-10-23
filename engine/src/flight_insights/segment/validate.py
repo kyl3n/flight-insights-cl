@@ -77,6 +77,14 @@ class Validation:
         """False: raw-IMU samples were lost, so spectra from them are not trustworthy."""
         return not self.of_kind("imu sample loss")
 
+    def of_flight(self, boot: int, arm_us: int, disarm_us: int) -> list[Issue]:
+        """The issues of one boot that overlap a flight's armed span."""
+        return [
+            i
+            for i in self.issues
+            if i.boot == boot and i.start_us <= disarm_us and i.end_us >= arm_us
+        ]
+
 
 @dataclass(frozen=True)
 class Timeline:
