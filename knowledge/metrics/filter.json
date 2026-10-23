@@ -142,6 +142,17 @@
         "en": "A wide notch adds phase lag in the control band for little more attenuation. Start at half of FREQ for a single notch, a quarter with a notch per motor.",
         "uk": "Широкий фільтр додає фазове запізнення в смузі керування майже без додаткового придушення. Почніть із половини FREQ для одного фільтра, чверті — з фільтром на кожен мотор."
       }
+    },
+    "filter.better_settings": {
+      "stage": "filters",
+      "title": {
+        "en": "Better filter settings: {lag_new}° of lag at {lag_hz} Hz instead of {lag_now}°, noise {noise_change_db} dB",
+        "uk": "Кращі налаштування фільтрів: {lag_new}° запізнення на {lag_hz} Гц замість {lag_now}°, шум {noise_change_db} дБ"
+      },
+      "action": {
+        "en": "The proposed notch and low-pass settings were screened on this flight's own hover spectrum: they let no more motor noise through than now and delay the gyro less, so the aircraft can respond faster ({notches_new} notches instead of {notches_now}). Load them, fly the same hover, and the next analysis confirms the result.",
+        "uk": "Запропоновані налаштування режекторних і низькочастотного фільтрів перевірено на спектрі зависання цього польоту: вони пропускають не більше шуму моторів, ніж зараз, і менше затримують гіроскоп, тож апарат реагує швидше ({notches_new} фільтрів замість {notches_now}). Завантажте їх, повторіть те саме зависання, і наступний аналіз підтвердить результат."
+      }
     }
   }
 }
