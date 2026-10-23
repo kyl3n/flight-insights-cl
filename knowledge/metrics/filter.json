@@ -16,11 +16,26 @@
         "en": "The primary gyro's pre-filter samples (GYR) go through the flight's own notch and low-pass settings, the notches following what the flight's tracking mode followed. The result's spectrum is compared with the post-filter samples the autopilot logged (INS_RAW_LOG_OPT bit 3) in 10 Hz bands up to 45% of the sample rate; the root mean square of the band differences in dB.",
         "uk": "Вибірки основного гіроскопа до фільтрів (GYR) проходять через власні налаштування режекторних і низькочастотного фільтрів польоту, а режекторні фільтри стежать за тим самим джерелом, що й у польоті. Спектр результату порівнюється з вибірками після фільтрів, які записав автопілот (біт 3 INS_RAW_LOG_OPT), у смугах по 10 Гц до 45% частоти вибірок; середньоквадратичне значення різниць смуг у дБ."
       },
-      "messages": ["GYR", "ESC", "MOTB", "FCNS", "FCN"],
+      "messages": [
+        "GYR",
+        "ESC",
+        "MOTB",
+        "FCNS",
+        "FCN"
+      ],
       "zones": {
-        "target": [null, 1],
-        "caution": [1, 3],
-        "out": [3, null]
+        "target": [
+          null,
+          1
+        ],
+        "caution": [
+          1,
+          3
+        ],
+        "out": [
+          3,
+          null
+        ]
       },
       "source": {
         "kind": "app",
@@ -38,6 +53,94 @@
       "action": {
         "en": "Filter recommendations for this aircraft are less certain until this is understood. Common causes: the primary IMU changed in flight, a notch parameter changed during the flight, or the notch followed something the log does not record. Check the evidence for which notch set and which band differ.",
         "uk": "Доки причину не з'ясовано, рекомендації щодо фільтрів для цього апарата менш певні. Звичайні причини: основний IMU змінився в польоті, параметр режекторного фільтра змінили під час польоту або фільтр стежив за тим, чого немає в журналі. Перевірте в доказах, який набір фільтрів і яка смуга відрізняються."
+      }
+    },
+    "filter.no_notch": {
+      "stage": "filters",
+      "title": {
+        "en": "No harmonic notch, though the motors make a clear peak at {peak_hz} Hz (+{prominence_db} dB)",
+        "uk": "Гармонійного режекторного фільтра немає, хоча мотори дають чіткий пік на {peak_hz} Гц (+{prominence_db} дБ)"
+      },
+      "action": {
+        "en": "Enable the harmonic notch in {mode} mode with the settings proposed. It removes motor noise before the low-pass, so the low-pass can then be raised for less delay.",
+        "uk": "Увімкніть гармонійний режекторний фільтр у режимі «{mode}» із запропонованими налаштуваннями. Він прибирає шум моторів перед низькочастотним фільтром, і той потім можна підняти, щоб зменшити затримку."
+      }
+    },
+    "filter.heli_throttle": {
+      "stage": "filters",
+      "title": {
+        "en": "Throttle-based notch on a helicopter",
+        "uk": "Режекторний фільтр за газом на гелікоптері"
+      },
+      "action": {
+        "en": "ArduPilot does not allow the throttle mode on traditional helicopters, whose rotor speed does not follow throttle. Use a static notch at the measured rotor peak, or an RPM sensor.",
+        "uk": "ArduPilot не дозволяє режим за газом на класичних гелікоптерах: оберти їхнього ротора не залежать від газу. Використайте статичний фільтр на виміряному піку ротора або датчик обертів."
+      }
+    },
+    "filter.better_source": {
+      "stage": "filters",
+      "title": {
+        "en": "The notch follows {current}, but reliable {better} is available",
+        "uk": "Режекторний фільтр стежить за режимом «{current}», хоча є надійна телеметрія: {better}"
+      },
+      "action": {
+        "en": "Switch the harmonic notch to ESC telemetry: it follows the real motor speed at any payload or battery voltage, which a throttle estimate cannot. ArduPilot calls it generally the best source. The proposal also keeps the notch at its minimum frequency if RPM is lost.",
+        "uk": "Переведіть гармонійний режекторний фільтр на телеметрію ESC: вона стежить за справжніми обертами моторів за будь-якого навантаження чи напруги батареї, чого не може оцінка за газом. ArduPilot вважає її загалом найкращим джерелом. Пропозиція також тримає фільтр на мінімальній частоті при втраті обертів."
+      }
+    },
+    "filter.fft_weak_board": {
+      "stage": "filters",
+      "title": {
+        "en": "In-flight FFT notch on {board}, which cannot run the FFT",
+        "uk": "Режекторний фільтр за FFT у польоті на {board}, яка не може виконувати FFT"
+      },
+      "action": {
+        "en": "ArduPilot runs the in-flight FFT on F7 and H7 boards only; here the notch sits at its minimum frequency. Use ESC telemetry if the ESCs report RPM, otherwise the throttle mode.",
+        "uk": "ArduPilot виконує FFT у польоті лише на платах F7 і H7; тут фільтр стоїть на мінімальній частоті. Використайте телеметрію ESC, якщо ESC повідомляють оберти, інакше режим за газом."
+      }
+    },
+    "filter.not_tracking": {
+      "stage": "filters",
+      "title": {
+        "en": "The notch sat at {centre_hz} Hz, {offset_hz} Hz from the motor peak at {peak_hz} Hz",
+        "uk": "Режекторний фільтр стояв на {centre_hz} Гц, за {offset_hz} Гц від піку моторів на {peak_hz} Гц"
+      },
+      "action": {
+        "en": "Motor noise passes the notch. A throttle notch set up at one payload drifts at another; re-fit FREQ and REF from this hover, or better, let the notch follow ESC RPM.",
+        "uk": "Шум моторів проходить повз фільтр. Фільтр за газом, налаштований для одного навантаження, зміщується при іншому; переналаштуйте FREQ і REF за цим зависанням або, краще, дайте фільтру стежити за обертами ESC."
+      }
+    },
+    "filter.freq_above_hover": {
+      "stage": "filters",
+      "title": {
+        "en": "The notch's minimum frequency ({freq} Hz) is above the motors' hover frequency ({motor_hz} Hz)",
+        "uk": "Мінімальна частота фільтра ({freq} Гц) вища за частоту моторів у зависанні ({motor_hz} Гц)"
+      },
+      "action": {
+        "en": "In ESC mode INS_HNTCH_FREQ is the lowest frequency the notch goes to; above the hover frequency it holds the notch off the motors. Set it below the hover frequency and above INS_GYRO_FILTER.",
+        "uk": "У режимі ESC параметр INS_HNTCH_FREQ — найнижча частота фільтра; вище частоти зависання він тримає фільтр осторонь моторів. Встановіть його нижче частоти зависання і вище INS_GYRO_FILTER."
+      }
+    },
+    "filter.harmonic_uncovered": {
+      "stage": "filters",
+      "title": {
+        "en": "Motor harmonic {harmonic} at {hz} Hz is not notched and still shows after the filters",
+        "uk": "Гармоніка моторів {harmonic} на {hz} Гц не фільтрується й лишається після фільтрів"
+      },
+      "action": {
+        "en": "Add this harmonic to INS_HNTCH_HMNCS. Only harmonics that carry energy are worth a notch: each one costs processor time and some phase lag.",
+        "uk": "Додайте цю гармоніку до INS_HNTCH_HMNCS. Режекторний фільтр варто ставити лише на гармоніки з енергією: кожен коштує часу процесора й трохи фазового запізнення."
+      }
+    },
+    "filter.bandwidth_wide": {
+      "stage": "filters",
+      "title": {
+        "en": "Notch bandwidth {bw} Hz is wide for a notch at {freq} Hz",
+        "uk": "Смуга фільтра {bw} Гц завелика для фільтра на {freq} Гц"
+      },
+      "action": {
+        "en": "A wide notch adds phase lag in the control band for little more attenuation. Start at half of FREQ for a single notch, a quarter with a notch per motor.",
+        "uk": "Широкий фільтр додає фазове запізнення в смузі керування майже без додаткового придушення. Почніть із половини FREQ для одного фільтра, чверті — з фільтром на кожен мотор."
       }
     }
   }

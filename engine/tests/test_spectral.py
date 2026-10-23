@@ -6,11 +6,10 @@ from __future__ import annotations
 from pathlib import Path
 
 import numpy as np
-import pyarrow as pa
 import pytest
-from flight_builder import flight, table
+from flight_builder import ARM, DISARM, HOVER, RATE, esc, gyr, hover_flight
 
-from flight_insights.analyzers import FlightData, Registry, run_analysis
+from flight_insights.analyzers import Registry, run_analysis
 from flight_insights.analyzers.esc_rpm import ESC_RPM
 from flight_insights.imports import Decision, commit, propose, scan
 from flight_insights.knowledge import Pack, load_pack
@@ -19,72 +18,11 @@ from flight_insights.store import StoreKeys, open_store
 from flight_insights.store.cache import ColumnCache
 
 FIXTURES = Path(__file__).resolve().parents[2] / "tests" / "fixtures" / "sitl" / "4.7.0"
-RATE = 1000.0
-ARM, DISARM = 1_000_000, 40_000_000
-HOVER = (5_000_000, 35_000_000)
-RAD = {b"unit": b"rad/s", b"multiplier": b"1.0"}
 
 
 @pytest.fixture(scope="module")
 def reg() -> Registry:
     return Registry.load(load_pack())
-
-
-def gyr(
-    tones: list[tuple[float, float]],
-    seconds: float = 30.0,
-    drop: slice | None = None,
-    instance: int = 0,
-    start_us: int = HOVER[0],
-) -> pa.Table:
-    """GYR at 1 kHz: sines of (Hz, amplitude in deg/s) on X and Y, with noise on Z."""
-    n = int(seconds * RATE)
-    clock = start_us + np.arange(n, dtype=np.int64) * 1000
-    t = (clock - start_us) / 1e6
-    x = sum(a * np.sin(2 * np.pi * f * t) for f, a in tones) * np.pi / 180
-    z = np.random.default_rng(1).normal(0, 0.001, n)
-    keep = np.ones(n, bool)
-    if drop is not None:
-        keep[drop] = False
-    cols = {
-        "I": (pa.uint8(), [instance] * int(keep.sum())),
-        "SampleUS": (pa.uint64(), clock[keep].tolist()),
-        "GyrX": (pa.float32(), np.asarray(x)[keep].tolist()),
-        "GyrY": (pa.float32(), np.asarray(x)[keep].tolist()),
-        "GyrZ": (pa.float32(), z[keep].tolist()),
-    }
-    meta = {a: RAD for a in ("GyrX", "GyrY", "GyrZ")}
-    return table(clock[keep].tolist(), cols, meta)
-
-
-def esc(
-    rpm: float, motors: int = 4, err: float = 0.0, gap: tuple[int, int] | None = None
-) -> pa.Table:
-    """ESC telemetry every 10 ms for each motor between arming and disarming."""
-    t = np.arange(ARM, DISARM, 10_000)
-    if gap is not None:
-        t = t[(t < gap[0]) | (t > gap[1])]
-    rows = [(int(x), m) for x in t for m in range(motors)]
-    meta = {"RPM": {b"unit": b"rpm", b"multiplier": b"1.0"}, "Err": {b"unit": b"%"}}
-    return table(
-        [r[0] for r in rows],
-        {
-            "Instance": (pa.uint8(), [r[1] for r in rows]),
-            "RPM": (pa.float32(), [rpm] * len(rows)),
-            "Err": (pa.float32(), [err] * len(rows)),
-        },
-        meta,
-    )
-
-
-def hover_flight(tables: dict[str, pa.Table], params: dict[str, float] | None = None) -> FlightData:
-    fp = {
-        "vehicle": "copter",
-        "board": {"hal": "ChibiOS"},
-        "imu_count": {"value": 1},
-        "hover_windows": [{"start_us": HOVER[0], "end_us": HOVER[1]}],
-    }
-    return flight(tables, ARM, DISARM, {"INS_RAW_LOG_OPT": 1, **(params or {})}, fingerprint=fp)
 
 
 # --- the library --------------------------------------------------------------------------
