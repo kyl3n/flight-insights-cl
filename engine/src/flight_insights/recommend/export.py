@@ -9,7 +9,7 @@ aircraft: the file is loaded by a person in Mission Planner or QGroundControl.
 
 from __future__ import annotations
 
-from collections.abc import Mapping
+from collections.abc import Collection, Mapping
 from typing import Any
 
 from flight_insights.analyzers.registry import Registry
@@ -22,12 +22,20 @@ class ExportError(ValueError):
 
 
 def export_step(
-    plan: Plan, reg: Registry, step: int, kind: Kind, lang: str = "en"
+    plan: Plan,
+    reg: Registry,
+    step: int,
+    kind: Kind,
+    lang: str = "en",
+    only: Collection[str] | None = None,
 ) -> dict[str, Any]:
-    """{"filename", "text"} for one step of the plan."""
-    recs = plan.offered(step)
+    """{"filename", "text"} for one step of the plan; with `only`, just those canonical
+    parameters (the ones a person accepted)."""
+    recs = [r for r in plan.offered(step) if only is None or r.param in only]
     if not recs:
-        raise ExportError(f"step {step} of the plan has nothing to load")
+        raise ExportError(
+            f"step {step} of the plan has nothing {'accepted ' if only is not None else ''}to load"
+        )
     rules: Mapping[str, Any] = reg.rules["recommend"]["texts"]
     verify: Mapping[str, Any] = reg.rules["recommend"]["verify"]
     after = next(s.after for s in plan.steps if s.number == step)

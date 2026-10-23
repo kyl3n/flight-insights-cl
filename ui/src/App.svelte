@@ -1,10 +1,12 @@
 <script lang="ts">
   import { onMount } from "svelte";
+  import ConfigReview from "./components/ConfigReview.svelte";
   import FleetView from "./components/FleetView.svelte";
   import FlightReport from "./components/FlightReport.svelte";
   import FlightsView from "./components/FlightsView.svelte";
   import ImportDialog from "./components/ImportDialog.svelte";
   import Header from "./components/Header.svelte";
+  import PlanView from "./components/PlanView.svelte";
   import Rail from "./components/Rail.svelte";
   import SetupView from "./components/SetupView.svelte";
   import StationsView from "./components/StationsView.svelte";
@@ -91,6 +93,10 @@
       <FlightReport flightId={app.scope.flight} />
     {:else if app.view === "flights"}
       <FlightsView />
+    {:else if app.view === "plan"}
+      <PlanView />
+    {:else if app.view === "params"}
+      <ConfigReview />
     {:else if app.view === "stations"}
       <StationsView />
     {:else}
