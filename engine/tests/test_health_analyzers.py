@@ -10,7 +10,7 @@ import pyarrow as pa
 import pytest
 from flight_builder import flight, table
 
-from flight_insights.analyzers import FlightData, Registry, run_analysis
+from flight_insights.analyzers import ANALYZERS, FlightData, Registry, run_analysis
 from flight_insights.analyzers.log_adequacy import LOG_ADEQUACY
 from flight_insights.analyzers.system import SYSTEM
 from flight_insights.imports import Decision, commit, propose, scan
@@ -255,7 +255,7 @@ def test_import_keeps_each_flights_log_checks_for_the_analyzers(tmp_path: Path, 
             assert issue["start_us"] <= flight_data.disarm_us
             assert issue["end_us"] >= flight_data.arm_us
         out = run_analysis(store, cache, pack, fid)
-        assert set(out["analyzers"]) == {"logging", "system", "vibration"}
+        assert set(out["analyzers"]) == {a.name for a in ANALYZERS}
         assert out["status"] == "complete"
         timing = {m["metric"]: m for m in out["metrics"]}
         assert timing["system.slow_loops"]["zone"] is None  # flown in the simulator
