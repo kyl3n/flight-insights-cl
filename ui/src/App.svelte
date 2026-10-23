@@ -3,9 +3,11 @@
   import FleetView from "./components/FleetView.svelte";
   import Header from "./components/Header.svelte";
   import Rail from "./components/Rail.svelte";
+  import SetupView from "./components/SetupView.svelte";
+  import type { PlatformView, SetupSchema } from "./lib/setup";
   import { app, t, type View } from "./lib/app.svelte";
   import type { MessageKey } from "./lib/i18n";
-  import { onShellStatus, shellStatus } from "./lib/shell";
+  import { engineCall, onShellStatus, shellStatus } from "./lib/shell";
   import { applyTheme, loadTheme, saveTheme } from "./lib/theme";
 
   const storage = (() => {
@@ -36,6 +38,20 @@
     return () => stop();
   });
 
+  // The setup wizard needs the schema and the platform; both come from the engine.
+  let setup: { schema: SetupSchema; platform: PlatformView } | null = $state(null);
+  $effect(() => {
+    const id = app.setupPlatform;
+    if (id === null) {
+      setup = null;
+      return;
+    }
+    Promise.all([
+      engineCall<SetupSchema>("setup.schema"),
+      engineCall<PlatformView>("platform.get", { id }),
+    ]).then(([schema, platform]) => (setup = { schema, platform }));
+  });
+
   const viewNames: Record<View, MessageKey> = {
     fleet: "nav.fleet",
     flights: "nav.flights",
@@ -52,7 +68,9 @@
   <Rail />
   <div class="column">
     <Header onTheme={toggleTheme} />
-    {#if app.view === "fleet"}
+    {#if app.view === "fleet" && setup}
+      <SetupView schema={setup.schema} platform={setup.platform} />
+    {:else if app.view === "fleet"}
       <FleetView />
     {:else}
       <main class="later">
