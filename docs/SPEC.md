@@ -416,6 +416,32 @@ Each analyzer is a pure function from decoded data, parameters and fingerprint t
 
 **Parameter audit covers every parameter.** Per-version metadata comes from ArduPilot's generated `apm.pdef` files, published for the latest build on [autotest.ardupilot.org](https://ardupilot.org/dev/docs/mavlink-get-set-params.html) and generated per release tag. Each parameter gets one of four verdicts: default, changed with a reason the fingerprint explains, changed with no evident reason, or inconsistent with the hardware or flight data. Example contradictions: in-flight FFT enabled on an F4 board; throttle-based notch while bidirectional DShot RPM is present; `MOT_BAT_VOLT_MAX` set for a cell count the log does not show. The Configuration review section describes how these verdicts become explained fixes.
 
+How the audit decides, in Phase 1:
+
+- **Defaults.** Defaults come from the log itself: every 4.7 log's PARM messages record the firmware's default next to each value. They are kept with every parameter snapshot. A parameter file records none, so its values get no default verdict.
+- **The four verdicts:**
+  - **Default:** the value equals the firmware's default.
+  - **Explained:** the change is a calibration, a learned value, a counter, hardware identity or a ground-station count, by the parameter classes. Or the fingerprint reads the parameter to describe the aircraft (frame, motor protocol, battery, sensors).
+  - **Unexplained:** any other changed tuning value. It is reported as information only; nothing is wrong with a changed value, but its reason should be recorded.
+  - **Inconsistent:** any value a finding below names.
+
+  Two kinds of value are counted apart: one whose default is not recorded, and one this firmware does not know (a custom build's own, unknown, not wrong). A simulated flight's `SIM_*` settings are not judged.
+- **Errors.** A value is checked against its documentation with the same rules the recommendation validator uses: range, listed values, bitmask bits.
+  - A value equal to its firmware default is never an error, since ArduPilot ships some defaults outside their own documented range. Values that count on their own are not judged either.
+  - Controller gains and limits (`ATC_*`, `PSC_*`) are reported apart, in the rate-tune stage, since a large or small aircraft can need them outside the documented range. Everything else is in the setup stage.
+- **Failsafes (Copter):**
+  - **Radio failsafe off** is a safety finding.
+  - **`FS_THR_VALUE`** follows the firmware's own arming rule: at least 910, and more than 10 below the throttle channel's minimum (`RCMAP_THROTTLE` picks the channel).
+  - **Report only:** an EKF failsafe that only reports, or crash check off.
+  - **Battery**, with a monitor fitted: a low-battery failsafe that only warns; no critical threshold; a critical failsafe that only warns.
+- **Settings made for another pack.**
+  - A `BATT_LOW_VOLT` or `BATT_CRT_VOLT` threshold outside 2.5–4.35 V per cell of the cell count the log shows is a safety finding. As set, the failsafe would never fire or fire too early.
+  - `MOT_BAT_VOLT_MAX` outside 3.4–4.45 V per cell, or `MOT_BAT_VOLT_MIN` outside 2.5–3.9 V per cell, is reported too, with the fix proposed when the battery chemistry is answered.
+  - The bands are uncalibrated. They are there to catch a 3-cell value on a 12-cell aircraft, not to judge a reasonable threshold.
+- **Never tuned:** roll and pitch rate P, I and D all still at their defaults, in the rate-tune stage.
+
+Not yet in Phase 1: leftovers from removed hardware, values lost in a firmware upgrade, and starting values for the prop class.
+
 ### The filter analyzer in detail
 
 This is the analyzer behind the most valuable recommendations, so its logic is specified here. ArduPilot recognises five ways to drive the harmonic notch centre frequency: static, throttle, RPM sensor, ESC telemetry and in-flight FFT ([notch guide](https://ardupilot.org/copter/docs/common-imu-notch-filtering.html)).

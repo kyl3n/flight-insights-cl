@@ -35,6 +35,7 @@ from typing import Any, Literal, cast
 from flight_insights.analyzers.registry import LANGUAGES, STAGES, Registry
 from flight_insights.params.dialect import Dialect
 from flight_insights.params.files import format_value
+from flight_insights.params.validate import metadata_problem
 
 Kind = Literal["safety", "stability", "performance"]
 Status = Literal["next", "waiting", "blocked", "disputed"]
@@ -185,34 +186,8 @@ def _validate(
     native: str, value: float, meta: Mapping[str, Any] | None, firmware: str
 ) -> Note | None:
     """The value against this firmware's metadata for the parameter."""
-    if meta is None:
-        return Note("unknown_param", {"param": native, "firmware": firmware})
-    if meta.get("read_only"):
-        return Note("read_only", {"param": native})
-    text = format_value(value)
-    bounds = meta.get("range")
-    if bounds is not None:
-        low, high = float(bounds[0]), float(bounds[1])
-        if not low - TOLERANCE <= value <= high + TOLERANCE:
-            return Note(
-                "out_of_range",
-                {
-                    "param": native,
-                    "value": text,
-                    "low": format_value(low),
-                    "high": format_value(high),
-                },
-            )
-    elif meta.get("values"):  # without a range the listed values are the only ones
-        values = cast(Mapping[str, str], meta["values"])
-        if not any(abs(float(k) - value) < TOLERANCE for k in values):
-            return Note("not_a_value", {"param": native, "value": text})
-    if meta.get("bitmask"):
-        bits = {int(k) for k in cast(Mapping[str, str], meta["bitmask"])}
-        defined = sum(1 << b for b in bits)
-        if value < 0 or value != int(value) or int(value) & ~defined:
-            return Note("undefined_bits", {"param": native, "value": text})
-    return None
+    problem = metadata_problem(native, value, meta, firmware)
+    return None if problem is None else Note(*problem)
 
 
 def _step_limit(rules: Mapping[str, Any], param: str) -> float | None:

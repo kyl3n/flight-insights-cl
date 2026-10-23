@@ -18,6 +18,10 @@ from flight_insights.knowledge import Pack
 from flight_insights.store.db import Store
 
 
+def _finite(value: float | None) -> float | None:
+    return value if value is not None and math.isfinite(value) else None
+
+
 def save_snapshot(
     store: Store, snapshot: Snapshot, pack: Pack, source_file_id: str | None = None
 ) -> str:
@@ -40,8 +44,11 @@ def save_snapshot(
             },
         )
         conn.executemany(
-            "INSERT INTO param_value (snapshot_id, name, value) VALUES (?, ?, ?)",
-            [(snapshot_id, n, v) for n, v in sorted(snapshot.values.items())],
+            "INSERT INTO param_value (snapshot_id, name, value, default_value) VALUES (?, ?, ?, ?)",
+            [
+                (snapshot_id, n, v, _finite(snapshot.defaults.get(n)))
+                for n, v in sorted(snapshot.values.items())
+            ],
         )
         conn.executemany(
             "INSERT INTO param_change VALUES (?, ?, ?, ?, ?, ?)",
@@ -57,11 +64,11 @@ def load_snapshot(store: Store, snapshot_id: str) -> Snapshot:
     row = store.get("param_snapshot", snapshot_id)
     if row is None:
         raise SnapshotError(f"no parameter snapshot {snapshot_id}")
-    values = dict(
-        store.conn.execute(
-            "SELECT name, value FROM param_value WHERE snapshot_id = ?", (snapshot_id,)
-        ).fetchall()
-    )
+    rows = store.conn.execute(
+        "SELECT name, value, default_value FROM param_value WHERE snapshot_id = ?", (snapshot_id,)
+    ).fetchall()
+    values = {n: v for n, v, _ in rows}
+    defaults = {n: d for n, _, d in rows if d is not None}
     changes = tuple(
         ParamChange(t, n, old, new)
         for t, n, old, new in store.conn.execute(
@@ -78,6 +85,7 @@ def load_snapshot(store: Store, snapshot_id: str) -> Snapshot:
         row["confidence"],
         row["taken_us"],
         changes,
+        defaults,
     )
 
 
