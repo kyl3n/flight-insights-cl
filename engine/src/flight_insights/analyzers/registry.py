@@ -42,19 +42,21 @@ class Metric:
     definition: Mapping[str, str]
     method: Mapping[str, str]
     messages: tuple[str, ...]
-    zones: Mapping[Zone, tuple[float | None, float | None]]  # [low, high), None unbounded
+    # Each zone is one or more [low, high) intervals, None unbounded. A metric judged
+    # against the airframe's own history (source kind "baseline") has none: its zone
+    # comes from the trends, not from a fixed range.
+    zones: Mapping[Zone, tuple[tuple[float | None, float | None], ...]]
     source: Mapping[str, str]
 
     def zone(self, value: float) -> Zone | None:
-        """The zone `value` falls in; None for a value no zone covers (NaN)."""
+        """The zone `value` falls in; None for a value no zone covers (NaN), or for a
+        metric with no fixed zones."""
         if math.isnan(value):
             return None
         for z in ZONES:
-            if z not in self.zones:
-                continue
-            low, high = self.zones[z]
-            if (low is None or value >= low) and (high is None or value < high):
-                return z
+            for low, high in self.zones.get(z, ()):
+                if (low is None or value >= low) and (high is None or value < high):
+                    return z
         return None
 
 
@@ -129,18 +131,29 @@ def _metric(file: str, mid: str, m: Mapping[str, Any]) -> Metric:
         raise KnowledgeError(f"{where}: needs a unit")
     if m.get("direction") not in DIRECTIONS:
         raise KnowledgeError(f"{where}: direction must be one of {', '.join(DIRECTIONS)}")
-    raw_zones = m.get("zones")
-    if not isinstance(raw_zones, dict) or "target" not in raw_zones:
-        raise KnowledgeError(f"{where}: needs zones, with a target zone at least")
-    zones: dict[Zone, tuple[float | None, float | None]] = {}
-    for z, bounds in cast(dict[str, Any], raw_zones).items():
-        if z not in ZONES or not isinstance(bounds, list) or len(cast(list[Any], bounds)) != 2:
-            raise KnowledgeError(f"{where}: zone {z} must be one of {ZONES} as [low, high]")
-        low, high = cast(list[float | None], bounds)
-        zones[z] = (low, high)
     source = m.get("source")
     if not isinstance(source, dict) or cast(dict[str, Any], source).get("kind") not in SOURCE_KINDS:
         raise KnowledgeError(f"{where}: needs a source of kind {', '.join(SOURCE_KINDS)}")
+    raw_zones = m.get("zones")
+    baseline = cast(dict[str, Any], source).get("kind") == "baseline"
+    if baseline and raw_zones is None:
+        raw_zones = {}
+    elif not isinstance(raw_zones, dict) or "target" not in raw_zones:
+        raise KnowledgeError(f"{where}: needs zones, with a target zone at least")
+    zones: dict[Zone, tuple[tuple[float | None, float | None], ...]] = {}
+    for z, bounds in cast(dict[str, Any], raw_zones).items():
+        if z not in ZONES or not isinstance(bounds, list):
+            raise KnowledgeError(f"{where}: zone {z} must be one of {ZONES} as [low, high]")
+        intervals = cast(list[Any], bounds)
+        if intervals and not isinstance(intervals[0], list):
+            intervals = [intervals]  # one interval, written plainly
+        if not intervals or any(
+            not isinstance(i, list) or len(cast(list[Any], i)) != 2 for i in intervals
+        ):
+            raise KnowledgeError(f"{where}: zone {z} must be [low, high] or a list of them")
+        zones[z] = tuple(
+            (cast(list[float | None], i)[0], cast(list[float | None], i)[1]) for i in intervals
+        )
     if not cast(dict[str, Any], source).get("title"):
         raise KnowledgeError(f"{where}: its source needs a title")
     return Metric(
