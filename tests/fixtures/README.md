@@ -17,8 +17,8 @@ The only place in the repository where flight data may be committed. Every log, 
 | Scenario | Vehicle | What it covers |
 | --- | --- | --- |
 | `copter-quad-hover` | Copter, quad + | GUIDED take-off, 20 s hover, LAND; simulated ESC telemetry |
-| `copter-quad-rawimu` | Copter, quad + | 10 s hover with simulated motor vibration, ESC RPM and an RPM-tracking harmonic notch; pre- and post-filter gyro logged at full rate (`INS_RAW_LOG_OPT` = 9) |
-| `copter-heavylift-light` | Copter, coaxial X8 | ArduPilot's Callisto heavy-lift model (32.5 kg, 30-inch props): 15 s hover with motor vibration, ESC RPM and raw IMU. Planted: a throttle-tracking notch although ESC RPM is present, and hover learning off |
+| `copter-quad-rawimu` | Copter, quad + | 6 s hover at 4 m with simulated motor vibration, ESC RPM and an RPM-tracking harmonic notch; pre- and post-filter gyro logged at full rate (`INS_RAW_LOG_OPT` = 9) |
+| `copter-heavylift-light` | Copter, coaxial X8 | ArduPilot's Callisto heavy-lift model (32.5 kg, 30-inch props): 10 s hover at 5 m with motor vibration and ESC RPM, raw IMU logged during the hover only. Planted: a throttle-tracking notch although ESC RPM is present, and hover learning off |
 | `copter-heavylift-loaded` | Copter, coaxial X8 | The same airframe carrying 8 kg more, so it pairs with the light flight as one airframe with and without payload |
 | `heli-hover` | Traditional helicopter | Rotor run-up, take-off, 20 s hover, LAND |
 | `plane-circuit` | Fixed-wing | AUTO take-off, three-waypoint circuit, RTL; ends with a forced disarm in the air |

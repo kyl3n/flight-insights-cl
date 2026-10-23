@@ -330,7 +330,7 @@ def run(scenario: Scenario, ardupilot: Path, version: str, out_dir: Path) -> Non
             source = ardupilot / "Tools" / "autotest" / "models" / scenario.model_json
             frame = Path(work) / scenario.model_json
             frame.write_text(json.dumps(load_frame_model(source) | scenario.model_overrides))
-            model += ":" + str(frame)
+            model += ":" + frame.name  # SITL reads it from its working folder; a full path fails
         sitl_out = (Path(work) / "sitl.txt").open("w")
         proc = subprocess.Popen(
             [
