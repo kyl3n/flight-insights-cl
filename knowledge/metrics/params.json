@@ -1,0 +1,148 @@
+{
+  "about": "Parameter audit (spec: Analyzers common to all vehicles, 'Parameter audit'; Configuration review, 'What the review finds'): values outside what the firmware documents, failsafes with no action, failsafe and battery settings that contradict the rules or the aircraft, gains never tuned, and changes with no evident reason.",
+  "findings": {
+    "params.out_of_range": {
+      "stage": "setup",
+      "title": {
+        "en": "{count} parameters are outside what firmware {firmware} documents: {names}",
+        "uk": "{count} параметрів поза межами, які документує прошивка {firmware}: {names}"
+      },
+      "action": {
+        "en": "Check each value against its documentation. A value outside its range or list is usually a typo, or a setting copied from another firmware or another aircraft.",
+        "uk": "Перевірте кожне значення за документацією. Значення поза діапазоном чи переліком зазвичай є помилкою введення або налаштуванням, скопійованим з іншої прошивки чи іншого апарата."
+      }
+    },
+    "params.gain_out_of_range": {
+      "stage": "rate tune",
+      "title": {
+        "en": "{count} controller gains or limits are outside what firmware {firmware} documents: {names}",
+        "uk": "{count} коефіцієнтів чи обмежень регуляторів поза межами, які документує прошивка {firmware}: {names}"
+      },
+      "action": {
+        "en": "A large or small aircraft can need gains outside the documented range, so this may be deliberate. Check them when tuning, after the filters are settled, and keep the ones a tune justifies.",
+        "uk": "Великому чи малому апарату можуть знадобитися коефіцієнти поза документованим діапазоном, тож це може бути навмисно. Перевірте їх під час налаштування, після фільтрів, і залиште ті, що виправдані налаштуванням."
+      }
+    },
+    "params.rc_failsafe_off": {
+      "stage": "operations",
+      "title": {
+        "en": "The radio failsafe is off (FS_THR_ENABLE 0)",
+        "uk": "Аварійний режим при втраті радіозв'язку вимкнено (FS_THR_ENABLE 0)"
+      },
+      "action": {
+        "en": "Turn on the throttle failsafe with the action that suits the mission, such as RTL or Land, and test it on the ground with the propellers off by switching the transmitter off.",
+        "uk": "Увімкніть аварійний режим за газом із дією, що підходить місії, наприклад RTL або Land, і перевірте його на землі без пропелерів, вимкнувши пульт."
+      }
+    },
+    "params.fs_thr_value": {
+      "stage": "operations",
+      "title": {
+        "en": "FS_THR_VALUE {value} breaks the arming rule: it must be at least 910 and more than 10 below {rc_min_param} ({rc_min})",
+        "uk": "FS_THR_VALUE {value} порушує правило перевірки перед взведенням: воно має бути щонайменше 910 і більш ніж на 10 нижче за {rc_min_param} ({rc_min})"
+      },
+      "action": {
+        "en": "Set FS_THR_VALUE between 910 and 10 below the throttle channel's minimum, then check that the failsafe triggers when the transmitter is switched off.",
+        "uk": "Встановіть FS_THR_VALUE між 910 і значенням на 10 нижче мінімуму каналу газу, потім перевірте, що аварійний режим спрацьовує, коли пульт вимкнено."
+      }
+    },
+    "params.battery_warn_only": {
+      "stage": "operations",
+      "title": {
+        "en": "The low-battery failsafe only warns (BATT_FS_LOW_ACT 0)",
+        "uk": "Аварійний режим низького заряду лише попереджає (BATT_FS_LOW_ACT 0)"
+      },
+      "action": {
+        "en": "Choose an action, such as RTL, so the aircraft comes back on its own when the battery runs low, and check the threshold leaves enough for the trip home at the heaviest payload.",
+        "uk": "Оберіть дію, наприклад RTL, щоб апарат сам повертався при низькому заряді, і перевірте, що поріг залишає достатньо енергії на повернення з найважчим вантажем."
+      }
+    },
+    "params.battery_no_critical": {
+      "stage": "operations",
+      "title": {
+        "en": "There is no critical battery failsafe: BATT_CRT_VOLT and BATT_CRT_MAH are both 0",
+        "uk": "Немає аварійного режиму критичного заряду: BATT_CRT_VOLT і BATT_CRT_MAH обидва 0"
+      },
+      "action": {
+        "en": "Set a critical threshold below the low one, with an action such as Land, so a pack that sags faster than expected still brings the aircraft down under control.",
+        "uk": "Встановіть критичний поріг нижче за низький, з дією на кшталт Land, щоб навіть батарея, що просідає швидше, ніж очікувалось, дозволила керовано посадити апарат."
+      }
+    },
+    "params.battery_critical_warn_only": {
+      "stage": "operations",
+      "title": {
+        "en": "The critical battery failsafe only warns (BATT_FS_CRT_ACT 0)",
+        "uk": "Аварійний режим критичного заряду лише попереджає (BATT_FS_CRT_ACT 0)"
+      },
+      "action": {
+        "en": "Set BATT_FS_CRT_ACT to an action such as Land: at the critical threshold there is no energy left for anything else.",
+        "uk": "Встановіть для BATT_FS_CRT_ACT дію на кшталт Land: на критичному порозі енергії ні на що інше вже немає."
+      }
+    },
+    "params.battery_threshold_cells": {
+      "stage": "operations",
+      "title": {
+        "en": "{param} is {value} V, {per_cell} V per cell on this {cells}-cell pack: it is set for another battery",
+        "uk": "{param} дорівнює {value} В, {per_cell} В на елемент для цієї {cells}-елементної батареї: його налаштовано для іншої батареї"
+      },
+      "action": {
+        "en": "Set it from this pack's cell count and chemistry. Where it is now, the failsafe triggers at the wrong time or never.",
+        "uk": "Встановіть його з кількості елементів і хімії цієї батареї. З поточним значенням аварійний режим спрацює не вчасно або не спрацює зовсім."
+      }
+    },
+    "params.motor_scaling_cells": {
+      "stage": "setup",
+      "title": {
+        "en": "{param} is {value} V, {per_cell} V per cell on this {cells}-cell pack: voltage scaling is set for another battery",
+        "uk": "{param} дорівнює {value} В, {per_cell} В на елемент для цієї {cells}-елементної батареї: компенсацію напруги налаштовано для іншої батареї"
+      },
+      "action": {
+        "en": "Set MOT_BAT_VOLT_MAX to the pack's full voltage and MOT_BAT_VOLT_MIN to its empty voltage, so thrust stays the same as the pack drains.",
+        "uk": "Встановіть MOT_BAT_VOLT_MAX на напругу повністю зарядженої батареї, а MOT_BAT_VOLT_MIN на напругу розрядженої, щоб тяга не змінювалася в міру розряду."
+      }
+    },
+    "params.ekf_failsafe_report_only": {
+      "stage": "operations",
+      "title": {
+        "en": "The EKF failsafe only reports (FS_EKF_ACTION 0)",
+        "uk": "Аварійний режим EKF лише повідомляє (FS_EKF_ACTION 0)"
+      },
+      "action": {
+        "en": "Choose an action, such as Land or AltHold, so the aircraft stops relying on a position estimate that has gone bad.",
+        "uk": "Оберіть дію, наприклад Land або AltHold, щоб апарат перестав покладатися на хибну оцінку позиції."
+      }
+    },
+    "params.crash_check_off": {
+      "stage": "operations",
+      "title": {
+        "en": "Crash check is off (FS_CRASH_CHECK 0)",
+        "uk": "Перевірку аварії вимкнено (FS_CRASH_CHECK 0)"
+      },
+      "action": {
+        "en": "Turn it on, so the motors stop after a crash instead of spinning against the ground.",
+        "uk": "Увімкніть її, щоб після аварії мотори зупинялися, а не крутилися, впираючись у землю."
+      }
+    },
+    "params.never_tuned": {
+      "stage": "rate tune",
+      "title": {
+        "en": "Roll and pitch rate gains are still the firmware's defaults",
+        "uk": "Коефіцієнти швидкості за креном і тангажем досі стандартні значення прошивки"
+      },
+      "action": {
+        "en": "The defaults suit a small quadcopter, not this aircraft in particular. Once the filters are settled, run QuikTune or AutoTune, or tune by hand from ArduPilot's tuning guide.",
+        "uk": "Стандартні значення розраховані на невеликий квадрокоптер, а не саме на цей апарат. Після налаштування фільтрів запустіть QuikTune або AutoTune чи налаштуйте вручну за посібником ArduPilot."
+      }
+    },
+    "params.unexplained": {
+      "stage": "setup",
+      "title": {
+        "en": "{count} tuning parameters differ from their defaults with no evident reason: {names}",
+        "uk": "{count} параметрів налаштування відрізняються від стандартних без очевидної причини: {names}"
+      },
+      "action": {
+        "en": "Nothing is wrong with a changed value. Record why each was changed, such as a loaded file or a tuning session, so later changes can be traced.",
+        "uk": "Змінене значення саме по собі не помилка. Зафіксуйте, чому кожне змінили, наприклад завантажений файл чи сеанс налаштування, щоб наступні зміни можна було відстежити."
+      }
+    }
+  }
+}

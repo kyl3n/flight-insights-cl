@@ -13,6 +13,11 @@
       "names": ["*_DEVID", "*_DEV_ID", "*_DEV_ID?", "*_ID", "*_ID?"]
     },
     {
+      "class": "hardware",
+      "why": "Compass device IDs the autopilot writes itself when it detects the compasses and sets their order: they change with the hardware, not with tuning",
+      "names": ["COMPASS_PRIO?_ID"]
+    },
+    {
       "class": "learned",
       "why": "Hover thrust learned in flight while hover learning is on: it follows the payload",
       "names": ["MOT_THST_HOVER"],

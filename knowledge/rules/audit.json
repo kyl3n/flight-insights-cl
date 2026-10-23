@@ -1,0 +1,21 @@
+{
+  "about": "The parameter audit (spec: Analyzers common to all vehicles, 'Parameter audit'). Names are canonical. The cell-voltage bands are the app's own, chosen to catch a setting made for another pack (a 3-cell value on a 12-cell aircraft) and not to judge a reasonable threshold; they are uncalibrated.",
+  "uncalibrated": true,
+  "never_tuned": {
+    "names": ["ATC_RAT_RLL_P", "ATC_RAT_RLL_I", "ATC_RAT_RLL_D", "ATC_RAT_PIT_P", "ATC_RAT_PIT_I", "ATC_RAT_PIT_D"],
+    "why": "Every one of them at its default means the rate loops were never tuned for this aircraft."
+  },
+  "fs_thr": {
+    "min_value": 910,
+    "margin_below_rc_min": 10,
+    "source": "ArduCopter/AP_Arming_Copter.cpp at Copter-4.7.0, parameter checks: 'Check FS_THR_VALUE' fails when the throttle channel's minimum is at most FS_THR_VALUE + 10, or FS_THR_VALUE is below 910",
+    "url": "https://github.com/ArduPilot/ardupilot/blob/Copter-4.7.0/ArduCopter/AP_Arming_Copter.cpp"
+  },
+  "cell_volts": {
+    "battery_threshold": [2.5, 4.35],
+    "scaling_max": [3.4, 4.45],
+    "scaling_min": [2.5, 3.9]
+  },
+  "controller_names": ["ATC_*", "PSC_*"],
+  "listed_names_max": 20
+}
