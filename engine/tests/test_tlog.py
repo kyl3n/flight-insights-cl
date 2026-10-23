@@ -12,6 +12,7 @@ import tempfile
 from pathlib import Path
 from typing import Any
 
+import numpy as np
 import pytest
 from hypothesis import HealthCheck, given, settings
 from hypothesis import strategies as st
@@ -118,8 +119,8 @@ def test_the_download_on_connection_matches_the_saved_parameter_file(path: Path)
         if name.endswith(("_LAT", "_LNG", "_LON")):
             # the scrubber shifted these as text in the file, as float32 in the tlog
             assert value == pytest.approx(float(saved[name]), abs=1e-4)
-        else:
-            assert float(f"{value:.7g}") == float(saved[name]), name
+        else:  # the file holds the shortest text that reads back as the same float32
+            assert np.float32(value) == np.float32(float(saved[name])), name
 
 
 # --- senders, parameters, positions ----------------------------------------------------

@@ -76,15 +76,15 @@ def test_a_clean_fixture_has_no_issues() -> None:
     assert len(v.boots) == 1 and v.issues == [] and v.imu_samples_complete
 
 
-def test_dropouts_and_raw_imu_loss_in_the_raw_imu_fixture() -> None:
-    """The simulator ran faster than its logger could write: the log says so."""
+def test_the_raw_imu_fixture_is_complete_but_for_the_loggers_own_drops() -> None:
+    """Full-rate raw IMU at a low simulator speed-up: the sample clock jitters but no
+    sample is lost, and the few messages the logger dropped at start-up are counted."""
     with read_dataflash(FIXTURES / "4.7.0" / "copter-quad-rawimu.bin") as df:
         v = validate(df)
         dsf = df.field(df.formats_named("DSF")[0], "Dp")
     dropped = sum(i.count for i in v.of_kind("logging dropout"))
     assert dropped == int(dsf.max()) > 0
-    assert not v.imu_samples_complete
-    assert {i.message for i in v.of_kind("imu sample loss")} == {"GYR", "ACC"}
+    assert v.imu_samples_complete, v.of_kind("imu sample loss")
 
 
 def test_lost_samples_are_counted_exactly(tmp_path: Path) -> None:
@@ -222,6 +222,8 @@ def test_every_fixture_is_one_flight_with_the_modes_its_scenario_flew(
     expected = {
         "copter-quad-hover": ["GUIDED", "LAND"],
         "copter-quad-rawimu": ["GUIDED", "LAND"],
+        "copter-heavylift-light": ["GUIDED", "LAND"],
+        "copter-heavylift-loaded": ["GUIDED", "LAND"],
         "heli-hover": ["GUIDED", "LAND"],
         "plane-circuit": ["AUTO", "RTL"],
         "quadplane-hover": ["QLOITER", "QLAND"],

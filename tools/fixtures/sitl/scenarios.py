@@ -43,10 +43,9 @@ class Scenario:
     fly: Callable[[Vehicle], None]
     params: dict[str, float | SetBits] = field(default_factory=dict)
     boot_params: dict[str, float] = field(default_factory=dict)  # read at boot, as defaults
-    # A frame model from ArduPilot's Tools/autotest/models with some values changed,
-    # for example a heavier mass to carry a payload.
+    # A frame model from ArduPilot's Tools/autotest/models, flown carrying a payload.
     model_json: str | None = None
-    model_overrides: dict[str, float] = field(default_factory=dict)
+    payload_kg: float = 0.0
     speedup: int | None = None  # slower than the runner's default where logging is heavy
     faults: list[dict[str, Any]] = field(default_factory=list)  # planted on purpose, for the label
 
@@ -59,9 +58,9 @@ class Scenario:
             "ardupilot_commit": commit,
             "scenario": self.name,
             "description": self.description,
-            "parameters_set": {
-                k: v.note if isinstance(v, SetBits) else v for k, v in self.params.items()
-            },
+            "parameters_set": self.boot_params
+            | {k: v.note if isinstance(v, SetBits) else v for k, v in self.params.items()},
+            **({"payload": {"mass_kg": self.payload_kg}} if self.payload_kg else {}),
             "faults": self.faults,
             "expected": self.expected,
         }
@@ -186,13 +185,18 @@ CALLISTO = dict(
     ],
     speedup=RAW_SPEEDUP,
 )
+# Eight motors add their vibration together: a quarter of the quad's per-motor amplitude
+# leaves a clear motor peak, where the full amount shook the simulated X8 off its hover.
+X8_VIBRATION = {"SIM_GYR1_RND": 5}
 # The notch follows throttle, though ESC RPM arrives: the better option is to track it.
+# Set up as an engineer would on the light flight (motor peak about 188 Hz at hover
+# throttle 0.375); carrying the payload, throttle tracking then runs behind the motors.
 THROTTLE_NOTCH = {
     "INS_HNTCH_ENABLE": 1,
     "INS_HNTCH_MODE": 1,
-    "INS_HNTCH_FREQ": 40,
-    "INS_HNTCH_REF": 0.48,
-    "INS_HNTCH_BW": 20,
+    "INS_HNTCH_FREQ": 180,
+    "INS_HNTCH_REF": 0.375,
+    "INS_HNTCH_BW": 90,
     "INS_HNTCH_HMNCS": 3,
     "INS_HNTCH_ATT": 40,
 }
@@ -209,7 +213,7 @@ HEAVY_LIFT_FAULTS = [
     },
 ]
 HEAVY_LIFT_EXPECTED = [
-    "one armed period with about 10 s of steady hover at 5 m",
+    "one armed period with about 14 s of steady hover at 5 m",
     "raw IMU logged during the hover only",
     "ESC RPM from all eight motors",
     "a motor vibration peak in the pre-filter gyro",
@@ -268,10 +272,10 @@ SCENARIOS: dict[str, Scenario] = {
             name="copter-heavylift-light",
             vehicle="copter",
             frame="octo coaxial X8",
-            description="Heavy-lift X8 without payload: GUIDED take-off to 5 m, 10 s hover, LAND.",
+            description="Heavy-lift X8 without payload: GUIDED take-off to 5 m, 15 s hover, LAND.",
             expected=HEAVY_LIFT_EXPECTED,
-            fly=copter_hover(10, altitude=5, raw_in_hover=True),
-            boot_params=VIBRATING | THROTTLE_NOTCH,
+            fly=copter_hover(15, altitude=5, raw_in_hover=True),
+            boot_params=VIBRATING | THROTTLE_NOTCH | X8_VIBRATION,
             faults=HEAVY_LIFT_FAULTS,
             **CALLISTO,  # type: ignore[arg-type]
         ),
@@ -281,12 +285,12 @@ SCENARIOS: dict[str, Scenario] = {
             frame="octo coaxial X8",
             description=(
                 "The same heavy-lift X8 carrying 8 kg more (40.5 kg in all):"
-                " GUIDED take-off to 5 m, 10 s hover, LAND."
+                " GUIDED take-off to 5 m, 15 s hover, LAND."
             ),
             expected=[*HEAVY_LIFT_EXPECTED, "hover throttle higher than the light flight's"],
-            fly=copter_hover(10, altitude=5, raw_in_hover=True),
-            boot_params=VIBRATING | THROTTLE_NOTCH,
-            model_overrides={"mass": 40.5},
+            fly=copter_hover(15, altitude=5, raw_in_hover=True),
+            boot_params=VIBRATING | THROTTLE_NOTCH | X8_VIBRATION,
+            payload_kg=8.0,
             faults=HEAVY_LIFT_FAULTS,
             **CALLISTO,  # type: ignore[arg-type]
         ),

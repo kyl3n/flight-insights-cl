@@ -19,6 +19,7 @@ from __future__ import annotations
 
 import argparse
 import json
+import math
 import shutil
 import struct
 import subprocess
@@ -313,6 +314,22 @@ def load_frame_model(path: Path) -> dict[str, float]:
     return json.loads(text)
 
 
+def carry_payload(model: dict[str, float], kg: float) -> dict[str, float]:
+    """The same airframe carrying `kg` more. SITL sizes the motors from the model's
+    mass, hover throttle and hover current, so those move together and the motors stay
+    as they were: hover throttle scales with the mass, hover power with its 1.5 power
+    (momentum theory), and the drag reference angle keeps the same drag area."""
+    if not kg:
+        return model
+    r = (model["mass"] + kg) / model["mass"]
+    return model | {
+        "mass": model["mass"] * r,
+        "hoverThrOut": model["hoverThrOut"] * r,
+        "refCurrent": model["refCurrent"] * r**1.5,
+        "refAngle": math.degrees(math.atan(math.tan(math.radians(model["refAngle"])) / r)),
+    }
+
+
 def run(scenario: Scenario, ardupilot: Path, version: str, out_dir: Path) -> None:
     binary = ardupilot / "build" / "sitl" / "bin" / scenario.binary
     if not binary.exists():
@@ -329,7 +346,9 @@ def run(scenario: Scenario, ardupilot: Path, version: str, out_dir: Path) -> Non
         if scenario.model_json:
             source = ardupilot / "Tools" / "autotest" / "models" / scenario.model_json
             frame = Path(work) / scenario.model_json
-            frame.write_text(json.dumps(load_frame_model(source) | scenario.model_overrides))
+            frame.write_text(
+                json.dumps(carry_payload(load_frame_model(source), scenario.payload_kg))
+            )
             model += ":" + frame.name  # SITL reads it from its working folder; a full path fails
         sitl_out = (Path(work) / "sitl.txt").open("w")
         proc = subprocess.Popen(
