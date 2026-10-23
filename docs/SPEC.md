@@ -950,6 +950,7 @@ The numbers above are illustrative. `expected_effect` comes from simulation wher
 
 - A `.param` file of changed values only, with a comment per line giving the reason, loadable in Mission Planner or QGroundControl.
   - The file is written per step, in the firmware's own names and units, in English or Ukrainian.
+  - It holds only the changes a person accepted in the plan. The changes one finding proposes are shown, accepted and rejected together. The engine writes the file to the path the person picks in a save dialog, and only as a `.param` or `.params` file.
   - Its header says what to do after loading: fly the test, reboot, or reboot and refresh for the next step. It also gives the stage's verification.
   - Mission Planner `.param` files carry the reason after each value (`NAME,VALUE  # why`), as Methodic Configurator writes them.
   - QGroundControl `.params` files carry the reasons as header comments, since its rows have five fixed fields.

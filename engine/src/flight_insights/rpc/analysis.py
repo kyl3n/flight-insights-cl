@@ -6,7 +6,7 @@
 | analysis.get | A flight's latest analysis, current or not, or null if it was never analysed |
 | analysis.registry | Every metric and finding the analyzers can produce, with its wording |
 | recommend.plan | A flight's findings as a staged, validated plan of changes and actions |
-| recommend.export | One step of that plan as .param or .params text, for a person to load |
+| recommend.export | One step's accepted changes as .param or .params text, or a chosen file |
 | recommend.set_status | A person accepts, rejects or marks a recommendation applied |
 | recommend.history | An airframe's recommendations, with what happened to each |
 | trend.overview | The airframe dashboard: each metric's latest value, zone, change and drift |
@@ -24,6 +24,7 @@ positions: the analyzers read cached columns, where positions stay encrypted.
 from __future__ import annotations
 
 from collections.abc import Callable
+from pathlib import Path
 from typing import TYPE_CHECKING, Any
 
 from flight_insights import analyzers, recommend, trends
@@ -118,13 +119,30 @@ def add_analysis_methods(server: Server, state: EngineState, guarded: Callable[[
             raise RpcError(INVALID_PARAMS, "kind must be 'mission planner' or 'qgroundcontrol'")
         if lang not in LANGUAGES:
             raise RpcError(INVALID_PARAMS, f"lang must be one of {LANGUAGES}")
+        accepted_only, path = params.get("accepted_only", True), params.get("path")
+        if not isinstance(accepted_only, bool):
+            raise RpcError(INVALID_PARAMS, "accepted_only must be true or false")
+        suffix = ".param" if kind == "mission planner" else ".params"
+        if path is not None and (not isinstance(path, str) or not path.endswith(suffix)):
+            raise RpcError(INVALID_PARAMS, f"path must be a {suffix} file")
+        reg = analyzers.Registry.load(state.pack)
         try:
             plan = recommend.flight_plan(store, cache, state.pack, _flight(params))
-            return recommend.export_step(
-                plan, analyzers.Registry.load(state.pack), step, kind, lang
-            )
+            only: set[str] | None = None
+            if accepted_only:  # what a person accepted in the plan, and nothing else
+                kept = recommend.record_plan(store, recommend.to_json(plan, reg))
+                only = {
+                    r["canonical"]
+                    for r in kept["recommendations"]
+                    if r.get("record_status") == "accepted" and r["canonical"]
+                }
+            out = recommend.export_step(plan, reg, step, kind, lang, only)
         except (analyzers.FlightError, recommend.ExportError) as e:
             raise RpcError(BAD_INPUT, str(e)) from None
+        if path is not None:  # the file a person chose in the save dialog
+            Path(path).write_text(out["text"], encoding="utf-8")
+            out["path"] = path
+        return out
 
     def _id(params: dict[str, Any], key: str) -> str:
         value = params.get(key)

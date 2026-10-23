@@ -75,8 +75,8 @@ def _code(r: Mapping[str, Any]) -> str:
 
 def record_plan(store: Store, plan: dict[str, Any]) -> dict[str, Any]:
     """Keeps the plan's recommendations for its airframe and adds each one's stored
-    `id` and `record_status` to the plan. Blocked ones are not kept: nothing can be
-    done with them but read why. A flight with no airframe keeps nothing."""
+    `id`, `record_status` and `record_version` to the plan. Blocked ones are not kept:
+    nothing can be done with them but read why. A flight with no airframe keeps nothing."""
     flight = store.get("flight", plan["flight"])
     airframe_id = flight["airframe_id"] if flight else None
     if airframe_id is None:
@@ -95,6 +95,7 @@ def record_plan(store: Store, plan: dict[str, Any]) -> dict[str, Any]:
             ]  # fmt: skip
             if same:
                 r["id"], r["record_status"] = same[0]["id"], same[0]["status"]
+                r["record_version"] = same[0]["version"]
                 continue
             for old in existing:  # an earlier proposal for this parameter, never acted on
                 if param is not None and old["param"] == param and old["status"] == "proposed":
@@ -104,7 +105,9 @@ def record_plan(store: Store, plan: dict[str, Any]) -> dict[str, Any]:
                         {"status": "superseded", "detail_json": json.dumps(old["detail"])},
                     )  # fmt: skip
                     old["status"] = "superseded"
-            detail = {k: v for k, v in r.items() if k not in ("id", "record_status")}
+            detail = {
+                k: v for k, v in r.items() if k not in ("id", "record_status", "record_version")
+            }
             detail["code"] = code
             r["id"] = store.insert(
                 "recommendation",
@@ -120,7 +123,7 @@ def record_plan(store: Store, plan: dict[str, Any]) -> dict[str, Any]:
                     "detail_json": json.dumps(detail),
                 },
             )
-            r["record_status"] = "proposed"
+            r["record_status"], r["record_version"] = "proposed", 1
             existing.append(
                 {"id": r["id"], "param": param, "proposed_value": proposed, "status": "proposed",
                  "version": 1, "detail": detail}

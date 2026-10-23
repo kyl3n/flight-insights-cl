@@ -406,8 +406,9 @@ def test_the_plan_and_its_file_over_rpc(tmp_path: Path) -> None:
     p = call(server, out, 6, "recommend.plan", flight_id=flight)["result"]
     assert p["stage"] == "evidence" and p["steps"][0]["params"]
     text = call(
-        server, out, 7, "recommend.export", flight_id=flight, kind="qgroundcontrol", step=1
-    )["result"]
+        server, out, 7, "recommend.export", flight_id=flight, kind="qgroundcontrol", step=1,
+        accepted_only=False,
+    )["result"]  # fmt: skip
     assert set(parse_params(text["text"]).values()) == set(p["steps"][0]["params"])
     bad = [
         call(server, out, 8, "recommend.export", flight_id=flight, kind="csv")["error"]["code"],
@@ -418,10 +419,25 @@ def test_the_plan_and_its_file_over_rpc(tmp_path: Path) -> None:
     assert bad == [-32602, -32003, -32003]
     kept = call(server, out, 11, "recommend.history", airframe_id=af["id"])["result"]
     assert {h["id"] for h in kept} == {r["id"] for r in p["recommendations"] if "id" in r}
-    rid = kept[0]["id"]
+    # Only what a person accepted goes in the file: nothing yet.
+    nothing = call(server, out, 16, "recommend.export", flight_id=flight, kind="mission planner")
+    assert nothing["error"]["code"] == -32003
+    offered = next(r for r in p["recommendations"] if r["status"] == "next" and r["param"])
+    rid = offered["id"]
+    assert offered["record_version"] == 1
     done = call(server, out, 12, "recommend.set_status", id=rid, status="accepted", version=1)
     assert done["result"]["status"] == "accepted"
     stale = call(server, out, 13, "recommend.set_status", id=rid, status="applied", version=1)
     graded = call(server, out, 14, "recommend.set_status", id=rid, status="confirmed", version=2)
     assert (stale["error"]["code"], graded["error"]["code"]) == (-32004, -32003)
+    target = tmp_path / "accepted.param"  # written where the person chose
+    saved = call(
+        server, out, 17, "recommend.export", flight_id=flight, kind="mission planner",
+        path=str(target),
+    )["result"]  # fmt: skip
+    written = parse_params(target.read_text(encoding="utf-8")).values()
+    assert written == {offered["param"]: offered["proposed"]} and saved["path"] == str(target)
+    wrong = call(server, out, 18, "recommend.export", flight_id=flight, kind="mission planner",
+                 path=str(tmp_path / "x.txt"))  # fmt: skip
+    assert wrong["error"]["code"] == -32602
     call(server, out, 15, "engine.shutdown")
