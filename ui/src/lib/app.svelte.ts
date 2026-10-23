@@ -29,6 +29,7 @@ export const app = $state({
   scope: { platform: null, airframe: null, flight: null } as Scope,
   shell: BROWSER_STATUS as ShellStatus,
   setupPlatform: null as string | null, // the platform open in the setup wizard
+  importOpen: false, // the import dialog
 });
 
 export function t(key: MessageKey, vars?: Record<string, string | number>): string {

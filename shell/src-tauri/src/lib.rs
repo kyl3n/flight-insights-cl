@@ -181,6 +181,7 @@ fn start_up(app: &AppHandle) {
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     let app = tauri::Builder::default()
+        .plugin(tauri_plugin_dialog::init())
         .setup(|app| {
             let data_dir = app.path().app_data_dir()?;
             let knowledge_dir = std::env::var_os("FI_KNOWLEDGE_DIR")

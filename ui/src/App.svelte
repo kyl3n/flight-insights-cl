@@ -1,6 +1,7 @@
 <script lang="ts">
   import { onMount } from "svelte";
   import FleetView from "./components/FleetView.svelte";
+  import ImportDialog from "./components/ImportDialog.svelte";
   import Header from "./components/Header.svelte";
   import Rail from "./components/Rail.svelte";
   import SetupView from "./components/SetupView.svelte";
@@ -65,6 +66,10 @@
     settings: "nav.settings",
   };
 </script>
+
+{#if app.importOpen}
+  <ImportDialog />
+{/if}
 
 <div class="frame">
   <Rail />
