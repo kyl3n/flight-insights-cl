@@ -13,6 +13,8 @@ from flight_builder import ARM, DISARM, esc, gyr, hover_flight, table
 
 from flight_insights.analyzers import Finding, Registry, run_analysis
 from flight_insights.analyzers.filters import FILTERS
+from flight_insights.analyzers.motors import picture
+from flight_insights.filters.search import Screen, search
 from flight_insights.imports import Decision, commit, propose, scan
 from flight_insights.knowledge import load_pack
 from flight_insights.store import StoreKeys, open_store
@@ -126,8 +128,13 @@ def test_a_harmonic_the_low_pass_already_removes_is_left_alone(reg: Registry) ->
 
 
 def test_a_bandwidth_wider_than_the_frequency_is_narrowed(reg: Registry) -> None:
-    [f] = run({"GYR": gyr([(150.0, 4.0)]), "ESC": MOTORS}, reg, **(NOTCH | {"INS_HNTCH_BW": 200}))
-    assert f.code == "filter.bandwidth_wide" and changes(f) == {"INS_HNTCH_BW": (200.0, 55.0)}
+    found = run({"GYR": gyr([(150.0, 4.0)]), "ESC": MOTORS}, reg, **(NOTCH | {"INS_HNTCH_BW": 200}))
+    by_code = {f.code: f for f in found}
+    assert set(by_code) == {"filter.bandwidth_wide", "filter.better_settings"}
+    # The search's whole set carries the change; the flag explains it.
+    assert by_code["filter.bandwidth_wide"].changes == ()
+    old_bw, new_bw = changes(by_code["filter.better_settings"])["INS_HNTCH_BW"]
+    assert old_bw == 200.0 and new_bw is not None and new_bw <= 55.0
 
 
 def test_the_fft_notch_on_an_f4_board(reg: Registry) -> None:
@@ -159,13 +166,53 @@ def analysed(tmp_path: Path, name: str) -> dict[str, Any]:
 def test_the_planted_throttle_notch_on_the_heavy_lift(tmp_path: Path) -> None:
     loaded = analysed(tmp_path, "copter-heavylift-loaded.bin")
     found = {f["code"]: f for f in loaded["findings"] if f["analyzer"] == "filters"}
-    assert set(found) == {"filter.better_source", "filter.not_tracking"}
+    assert set(found) == {"filter.better_source", "filter.not_tracking", "filter.better_settings"}
     lag = found["filter.not_tracking"]["params"]
-    assert lag["centre_hz"] == pytest.approx(201.8, abs=1) and lag["peak_hz"] == pytest.approx(
-        225, abs=2
-    )
+    assert lag["centre_hz"] == pytest.approx(201.8, abs=1)
+    assert lag["peak_hz"] == pytest.approx(225, abs=2)
+    better = found["filter.better_settings"]["params"]
+    assert better["lag_new"] < better["lag_now"] - 10 and better["noise_change_db"] <= 0
+    search = next(e for e in loaded["evidence"] if e["id"] == "filters:search")["values"]
+    assert search["best"]["notch"]["MODE"] == 3.0  # the planted throttle notch becomes ESC RPM
 
 
 def test_the_raw_imu_quad_is_set_up_well(tmp_path: Path) -> None:
     out = analysed(tmp_path, "copter-quad-rawimu.bin")
     assert not [f for f in out["findings"] if f["analyzer"] == "filters"]
+
+
+def test_the_light_flight_only_needs_the_source_switch(tmp_path: Path) -> None:
+    light = analysed(tmp_path, "copter-heavylift-light.bin")
+    [f] = [f for f in light["findings"] if f["analyzer"] == "filters"]
+    assert f["code"] == "filter.better_source"
+    proposed = {c["param"]: c["proposed"] for c in f["changes"]}
+    assert proposed["INS_HNTCH_MODE"] == 3.0 and proposed["INS_HNTCH_REF"] == 1.0
+
+
+# --- the candidate search --------------------------------------------------------------------
+
+
+def screen_for(tables: dict[str, pa.Table], **params: float) -> Screen:
+    flight = hover_flight(tables, {k: float(v) for k, v in params.items()})
+    m = picture(flight)
+    assert m.spectrum is not None
+    rules = Registry.load(load_pack()).rules["filters"]
+    return Screen(m.spectrum, flight.params, tables, m.spans, "H7", 1, rules)
+
+
+def test_notching_the_motors_frees_room_to_raise_the_low_pass() -> None:
+    tables = {"GYR": gyr([(5.0, 2.0), (150.0, 4.0)]), "ESC": MOTORS}
+    s = screen_for(tables, INS_HNTCH_ENABLE=0, INS_GYRO_FILTER=20)
+    base = {"MODE": 3.0, "REF": 1.0, "FREQ": 110.0, "OPTS": 32.0}
+    out = search(s, base, 1, 4, None)
+    assert out.best is not None
+    assert out.best.setting.gyro_filter > 20  # the payoff
+    assert out.best.noise_db <= out.current.noise_db and out.best.lag_deg < out.current.lag_deg
+
+
+def test_a_busy_processor_gets_no_more_notches() -> None:
+    tables = {"GYR": gyr([(5.0, 2.0), (150.0, 4.0)]), "ESC": MOTORS}
+    s = screen_for(tables, **(NOTCH | {"INS_GYRO_FILTER": 20}))
+    base = {"MODE": 3.0, "REF": 1.0, "FREQ": 110.0, "OPTS": 32.0}
+    busy = search(s, base, 1, 4, cpu_load_p95=85.0)
+    assert busy.best is None or busy.best.notches <= busy.current.notches

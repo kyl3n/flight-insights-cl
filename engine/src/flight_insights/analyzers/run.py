@@ -114,6 +114,7 @@ def run_analysis(
                         "confidence": f.confidence,
                         "params_json": json.dumps(dict(f.params)),
                         "evidence_json": json.dumps([e.id for e in f.evidence]),
+                        "changes_json": json.dumps([dataclasses.asdict(c) for c in f.changes]),
                     },
                 )
     out = analysis_results(store, flight_id, reg, analyzers)
@@ -174,10 +175,12 @@ def analysis_results(
             "confidence": conf,
             "params": json.loads(params),
             "evidence": json.loads(ev),
+            "changes": json.loads(changes),
             "stage": reg.findings[code].stage if code in reg.findings else None,
         }
-        for fid, an, code, sev, conf, params, ev in store.conn.execute(
-            "SELECT id, analyzer, code, severity, confidence, params_json, evidence_json "
+        for fid, an, code, sev, conf, params, ev, changes in store.conn.execute(
+            "SELECT id, analyzer, code, severity, confidence, params_json, evidence_json, "
+            "changes_json "
             "FROM finding WHERE run_id = ? ORDER BY "
             "CASE severity WHEN 'safety' THEN 0 WHEN 'out' THEN 1 WHEN 'caution' THEN 2 ELSE 3 END",
             (run_id,),

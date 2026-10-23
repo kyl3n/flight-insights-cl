@@ -11,6 +11,7 @@ to validate and order; nothing is applied.
 
 from __future__ import annotations
 
+import dataclasses
 import math
 from collections.abc import Mapping
 from typing import Any
@@ -21,6 +22,7 @@ from flight_insights.analyzers.flight import FlightData
 from flight_insights.analyzers.model import (
     Analyzer,
     CandidateChange,
+    Confidence,
     Evidence,
     Finding,
     Result,
@@ -28,8 +30,10 @@ from flight_insights.analyzers.model import (
 )
 from flight_insights.analyzers.motors import MOTOR_PEAK_DB, MotorPicture, picture
 from flight_insights.analyzers.registry import Registry
+from flight_insights.dataflash import si
 from flight_insights.filters import NotchParams, chain
 from flight_insights.filters.harmonic import ESC, FFT, FIXED, MULTI_SOURCE, RPM, RPM2, THROTTLE
+from flight_insights.filters.search import Outcome, Screen, search
 from flight_insights.spectral.welch import Spectrum
 
 FFT_BOARDS = ("F7", "H7", "SITL", "Linux")  # boards ArduPilot runs the in-flight FFT on
@@ -181,7 +185,7 @@ def _filters(flight: FlightData, reg: Registry) -> Result:
     p2 = NotchParams.read(flight.params, "INS_HNTC2_")
     enabled = p1.enable and p1.num_harmonics > 0
     confident = m.kind == "hover" and m.seconds >= STEADY_ENOUGH_S
-    confidence = "high" if confident else "medium"
+    confidence: Confidence = "high" if confident else "medium"
     picture_ev = Evidence(
         id="filters:motors",
         kind="series",
@@ -250,7 +254,7 @@ def _filters(flight: FlightData, reg: Registry) -> Result:
                 changes=changes,
             )
         )
-        return out
+        return _with_search(flight, reg, m, p1, proposal, out, picture_ev, setup_ev, confidence)
     if not enabled:
         return out
 
@@ -373,12 +377,122 @@ def _filters(flight: FlightData, reg: Registry) -> Result:
                 changes=() if switching else _changes(p1, {"BW": float(bw)}),
             )
         )
-    return out
+    return _with_search(flight, reg, m, p1, proposal, out, picture_ev, setup_ev, confidence)
+
+
+def _cpu_load_p95(flight: FlightData) -> float | None:
+    pm = flight.table("PM")
+    if pm is None or "Load" not in pm.column_names:
+        return None
+    t = np.asarray(pm.column("TimeUS").to_numpy(), np.int64)
+    load = si.values(pm, "Load")[(t >= flight.arm_us) & (t <= flight.disarm_us)]
+    return float(np.percentile(load, 95)) if len(load) else None
+
+
+def _with_search(
+    flight: FlightData,
+    reg: Registry,
+    m: MotorPicture,
+    p1: NotchParams,
+    proposal: tuple[int, dict[str, float]] | None,
+    out: Result,
+    picture_ev: Evidence,
+    setup_ev: Evidence,
+    confidence: Confidence,
+) -> Result:
+    """Steps 3 to 5: search the settings around the chosen source. A better set found
+    carries the whole change; the flags above then explain it, without their own."""
+    if m.spectrum is None:
+        return out
+    enabled = p1.enable and p1.num_harmonics > 0
+    if proposal is not None and (not enabled or proposal[0] != p1.mode or _switching(out)):
+        base: dict[str, float] = {
+            k: v for k, v in proposal[1].items() if k in ("MODE", "REF", "FREQ", "OPTS")
+        }
+    elif enabled:
+        base = {"MODE": float(p1.mode), "REF": p1.ref, "FREQ": p1.freq, "OPTS": float(p1.opts)}
+    else:
+        return out
+    tables = {
+        n: t for n in ("ESC", "MOTB", "RPM", "FCN", "FCNS") if (t := flight.table(n)) is not None
+    }
+    imus = int(flight.fingerprint.get("imu_count", {}).get("value") or 1)
+    screen = Screen(
+        m.spectrum, flight.params, tables, m.spans, _family(flight), imus, reg.rules["filters"]
+    )
+    outcome = search(screen, base, _harmonic_mask(m), max(len(m.escs), 1), _cpu_load_p95(flight))
+    ev = _search_evidence(outcome, m)
+    out.evidence.append(ev)
+    if outcome.best is None:
+        return out
+    best, now = outcome.best, outcome.current
+    changes = _changes(
+        p1, {k: v for k, v in best.setting.notch.items() if k not in ("ATT", "FM_RAT")}
+    )
+    gyro_filter = float(flight.params.get("INS_GYRO_FILTER", 0))
+    if best.setting.gyro_filter != gyro_filter:
+        changes += (
+            CandidateChange("INS_GYRO_FILTER", gyro_filter, best.setting.gyro_filter, "filters"),
+        )
+    explained = [dataclasses.replace(f, changes=()) for f in out.findings]
+    better = Finding(
+        code="filter.better_settings",
+        severity="caution" if now.noise_db - best.noise_db >= 6 else "info",
+        confidence=confidence,
+        evidence=(picture_ev, setup_ev, ev),
+        params={
+            "lag_now": round(now.lag_deg, 1),
+            "lag_new": round(best.lag_deg, 1),
+            "lag_hz": int(screen.lag_hz),
+            "noise_change_db": round(best.noise_db - now.noise_db, 1),
+            "notches_now": now.notches,
+            "notches_new": best.notches,
+        },
+        changes=changes,
+    )
+    return Result(findings=[*explained, better], metrics=out.metrics, evidence=out.evidence)
+
+
+def _switching(out: Result) -> bool:
+    return any(
+        f.code in ("filter.better_source", "filter.heli_throttle", "filter.fft_weak_board")
+        for f in out.findings
+    )
+
+
+def _search_evidence(outcome: Outcome, m: MotorPicture) -> Evidence:
+    def row(s: Any) -> dict[str, Any]:
+        return {
+            "notch": dict(s.setting.notch),
+            "INS_GYRO_FILTER": s.setting.gyro_filter,
+            "noise_db": round(s.noise_db, 2),
+            "lag_deg": round(s.lag_deg, 1),
+            "notches": s.notches,
+        }
+
+    return Evidence(
+        id="filters:search",
+        kind="series",
+        summary=(
+            f"{outcome.candidates} settings screened on the {m.kind} spectrum, {outcome.feasible} "
+            f"within the noise target of {outcome.target_db:.1f} dB"
+            + ("" if outcome.best is not None else "; none better than now by enough")
+        ),
+        messages=("GYR",),
+        segment=Segment(m.kind, m.spans[0][0], m.spans[-1][1]),
+        values={
+            "current": row(outcome.current),
+            "best": row(outcome.best) if outcome.best is not None else None,
+            "target_db": round(outcome.target_db, 2),
+            "screened": outcome.candidates,
+            "feasible": outcome.feasible,
+        },
+    )
 
 
 FILTERS = Analyzer(
     name="filters",
-    version=1,
+    version=2,
     run=_filters,
     metrics=(),
     findings=(
@@ -390,5 +504,6 @@ FILTERS = Analyzer(
         "filter.freq_above_hover",
         "filter.harmonic_uncovered",
         "filter.bandwidth_wide",
+        "filter.better_settings",
     ),
 )
