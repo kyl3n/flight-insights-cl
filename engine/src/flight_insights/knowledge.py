@@ -60,10 +60,16 @@ class Pack:
         versions = self.versions
         if not versions:
             raise KnowledgeError("the knowledge pack has no parameter metadata")
-        if firmware in versions:
-            return VersionChoice(firmware, True)
-        earlier = [v for v in versions if version_key(v) <= version_key(firmware)]
-        return VersionChoice(earlier[-1] if earlier else versions[0], False)
+        return _nearest(versions, firmware)
+
+    def enums(self, firmware: str) -> dict[str, Any]:
+        """Mode and log-event names of a release (or the nearest earlier one in the pack):
+        {"modes": {vehicle: {number: name}}, "events": {id: name}}."""
+        entries: dict[str, Any] = self.manifest.get("enums", {})
+        if not entries:
+            raise KnowledgeError("the knowledge pack has no mode or event names")
+        choice = _nearest(sorted(entries, key=version_key), firmware)
+        return self.json(entries[choice.version]["file"])
 
     def metadata(self, version: str, vehicle: Vehicle) -> dict[str, dict[str, Any]]:
         """Every parameter of a release: ArduPilot's generated metadata plus the curated
@@ -75,6 +81,13 @@ class Pack:
 
     def json(self, rel: str) -> Any:
         return json.loads((self.root / rel).read_text())
+
+
+def _nearest(versions: list[str], firmware: str) -> VersionChoice:
+    if firmware in versions:
+        return VersionChoice(firmware, True)
+    earlier = [v for v in versions if version_key(v) <= version_key(firmware)]
+    return VersionChoice(earlier[-1] if earlier else versions[0], False)
 
 
 @cache
