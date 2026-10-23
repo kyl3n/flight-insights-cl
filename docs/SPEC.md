@@ -1303,7 +1303,7 @@ Every flight is tied to the exact parameter set it flew with, and every change b
 
 ### Linking every flight to its exact parameters
 
-**The onboard log is the link.** ArduPilot writes every parameter with its value at the start of each log, and records changes made while logging ([ArduPilot: logs](https://ardupilot.org/copter/docs/common-downloading-and-analyzing-data-logs-in-mission-planner.html)). So each flight carries its own snapshot; no separate file has to be matched to it by hand. The app hashes the full set into a parameter-set ID, and flights with the same ID flew identical configurations.
+**The onboard log is the link.** ArduPilot writes every parameter with its value at the start of each log, and records changes made while logging ([ArduPilot: logs](https://ardupilot.org/copter/docs/common-downloading-and-analyzing-data-logs-in-mission-planner.html)). So each flight carries its own snapshot; no separate file has to be matched to it by hand. The app hashes the set's configuration into a parameter-set ID, and flights with the same ID flew identical configurations. The hash covers the tuning, calibration and hardware identity classes (see below), in canonical names, so a firmware rename does not change it. Counters, learned values and ground-station stream rates change on almost every flight, so they are left out; otherwise no two flights would share an ID.
 
 **Logging settings that keep the link clean**
 
@@ -1313,7 +1313,7 @@ Every flight is tied to the exact parameter set it flew with, and every change b
 
 **Filling gaps.** If a flight has no onboard log, the app falls back to the full parameter download that the ground station records in the tlog on connection, then to the latest `.param` or `.params` file saved before the flight. Either fallback is marked lower confidence on the timeline.
 
-**Where parameters live.** The flight controller holds the working set, and every log carries a full copy of it, so the app's history is itself an encrypted, shared backup of every airframe's parameters at every flight. Backup files saved on a computer are imported from a watched folder, so changes made between flights are caught too. Any past set can be exported as a `.param` or `.params` file to restore an airframe.
+**Where parameters live.** The flight controller holds the working set, and every log carries a full copy of it, so the app's history is itself an encrypted, shared backup of every airframe's parameters at every flight. Backup files saved on a computer are imported from a watched folder, so changes made between flights are caught too. Any past set can be exported as a `.param` or `.params` file to restore an airframe, in the dialect of the firmware it was taken on or of the firmware now installed. Restore files leave out counters and hardware identity by default, since writing back an old boot count or device ID would be wrong.
 
 **Parameters that change on their own.** Some values change without anyone tuning anything. Left in, they would bury real changes, so each parameter is classed and only tuning and configuration changes are offered as possible causes:
 

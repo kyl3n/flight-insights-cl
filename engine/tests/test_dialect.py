@@ -100,6 +100,12 @@ def test_firmware_without_its_own_metadata_uses_the_nearest_earlier_release(
         ("BARO1_GND_PRESS", {}, "learned"),
         ("MAV1_EXTRA1", {}, "ground station"),
         ("MAV1_OPTIONS", {}, "tuning"),
+        ("H_COL_HOVER", {"H_HOVER_LEARN": 2}, "learned"),
+        ("H_COL_HOVER", {"H_HOVER_LEARN": 0}, "tuning"),
+        ("ARSPD_OFFSET", {"ARSPD_SKIP_CAL": 0}, "learned"),
+        ("ARSPD2_OFFSET", {"ARSPD2_SKIP_CAL": 0}, "learned"),
+        ("ARSPD_OFFSET", {"ARSPD_SKIP_CAL": 1}, "calibration"),
+        ("MIS_TOTAL", {}, "ground station"),
     ],
 )
 def test_parameter_classes(pack: Pack, name: str, others: dict[str, float], expected: str) -> None:
