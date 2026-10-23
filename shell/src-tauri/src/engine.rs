@@ -35,7 +35,13 @@ pub struct EngineCommand {
 impl EngineCommand {
     /// FI_ENGINE_CMD if set, otherwise the bundled sidecar next to the app.
     pub fn resolve(exe_dir: &Path) -> Result<Self, String> {
-        if let Ok(text) = std::env::var("FI_ENGINE_CMD") {
+        Self::resolve_from(std::env::var("FI_ENGINE_CMD").ok(), exe_dir)
+    }
+
+    /// `resolve` with the variable's value given: the installers put the sidecar
+    /// beside the app as `fi-engine` (tauri.bundle.conf.json, `externalBin`).
+    pub fn resolve_from(command: Option<String>, exe_dir: &Path) -> Result<Self, String> {
+        if let Some(text) = command {
             let parts: Vec<String> = serde_json::from_str(&text)
                 .map_err(|_| "FI_ENGINE_CMD must be a JSON array of strings".to_string())?;
             let (program, args) = parts.split_first().ok_or("FI_ENGINE_CMD is empty")?;
@@ -245,6 +251,52 @@ mod tests {
         assert!(!UI_METHODS.contains(&"station.record_computer"));
         // which watched files are new is the watcher's question
         assert!(!UI_METHODS.contains(&"import.unknown"));
+    }
+
+    #[test]
+    fn the_installed_engine_is_found_beside_the_app() {
+        let dir = Path::new("/opt/Flight Insights");
+        let cmd = EngineCommand::resolve_from(None, dir).unwrap();
+        let name = if cfg!(windows) {
+            "fi-engine.exe"
+        } else {
+            "fi-engine"
+        };
+        assert_eq!(cmd.program, dir.join(name));
+        assert_eq!(cmd.args, ["rpc"]);
+        let dev = EngineCommand::resolve_from(Some(r#"["uv","run","x"]"#.into()), dir).unwrap();
+        assert_eq!(
+            (dev.program, dev.args),
+            (PathBuf::from("uv"), vec!["run".into(), "x".into()])
+        );
+        assert!(EngineCommand::resolve_from(Some("uv run".into()), dir).is_err());
+        assert!(EngineCommand::resolve_from(Some("[]".into()), dir).is_err());
+    }
+
+    #[test]
+    fn the_bundle_ships_the_engine_and_the_knowledge_pack() {
+        let root = Path::new(env!("CARGO_MANIFEST_DIR"));
+        let text = std::fs::read_to_string(root.join("tauri.bundle.conf.json")).unwrap();
+        let conf: Value = serde_json::from_str(&text).unwrap();
+        assert_eq!(conf["bundle"]["externalBin"], json!(["binaries/fi-engine"]));
+        let resources = conf["bundle"]["resources"].as_object().unwrap();
+        for (from, to) in resources {
+            assert!(root.join(from).exists(), "{from} is missing");
+            assert!(to.as_str().unwrap().starts_with("knowledge/"));
+        }
+        // the engine reads the pack's manifest first; the shell passes resource_dir()/knowledge
+        assert!(resources.values().any(|t| t == "knowledge/manifest.json"));
+        let pack = root.join("../../knowledge");
+        for entry in std::fs::read_dir(&pack).unwrap().flatten() {
+            let name = entry.file_name().to_string_lossy().into_owned();
+            if entry.path().is_dir() && name != "tools" {
+                let from = format!("../../knowledge/{name}/");
+                assert!(
+                    resources.contains_key(&from),
+                    "the pack's {name}/ is not bundled"
+                );
+            }
+        }
     }
 
     #[test]

@@ -63,6 +63,7 @@ def main() -> int:
         "--workpath", str(work),
         "--specpath", str(work),
         "--collect-data", "flight_insights",  # migrations, py.typed
+        "--additional-hooks-dir", str(ENGINE / "packaging" / "hooks"),  # a leaner pyarrow
         *[a for h in HIDDEN for a in ("--hidden-import", h)],
         *[a for m in EXCLUDE for a in ("--exclude-module", m)],
     ]  # fmt: skip
