@@ -255,6 +255,7 @@ pub const UI_METHODS: &[&str] = &[
     "trend.events",
     "trend.platform",
     "flight.list",
+    "filter.workbench",
 ];
 
 #[cfg(test)]

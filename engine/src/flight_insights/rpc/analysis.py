@@ -14,6 +14,7 @@
 | trend.events | What changed on an airframe, placed at the flight it first applies to |
 | trend.platform | One metric for every airframe of a platform, on shared axes |
 | flight.list | Flights, newest first, with a summary of each one's latest analysis |
+| filter.workbench | A flight's spectra before, as flown and with candidate filter values |
 
 Analysing a flight also grades its airframe's earlier recommendations against it.
 
@@ -23,12 +24,14 @@ positions: the analyzers read cached columns, where positions stay encrypted.
 
 from __future__ import annotations
 
+import math
 from collections.abc import Callable
 from pathlib import Path
-from typing import TYPE_CHECKING, Any
+from typing import TYPE_CHECKING, Any, cast
 
 from flight_insights import analyzers, recommend, trends
 from flight_insights.analyzers.registry import LANGUAGES
+from flight_insights.filters import workbench
 from flight_insights.rpc.server import (
     BAD_INPUT,
     CONFLICT,
@@ -157,6 +160,42 @@ def add_analysis_methods(server: Server, state: EngineState, guarded: Callable[[
         if not isinstance(segment, str):
             raise RpcError(INVALID_PARAMS, "segment must be a segment name")
         return metric, segment
+
+    benches: dict[str, workbench.Bench | None] = {}  # the last few flights opened
+
+    @server.method("filter.workbench")
+    @guarded
+    def filter_workbench(_ctx: Context, params: dict[str, Any]) -> dict[str, Any]:
+        store, cache = state.require_store(), state.cache
+        assert cache is not None
+        flight_id = _flight(params)
+        raw: Any = params.get("candidate") or {}
+        if not isinstance(raw, dict):
+            raise RpcError(INVALID_PARAMS, "candidate must map parameter names to values")
+        candidate = cast(dict[str, Any], raw)
+        values: dict[str, float] = {}
+        for name, value in candidate.items():
+            if name not in workbench.EDITABLE:
+                raise RpcError(INVALID_PARAMS, f"{name} cannot be tried in the workbench")
+            if (
+                not isinstance(value, int | float)
+                or isinstance(value, bool)
+                or not math.isfinite(value)
+            ):
+                raise RpcError(INVALID_PARAMS, f"{name} must be a number")
+            values[str(name)] = float(value)
+        if flight_id not in benches:
+            try:
+                flight = analyzers.FlightData.load(store, cache, state.pack, flight_id)
+            except analyzers.FlightError as e:
+                raise RpcError(BAD_INPUT, str(e)) from None
+            if len(benches) >= 4:
+                benches.pop(next(iter(benches)))
+            benches[flight_id] = workbench.load(flight, analyzers.Registry.load(state.pack))
+        bench = benches[flight_id]
+        if bench is None:
+            raise RpcError(BAD_INPUT, "the flight has no pre-filter gyro data to work on")
+        return workbench.payload(bench, values)
 
     @server.method("flight.list")
     @guarded

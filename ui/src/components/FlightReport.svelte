@@ -27,6 +27,7 @@
   import { STATUS } from "../lib/status";
   import StatusBadge from "./StatusBadge.svelte";
   import Value from "./Value.svelte";
+  import Workbench from "./Workbench.svelte";
 
   let { flightId }: { flightId: string } = $props();
 
@@ -36,6 +37,7 @@
   let busy = $state(false);
   let error = $state("");
   let selected = $state<string | null>(null);
+  let tab = $state<"report" | "filters">("report");
 
   async function load(force = false) {
     busy = true;
@@ -124,6 +126,15 @@
     </button>
   </header>
 
+  <div role="tablist" class="tabs" aria-label={t("report.findings")}>
+    {#each [["report", "report.tab.report"], ["filters", "report.tab.filters"]] as const as [id, label] (id)}
+      <button type="button" role="tab" aria-selected={tab === id} onclick={() => (tab = id)}>{t(label)}</button>
+    {/each}
+  </div>
+
+  {#if tab === "filters"}
+    <Workbench {flightId} />
+  {:else}
   {#if error}<p class="error">{t("report.error", { error })}</p>{/if}
   {#if analysis && !analysis.current}<p class="notice">{t("report.stale")}</p>{/if}
   {#if skipped.length}<p class="notice">{t("report.partial", { names: skipped.join(", ") })}</p>{/if}
@@ -194,6 +205,7 @@
         {/if}
       </aside>
     </div>
+  {/if}
   {/if}
 </main>
 
@@ -327,6 +339,24 @@
   }
   .group {
     margin-bottom: 12px;
+  }
+  .tabs {
+    display: flex;
+    gap: 4px;
+    border-bottom: 1px solid var(--border-soft);
+  }
+  .tabs button {
+    background: none;
+    border: none;
+    border-bottom: 2px solid transparent;
+    color: var(--text-muted);
+    padding: 6px 12px;
+    cursor: pointer;
+    font-size: 14px;
+  }
+  .tabs button[aria-selected="true"] {
+    color: var(--text);
+    border-bottom-color: var(--accent);
   }
   .values {
     display: flex;
