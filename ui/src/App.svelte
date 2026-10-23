@@ -4,6 +4,7 @@
   import Header from "./components/Header.svelte";
   import Rail from "./components/Rail.svelte";
   import SetupView from "./components/SetupView.svelte";
+  import StationsView from "./components/StationsView.svelte";
   import type { PlatformView, SetupSchema } from "./lib/setup";
   import { app, t, type View } from "./lib/app.svelte";
   import type { MessageKey } from "./lib/i18n";
@@ -59,6 +60,7 @@
     params: "nav.params",
     plan: "nav.plan",
     ask: "nav.ask",
+    stations: "nav.stations",
     imports: "nav.imports",
     settings: "nav.settings",
   };
@@ -72,6 +74,8 @@
       <SetupView schema={setup.schema} platform={setup.platform} />
     {:else if app.view === "fleet"}
       <FleetView />
+    {:else if app.view === "stations"}
+      <StationsView />
     {:else}
       <main class="later">
         <p>{t("view.later", { view: t(viewNames[app.view]) })}</p>

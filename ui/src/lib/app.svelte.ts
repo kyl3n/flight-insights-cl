@@ -5,7 +5,16 @@ import { translate, type Locale, type MessageKey } from "./i18n";
 import { BROWSER_STATUS, type ShellStatus } from "./shell";
 import type { Theme } from "./theme";
 
-export type View = "fleet" | "flights" | "trends" | "params" | "plan" | "ask" | "imports" | "settings";
+export type View =
+  | "fleet"
+  | "flights"
+  | "trends"
+  | "params"
+  | "plan"
+  | "ask"
+  | "stations"
+  | "imports"
+  | "settings";
 
 export interface Scope {
   platform: string | null; // null: all
