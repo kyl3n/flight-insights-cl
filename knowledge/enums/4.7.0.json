@@ -129,5 +129,110 @@
   "164": "NOT_SURFACED",
   "165": "BOTTOMED",
   "166": "NOT_BOTTOMED"
+ },
+ "error_subsystems": {
+  "1": "MAIN",
+  "2": "RADIO",
+  "3": "COMPASS",
+  "4": "OPTFLOW",
+  "5": "FAILSAFE_RADIO",
+  "6": "FAILSAFE_BATT",
+  "7": "FAILSAFE_GPS",
+  "8": "FAILSAFE_GCS",
+  "9": "FAILSAFE_FENCE",
+  "10": "FLIGHT_MODE",
+  "11": "GPS",
+  "12": "CRASH_CHECK",
+  "13": "FLIP",
+  "14": "AUTOTUNE",
+  "15": "PARACHUTES",
+  "16": "EKFCHECK",
+  "17": "FAILSAFE_EKFINAV",
+  "18": "BARO",
+  "19": "CPU",
+  "20": "FAILSAFE_ADSB",
+  "21": "TERRAIN",
+  "22": "NAVIGATION",
+  "23": "FAILSAFE_TERRAIN",
+  "24": "EKF_PRIMARY",
+  "25": "THRUST_LOSS_CHECK",
+  "26": "FAILSAFE_SENSORS",
+  "27": "FAILSAFE_LEAK",
+  "28": "PILOT_INPUT",
+  "29": "FAILSAFE_VIBE",
+  "30": "INTERNAL_ERROR",
+  "31": "FAILSAFE_DEADRECKON"
+ },
+ "error_codes": {
+  "0": [
+   "ERROR_RESOLVED",
+   "FAILSAFE_RESOLVED",
+   "EKFCHECK_VARIANCE_CLEARED"
+  ],
+  "1": [
+   "FAILED_TO_INITIALISE",
+   "FAILSAFE_OCCURRED",
+   "MAIN_INS_DELAY",
+   "CRASH_CHECK_CRASH",
+   "INTERNAL_ERRORS_DETECTED"
+  ],
+  "2": [
+   "RADIO_LATE_FRAME",
+   "CRASH_CHECK_LOSS_OF_CONTROL",
+   "FLIP_ABANDONED",
+   "MISSING_TERRAIN_DATA",
+   "FAILED_TO_SET_DESTINATION",
+   "PARACHUTE_TOO_LOW",
+   "EKFCHECK_BAD_VARIANCE",
+   "BARO_GLITCH",
+   "GPS_GLITCH"
+  ],
+  "3": [
+   "RESTARTED_RTL",
+   "PARACHUTE_LANDED",
+   "BAD_DEPTH"
+  ],
+  "4": [
+   "UNHEALTHY",
+   "FAILED_CIRCLE_INIT"
+  ],
+  "5": [
+   "DEST_OUTSIDE_FENCE"
+  ],
+  "6": [
+   "RTL_MISSING_RNGFND"
+  ]
+ },
+ "internal_errors": {
+  "0": "logger_mapfailure",
+  "1": "logger_missing_logstructure",
+  "2": "logger_logwrite_missingfmt",
+  "3": "logger_too_many_deletions",
+  "4": "logger_bad_getfilename",
+  "5": "panic",
+  "6": "logger_flushing_without_sem",
+  "7": "logger_bad_current_block",
+  "8": "logger_blockcount_mismatch",
+  "9": "logger_dequeue_failure",
+  "10": "constraining_nan",
+  "11": "watchdog_reset",
+  "12": "iomcu_reset",
+  "13": "iomcu_fail",
+  "14": "spi_fail",
+  "15": "main_loop_stuck",
+  "16": "gcs_bad_missionprotocol_link",
+  "17": "bitmask_range",
+  "18": "gcs_offset",
+  "19": "i2c_isr",
+  "20": "flow_of_control",
+  "21": "switch_full_sector_recursion",
+  "22": "bad_rotation",
+  "23": "stack_overflow",
+  "24": "imu_reset",
+  "25": "gpio_isr",
+  "26": "mem_guard",
+  "27": "dma_fail",
+  "28": "params_restored",
+  "29": "invalid_arg_or_result"
  }
 }

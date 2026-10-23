@@ -40,7 +40,7 @@ from flight_insights.knowledge import Pack
 from flight_insights.platforms.records import create_airframe, record_build
 from flight_insights.platforms.schema import SetupError
 from flight_insights.segment import find_boots, timeline
-from flight_insights.segment.validate import boot_index
+from flight_insights.segment.validate import Validation, boot_index, validate
 from flight_insights.store import _sqlcipher
 from flight_insights.store.cache import ColumnCache
 from flight_insights.store.db import Store, StoreError
@@ -333,9 +333,11 @@ def _dataflash(
     new = [f for f in item.flights if _stored(store, f.key) is None]
     with read_dataflash(item.path) as df:
         skipped = cache_flights(df, cache, new)
-        # Worked out once, while the log is open: analyzers read the cache and this.
+        # Worked out once, while the log is open: analyzers read the cache and these.
         # The board's hash is the flight's own column, so a throwaway key does here.
         fp = fingerprint(df, pack, secrets.token_bytes(32)) if new else None
+        armed = [(f.boot, f.arm_us, f.disarm_us) for f in item.flights]
+        check = validate(df, armed) if new else None
     fingerprint_json = (
         json.dumps(fingerprint_record(fp, dataclasses.asdict(fp.board) | {"id_hash": None}))
         if fp is not None
@@ -395,6 +397,7 @@ def _dataflash(
                     "hold_json": hold,
                     "payload": (decision.payload or "").strip()[:200] or None,
                     "fingerprint_json": fingerprint_json,
+                    "validation_json": _validation_json(check, f),
                 },
             )
             flight_ids.append(fid)
@@ -414,6 +417,14 @@ def _dataflash(
         f"not cached, names no file can have: {', '.join(map(repr, skipped))}" if skipped else None
     )
     return Result(item.id, "imported" if airframe_id else "held", flight_ids, source, note)
+
+
+def _validation_json(check: Validation | None, f: ScannedFlight) -> str | None:
+    """The log checks that overlap one flight, for the logging-adequacy analyzer."""
+    if check is None:
+        return None
+    issues = check.of_flight(f.boot, f.arm_us, f.disarm_us)
+    return json.dumps({"issues": [asdict(i) for i in issues]})
 
 
 def _tlog(store: Store, item: Scanned, station: str | None) -> Result:

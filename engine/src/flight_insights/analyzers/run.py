@@ -17,8 +17,10 @@ from typing import Any
 
 from flight_insights import __version__
 from flight_insights.analyzers.flight import FlightData
+from flight_insights.analyzers.log_adequacy import LOG_ADEQUACY
 from flight_insights.analyzers.model import Analyzer, Evidence, Result
 from flight_insights.analyzers.registry import Registry
+from flight_insights.analyzers.system import SYSTEM
 from flight_insights.analyzers.vibration import VIBRATION
 from flight_insights.knowledge import Pack
 from flight_insights.store.cache import ColumnCache
@@ -26,7 +28,7 @@ from flight_insights.store.db import Store
 
 log = logging.getLogger(__name__)
 
-ANALYZERS: tuple[Analyzer, ...] = (VIBRATION,)
+ANALYZERS: tuple[Analyzer, ...] = (LOG_ADEQUACY, SYSTEM, VIBRATION)
 
 
 class AnalyzerBug(RuntimeError):

@@ -24,7 +24,8 @@ from flight_insights.knowledge import KnowledgeError, Pack
 LANGUAGES = ("en", "uk")
 DIRECTIONS = ("lower", "higher", "band")
 ZONES: tuple[Zone, ...] = ("target", "caution", "out")
-SOURCE_KINDS = ("ardupilot", "datasheet", "research", "community", "platform", "baseline")
+# "app": a rule of the app's own, stated with its reason, where no published range exists
+SOURCE_KINDS = ("ardupilot", "datasheet", "research", "community", "platform", "baseline", "app")
 STAGES = (
     "mechanical", "evidence", "setup", "filters", "rate tune", "autotune", "feel",
     "navigation", "operations",
@@ -67,9 +68,20 @@ class FindingText:
 
 @dataclass(frozen=True)
 class Registry:
+    """What the knowledge pack tells the analyzers: the metric and finding registry,
+    the curated rules (knowledge/rules/*.json, by file stem), and each release's names
+    for the numbers logs record."""
+
     metrics: Mapping[str, Metric]
     findings: Mapping[str, FindingText]
-    version: str  # changes whenever any registry or rule file changes
+    version: str  # changes whenever any registry, rule or name file changes
+    rules: Mapping[str, Any]
+    pack: Pack
+
+    def names(self, firmware: str | None) -> Mapping[str, Any]:
+        """Mode, event and error names of the flight's release, or the nearest earlier
+        one the pack has; the oldest release's when the firmware is unknown."""
+        return self.pack.enums(firmware or "0")
 
     @staticmethod
     def load(pack: Pack) -> Registry:
@@ -85,14 +97,18 @@ class Registry:
                 if code in findings:
                     raise KnowledgeError(f"{path.name}: finding {code} is defined twice")
                 findings[code] = _finding(path.name, code, f)
-        return Registry(metrics, findings, knowledge_version(pack))
+        rules = {
+            path.stem: json.loads(path.read_text(encoding="utf-8"))
+            for path in sorted((pack.root / "rules").glob("*.json"))
+        }
+        return Registry(metrics, findings, knowledge_version(pack), rules, pack)
 
 
 def knowledge_version(pack: Pack) -> str:
-    """A short hash of every file an analysis reads from the pack: the registry and the
-    rules. A result made with another version is recomputed, not reused."""
+    """A short hash of every file an analysis reads from the pack: the registry, the
+    rules and the names. A result made with another version is recomputed, not reused."""
     h = hashlib.sha256()
-    for folder in ("metrics", "rules"):
+    for folder in ("metrics", "rules", "enums"):
         for path in sorted((pack.root / folder).glob("*.json")):
             h.update(f"{folder}/{path.name}\0".encode())
             h.update(path.read_bytes())

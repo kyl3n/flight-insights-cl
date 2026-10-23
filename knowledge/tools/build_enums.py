@@ -1,13 +1,19 @@
 #!/usr/bin/env python3
-"""Generate the flight-mode and log-event names of one ArduPilot release from its source.
+"""Generate the flight-mode, log-event and error names of one ArduPilot release from its
+source.
 
-Logs record modes and events as numbers (MODE.ModeNum, EV.Id). Their names come
-from the release's own enums, read here from a checkout of the release tag, not
-typed by hand:
+Logs record modes, events and errors as numbers (MODE.ModeNum, EV.Id, ERR.Subsys and
+ERR.ECode, PM.InE). Their names come from the release's own enums, read here from a
+checkout of the release tag, not typed by hand:
 
 - Copter modes: `enum class Number` in ArduCopter/mode.h
 - Plane modes (QuadPlane included): `enum Number` in ArduPlane/mode.h
 - Log events: `enum class LogEvent` in libraries/AP_Logger/AP_Logger.h
+- Error subsystems: `enum class LogErrorSubsystem` in the same file
+- Error codes: `enum class LogErrorCode`, whose numbers mean different things in
+  different subsystems, so each number keeps every name it has
+- Internal errors: `enum class error_t` in libraries/AP_InternalError/AP_InternalError.h,
+  by bit number, as PM.InE records them
 
 Usage (from the repository root):
   python3 knowledge/tools/build_enums.py ARDUPILOT_CHECKOUT VERSION
@@ -30,25 +36,57 @@ SOURCES = {
         "libraries/AP_Logger/AP_Logger.h",
         r"enum\s+class\s+LogEvent\s*:\s*uint8_t\s*\{",
     ),
+    ("error_subsystems", None): (
+        "libraries/AP_Logger/AP_Logger.h",
+        r"enum\s+class\s+LogErrorSubsystem\s*:\s*uint8_t\s*\{",
+    ),
 }
-ENTRY = re.compile(r"^\s*([A-Z][A-Z0-9_]*)\s*=\s*(\d+)\s*,", re.MULTILINE)
+CODES = ("libraries/AP_Logger/AP_Logger.h", r"enum\s+class\s+LogErrorCode\s*:\s*uint8_t\s*\{")
+INTERNAL = (
+    "libraries/AP_InternalError/AP_InternalError.h",
+    r"enum\s+class\s+error_t\s*:\s*uint32_t\s*\{",
+)
+ENTRY = re.compile(r"^\s*([A-Z][A-Z0-9_]*)\s*=\s*(\d+)\s*(?:,|$)", re.MULTILINE)
+BIT = re.compile(r"^\s*([a-z][a-z0-9_]*)\s*=\s*\(\s*1U?\s*<<\s*(\d+)\s*\)\s*,", re.MULTILINE)
 
 
-def enum_values(path: Path, start: str) -> dict[str, str]:
-    """Number -> name for every entry of the enum, whatever #if it sits under."""
+def enum_body(path: Path, start: str) -> str:
     text = path.read_text()
     m = re.search(start, text)
     if not m:
         raise SystemExit(f"enum not found in {path}")
     body = text[m.end() : text.index("};", m.end())]
-    body = re.sub(r"//[^\n]*", "", body)
+    return re.sub(r"//[^\n]*", "", body)
+
+
+def enum_values(path: Path, start: str) -> dict[str, str]:
+    """Number -> name for every entry of the enum, whatever #if it sits under."""
     values: dict[str, str] = {}
-    for name, number in ENTRY.findall(body):
+    for name, number in ENTRY.findall(enum_body(path, start)):
         if number in values:
             raise SystemExit(f"{path}: {number} is both {values[number]} and {name}")
         values[number] = name
     if not values:
         raise SystemExit(f"no entries read from the enum in {path}")
+    return dict(sorted(values.items(), key=lambda kv: int(kv[0])))
+
+
+def enum_names(path: Path, start: str) -> dict[str, list[str]]:
+    """Number -> every name the enum gives it, in source order (LogErrorCode reuses
+    numbers across subsystems)."""
+    values: dict[str, list[str]] = {}
+    for name, number in ENTRY.findall(enum_body(path, start)):
+        values.setdefault(number, []).append(name)
+    if not values:
+        raise SystemExit(f"no entries read from the enum in {path}")
+    return dict(sorted(values.items(), key=lambda kv: int(kv[0])))
+
+
+def enum_bits(path: Path, start: str) -> dict[str, str]:
+    """Bit number -> name for a bitmask enum written as (1U << n)."""
+    values = {bit: name for name, bit in BIT.findall(enum_body(path, start))}
+    if not values:
+        raise SystemExit(f"no bits read from the enum in {path}")
     return dict(sorted(values.items(), key=lambda kv: int(kv[0])))
 
 
@@ -64,6 +102,8 @@ def main() -> int:
             out[kind] = values
         else:
             out[kind][vehicle] = values  # type: ignore[index]
+    out["error_codes"] = enum_names(args.source / CODES[0], CODES[1])
+    out["internal_errors"] = enum_bits(args.source / INTERNAL[0], INTERNAL[1])
     commit = subprocess.run(
         ["git", "-C", str(args.source), "rev-parse", "HEAD"],
         capture_output=True,

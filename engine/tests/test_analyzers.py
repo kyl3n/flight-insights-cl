@@ -10,6 +10,7 @@ from typing import Any, cast
 import numpy as np
 import pyarrow as pa
 import pytest
+from flight_builder import FakeCache
 
 from flight_insights.analyzers import (
     ANALYZERS,
@@ -179,7 +180,7 @@ def test_a_run_is_stored_and_reused_while_current(
     vib = metrics["vibration.p95", "hover"]
     assert vib["zone"] == "target" and 0 < vib["value"] < 30  # SITL flies smoothly
     assert metrics["vibration.clipping", "flight"]["value"] == 0
-    assert first["findings"] == []
+    assert [f["code"] for f in first["findings"]] == ["logging.no_prefilter_gyro"]  # no GYR
     cited = {e["id"] for e in first["evidence"]}
     assert all(m["evidence"] in cited for m in first["metrics"])
     assert run_analysis(store, cache, pack, fid)["run"] == first["run"]  # nothing recomputed
@@ -230,20 +231,6 @@ def test_a_finding_needs_evidence() -> None:
 
 
 # --- vibration ------------------------------------------------------------------------------
-
-
-class FakeCache:
-    """Serves one flight's tables as the cache would, from memory."""
-
-    def __init__(self, tables: dict[str, pa.Table]) -> None:
-        self.tables = tables
-
-    def names(self, _key: str) -> list[str]:
-        return sorted(self.tables)
-
-    def read(self, _key: str, name: str, columns: list[str] | None = None) -> pa.Table:
-        t = self.tables[name]
-        return t.select(columns) if columns else t
 
 
 def vibe(levels: list[float], clip: list[int], step_us: int = 100_000) -> pa.Table:

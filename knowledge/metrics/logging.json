@@ -1,0 +1,125 @@
+{
+  "about": "Logging adequacy (spec: Analyzers common to all vehicles, 'Logging adequacy'): whether the log holds what the other analyzers need, and whether the logger kept up.",
+  "metrics": {
+    "logging.imu_sample_loss": {
+      "name": {
+        "en": "Raw gyro samples lost",
+        "uk": "Втрачені сирі вибірки гіроскопа"
+      },
+      "unit": "%",
+      "direction": "lower",
+      "definition": {
+        "en": "The share of raw gyro samples missing from the log while armed. A lost sample shifts every later one in a spectrum window, so the noise spectra the filter analysis rests on come out wrong.",
+        "uk": "Частка сирих вибірок гіроскопа, яких бракує в журналі під час польоту. Втрачена вибірка зсуває всі наступні у вікні спектра, тож спектри шуму, на яких ґрунтується аналіз фільтрів, виходять хибними."
+      },
+      "method": {
+        "en": "Holes in each gyro's own sample clock (GYR.SampleUS) between arming and disarming, counted in its usual sample period, against the samples logged. Stretches where raw logging was switched off on purpose are not counted.",
+        "uk": "Пропуски у власному годиннику вибірок кожного гіроскопа (GYR.SampleUS) між взведенням і зняттям зі зброї, пораховані в його звичайному періоді, відносно записаних вибірок. Проміжки, коли сирий запис вимкнули навмисно, не враховуються."
+      },
+      "messages": ["GYR"],
+      "zones": {
+        "target": [null, 0.01],
+        "caution": [0.01, 1],
+        "out": [1, null]
+      },
+      "source": {
+        "kind": "app",
+        "title": "App rule: spectra skip windows with lost samples; above 1% lost, too few whole windows remain to trust them"
+      }
+    },
+    "logging.dropped_messages": {
+      "name": {
+        "en": "Messages dropped by the logger",
+        "uk": "Повідомлення, відкинуті журналом"
+      },
+      "unit": "count",
+      "direction": "lower",
+      "definition": {
+        "en": "How many log messages the logger had to throw away while armed because its storage could not keep up. Whatever was dropped is missing from every analysis.",
+        "uk": "Скільки повідомлень журнал мусив відкинути під час польоту, бо носій не встигав їх записувати. Усе відкинуте відсутнє в кожному аналізі."
+      },
+      "method": {
+        "en": "DSF.Dp counts writes the logger rejected since the log began; its rise between arming and disarming.",
+        "uk": "DSF.Dp рахує записи, які журнал відхилив від початку журналу; його приріст між взведенням і зняттям зі зброї."
+      },
+      "messages": ["DSF"],
+      "zones": {
+        "target": [0, 1],
+        "caution": [1, null]
+      },
+      "source": {
+        "kind": "ardupilot",
+        "title": "ArduPilot LogStructure.h: DSF.Dp, the number of times a write to the backend was rejected; ArduPilot: Downloading and analyzing data logs, on slow SD cards",
+        "url": "https://github.com/ArduPilot/ardupilot/blob/Copter-4.7.0/libraries/AP_Logger/LogStructure.h"
+      }
+    }
+  },
+  "findings": {
+    "logging.no_prefilter_gyro": {
+      "stage": "evidence",
+      "title": {
+        "en": "The log has no pre-filter gyro data, so the filters cannot be checked",
+        "uk": "У журналі немає даних гіроскопа до фільтрів, тож фільтри неможливо перевірити"
+      },
+      "action": {
+        "en": "Set INS_RAW_LOG_OPT to {proposed} (primary gyro, before and after the filters) and fly a steady hover of at least 30 seconds. Check the next log for dropped messages; on a slow card or an F4 board, log raw data only for the test flight.",
+        "uk": "Встановіть INS_RAW_LOG_OPT у {proposed} (основний гіроскоп, до і після фільтрів) і виконайте стабільне зависання щонайменше 30 секунд. Перевірте наступний журнал на відкинуті повідомлення; на повільній картці або платі F4 вмикайте сирий запис лише для тестового польоту."
+      }
+    },
+    "logging.no_postfilter_gyro": {
+      "stage": "evidence",
+      "title": {
+        "en": "Only pre-filter gyro data is logged, so the filter prediction cannot be checked against the aircraft",
+        "uk": "Записано лише дані гіроскопа до фільтрів, тож прогноз фільтрів неможливо звірити з апаратом"
+      },
+      "action": {
+        "en": "Set INS_RAW_LOG_OPT to {proposed} to log the gyro before and after the filters. The app then measures what the filters actually removed instead of only predicting it.",
+        "uk": "Встановіть INS_RAW_LOG_OPT у {proposed}, щоб записувати гіроскоп до і після фільтрів. Тоді застосунок вимірює, що фільтри насправді прибрали, а не лише прогнозує це."
+      }
+    },
+    "logging.samples_lost": {
+      "stage": "evidence",
+      "title": {
+        "en": "{percent}% of the raw gyro samples are missing ({count} samples)",
+        "uk": "Бракує {percent}% сирих вибірок гіроскопа ({count} вибірок)"
+      },
+      "action": {
+        "en": "The logger cannot keep up with raw IMU data. Use a faster SD card, log only the primary gyro (INS_RAW_LOG_OPT bit 0), or switch raw logging on only for test flights. Spectra skip the damaged windows until then.",
+        "uk": "Журнал не встигає записувати сирі дані IMU. Використайте швидшу SD-картку, записуйте лише основний гіроскоп (біт 0 INS_RAW_LOG_OPT) або вмикайте сирий запис лише для тестових польотів. До того спектри пропускають пошкоджені вікна."
+      }
+    },
+    "logging.dropouts": {
+      "stage": "evidence",
+      "title": {
+        "en": "The logger dropped {count} messages during the flight",
+        "uk": "Журнал відкинув {count} повідомлень під час польоту"
+      },
+      "action": {
+        "en": "Use a faster SD card, or log less: a lower LOG_BLK_RATEMAX, or raw IMU data only for test flights.",
+        "uk": "Використайте швидшу SD-картку або записуйте менше: нижчий LOG_BLK_RATEMAX або сирі дані IMU лише для тестових польотів."
+      }
+    },
+    "logging.gap": {
+      "stage": "evidence",
+      "title": {
+        "en": "The log stops for {seconds} s during the flight",
+        "uk": "Журнал зупиняється на {seconds} с під час польоту"
+      },
+      "action": {
+        "en": "Nothing was recorded during the gap, so no analysis covers it. A gap in flight usually means the storage stalled; check the card and the logging settings.",
+        "uk": "Під час розриву нічого не записано, тож жоден аналіз його не охоплює. Розрив у польоті зазвичай означає, що носій завис; перевірте картку та налаштування журналу."
+      }
+    },
+    "logging.missing_messages": {
+      "stage": "evidence",
+      "title": {
+        "en": "The log has no {messages}, so these checks cannot run: {needed_for}",
+        "uk": "У журналі немає {messages}, тож ці перевірки не виконуються: {needed_for}"
+      },
+      "action": {
+        "en": "Set LOG_BITMASK to {proposed}, which adds {bits}.",
+        "uk": "Встановіть LOG_BITMASK у {proposed}, що додає {bits}."
+      }
+    }
+  }
+}
