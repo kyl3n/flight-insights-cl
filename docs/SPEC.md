@@ -853,7 +853,7 @@ The app assumes every aircraft will lose GNSS at some point, through jamming, sp
 
 The engine turns findings into a staged plan: a short list of changes for the next test flight, each with its evidence and a way to verify it. Nothing is applied automatically.
 
-**Stages follow ArduPilot's tuning order.** A later stage is not offered while an earlier one is unverified, except for safety findings, which always surface first.
+**Stages follow ArduPilot's tuning order.** A later stage is not offered while an earlier one is unverified, except for safety findings, which always surface first. A stage is unverified while it holds a problem: a safety or stability recommendation, or a finding at caution or worse. A better option fixes no problem, so it never holds a later stage back. It is offered with the stage on offer when it belongs to that stage or an earlier one, and waits otherwise.
 
 1. Mechanical: vibration, mounting, props, motor faults
 2. Evidence: logging needed for the next analysis
@@ -886,18 +886,47 @@ The engine turns findings into a staged plan: a short list of changes for the ne
 
 The numbers above are illustrative. `expected_effect` comes from simulation where the engine can simulate (filters, thrust model) and is left qualitative where it cannot.
 
+**Where recommendations come from.** Each finding's candidate changes, plus one action for every finding at caution or worse that leaves nothing to load, such as a loose mount or a hot ESC. An action has no parameter. A finding whose change set replaces other findings' changes answers those findings too and takes on their weight. For example, the filter search's whole set answers the flags it explains. Every recommendation has a kind:
+
+- **safety:** from a safety finding;
+- **stability:** from a finding at caution or worse;
+- **performance:** a better option, or anything at info.
+
+`risk` comes from the stage, and `verify` gives the stage's test flight. Both are in the rule pack (`knowledge/rules/recommend.json`), in English and Ukrainian.
+
 **Validation before anything is shown**
 
-- Name, range, units, bitmask bits and reboot flags checked against the firmware version's metadata, in that version's dialect.
-- Dependencies resolved: enable parameters first, reboot, then the parameters that appear after it.
-- Step limits: gain changes larger than the rule pack's per-flight limit are split across flights.
-- Never proposed automatically: disabling arming checks or failsafes, or raising limits past what the log shows the airframe can do.
+- Name, range, units, bitmask bits and reboot flags are checked against the firmware version's metadata, in that version's dialect:
+  - a read-only parameter is refused;
+  - when a parameter has a range, its listed values are only suggestions; without a range, the listed values are the only ones allowed;
+  - a bitmask value must set only bits the metadata defines.
+
+  A failed check keeps the recommendation, blocked, with its reason.
+- Dependencies are resolved. A parameter's enable is the longest `<group>_ENABLE` whose group prefixes it, such as `INS_HNTCH_ENABLE` for `INS_HNTCH_FREQ`.
+  - If the feature is off, the plan switches it on first.
+  - A parameter the snapshot doesn't hold yet only appears once the feature is on. It moves to a later step, after a reboot and a parameter refresh.
+  - Changes from one finding require each other.
+- Step limits: gain changes larger than the rule pack's per-flight limit are split across flights. The limit starts at a quarter of the current value, uncalibrated, for rate, angle and position gains.
+- Never proposed automatically:
+  - disabling arming checks or failsafes: setting `ARMING_SKIPCHK` or `FS_OPTIONS` bits, or zeroing a failsafe enable or action;
+  - raising limits past what the log shows the airframe can do. No analyzer measures that yet, so a listed limit is never raised; for some limits, 0 means unlimited.
+
+  The lists are in the rule pack.
 
 **Conflicts.** When two analyzers or the AI propose different values for one parameter, safety beats stability beats performance. Measured evidence beats inference, so an AI suggestion that contradicts a deterministic measurement is shown as disputed with both cases side by side, never silently merged.
+
+- Bitmask changes that touch different bits are combined.
+- Findings of the same kind and confidence that propose different values are also disputed.
+- A losing value is shown as an alternative.
+- Nothing disputed goes in a file.
 
 **Outputs**
 
 - A `.param` file of changed values only, with a comment per line giving the reason, loadable in Mission Planner or QGroundControl.
+  - The file is written per step, in the firmware's own names and units, in English or Ukrainian.
+  - Its header says what to do after loading: fly the test, reboot, or reboot and refresh for the next step. It also gives the stage's verification.
+  - Mission Planner `.param` files carry the reason after each value (`NAME,VALUE  # why`), as Methodic Configurator writes them.
+  - QGroundControl `.params` files carry the reasons as header comments, since its rows have five fixed fields.
 - A full parameter snapshot for the airframe's history.
 - A flight report (HTML or PDF) for people who will not open the app.
 

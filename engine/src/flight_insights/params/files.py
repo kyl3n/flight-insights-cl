@@ -15,6 +15,7 @@ never raised, and the rest of the file still counts (spec: Data ingestion).
 from __future__ import annotations
 
 import re
+from collections.abc import Mapping, Sequence
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Literal
@@ -137,20 +138,46 @@ def format_value(value: float) -> str:
     return np.format_float_positional(np.float32(value), unique=True, trim="-")
 
 
-def write_mission_planner(values: dict[str, float]) -> str:
-    return "".join(f"{name},{format_value(v)}\n" for name, v in sorted(values.items()))
+def _comment(text: str) -> str:
+    return " ".join(text.split())  # one line: a comment ends at the line's end
+
+
+def write_mission_planner(
+    values: Mapping[str, float],
+    comments: Mapping[str, str] | None = None,
+    header: Sequence[str] = (),
+) -> str:
+    """`NAME,VALUE` lines; a comment after a value (`# why`), as Methodic Configurator
+    writes them, is ignored by Mission Planner when it loads the file."""
+    comments = comments or {}
+    lines = [f"# {_comment(h)}\n" if h else "#\n" for h in header]
+    for name, v in sorted(values.items()):
+        note = f"  # {_comment(comments[name])}" if comments.get(name) else ""
+        lines.append(f"{name},{format_value(v)}{note}\n")
+    return "".join(lines)
 
 
 def write_qgroundcontrol(
-    values: dict[str, float],
+    values: Mapping[str, float],
     component: tuple[int, int] = (1, 1),
     types: dict[str, int] | None = None,
     title: str = "",
+    comments: Mapping[str, str] | None = None,
+    notes: Sequence[str] = (),
 ) -> str:
+    """QGroundControl's tab-separated rows. Its loader expects five fields a row, so
+    comments go in the header, one `# NAME: why` line each."""
     sysid, compid = component
     header = f"# Onboard parameters for Vehicle {sysid}\n#\n"
     if title:
         header += f"# {title}\n#\n"
+    for note in notes:
+        header += f"# {_comment(note)}\n" if note else "#\n"
+    for name in sorted(values):
+        if (comments or {}).get(name):
+            header += f"# {name}: {_comment((comments or {})[name])}\n"
+    if notes or comments:
+        header += "#\n"
     header += "# Vehicle-Id Component-Id Name Value Type\n"
     types = types or {}
     rows = "".join(

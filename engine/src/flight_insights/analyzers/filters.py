@@ -447,6 +447,8 @@ def _with_search(
             "noise_change_db": round(best.noise_db - now.noise_db, 1),
             "notches_now": now.notches,
             "notches_new": best.notches,
+            # the flags this whole set answers, their own changes replaced by it
+            "explains": [f.code for f in out.findings],
         },
         changes=changes,
     )
@@ -492,7 +494,7 @@ def _search_evidence(outcome: Outcome, m: MotorPicture) -> Evidence:
 
 FILTERS = Analyzer(
     name="filters",
-    version=2,
+    version=3,
     run=_filters,
     metrics=(),
     findings=(
