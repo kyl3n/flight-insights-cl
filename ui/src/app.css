@@ -1,25 +1,78 @@
-/* Dark theme by default (spec: User interface, Layout); light theme for field laptops in sunlight. */
+/* Dark theme by default, for spectrograms; a high-contrast light theme for field
+   laptops in sunlight (spec: User interface, Layout). Fonts are bundled: the
+   interface never fetches anything from the network. */
+@import "@fontsource/ibm-plex-sans/400.css";
+@import "@fontsource/ibm-plex-sans/500.css";
+@import "@fontsource/ibm-plex-sans/600.css";
+@import "@fontsource/ibm-plex-mono/400.css";
+@import "@fontsource/ibm-plex-mono/500.css";
+
 :root {
   color-scheme: dark;
-  --bg: #0f1216;
-  --surface: #171b21;
-  --text: #e6e9ee;
-  --text-muted: #9aa3ae;
-  --border: #2a3039;
-  font-family: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+  --bg: #0e1114;
+  --rail: #0a0c0f;
+  --surface: #151a1f;
+  --surface-2: #12161a;
+  --raised: #262e37;
+  --border: #262d35;
+  --border-soft: #1e242b;
+  --text: #e7eaee;
+  --text-2: #cbd2d9;
+  --text-muted: #a3acb6;
+  --text-faint: #8a949e;
+  --accent: #5ab0e8;
+  --accent-text: #06121a;
+  --link: #7cc4f0;
+  --ok: #3dbe8b;
+  --caution: #e8a33d;
+  --out: #f2716e;
+  --info: #9fb2c6;
+  --ai: #b39cf0;
+  --font: "IBM Plex Sans", system-ui, sans-serif;
+  --mono: "IBM Plex Mono", ui-monospace, monospace;
 }
 
 :root[data-theme="light"] {
   color-scheme: light;
   --bg: #ffffff;
-  --surface: #f3f5f7;
-  --text: #0b0d10;
-  --text-muted: #4a525c;
-  --border: #c9ced5;
+  --rail: #eef1f4;
+  --surface: #f6f8fa;
+  --surface-2: #ffffff;
+  --raised: #dfe5eb;
+  --border: #9aa5b1;
+  --border-soft: #c3cbd3;
+  --text: #05080b;
+  --text-2: #1b232b;
+  --text-muted: #2f3a45;
+  --text-faint: #46525e;
+  --accent: #0b5c94;
+  --accent-text: #ffffff;
+  --link: #0b5c94;
+  --ok: #08704a;
+  --caution: #8a5300;
+  --out: #b3201c;
+  --info: #3d5167;
+  --ai: #5b3cb8;
 }
 
 body {
   margin: 0;
   background: var(--bg);
   color: var(--text);
+  font-family: var(--font);
+  font-size: 14px;
+  line-height: 1.45;
+}
+
+button {
+  font-family: inherit;
+}
+
+:focus-visible {
+  outline: 2px solid var(--link);
+  outline-offset: 2px;
+}
+
+.mono {
+  font-family: var(--mono);
 }

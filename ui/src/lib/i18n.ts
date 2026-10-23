@@ -1,0 +1,126 @@
+// Interface text goes through this layer from the first release, in English and
+// Ukrainian (spec: User interface, "Languages"). Parameter names stay in
+// ArduPilot's English form everywhere and never pass through here.
+
+export type Locale = "en" | "uk";
+export const LOCALES: Locale[] = ["en", "uk"];
+
+const en = {
+  "app.title": "Flight Insights",
+  "nav.main": "Main navigation",
+  "nav.fleet": "Fleet",
+  "nav.flights": "Flights",
+  "nav.trends": "Trends",
+  "nav.params": "Params",
+  "nav.plan": "Plan",
+  "nav.ask": "Ask",
+  "nav.imports": "Imports",
+  "nav.settings": "Settings",
+  "scope.label": "Scope",
+  "scope.allPlatforms": "All platforms",
+  "scope.allAirframes": "All airframes",
+  "scope.allFlights": "All flights",
+  "search.placeholder": "Search airframes, flights, parameters, findings",
+  "header.import": "Import logs",
+  "header.importLater": "Log import arrives in a later step of this phase",
+  "header.theme.dark": "Dark theme",
+  "header.theme.light": "Light theme",
+  "header.language": "Language",
+  "engine.starting": "Engine starting",
+  "engine.ready": "Engine ready",
+  "engine.failed": "Engine stopped",
+  "engine.browser": "Not running in the desktop app",
+  "status.ok": "OK",
+  "status.caution": "Caution",
+  "status.out": "Out of range",
+  "status.info": "Info",
+  "fleet.title": "Fleet",
+  "fleet.summary": "{platforms} platforms · {airframes} airframes · {attention} need attention",
+  "fleet.filter.label": "Show airframes",
+  "fleet.filter.all": "All",
+  "fleet.filter.attention": "Needs attention",
+  "fleet.filter.tuning": "Tuning",
+  "fleet.filter.healthy": "Healthy",
+  "fleet.empty.title": "No platforms yet",
+  "fleet.empty.body": "Set up a platform first: what it is built from and how it flies. Every airframe and flight then hangs off it.",
+  "fleet.empty.action": "Set up a platform",
+  "fleet.empty.later": "Platform setup arrives in the next step of this phase",
+  "laptop.title": "This laptop",
+  "laptop.code": "Laptop",
+  "laptop.engine": "Engine",
+  "laptop.version": "Engine version",
+  "laptop.firstStart": "New laptop identity created. Its keys are in the OS keychain and never leave it.",
+  "laptop.error": "What went wrong",
+  "attention.title": "Needs attention",
+  "attention.order": "Most urgent first",
+  "attention.none": "Nothing needs attention.",
+  "view.later": "{view} arrives in a later phase.",
+} as const;
+
+export type MessageKey = keyof typeof en;
+
+const uk: Record<MessageKey, string> = {
+  "app.title": "Flight Insights",
+  "nav.main": "Головна навігація",
+  "nav.fleet": "Флот",
+  "nav.flights": "Польоти",
+  "nav.trends": "Тренди",
+  "nav.params": "Параметри",
+  "nav.plan": "План",
+  "nav.ask": "Запитати",
+  "nav.imports": "Імпорт",
+  "nav.settings": "Налаштування",
+  "scope.label": "Обсяг",
+  "scope.allPlatforms": "Усі платформи",
+  "scope.allAirframes": "Усі борти",
+  "scope.allFlights": "Усі польоти",
+  "search.placeholder": "Пошук бортів, польотів, параметрів, висновків",
+  "header.import": "Імпорт логів",
+  "header.importLater": "Імпорт логів з'явиться на наступному кроці цього етапу",
+  "header.theme.dark": "Темна тема",
+  "header.theme.light": "Світла тема",
+  "header.language": "Мова",
+  "engine.starting": "Рушій запускається",
+  "engine.ready": "Рушій готовий",
+  "engine.failed": "Рушій зупинено",
+  "engine.browser": "Запущено не в настільному застосунку",
+  "status.ok": "Норма",
+  "status.caution": "Увага",
+  "status.out": "Поза межами",
+  "status.info": "Довідка",
+  "fleet.title": "Флот",
+  "fleet.summary": "Платформ: {platforms} · бортів: {airframes} · потребують уваги: {attention}",
+  "fleet.filter.label": "Показати борти",
+  "fleet.filter.all": "Усі",
+  "fleet.filter.attention": "Потребують уваги",
+  "fleet.filter.tuning": "Налаштування",
+  "fleet.filter.healthy": "Справні",
+  "fleet.empty.title": "Платформ ще немає",
+  "fleet.empty.body": "Спершу налаштуйте платформу: з чого її зібрано і як вона літає. До неї потім прив'язуються всі борти й польоти.",
+  "fleet.empty.action": "Налаштувати платформу",
+  "fleet.empty.later": "Налаштування платформи з'явиться на наступному кроці цього етапу",
+  "laptop.title": "Цей ноутбук",
+  "laptop.code": "Ноутбук",
+  "laptop.engine": "Рушій",
+  "laptop.version": "Версія рушія",
+  "laptop.firstStart": "Створено нову ідентичність ноутбука. Її ключі зберігаються у сховищі ключів ОС і ніколи його не залишають.",
+  "laptop.error": "Що пішло не так",
+  "attention.title": "Потребує уваги",
+  "attention.order": "Спершу найтерміновіше",
+  "attention.none": "Ніщо не потребує уваги.",
+  "view.later": "Розділ «{view}» з'явиться на пізнішому етапі.",
+};
+
+export const CATALOGS: Record<Locale, Record<MessageKey, string>> = { en, uk };
+
+/** The message in `locale`, with {name} placeholders filled from `vars`. */
+export function translate(
+  locale: Locale,
+  key: MessageKey,
+  vars: Record<string, string | number> = {},
+): string {
+  const text = CATALOGS[locale][key] ?? CATALOGS.en[key];
+  return text.replace(/\{(\w+)\}/g, (_, name: string) =>
+    name in vars ? String(vars[name]) : `{${name}}`,
+  );
+}
