@@ -16,11 +16,22 @@
         "en": "ESC.Err, the error rate each ESC reports, averaged between arming and disarming; the highest ESC is reported.",
         "uk": "ESC.Err, частка помилок, яку повідомляє кожен ESC, усереднена між взведенням і зняттям зі зброї; повідомляється найбільша."
       },
-      "messages": ["ESC"],
+      "messages": [
+        "ESC"
+      ],
       "zones": {
-        "target": [null, 0.1],
-        "caution": [0.1, 1],
-        "out": [1, null]
+        "target": [
+          null,
+          0.1
+        ],
+        "caution": [
+          0.1,
+          1
+        ],
+        "out": [
+          1,
+          null
+        ]
       },
       "source": {
         "kind": "community",
@@ -43,14 +54,68 @@
         "en": "Gaps between ESC updates longer than five times the usual interval while armed, plus updates reading 0 rpm in steady hover, added over all ESCs.",
         "uk": "Проміжки між оновленнями ESC, довші за п'ятикратний звичайний інтервал під час польоту, плюс оновлення з 0 об/хв у стабільному зависанні, сумарно за всіма ESC."
       },
-      "messages": ["ESC"],
+      "messages": [
+        "ESC"
+      ],
       "zones": {
-        "target": [0, 1],
-        "caution": [1, null]
+        "target": [
+          0,
+          1
+        ],
+        "caution": [
+          1,
+          null
+        ]
       },
       "source": {
         "kind": "app",
         "title": "App rule: an RPM-tracking notch needs unbroken RPM; any dropout is reported to the filter analyzer"
+      }
+    },
+    "esc.peak_temperature": {
+      "name": {
+        "en": "ESC peak temperature",
+        "uk": "Пікова температура ESC"
+      },
+      "unit": "degC",
+      "direction": "lower",
+      "definition": {
+        "en": "The hottest any ESC got in flight. ESCs start cutting power past their programmed threshold; a rising peak over flights, or one ESC hotter than its siblings, comes first.",
+        "uk": "Найвища температура будь-якого ESC у польоті. ESC починають обмежувати потужність понад запрограмований поріг; спершу видно зростання піку від польоту до польоту або один ESC, гарячіший за сусідів."
+      },
+      "method": {
+        "en": "Highest ESC.Temp of any ESC between arming and disarming.",
+        "uk": "Найбільше ESC.Temp будь-якого ESC між взведенням і зняттям зі зброї."
+      },
+      "messages": [
+        "ESC"
+      ],
+      "source": {
+        "kind": "baseline",
+        "title": "No universal range: judged against this ESC's and motor's own history and its siblings"
+      }
+    },
+    "esc.current_per_rpm2": {
+      "name": {
+        "en": "Motor load in hover",
+        "uk": "Навантаження мотора в зависанні"
+      },
+      "unit": "A/krpm^2",
+      "direction": "lower",
+      "definition": {
+        "en": "Current per RPM squared in hover. Over flights, more current for the same RPM points to bearing wear, and a changed value to a damaged or different prop.",
+        "uk": "Струм на квадрат обертів у зависанні. Більший струм за тих самих обертів від польоту до польоту вказує на знос підшипників, а зміна значення — на пошкоджений чи інший пропелер."
+      },
+      "method": {
+        "en": "Median of ESC.Curr / (ESC.RPM / 1000)^2 per ESC in steady hover; the median over ESCs.",
+        "uk": "Медіана ESC.Curr / (ESC.RPM / 1000)^2 для кожного ESC у стабільному зависанні; медіана за всіма ESC."
+      },
+      "messages": [
+        "ESC"
+      ],
+      "source": {
+        "kind": "baseline",
+        "title": "No universal range: judged against this ESC's and motor's own history and its siblings"
       }
     }
   },
@@ -86,6 +151,50 @@
       "action": {
         "en": "The motor pole count the autopilot divides ESC RPM by is probably wrong (SERVO_BLH_POLES, SERVO_FTW_POLES or ESC_HW_POLES): count the magnets on one motor's bell. Fix it before using an ESC-RPM notch, or the notch will sit at the wrong frequency.",
         "uk": "Імовірно, неправильна кількість полюсів мотора, на яку автопілот ділить оберти ESC (SERVO_BLH_POLES, SERVO_FTW_POLES або ESC_HW_POLES): порахуйте магніти на дзвоні одного мотора. Виправте це до використання режекторного фільтра за обертами ESC, інакше він стоятиме не на тій частоті."
+      }
+    },
+    "esc.desync": {
+      "stage": "mechanical",
+      "title": {
+        "en": "Motor {motors}: RPM collapsed while still commanded, first at {first_s} s",
+        "uk": "Мотор {motors}: оберти впали, хоча команда лишалася, вперше на {first_s} с"
+      },
+      "action": {
+        "en": "A desync or stall: the ESC lost the motor. Check the motor, its wiring and connectors, and the ESC's timing and demag settings. Do not fly a heavy aircraft until it is understood.",
+        "uk": "Розсинхронізація або зупинка: ESC втратив мотор. Перевірте мотор, його проводку й роз'єми та налаштування таймінгу й demag в ESC. Не літайте важким апаратом, доки причину не з'ясовано."
+      }
+    },
+    "esc.edt_status": {
+      "stage": "mechanical",
+      "title": {
+        "en": "ESC {kind} reported on motor {motors} (extended DShot telemetry)",
+        "uk": "ESC повідомив {kind} на моторі {motors} (розширена телеметрія DShot)"
+      },
+      "action": {
+        "en": "Alerts are usually demag, warnings desync and errors stall, as the ESC firmware reports them. Inspect the motor and prop, then the ESC's demag compensation and timing.",
+        "uk": "Попередження зазвичай означають demag, warning — розсинхронізацію, error — зупинку, як їх повідомляє прошивка ESC. Огляньте мотор і пропелер, потім компенсацію demag і таймінг ESC."
+      }
+    },
+    "esc.hot": {
+      "stage": "mechanical",
+      "title": {
+        "en": "The ESC of motor {motor} reached {temperature} °C, its siblings {siblings} °C",
+        "uk": "ESC мотора {motor} нагрівся до {temperature} °C, сусідні — до {siblings} °C"
+      },
+      "action": {
+        "en": "One ESC hotter than the others at similar load points to its cooling, a solder joint or a degrading MOSFET. Inspect it before its thermal protection starts cutting power.",
+        "uk": "Один ESC, гарячіший за інші за схожого навантаження, вказує на його охолодження, пайку або деградацію MOSFET. Огляньте його, доки тепловий захист не почав обмежувати потужність."
+      }
+    },
+    "esc.supply_drop": {
+      "stage": "mechanical",
+      "title": {
+        "en": "The ESC of motor {motor} sees {drop} V less than its siblings in hover",
+        "uk": "ESC мотора {motor} бачить на {drop} В менше, ніж сусідні, у зависанні"
+      },
+      "action": {
+        "en": "Resistance in that arm's power wiring or a connector. Check and replace the connector or wire before it heats up.",
+        "uk": "Опір у силовій проводці цієї балки або в роз'ємі. Перевірте й замініть роз'єм чи провід, поки він не нагрівся."
       }
     }
   }

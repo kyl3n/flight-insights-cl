@@ -1,0 +1,134 @@
+{
+  "about": "Motor outputs (spec: Analyzers common to all vehicles, 'Motor and ESC health'; Reference range library, 'Propulsion and power').",
+  "metrics": {
+    "motors.saturation_hover": {
+      "name": {
+        "en": "Motor saturation in hover",
+        "uk": "Насичення моторів у зависанні"
+      },
+      "unit": "%",
+      "direction": "lower",
+      "definition": {
+        "en": "The share of steady hover with at least one motor at its maximum output. A saturated motor cannot give more, so attitude and height control are lost on that side.",
+        "uk": "Частка стабільного зависання, коли щонайменше один мотор на максимальному виході. Насичений мотор не може дати більше, тож керування положенням і висотою з того боку втрачається."
+      },
+      "method": {
+        "en": "RCOU outputs of every motor (from SERVOn_FUNCTION) within 1% of the top of the range (MOT_PWM_MIN to MOT_PWM_MAX, times MOT_SPIN_MAX), as a share of the hover samples.",
+        "uk": "Виходи RCOU кожного мотора (за SERVOn_FUNCTION) у межах 1% від верху діапазону (MOT_PWM_MIN–MOT_PWM_MAX, помножене на MOT_SPIN_MAX), як частка вибірок зависання."
+      },
+      "messages": [
+        "RCOU"
+      ],
+      "zones": {
+        "target": [
+          null,
+          0.1
+        ],
+        "out": [
+          0.1,
+          null
+        ]
+      },
+      "source": {
+        "kind": "ardupilot",
+        "title": "ArduPilot: thrust loss warnings (motor saturation in hover or relaxed flight needs a hardware fix)",
+        "url": "https://ardupilot.org/copter/docs/thrust_loss_yaw_imbalance.html"
+      }
+    },
+    "motors.saturation_flight": {
+      "name": {
+        "en": "Motor saturation in flight",
+        "uk": "Насичення моторів у польоті"
+      },
+      "unit": "%",
+      "direction": "lower",
+      "definition": {
+        "en": "The share of the armed flight with at least one motor at its maximum output. Brief saturation in climbs or hard manoeuvres is common; more means too little thrust headroom.",
+        "uk": "Частка польоту, коли щонайменше один мотор на максимальному виході. Коротке насичення під час набору висоти чи різких маневрів звичне; більше означає замалий запас тяги."
+      },
+      "method": {
+        "en": "As for hover, over every RCOU sample between arming and disarming.",
+        "uk": "Як для зависання, за всіма вибірками RCOU між взведенням і зняттям зі зброї."
+      },
+      "messages": [
+        "RCOU"
+      ],
+      "zones": {
+        "target": [
+          null,
+          1
+        ],
+        "caution": [
+          1,
+          null
+        ]
+      },
+      "source": {
+        "kind": "ardupilot",
+        "title": "ArduPilot: thrust loss warnings (brief saturation in climbs or aggressive manoeuvres only)",
+        "url": "https://ardupilot.org/copter/docs/thrust_loss_yaw_imbalance.html"
+      }
+    },
+    "motors.output_spread": {
+      "name": {
+        "en": "Motor output spread in hover",
+        "uk": "Розкид виходів моторів у зависанні"
+      },
+      "unit": "%",
+      "direction": "lower",
+      "definition": {
+        "en": "How differently the motors work in steady hover. A large spread means some motors work against others: the centre of gravity is off, a motor is twisted, or yaw is out of balance. It costs power and headroom.",
+        "uk": "Наскільки по-різному працюють мотори в стабільному зависанні. Великий розкид означає, що одні мотори працюють проти інших: зміщений центр мас, перекошений мотор або дисбаланс рискання. Це коштує потужності й запасу."
+      },
+      "method": {
+        "en": "Highest minus lowest of the motors' median RCOU outputs in hover, as a share of the output range.",
+        "uk": "Найбільший мінус найменший медіанний вихід RCOU моторів у зависанні, як частка діапазону виходу."
+      },
+      "messages": [
+        "RCOU"
+      ],
+      "zones": {
+        "target": [
+          null,
+          10
+        ],
+        "caution": [
+          10,
+          20
+        ],
+        "out": [
+          20,
+          null
+        ]
+      },
+      "source": {
+        "kind": "app",
+        "title": "App rule, uncalibrated: no published range; a quarter of the range between motors is a clear imbalance"
+      }
+    }
+  },
+  "findings": {
+    "motors.saturation": {
+      "stage": "mechanical",
+      "title": {
+        "en": "Motors saturated in {where} ({percent}% of the flight)",
+        "uk": "Мотори в насиченні: {where} ({percent}% польоту)"
+      },
+      "action": {
+        "en": "The aircraft is short of thrust. In hover that needs a hardware fix: less weight, more thrust, or more voltage. Check also for a motor or ESC that has lost power.",
+        "uk": "Апаратові бракує тяги. У зависанні це потребує апаратного рішення: менша вага, більша тяга або вища напруга. Перевірте також, чи не втратив потужність мотор або ESC."
+      }
+    },
+    "motors.output_spread": {
+      "stage": "mechanical",
+      "title": {
+        "en": "Motor outputs in hover spread by {percent}% (motor {highest} highest, motor {lowest} lowest)",
+        "uk": "Виходи моторів у зависанні розходяться на {percent}% (мотор {highest} найвищий, мотор {lowest} найнижчий)"
+      },
+      "action": {
+        "en": "Check the centre of gravity and payload position, that motor {highest} is not tilted and its prop is right, and that no motor is twisted on its arm. Yaw imbalance shows as diagonal pairs working harder.",
+        "uk": "Перевірте центр мас і положення навантаження, чи мотор {highest} не нахилений і пропелер правильний, і чи жоден мотор не перекошений на балці. Дисбаланс рискання проявляється як сильніша робота діагональних пар."
+      }
+    }
+  }
+}
