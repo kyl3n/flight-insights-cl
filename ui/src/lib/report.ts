@@ -4,6 +4,7 @@
 // a threshold or an explanation.
 
 import { CATALOGS, translate, type Locale, type MessageKey } from "./i18n";
+import type { Plan } from "./plan";
 import type { Status } from "./status";
 
 export type Severity = "info" | "caution" | "out" | "safety";
@@ -82,6 +83,21 @@ export interface Analysis {
   metrics: MetricValue[];
   findings: FindingRow[];
   evidence: EvidenceRow[];
+}
+
+/** A parameter file's configuration review (review.file): findings and a plan, with no
+ * flight behind them. */
+export interface FileReview {
+  file: string;
+  kind: string;
+  vehicle: string;
+  firmware: string;
+  firmware_from: "airframe" | "newest";
+  defaults_from: "airframe" | "fleet" | null;
+  parameters: number;
+  findings: FindingRow[];
+  evidence: EvidenceRow[];
+  plan: Plan;
 }
 
 export interface FlightRow {

@@ -18,6 +18,7 @@
 | filter.workbench | A flight's spectra before, as flown and with candidate filter values |
 | flight.propulsion | A flight's motor outputs, ESC telemetry and battery, reduced for display |
 | flight.system | A flight's loop load and timing, logging drops and errors, for display |
+| review.file | A parameter file's configuration review and plan, with no flight |
 
 Analysing a flight also grades its airframe's earlier recommendations against it.
 
@@ -32,7 +33,7 @@ from collections.abc import Callable
 from pathlib import Path
 from typing import TYPE_CHECKING, Any, cast
 
-from flight_insights import analyzers, recommend, trends, views
+from flight_insights import analyzers, recommend, review, trends, views
 from flight_insights.analyzers.registry import LANGUAGES
 from flight_insights.filters import workbench
 from flight_insights.rpc.server import (
@@ -183,6 +184,20 @@ def add_analysis_methods(server: Server, state: EngineState, guarded: Callable[[
             flight = analyzers.FlightData.load(store, cache, state.pack, _flight(params))
             return build(flight, state.pack, span)
         except (analyzers.FlightError, ValueError) as e:
+            raise RpcError(BAD_INPUT, str(e)) from None
+
+    @server.method("review.file")
+    @guarded
+    def review_file(_ctx: Context, params: dict[str, Any]) -> dict[str, Any]:
+        path = Path(_id(params, "path"))
+        airframe = params.get("airframe_id")
+        if airframe is not None and not isinstance(airframe, str):
+            raise RpcError(INVALID_PARAMS, "airframe_id must be an id or null")
+        if path.suffix.lower() not in (".param", ".params") or not path.is_file():
+            raise RpcError(BAD_INPUT, "pick a .param or .params file")
+        try:
+            return review.review_file(state.require_store(), state.pack, path, airframe)
+        except review.ReviewError as e:
             raise RpcError(BAD_INPUT, str(e)) from None
 
     @server.method("flight.propulsion")

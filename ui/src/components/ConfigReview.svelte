@@ -3,7 +3,9 @@
   // ConfigReview): the parameters its latest flight flew with, checked against the
   // platform's answers. Errors first, then settings that are not the best this aircraft
   // could have, then minor points; each says why for this aircraft, the change it
-  // proposes, and can join the plan.
+  // proposes, and can join the plan. A parameter file can be checked the same way before
+  // it is flown (spec: Platform setup, "First parameter file"): nothing is stored.
+  import { open as pickFile } from "@tauri-apps/plugin-dialog";
   import { app, t } from "../lib/app.svelte";
   import { getRegistry, latestFlight } from "../lib/data";
   import { recFor, type Plan, type PlanRec } from "../lib/plan";
@@ -16,6 +18,7 @@
     sortFindings,
     stageKey,
     type Analysis,
+    type FileReview,
     type FindingRow,
     type FlightRow,
     type Registry,
@@ -35,6 +38,26 @@
   let platform = $state<PlatformView | null>(null);
   let schema = $state<SetupSchema | null>(null);
   let error = $state("");
+  let file = $state<FileReview | null>(null); // a parameter file under review, instead of the flight
+  let checking = $state(false);
+
+  async function checkFile() {
+    const picked = await pickFile({
+      multiple: false,
+      filters: [{ name: t("review.file.pick"), extensions: ["param", "params"] }],
+    });
+    const path = Array.isArray(picked) ? picked[0] : picked;
+    if (!path) return;
+    checking = true;
+    error = "";
+    try {
+      file = await engineCall<FileReview>("review.file", { path, airframe_id: app.scope.airframe });
+    } catch (e) {
+      error = String(e);
+    } finally {
+      checking = false;
+    }
+  }
 
   // The analyzers whose findings are about the configuration itself.
   const REVIEW = ["params.", "option."];
@@ -62,6 +85,7 @@
 
   $effect(() => {
     const id = app.scope.airframe;
+    file = null;
     if (id && app.shell.engine === "ready") load(id);
   });
 
@@ -69,8 +93,10 @@
     return f.severity === "safety" || f.severity === "out" ? "errors" : f.severity === "caution" ? "optimal" : "minor";
   }
 
+  const reviewed = $derived(file?.findings ?? analysis?.findings ?? null);
+  const shownPlan = $derived(file ? file.plan : plan);
   const findings = $derived(
-    analysis ? sortFindings(analysis.findings.filter((f) => REVIEW.some((p) => f.code.startsWith(p)))) : [],
+    reviewed ? sortFindings(reviewed.filter((f) => REVIEW.some((p) => f.code.startsWith(p)))) : [],
   );
   const groups = $derived(
     (["errors", "optimal", "minor"] as Category[]).map((c) => [c, findings.filter((f) => category(f) === c)] as const),
@@ -104,7 +130,7 @@
   <div class="top">
     <div>
       <h1>{flight ? t("review.title", { airframe: flight.airframe }) : t("nav.params")}</h1>
-      {#if flight && platform}
+      {#if flight && platform && !file}
         <p class="faint">
           {t("review.subtitle", {
             when: formatTakeoff(flight.utc_us, app.locale) ?? t("flights.noTime"),
@@ -115,6 +141,9 @@
     </div>
     <div class="tools">
       <AirframePicker />
+      <button type="button" class="secondary" disabled={checking || app.shell.engine !== "ready"} onclick={checkFile}>
+        {checking ? t("review.file.checking") : t("review.file.check")}
+      </button>
       {#if plan}
         <button type="button" class="link" onclick={() => (app.view = "plan")}>
           {t("review.openPlan", { count: accepted })}
@@ -123,7 +152,28 @@
     </div>
   </div>
   {#if error}<p class="error">{error}</p>{/if}
-  {#if app.scope.airframe && !flight && !error}<p class="faint">{t("plan.noFlights")}</p>{/if}
+  {#if file}
+    <section class="panel file" aria-live="polite">
+      <div class="row">
+        <h2>{t("review.file.title", { file: file.file })}</h2>
+        <button type="button" class="link" onclick={() => (file = null)}>{t("review.file.back")}</button>
+      </div>
+      <p class="faint">
+        {t(file.firmware_from === "airframe" ? "review.file.firmware.airframe" : "review.file.firmware.newest", {
+          firmware: file.firmware,
+          count: file.parameters,
+        })}
+        {t(
+          file.defaults_from === "airframe"
+            ? "review.file.defaults.airframe"
+            : file.defaults_from === "fleet"
+              ? "review.file.defaults.fleet"
+              : "review.file.defaults.none",
+        )}
+      </p>
+      <p class="faint">{t("review.file.about")}</p>
+    </section>
+  {:else if app.scope.airframe && !flight && !error}<p class="faint">{t("plan.noFlights")}</p>{/if}
 
   {#if platform}
     <section class="panel" aria-labelledby="answers-title">
@@ -153,7 +203,7 @@
     </section>
   {/if}
 
-  {#if analysis && reg}
+  {#if reviewed && reg}
     {@const registry = reg}
     <p class="summary">
       <strong>{t("review.summary", { total: findings.length })}</strong>
@@ -161,7 +211,7 @@
         <span class="faint">· {t(`review.cat.${c}`)} {list.length}</span>
       {/each}
     </p>
-    {#if findings.length === 0}<p class="faint">{t("review.empty")}</p>{/if}
+    {#if findings.length === 0}<p class="faint">{t(file ? "review.file.empty" : "review.empty")}</p>{/if}
     {#each groups as [c, list] (c)}
       {#if list.length}
         <section aria-labelledby="cat-{c}">
@@ -169,7 +219,7 @@
           <div class="cards">
             {#each list as f (f.id)}
               {@const look = severityLook(f.severity)}
-              {@const rec = plan ? recFor(plan, f.id) : undefined}
+              {@const rec = shownPlan ? recFor(shownPlan, f.id) : undefined}
               <article class="card">
                 <header>
                   <span class="sev" style:color="var({STATUS[look.status].tone})">
@@ -193,7 +243,7 @@
                     </tbody>
                   </table>
                 {/if}
-                {#if rec?.param}
+                {#if rec?.param && !file}
                   <div class="actions">
                     {#if rec.record_status === "accepted"}
                       <StatusBadge status="ok" label={t("review.inPlan")} />

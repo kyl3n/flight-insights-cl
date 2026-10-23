@@ -258,6 +258,7 @@ pub const UI_METHODS: &[&str] = &[
     "fleet.overview",
     "flight.propulsion",
     "flight.system",
+    "review.file",
     "filter.workbench",
 ];
 

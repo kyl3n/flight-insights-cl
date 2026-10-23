@@ -9,6 +9,7 @@ parameter metadata.
 
 from __future__ import annotations
 
+import dataclasses
 from collections.abc import Mapping
 from dataclasses import dataclass, field
 from typing import Any
@@ -312,3 +313,44 @@ def fingerprint(df: DataflashLog, pack: Pack, board_key: bytes) -> Fingerprint:
         params=p.values,
         configured=p.configured,
     )
+
+
+def parameter_record(snapshot: Snapshot, pack: Pack) -> dict[str, Any]:
+    """What a parameter file alone says about the aircraft, shaped like a flight's
+    fingerprint record: the attributes read from parameters, each with its source.
+    Everything only a log shows (board, IMUs, hover, ESC telemetry) is left out, so
+    analyzers read it as unknown."""
+    p = _Params(snapshot, pack)
+    vehicle = snapshot.vehicle
+    q = vehicle == "plane" and p.on("Q_ENABLE")
+    pwm_name = "Q_M_PWM_TYPE" if q else "MOT_PWM_TYPE"
+    pwm = p.get(pwm_name)
+    dshot = pwm is not None and DSHOT_FIRST <= round(pwm) <= DSHOT_LAST
+    learned = "Q_M_THST_HOVER" if q else "MOT_THST_HOVER"
+    attrs: dict[str, Attr[Any]] = {
+        "frame": _frame(p, vehicle),
+        "motor_protocol": Attr(p.label(pwm_name), pwm_name),
+        "bidirectional_dshot": Attr(
+            dshot and p.on("SERVO_BLH_BDMASK"), f"{pwm_name}, SERVO_BLH_BDMASK"
+        ),
+        "notch_mode": Attr(
+            p.label("INS_HNTCH_MODE") if p.on("INS_HNTCH_ENABLE") else "off",
+            "INS_HNTCH_ENABLE, INS_HNTCH_MODE",
+        ),
+        "capacity_mah": Attr(p.get("BATT_CAPACITY"), "BATT_CAPACITY"),
+        "learned_hover_throttle": Attr(p.get(learned), learned),
+    }
+
+    def record(a: Attr[Any]) -> dict[str, Any]:
+        v: Any = a.value
+        value = (
+            dataclasses.asdict(v) if dataclasses.is_dataclass(v) and not isinstance(v, type) else v
+        )
+        return {"value": value, "source": a.source, "note": a.note}
+
+    # Only the simulator has SIM_ parameters, as a log's board says "SITL".
+    board: dict[str, str] = (
+        {"hal": "SITL"} if any(n.startswith("SIM_") for n in snapshot.values) else {}
+    )
+    out: dict[str, Any] = {"vehicle": vehicle, "firmware": snapshot.firmware, "board": board}
+    return out | {name: record(a) for name, a in attrs.items()}
