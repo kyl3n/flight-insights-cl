@@ -50,6 +50,9 @@
     </button>
     <button type="button" class="primary" onclick={() => (app.importOpen = true)}>
       {t("header.import")}
+      {#if app.pending.length}
+        <span class="badge" aria-label={t("import.watched", { count: app.pending.length })}>{app.pending.length}</span>
+      {/if}
     </button>
   </div>
 </header>
@@ -139,5 +142,18 @@
     height: 1px;
     overflow: hidden;
     clip: rect(0 0 0 0);
+  }
+  .badge {
+    margin-left: 6px;
+    min-width: 18px;
+    padding: 0 5px;
+    border-radius: 9px;
+    background: var(--caution);
+    color: var(--accent-text);
+    font-size: 11px;
+    font-weight: 700;
+    line-height: 18px;
+    display: inline-block;
+    text-align: center;
   }
 </style>

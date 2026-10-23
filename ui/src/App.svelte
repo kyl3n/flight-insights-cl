@@ -9,7 +9,7 @@
   import type { PlatformView, SetupSchema } from "./lib/setup";
   import { app, t, type View } from "./lib/app.svelte";
   import type { MessageKey } from "./lib/i18n";
-  import { engineCall, onShellStatus, shellStatus } from "./lib/shell";
+  import { engineCall, onPendingImports, onShellStatus, pendingImports, shellStatus } from "./lib/shell";
   import { applyTheme, loadTheme, saveTheme } from "./lib/theme";
 
   const storage = (() => {
@@ -37,7 +37,13 @@
     // The shell starts the engine in the background: ask now, and listen for the result.
     shellStatus().then((s) => (app.shell = s));
     onShellStatus((s) => (app.shell = s)).then((unlisten) => (stop = unlisten));
-    return () => stop();
+    let stopPending = () => {};
+    pendingImports().then((p) => (app.pending = p));
+    onPendingImports((p) => (app.pending = p)).then((unlisten) => (stopPending = unlisten));
+    return () => {
+      stop();
+      stopPending();
+    };
   });
 
   // The setup wizard needs the schema and the platform; both come from the engine.

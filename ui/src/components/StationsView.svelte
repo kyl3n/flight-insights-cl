@@ -3,6 +3,7 @@
   import { app, t } from "../lib/app.svelte";
   import type { MessageKey } from "../lib/i18n";
   import { isDetected, text, type SetupField } from "../lib/setup";
+  import { open as pickFolder } from "@tauri-apps/plugin-dialog";
   import { detectThisComputer, engineCall, inDesktopApp } from "../lib/shell";
   import {
     CHANGE_REASONS,
@@ -69,6 +70,48 @@
   $effect(() => {
     if (ready) untrack(load); // load reads state it sets: run it untracked
   });
+
+  // The save folders this laptop watches for the station shown.
+  interface WatchedFolder {
+    id: string;
+    path: string;
+    software: string | null;
+  }
+  let folders: WatchedFolder[] = $state([]);
+  let folderSoftware = $state("Mission Planner");
+
+  $effect(() => {
+    const id = station?.id;
+    if (!id || !ready) return;
+    engineCall<WatchedFolder[]>("station.folders", { id })
+      .then((f) => (folders = f))
+      .catch((e) => (message = t("setup.error.engine", { message: String(e) })));
+  });
+
+  async function addFolder() {
+    if (!station) return;
+    const path = await pickFolder({ directory: true, multiple: false });
+    if (typeof path !== "string") return;
+    try {
+      folders = await engineCall<WatchedFolder[]>("station.add_folder", {
+        id: station.id,
+        path,
+        software: folderSoftware,
+      });
+    } catch (e) {
+      message = t("setup.error.engine", { message: String(e) });
+    }
+  }
+
+  async function removeFolder(folder: WatchedFolder) {
+    if (!station) return;
+    try {
+      await engineCall("station.remove_folder", { folder_id: folder.id });
+      folders = await engineCall<WatchedFolder[]>("station.folders", { id: station.id });
+    } catch (e) {
+      message = t("setup.error.engine", { message: String(e) });
+    }
+  }
 
   function select(id: string) {
     selectedId = id;
@@ -241,6 +284,31 @@
           <button type="button" onclick={detect} disabled={busy}>{t("stations.detect")}</button>
         </div>
 
+        <fieldset>
+          <legend>{t("stations.folders.title")}</legend>
+          <p class="faint">{t("stations.folders.about")}</p>
+          {#each folders as f (f.id)}
+            <div class="folder">
+              <span class="mono">{f.path}</span>
+              <span class="faint">{f.software ?? ""}</span>
+              <button type="button" class="link" onclick={() => removeFolder(f)}>{t("stations.folders.remove")}</button>
+            </div>
+          {:else}
+            <p class="faint">{t("stations.folders.none")}</p>
+          {/each}
+          <div class="row">
+            <label class="inline">
+              {t("stations.folders.software")}
+              <select bind:value={folderSoftware}>
+                <option>Mission Planner</option>
+                <option>QGroundControl</option>
+                <option value="other">—</option>
+              </select>
+            </label>
+            <button type="button" onclick={addFolder}>{t("stations.folders.add")}</button>
+          </div>
+        </fieldset>
+
         {#each schema.steps as step (step.id)}
           <fieldset>
             <legend>{text(step.title, app.locale)}</legend>
@@ -409,6 +477,19 @@
     display: grid;
     grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
     gap: 14px;
+  }
+  .folder {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 10px;
+    align-items: baseline;
+    font-size: 13px;
+    overflow-wrap: anywhere;
+  }
+  label.inline {
+    flex-direction: row;
+    align-items: center;
+    gap: 8px;
   }
   .entry {
     display: flex;

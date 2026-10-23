@@ -2,6 +2,7 @@
 each log, then store what a person decided (spec: Platforms, "Every import asks
 which airframe and what changed")."""
 
+from flight_insights.imports import watch
 from flight_insights.imports.commit import (
     ConfirmedChange,
     Decision,
@@ -31,4 +32,5 @@ __all__ = [
     "propose",
     "resolve",
     "scan",
+    "watch",
 ]

@@ -2,6 +2,7 @@
 // helpers that turn a person's choices into import.commit decisions.
 
 import type { MessageKey } from "./i18n";
+import type { PendingFile } from "./shell";
 
 export type ProposalStatus = "ready" | "duplicate" | "decision" | "no match" | "unpaired" | "error";
 export type ChangeKind = "failure" | "upgrade" | "test" | "detected";
@@ -29,6 +30,7 @@ export interface Proposal {
 export interface ScannedFile {
   id: string;
   name: string;
+  path: string;
   kind: "dataflash" | "tlog" | "param" | "params" | null;
   size: number;
   error: string | null;
@@ -162,6 +164,25 @@ export function decisions(
     }
     return d;
   });
+}
+
+/** Files from watched folders are recorded against the station whose folder they
+ * were found in, whatever station is picked for the rest of the batch. */
+export function withStations(out: Decision[], files: ScannedFile[], pending: PendingFile[]): Decision[] {
+  const station = new Map(pending.map((p) => [p.path, p.station_version_id]));
+  return out.map((d) => {
+    const path = files.find((f) => f.id === d.log)?.path;
+    const found = path === undefined ? undefined : station.get(path);
+    return d.action === "import" && found ? { ...d, station_version_id: found } : d;
+  });
+}
+
+/** Watched files a person chose not to import: set aside so they are not offered again. */
+export function declined(files: ScannedFile[], choices: Record<string, LogChoices>, pending: PendingFile[]): string[] {
+  const watched = new Set(pending.map((p) => p.path));
+  return files
+    .filter((f) => watched.has(f.path) && choices[f.id]?.choice.kind === "skip" && f.proposal.status !== "error")
+    .map((f) => f.path);
 }
 
 export function describeChange(c: HardwareChange): string {

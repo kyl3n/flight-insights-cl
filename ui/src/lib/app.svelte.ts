@@ -2,7 +2,7 @@
 // and the shell's status.
 
 import { translate, type Locale, type MessageKey } from "./i18n";
-import { BROWSER_STATUS, type ShellStatus } from "./shell";
+import { BROWSER_STATUS, type PendingFile, type ShellStatus } from "./shell";
 import type { Theme } from "./theme";
 
 export type View =
@@ -30,6 +30,7 @@ export const app = $state({
   shell: BROWSER_STATUS as ShellStatus,
   setupPlatform: null as string | null, // the platform open in the setup wizard
   importOpen: false, // the import dialog
+  pending: [] as PendingFile[], // new files found in watched folders
 });
 
 export function t(key: MessageKey, vars?: Record<string, string | number>): string {

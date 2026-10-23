@@ -157,7 +157,7 @@ Switching ground stations loses nothing important. The onboard log is written by
 2. **Turn on both QGroundControl save settings** (after each flight, and even if not armed) on every install, tablets included, and set a fixed save folder.
 3. **Give each station its own MAVLink system ID.**
 4. **Download the onboard log after every flight,** from whichever station is in use; it stays the primary record.
-5. **Point the app at each station's save folders.** It imports new tlogs and parameter files from all of them automatically and records which station produced each one, so the timeline can show, for example, a parameter edit made from QGroundControl on a field tablet.
+5. **Point the app at each station's save folders.** It finds new logs, tlogs and parameter files in all of them automatically and offers them for import; nothing is stored until the user confirms the batch. Each file is recorded against the station whose folder it came from, so the timeline can show, for example, a parameter edit made from QGroundControl on a field tablet. A file the user chooses not to import is set aside and not offered again.
 
 ## Vehicle fingerprinting
 
