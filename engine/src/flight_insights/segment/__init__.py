@@ -9,6 +9,7 @@ from flight_insights.segment.flights import (
     flights,
     mode_spans,
 )
+from flight_insights.segment.hover import HoverRules, HoverWindow, hover_windows
 from flight_insights.segment.identity import BootIdentity, boot_identities, flight_key
 from flight_insights.segment.validate import (
     Boot,
@@ -25,6 +26,8 @@ __all__ = [
     "Boot",
     "BootIdentity",
     "Flight",
+    "HoverRules",
+    "HoverWindow",
     "Issue",
     "ModeSpan",
     "Validation",
@@ -35,6 +38,7 @@ __all__ = [
     "find_boots",
     "flight_key",
     "flights",
+    "hover_windows",
     "mode_spans",
     "timeline",
     "validate",

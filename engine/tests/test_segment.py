@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import re
 from pathlib import Path
 
 import numpy as np
@@ -14,10 +15,12 @@ from flight_insights.knowledge import Pack, load_pack
 from flight_insights.segment import (
     Boot,
     Flight,
+    HoverRules,
     boot_identities,
     find_boots,
     flight_key,
     flights,
+    hover_windows,
     mode_spans,
     timeline,
     validate,
@@ -275,3 +278,73 @@ def test_the_release_enums_name_modes_and_events(pack: Pack) -> None:
         assert enums["modes"]["plane"]["19"] == "QLOITER"
         assert enums["events"]["10"] == "ARMED" and enums["events"]["11"] == "DISARMED"
     assert pack.enums("4.7.9")["version"] == "4.7.2"
+
+
+# --- steady hover -------------------------------------------------------------------
+
+
+def label_hover(log: Path) -> tuple[float, str | None] | None:
+    """The hover a fixture's label promises: (seconds, mode), or None for no hover."""
+    m = re.search(
+        r"about (\d+) s of (?:steady )?hover(?: in (\w+))?", log.with_suffix(".yaml").read_text()
+    )
+    return (float(m[1]), m[2]) if m else None
+
+
+@pytest.mark.parametrize("log", FIXTURE_LOGS, ids=lambda p: str(p.relative_to(FIXTURES)))
+def test_each_fixture_hovers_as_its_label_says(pack: Pack, log: Path) -> None:
+    from flight_insights.history import log_firmware
+
+    with read_dataflash(log) as df:
+        vehicle, firmware = log_firmware(df)
+        boots = find_boots(timeline(df))
+        fl = flights(df, boots, pack, vehicle, firmware)
+        windows = hover_windows(df, boots, fl, vehicle, HoverRules.load(pack))
+    expected = label_hover(log)
+    if expected is None:
+        assert windows == []
+        return
+    seconds, mode = expected
+    [w] = windows
+    assert abs(w.duration_s - seconds) <= 1.5, w
+    assert w.flight == 1 and (mode is None or w.mode == mode)
+
+
+def test_hover_needs_every_condition_for_long_enough(tmp_path: Path, pack: Pack) -> None:
+    rules = HoverRules.load(pack)
+    b = builder()
+    b.fmt(0xA0, "XKF1", "QBccffff", "TimeUS,C,Roll,Pitch,VN,VE,VD,PD")
+    b.units("XKF1", "s#ddnnnm", "F-BB0000")
+    b.write("EV", 1_000_000, 10)
+
+    def sample(
+        t: int, vn: float = 0.0, vd: float = 0.0, roll_cd: int = 0, pd: float = -5.0
+    ) -> None:
+        b.write("XKF1", t, 0, roll_cd, 0, vn, 0.0, vd, pd)
+        b.write("XKF1", t, 1, 0, 0, 9.0, 0.0, 0.0, 0.0)  # another core: ignored
+
+    sample(1_000_000, pd=0.0)  # on the ground at arming
+    t = 1_100_000
+    for _ in range(30):  # 3 s: too short
+        sample(t)
+        t += 100_000
+    sample(t, vn=2.0)  # drifting
+    t += 100_000
+    for _ in range(61):  # 6 s steady
+        sample(t)
+        t += 100_000
+    sample(t, roll_cd=1500)  # 15 degrees of roll
+    t += 100_000
+    for _ in range(80):  # 8 s, but only 1 m up
+        sample(t, pd=-1.0)
+        t += 100_000
+    b.write("EV", t, 11)
+    with read(b, tmp_path) as df:
+        boots = find_boots(timeline(df))
+        fl = flights(df, boots, pack, "copter", "4.7.2")
+        windows = hover_windows(df, boots, fl, "copter", rules)
+        plane = hover_windows(df, boots, fl, "plane", rules)
+    [w] = windows
+    assert (w.start_us, w.end_us, w.samples) == (4_200_000, 10_200_000, 61)
+    assert plane == []  # not in a VTOL mode
+    assert not rules.calibrated

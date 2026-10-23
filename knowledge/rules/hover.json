@@ -1,0 +1,10 @@
+{
+  "about": "When a multirotor, a helicopter, or a QuadPlane in VTOL flight counts as hovering steadily. Steady-hover windows feed filter analysis and the propulsion fingerprint (spec: Data ingestion, 'Segment'). Every condition holds on each primary-EKF sample through the window. The vertical limit sits below Copter's default final landing speed (LAND_SPEED, 0.5 m/s), so a slow descent is not a hover. Starting values, not yet calibrated against the fleet's logs.",
+  "calibrated": false,
+  "min_duration_s": 5.0,
+  "min_height_m": 2.0,
+  "max_horizontal_speed_m_s": 1.0,
+  "max_vertical_speed_m_s": 0.25,
+  "max_tilt_deg": 10.0,
+  "plane_vtol_modes": ["QSTABILIZE", "QHOVER", "QLOITER", "QLAND", "QRTL", "QAUTOTUNE", "QACRO", "LOITER_ALT_QLAND"]
+}
