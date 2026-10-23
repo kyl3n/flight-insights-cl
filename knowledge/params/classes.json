@@ -1,0 +1,58 @@
+{
+  "about": "How parameters are classed, so only tuning and configuration changes are offered as causes of a change in performance (spec: Parameter history, 'Parameters that change on their own'). Applied in order; the first match wins. Metadata flags come from ArduPilot's own parameter documentation; the name rules are curated here.",
+  "rules": [
+    {
+      "class": "counter",
+      "why": "Statistics the autopilot counts up on its own",
+      "names": ["STAT_*", "FORMAT_VERSION"]
+    },
+    {
+      "class": "hardware",
+      "why": "Read-only device IDs: they change only when the hardware does, which is a build change, not a tuning change",
+      "metadata": "read_only",
+      "names": ["*_DEVID", "*_DEV_ID", "*_DEV_ID?", "*_ID", "*_ID?"]
+    },
+    {
+      "class": "learned",
+      "why": "Hover thrust learned in flight while hover learning is on: it follows the payload",
+      "names": ["MOT_THST_HOVER"],
+      "when": {"MOT_HOVER_LEARN": [1, 2]}
+    },
+    {
+      "class": "learned",
+      "why": "QuadPlane hover thrust learned in flight while hover learning is on",
+      "names": ["Q_M_THST_HOVER"],
+      "when": {"Q_M_HOVER_LEARN": [1, 2]}
+    },
+    {
+      "class": "learned",
+      "why": "Compass offsets learned in flight while compass learning is on",
+      "names": ["COMPASS_OFS_?", "COMPASS_OFS?_?"],
+      "when": {"COMPASS_LEARN": [2, 3]}
+    },
+    {
+      "class": "learned",
+      "why": "Values the autopilot updates itself, such as ground pressure",
+      "metadata": "volatile"
+    },
+    {
+      "class": "calibration",
+      "why": "Results of an accelerometer, gyro, compass or temperature calibration",
+      "metadata": "calibration"
+    },
+    {
+      "class": "ground station",
+      "why": "Telemetry stream rates, which Mission Planner and QGroundControl request differently: used by the link analyzer, not as a cause of flight performance",
+      "names": [
+        "SR?_*",
+        "MAV?_ADSB", "MAV?_EXTRA1", "MAV?_EXTRA2", "MAV?_EXTRA3", "MAV?_EXT_STAT",
+        "MAV?_PARAMS", "MAV?_POSITION", "MAV?_RAW_CTRL", "MAV?_RAW_SENS", "MAV?_RC_CHAN"
+      ]
+    },
+    {
+      "class": "tuning",
+      "why": "Everything else: tuning and configuration, the candidate causes",
+      "names": ["*"]
+    }
+  ]
+}
