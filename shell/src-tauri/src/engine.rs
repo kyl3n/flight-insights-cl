@@ -243,6 +243,9 @@ pub const UI_METHODS: &[&str] = &[
     "station.folders",
     "station.add_folder",
     "station.remove_folder",
+    "analysis.run",
+    "analysis.get",
+    "analysis.registry",
 ];
 
 #[cfg(test)]

@@ -12,6 +12,7 @@ Versioned data the engine reads, updatable without an app release (spec: System 
 | `setup/platform.json` | The guided platform setup: its ten steps and every field, in English and Ukrainian, each saying why it is asked and, if required, what a gap prevents | Curated |
 | `rules/archetypes.json` | Rule pack v0 for the archetype scorer: weighted conditions on fingerprint features, each with its reason; marked uncalibrated | Curated |
 | `rules/hover.json` | When a multirotor, helicopter or QuadPlane in VTOL flight counts as hovering steadily; starting values, marked uncalibrated | Curated |
+| `metrics/*.json` | The metric registry: every metric and finding the analyzers produce, with its definition, method, unit, direction, zones and their sources, and its wording in English and Ukrainian. The engine refuses an entry with any of that missing | Curated |
 | `enums/<version>.json` | Flight-mode names per vehicle and log-event names, by the numbers logs record (MODE.ModeNum, EV.Id) | `tools/build_enums.py`, from the release's `mode.h` and `AP_Logger.h` |
 
 ## Adding a release

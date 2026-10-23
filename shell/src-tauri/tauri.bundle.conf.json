@@ -8,6 +8,7 @@
       "../../knowledge/enums/": "knowledge/enums/",
       "../../knowledge/boards/": "knowledge/boards/",
       "../../knowledge/rules/": "knowledge/rules/",
+      "../../knowledge/metrics/": "knowledge/metrics/",
       "../../knowledge/setup/": "knowledge/setup/"
     },
     "linux": {
