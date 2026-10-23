@@ -932,6 +932,20 @@ The numbers above are illustrative. `expected_effect` comes from simulation wher
 
 **Closing the loop.** When the next log from the same airframe arrives, each applied recommendation is graded: confirmed, no measurable effect, or regressed, against its own `expected_effect`. Those grades calibrate the rule pack thresholds and feed the AI layer's evaluation set.
 
+- **Kept once per airframe.** A plan's recommendations are kept for the airframe, with what the person saw: why, evidence, expected effect and verification.
+  - A later plan proposing the same change finds the same recommendation.
+  - If a later plan wants another value for a parameter whose proposal nobody acted on, the earlier proposal is marked **superseded**.
+  - Blocked recommendations are not kept.
+- **A person's decisions:** accept, reject, or mark applied. Each decision is checked against the version that was read, so no decision is lost. Grades and supersession are the engine's alone.
+- **Applied:** a parameter change counts as applied when a later flight of the same airframe flies with the proposed value. "Later" means by UTC take-off, or by import order when a log has no UTC. An action counts as applied once a person marks it done.
+- **The grade.** The default expected effect is that the findings the recommendation answered clear.
+  - **Confirmed:** none of them is raised again, or only at a lower severity.
+  - **No effect:** the lead finding is raised again at the same severity.
+  - **Regressed:** any of them is raised at a higher severity.
+  - A later log whose analyzer could not judge the change (for example, no raw IMU data) leaves it applied and ungraded.
+  - The grade records the flight that gave it and the severities before and after.
+  - Grading runs whenever a flight is analysed.
+
 ## AI layer
 
 Claude is called on every analysis, but it only sees derived measurements and a scrubbed parameter set. It never computes from raw logs and never receives coordinates. The deterministic engine measures; Claude connects, explains and questions.

@@ -552,6 +552,9 @@ def to_json(plan: Plan, reg: Registry) -> dict[str, Any]:
         return {
             "param": r.native,
             "canonical": r.param,
+            "finding": lead.finding,
+            "current_canonical": r.current,
+            "proposed_canonical": r.proposed,
             "current": r.native_current,
             "proposed": r.native_value,
             "target": r.native_target,
@@ -568,7 +571,7 @@ def to_json(plan: Plan, reg: Registry) -> dict[str, Any]:
             "reboot": r.reboot,
             "verify": dict(rules["verify"][r.stage]) if r.stage in rules["verify"] else None,
             "source": f"finding:{lead.code}",
-            "sources": [source(s) for s in r.sources],
+            "sources": [source(s) for s in sorted(r.sources, key=Source.priority)],
             "notes": [
                 {
                     "reason": n.reason,

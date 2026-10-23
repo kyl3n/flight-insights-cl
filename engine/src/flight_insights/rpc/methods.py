@@ -24,7 +24,7 @@
 | station.folders / .add_folder / .remove_folder | Save folders this laptop watches, per station |
 | import.scan / .commit / .held / .resolve | Importing logs: see rpc/imports.py |
 | analysis.run / .get / .registry | Analysing a flight: see rpc/analysis.py |
-| recommend.plan / .export | The staged plan and its parameter file: see rpc/analysis.py |
+| recommend.plan / .export / .set_status / .history | Recommendations: see rpc/analysis.py |
 
 Position columns are never written to an IPC file in Phase 0. Keys arrive over
 stdin, live in memory only, and are never logged or echoed in an error.

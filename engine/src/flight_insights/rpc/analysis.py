@@ -7,6 +7,10 @@
 | analysis.registry | Every metric and finding the analyzers can produce, with its wording |
 | recommend.plan | A flight's findings as a staged, validated plan of changes and actions |
 | recommend.export | One step of that plan as .param or .params text, for a person to load |
+| recommend.set_status | A person accepts, rejects or marks a recommendation applied |
+| recommend.history | An airframe's recommendations, with what happened to each |
+
+Analysing a flight also grades its airframe's earlier recommendations against it.
 
 Results hold metric values, findings with the evidence they rest on, and no
 positions: the analyzers read cached columns, where positions stay encrypted.
@@ -19,7 +23,14 @@ from typing import TYPE_CHECKING, Any
 
 from flight_insights import analyzers, recommend
 from flight_insights.analyzers.registry import LANGUAGES
-from flight_insights.rpc.server import BAD_INPUT, INVALID_PARAMS, Context, RpcError, Server
+from flight_insights.rpc.server import (
+    BAD_INPUT,
+    CONFLICT,
+    INVALID_PARAMS,
+    Context,
+    RpcError,
+    Server,
+)
 
 if TYPE_CHECKING:
     from flight_insights.rpc.methods import EngineState
@@ -42,10 +53,13 @@ def add_analysis_methods(server: Server, state: EngineState, guarded: Callable[[
         if not isinstance(force, bool):
             raise RpcError(INVALID_PARAMS, "force must be true or false")
         ctx.progress(0.0, "analysing")
+        flight = _flight(params)
         try:
-            return analyzers.run_analysis(store, cache, state.pack, _flight(params), force=force)
+            out = analyzers.run_analysis(store, cache, state.pack, flight, force=force)
         except analyzers.FlightError as e:
             raise RpcError(BAD_INPUT, str(e)) from None
+        recommend.grade_flight(store, state.pack, flight, out)
+        return out
 
     @server.method("analysis.get")
     @guarded
@@ -60,10 +74,32 @@ def add_analysis_methods(server: Server, state: EngineState, guarded: Callable[[
         assert cache is not None
         ctx.progress(0.0, "planning")
         try:
-            plan = recommend.flight_plan(store, cache, state.pack, _flight(params))
+            return recommend.plan_and_record(store, cache, state.pack, _flight(params))
         except analyzers.FlightError as e:
             raise RpcError(BAD_INPUT, str(e)) from None
-        return recommend.to_json(plan, analyzers.Registry.load(state.pack))
+
+    @server.method("recommend.set_status")
+    @guarded
+    def recommend_set_status(_ctx: Context, params: dict[str, Any]) -> dict[str, Any]:
+        rid, status, version = params.get("id"), params.get("status"), params.get("version")
+        if not isinstance(rid, str) or not isinstance(status, str):
+            raise RpcError(INVALID_PARAMS, "id and status must be strings")
+        if not isinstance(version, int) or isinstance(version, bool):
+            raise RpcError(INVALID_PARAMS, "version must be the version that was read")
+        try:
+            return recommend.set_status(state.require_store(), rid, status, version)
+        except recommend.RecommendationConflict as e:
+            raise RpcError(CONFLICT, str(e)) from None
+        except recommend.RecommendationError as e:
+            raise RpcError(BAD_INPUT, str(e)) from None
+
+    @server.method("recommend.history")
+    @guarded
+    def recommend_history(_ctx: Context, params: dict[str, Any]) -> list[dict[str, Any]]:
+        airframe = params.get("airframe_id")
+        if not isinstance(airframe, str) or not airframe:
+            raise RpcError(INVALID_PARAMS, "airframe_id must be an airframe's id")
+        return recommend.history(state.require_store(), airframe)
 
     @server.method("recommend.export")
     @guarded

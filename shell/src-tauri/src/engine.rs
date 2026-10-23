@@ -248,6 +248,8 @@ pub const UI_METHODS: &[&str] = &[
     "analysis.registry",
     "recommend.plan",
     "recommend.export",
+    "recommend.set_status",
+    "recommend.history",
 ];
 
 #[cfg(test)]
