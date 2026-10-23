@@ -32,7 +32,7 @@ Positions are found from what the files say about themselves, not from message n
 
 Bytes in a DataFlash log that are not a complete message, such as junk between messages or a message cut off at the end of the file, are zeroed in place, because nobody can tell whether they hold part of a position. The scrubber also sets `COMPASS_DEC` to 0, zeroes board unique IDs (in `MSG`/`STATUSTEXT` text and `AUTOPILOT_VERSION`) and blanks the embedded `@SYS/storage.bin`, which copies every parameter and the mission.
 
-It then checks its own output against the input with pymavlink, independently of how it made the changes: the same messages in the same order, every position moved by exactly the shift, everything else unchanged, and none of the original positions (every sample of every position field) anywhere in the bytes, whether as an integer ×10⁷, a float, a double or decimal text. If any check fails, it writes nothing.
+It then checks its own output against the input with pymavlink, independently of how it made the changes: the same messages in the same order, every position moved by exactly the shift, everything else unchanged, and none of the original positions (every sample of every position field) anywhere in the bytes, whether as an integer ×10⁷, a float, a double or decimal text. Doubles and text count wherever they appear. A 4-byte integer or float counts only next to a 4-byte encoding of the other coordinate, as positions are stored, because a lone 4-byte match turns up by chance among the millions of 4-byte windows in a large log. If any check fails, it writes nothing.
 
 ## Adding fixtures
 

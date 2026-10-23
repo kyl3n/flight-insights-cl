@@ -46,6 +46,7 @@ Usage:
 from __future__ import annotations
 
 import argparse
+import bisect
 import hashlib
 import math
 import re
@@ -54,7 +55,7 @@ import struct
 import sys
 import tempfile
 from collections import Counter
-from collections.abc import Iterator, Sequence
+from collections.abc import Iterable, Iterator, Sequence
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Literal
@@ -119,7 +120,10 @@ def choose_shift(lats: Sequence[float]) -> Shift:
     lo, hi = (min(lats), max(lats)) if lats else (0.0, 0.0)
     ranges = [
         (r0, r1)
-        for r0, r1 in ((-LAT_LIMIT_DEG - lo, -MIN_SHIFT_DEG), (MIN_SHIFT_DEG, LAT_LIMIT_DEG - hi))
+        for r0, r1 in (
+            (-LAT_LIMIT_DEG - lo, -MIN_SHIFT_DEG),
+            (MIN_SHIFT_DEG, LAT_LIMIT_DEG - hi),
+        )
         if r1 > r0
     ]
     if not ranges:
@@ -248,7 +252,11 @@ def _df_format(type_: int, length: int, name: str, fmt: str, columns: list[str])
 
 
 DF_FMT = _df_format(
-    DF_FMT_ID, DF_FMT_LENGTH, "FMT", "BBnNZ", ["Type", "Length", "Name", "Format", "Columns"]
+    DF_FMT_ID,
+    DF_FMT_LENGTH,
+    "FMT",
+    "BBnNZ",
+    ["Type", "Length", "Name", "Format", "Columns"],
 )
 
 
@@ -414,7 +422,10 @@ def apply_dataflash(data: bytes, plan: Plan, shift: Shift) -> bytes:
             out[offset : offset + size] = blank_hex_ids(bytes(out[offset : offset + size]))
         else:
             out[offset : offset + size] = bytes(size)
-    for start, end in plan.unparsed:  # cannot be decoded, so cannot be shifted: blank it
+    for (
+        start,
+        end,
+    ) in plan.unparsed:  # cannot be decoded, so cannot be shifted: blank it
         out[start:end] = bytes(end - start)
     return bytes(out)
 
@@ -491,7 +502,11 @@ def verify_dataflash(original: Path, scrubbed: Path, shift: Shift) -> list[str]:
                 f = pos_cols[col]
                 to_deg = 1.0 if f.implicit else f.scale
                 problem = _check_shifted(
-                    va * to_deg, vb * to_deg, f.kind, shift, None if f.is_float else f.scale
+                    va * to_deg,
+                    vb * to_deg,
+                    f.kind,
+                    shift,
+                    None if f.is_float else f.scale,
                 )
             elif parm_kind is not None and col in ("Value", "Default"):
                 problem = _check_shifted(va, vb, parm_kind, shift, None)
@@ -928,11 +943,41 @@ def _windows(data: bytes, size: int) -> Iterator[memoryview]:
         yield view[start : start + usable].cast(code)
 
 
+def _present(data: bytes, size: int, wanted: set[int]) -> set[int]:
+    """Which of the `size`-byte integers in `wanted` appear anywhere in `data`."""
+    hits: set[int] = set()
+    for view in _windows(data, size):
+        hits |= wanted.intersection(view)
+        view.release()
+    return hits
+
+
+def _offsets(data: bytes, patterns: Iterable[bytes]) -> list[int]:
+    out: list[int] = []
+    for pat in patterns:
+        start = 0
+        while (i := data.find(pat, start)) != -1:
+            out.append(i)
+            start = i + 1
+    return sorted(out)
+
+
+def _text_hits(data: bytes, texts: set[bytes]) -> dict[bytes, list[int]]:
+    hits: dict[bytes, list[int]] = {}
+    for m in LEAK_TEXT.finditer(data):  # a text pattern is a sign, up to 3 digits, ".dddd"
+        dot = m.start()
+        for start in range(max(0, dot - 4), dot):
+            if data[start : dot + 5] in texts:
+                hits.setdefault(data[start : dot + 5], []).append(start)
+    return hits
+
+
 def find_leaks(data: bytes, sentinels: Sequence[float]) -> int:
     """How many distinct encodings of the sentinel positions appear anywhere in `data`.
 
     The same search as `pattern in data` for every pattern of every sentinel, but
-    one pass per window width, so a log's every position sample can be searched.
+    one pass per window width. A 4-byte pattern can turn up by chance in a large
+    log, so search every sample of a log with `find_position_leaks` instead.
     """
     by_size: dict[int, set[int]] = {4: set(), 8: set()}
     texts: set[bytes] = set()
@@ -941,20 +986,49 @@ def find_leaks(data: bytes, sentinels: Sequence[float]) -> int:
         texts.add(text)
         for pat in binary:
             by_size[len(pat)].add(int.from_bytes(pat, sys.byteorder))
-    found = 0
-    for size, wanted in by_size.items():
-        hits: set[int] = set()
-        for view in _windows(data, size):
-            hits |= wanted.intersection(view)
-            view.release()
-        found += len(hits)
-    text_hits: set[bytes] = set()
-    for m in LEAK_TEXT.finditer(data):  # a text pattern is a sign, up to 3 digits, ".dddd"
-        dot = m.start()
-        for start in range(max(0, dot - 4), dot):
-            if data[start : dot + 5] in texts:
-                text_hits.add(data[start : dot + 5])
-    return found + len(text_hits)
+    found = sum(len(_present(data, size, wanted)) for size, wanted in by_size.items())
+    return found + len(_text_hits(data, texts))
+
+
+PAIR_BYTES = 32  # a latitude and a longitude this close together are one position
+
+
+def find_position_leaks(data: bytes, lats: Sequence[float], lngs: Sequence[float]) -> int:
+    """Encodings of the original positions left in `data`, every sample searched.
+
+    Decimal text and 8-byte doubles count wherever they appear: a chance match of
+    eight exact bytes does not happen. A 4-byte value (int32 x1e7 or float32) does
+    turn up by chance among the millions of 4-byte windows of a large log, so it
+    counts only beside a 4-byte encoding of a longitude (or latitude), as a
+    position is stored: that pairing does not happen by chance.
+    """
+    texts: set[bytes] = set()
+    doubles: set[int] = set()
+    small: dict[str, set[int]] = {"lat": set(), "lng": set()}
+    for kind, degs in (("lat", lats), ("lng", lngs)):
+        for deg in degs:
+            binary, text = _leak_encodings(deg)
+            texts.add(text)
+            for pat in binary:
+                if len(pat) == 8:
+                    doubles.add(int.from_bytes(pat, sys.byteorder))
+                else:
+                    small[kind].add(int.from_bytes(pat, sys.byteorder))
+    found = len(_present(data, 8, doubles)) + len(_text_hits(data, texts))
+    present = {kind: _present(data, 4, wanted) for kind, wanted in small.items()}
+    if present["lat"] and present["lng"]:
+
+        def at(values: set[int]) -> list[int]:
+            return _offsets(data, (v.to_bytes(4, sys.byteorder) for v in values))
+
+        lat_at, lng_at = at(present["lat"]), at(present["lng"])
+        found += sum(
+            1
+            for i in lat_at
+            if bisect.bisect_right(lng_at, i + PAIR_BYTES)
+            > bisect.bisect_left(lng_at, i - PAIR_BYTES)
+        )
+    return found
 
 
 def file_kind(path: Path) -> str:
@@ -992,7 +1066,8 @@ def scrub(paths: Sequence[Path], out_dir: Path, shift: Shift | None = None) -> l
     plans = {p: plan_file(p) for p in paths}
     if shift is None:
         shift = choose_shift([d for plan in plans.values() for d in plan.degrees("lat")])
-    sentinels = [d for plan in plans.values() for d in plan.sentinels()]
+    lats = [d for plan in plans.values() for d in dict.fromkeys(plan.degrees("lat"))]
+    lngs = [d for plan in plans.values() for d in dict.fromkeys(plan.degrees("lng"))]
     out_dir.mkdir(parents=True, exist_ok=True)
     outputs: list[Path] = []
     problems: list[str] = []
@@ -1000,7 +1075,7 @@ def scrub(paths: Sequence[Path], out_dir: Path, shift: Shift | None = None) -> l
         for p, plan in plans.items():
             staged = Path(tmp) / p.name
             problems += scrub_file(p, plan, shift, staged)
-            leaks = find_leaks(staged.read_bytes(), sentinels)
+            leaks = find_position_leaks(staged.read_bytes(), lats, lngs)
             if leaks:
                 problems.append(f"{p.name}: {leaks} original position encoding(s) still present")
             outputs.append(staged)

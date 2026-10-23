@@ -235,6 +235,23 @@ def test_leak_search_matches_a_plain_substring_search() -> None:
         assert sf.find_leaks(data, degs) == expected > 0
 
 
+def test_a_lone_four_byte_match_is_chance_but_a_position_is_a_leak() -> None:
+    """Among millions of 4-byte windows a lone int32 or float32 turns up by chance;
+    a latitude beside a longitude, a double or decimal text does not."""
+    lat, lng = e7(PLANT_LAT), e7(PLANT_LNG)
+    lone = b"\x07" * 10 + struct.pack("<i", lat) + b"\x07" * 100 + struct.pack("<f", PLANT_LNG)
+    assert sf.find_position_leaks(lone, [PLANT_LAT], [PLANT_LNG]) == 0
+    for leak in (
+        struct.pack("<iI", lat, 7) + struct.pack("<i", lng),  # stored as a position is
+        struct.pack("<ff", PLANT_LNG, PLANT_LAT),  # either order
+        struct.pack("<d", PLANT_LAT),  # eight exact bytes
+        f"at {PLANT_LNG:.7f}".encode(),  # text
+    ):
+        for offset in range(5):
+            data = bytes(offset) + b"\x07" * 40 + leak + b"\x07" * 40
+            assert sf.find_position_leaks(data, [PLANT_LAT], [PLANT_LNG]) > 0, leak
+
+
 # --- tlogs ----------------------------------------------------------------------
 
 
