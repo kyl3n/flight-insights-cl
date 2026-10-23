@@ -1,0 +1,341 @@
+{
+  "about": "Power and electrical health (spec: Power and efficiency analysis; Electrical system health; Reference range library, 'Propulsion and power').",
+  "metrics": {
+    "power.hover_power": {
+      "name": {
+        "en": "Hover power",
+        "uk": "Потужність у зависанні"
+      },
+      "unit": "W",
+      "direction": "lower",
+      "definition": {
+        "en": "Electrical power the battery delivers in steady hover. It sets endurance, and against the airframe's history it shows props, motors or weight changing.",
+        "uk": "Електрична потужність, яку батарея віддає в стабільному зависанні. Вона визначає тривалість польоту, а порівняно з історією апарата показує зміни пропелерів, моторів чи ваги."
+      },
+      "method": {
+        "en": "BAT.Volt times BAT.Curr of the first battery, median over the steady-hover windows (the whole armed flight when it never hovered steadily).",
+        "uk": "BAT.Volt помножене на BAT.Curr першої батареї, медіана у вікнах стабільного зависання (увесь політ, якщо стабільного зависання не було)."
+      },
+      "messages": [
+        "BAT"
+      ],
+      "source": {
+        "kind": "baseline",
+        "title": "No universal range: judged against this airframe's or pack's own history"
+      }
+    },
+    "power.energy_per_minute": {
+      "name": {
+        "en": "Energy per minute",
+        "uk": "Енергія за хвилину"
+      },
+      "unit": "W.h",
+      "direction": "lower",
+      "definition": {
+        "en": "Battery energy used per minute of steady hover: the simplest figure for comparing payloads, packs and weather.",
+        "uk": "Енергія батареї за хвилину стабільного зависання: найпростіше число для порівняння навантажень, батарей і погоди."
+      },
+      "method": {
+        "en": "Hover power divided by 60.",
+        "uk": "Потужність у зависанні, поділена на 60."
+      },
+      "messages": [
+        "BAT"
+      ],
+      "source": {
+        "kind": "baseline",
+        "title": "No universal range: judged against this airframe's or pack's own history"
+      }
+    },
+    "power.peak_current": {
+      "name": {
+        "en": "Peak current",
+        "uk": "Піковий струм"
+      },
+      "unit": "A",
+      "direction": "lower",
+      "definition": {
+        "en": "The highest battery current while armed.",
+        "uk": "Найбільший струм батареї під час польоту."
+      },
+      "method": {
+        "en": "Maximum of BAT.Curr between arming and disarming.",
+        "uk": "Максимум BAT.Curr між взведенням і зняттям зі зброї."
+      },
+      "messages": [
+        "BAT"
+      ],
+      "source": {
+        "kind": "baseline",
+        "title": "No universal range: judged against this airframe's or pack's own history"
+      }
+    },
+    "power.battery_resistance": {
+      "name": {
+        "en": "Battery resistance",
+        "uk": "Опір батареї"
+      },
+      "unit": "mOhm",
+      "direction": "lower",
+      "definition": {
+        "en": "The pack's internal resistance as ArduPilot estimates it from voltage against current. It rises as a pack ages or gets cold; 200% of its first flights is the usual end of life.",
+        "uk": "Внутрішній опір батареї, як його оцінює ArduPilot за напругою й струмом. Він росте зі старінням або охолодженням батареї; 200% від перших польотів — звичайна межа ресурсу."
+      },
+      "method": {
+        "en": "The last BAT.Res of the first battery while armed.",
+        "uk": "Останнє значення BAT.Res першої батареї під час польоту."
+      },
+      "messages": [
+        "BAT"
+      ],
+      "source": {
+        "kind": "baseline",
+        "title": "Judged against the pack's own first flights; 200% of initial is the end-of-life convention (Barcellona et al., Politecnico di Milano)",
+        "url": "https://re.public.polimi.it/handle/11311/1227399"
+      }
+    },
+    "power.battery_loss": {
+      "name": {
+        "en": "Battery heat loss in hover",
+        "uk": "Втрати на нагрів батареї в зависанні"
+      },
+      "unit": "W",
+      "direction": "lower",
+      "definition": {
+        "en": "Power turned to heat inside the pack in hover: current squared times its resistance.",
+        "uk": "Потужність, що перетворюється на тепло всередині батареї в зависанні: квадрат струму, помножений на її опір."
+      },
+      "method": {
+        "en": "Median hover BAT.Curr squared times BAT.Res.",
+        "uk": "Квадрат медіанного BAT.Curr у зависанні, помножений на BAT.Res."
+      },
+      "messages": [
+        "BAT"
+      ],
+      "source": {
+        "kind": "baseline",
+        "title": "No universal range: judged against this airframe's or pack's own history"
+      }
+    },
+    "power.propulsion": {
+      "name": {
+        "en": "Propulsion power in hover",
+        "uk": "Потужність на рушії в зависанні"
+      },
+      "unit": "W",
+      "direction": "lower",
+      "definition": {
+        "en": "Power the ESCs draw in hover, from their own voltage and current.",
+        "uk": "Потужність, яку ESC споживають у зависанні, за їхніми власними напругою й струмом."
+      },
+      "method": {
+        "en": "Sum over ESCs of median ESC.Volt times median ESC.Curr in hover.",
+        "uk": "Сума за всіма ESC медіанного ESC.Volt, помноженого на медіанний ESC.Curr у зависанні."
+      },
+      "messages": [
+        "ESC"
+      ],
+      "source": {
+        "kind": "baseline",
+        "title": "No universal range: judged against this airframe's or pack's own history"
+      }
+    },
+    "power.avionics": {
+      "name": {
+        "en": "Avionics and payload power",
+        "uk": "Потужність авіоніки та навантаження"
+      },
+      "unit": "W",
+      "direction": "lower",
+      "definition": {
+        "en": "What the battery delivers beyond the ESCs: flight controller, radios, companion computers, cameras and payload. Often larger than expected.",
+        "uk": "Те, що батарея віддає понад ESC: польотний контролер, радіо, бортові комп'ютери, камери й навантаження. Часто більше, ніж очікують."
+      },
+      "method": {
+        "en": "Hover power minus propulsion power.",
+        "uk": "Потужність у зависанні мінус потужність на рушії."
+      },
+      "messages": [
+        "BAT",
+        "ESC"
+      ],
+      "source": {
+        "kind": "baseline",
+        "title": "No universal range: judged against this airframe's or pack's own history"
+      }
+    },
+    "power.harness_loss": {
+      "name": {
+        "en": "Wiring loss in hover",
+        "uk": "Втрати в проводці в зависанні"
+      },
+      "unit": "W",
+      "direction": "lower",
+      "definition": {
+        "en": "Power lost in the wiring and connectors between the battery and the ESCs. A hot connector shows here first.",
+        "uk": "Потужність, втрачена в проводах і роз'ємах між батареєю та ESC. Гарячий роз'єм проявляється тут першим."
+      },
+      "method": {
+        "en": "Battery voltage minus the ESCs' median voltage, times battery current, in hover.",
+        "uk": "Напруга батареї мінус медіанна напруга ESC, помножена на струм батареї, у зависанні."
+      },
+      "messages": [
+        "BAT",
+        "ESC"
+      ],
+      "source": {
+        "kind": "baseline",
+        "title": "No universal range: judged against this airframe's or pack's own history"
+      }
+    },
+    "power.hover_throttle": {
+      "name": {
+        "en": "Hover throttle",
+        "uk": "Газ у зависанні"
+      },
+      "unit": "",
+      "direction": "band",
+      "definition": {
+        "en": "The motor output needed to hover. Too high leaves little headroom to climb, manoeuvre or recover; too low makes control coarse.",
+        "uk": "Вихід моторів, потрібний для зависання. Завеликий лишає мало запасу для набору висоти, маневрів чи відновлення; замалий робить керування грубим."
+      },
+      "method": {
+        "en": "The flight's steady-hover throttle from its fingerprint (motor output in steady hover).",
+        "uk": "Газ стабільного зависання з відбитка польоту (вихід моторів у стабільному зависанні)."
+      },
+      "messages": [
+        "CTUN",
+        "MOTB"
+      ],
+      "source": {
+        "kind": "ardupilot",
+        "title": "ArduPilot: hover throttle, usually 0.2 to 0.6",
+        "url": "https://ardupilot.org/copter/docs/ac_throttlemid.html"
+      },
+      "zones": {
+        "target": [
+          0.2,
+          0.6
+        ],
+        "caution": [
+          [
+            null,
+            0.2
+          ],
+          [
+            0.6,
+            null
+          ]
+        ]
+      }
+    },
+    "power.board_voltage_min": {
+      "name": {
+        "en": "Lowest board voltage",
+        "uk": "Найнижча напруга плати"
+      },
+      "unit": "V",
+      "direction": "band",
+      "definition": {
+        "en": "The lowest supply voltage the flight controller saw while armed. Outside 4.3 to 5.8 V it is outside what ArduPilot's own checks accept.",
+        "uk": "Найнижча напруга живлення польотного контролера під час польоту. Поза межами 4,3–5,8 В вона виходить за те, що приймають перевірки ArduPilot."
+      },
+      "method": {
+        "en": "Minimum of POWR.Vcc between arming and disarming.",
+        "uk": "Мінімум POWR.Vcc між взведенням і зняттям зі зброї."
+      },
+      "messages": [
+        "POWR"
+      ],
+      "source": {
+        "kind": "ardupilot",
+        "title": "ArduPilot: pre-arm checks expect 4.3 to 5.8 V",
+        "url": "https://ardupilot.org/copter/docs/common-prearm-safety-checks.html"
+      },
+      "zones": {
+        "target": [
+          4.3,
+          5.8
+        ],
+        "out": [
+          [
+            null,
+            4.3
+          ],
+          [
+            5.8,
+            null
+          ]
+        ]
+      }
+    },
+    "power.board_voltage_dip": {
+      "name": {
+        "en": "Board voltage dip",
+        "uk": "Просідання напруги плати"
+      },
+      "unit": "V",
+      "direction": "lower",
+      "definition": {
+        "en": "How far the board supply fell below its usual level in flight. Dips under load are an early brownout sign.",
+        "uk": "Наскільки живлення плати падало нижче звичайного рівня в польоті. Просідання під навантаженням — ранній знак провалу живлення."
+      },
+      "method": {
+        "en": "Median POWR.Vcc while armed minus its minimum.",
+        "uk": "Медіана POWR.Vcc під час польоту мінус її мінімум."
+      },
+      "messages": [
+        "POWR"
+      ],
+      "source": {
+        "kind": "app",
+        "title": "App rule: a dip of 0.25 V or more under load is worth a look"
+      },
+      "zones": {
+        "target": [
+          null,
+          0.25
+        ],
+        "caution": [
+          0.25,
+          null
+        ]
+      }
+    }
+  },
+  "findings": {
+    "power.hover_throttle_high": {
+      "stage": "setup",
+      "title": {
+        "en": "Hover throttle {throttle}: little headroom left",
+        "uk": "Газ у зависанні {throttle}: запасу майже немає"
+      },
+      "action": {
+        "en": "The aircraft needs most of its thrust just to hover. Reduce weight or payload, or fit more thrust (props, motors, voltage). Check the hover throttle learned (MOT_THST_HOVER) matches.",
+        "uk": "Апарату потрібна більша частина тяги лише для зависання. Зменште вагу чи навантаження або додайте тяги (пропелери, мотори, напруга). Перевірте, чи вивчений газ зависання (MOT_THST_HOVER) збігається."
+      }
+    },
+    "power.hover_throttle_low": {
+      "stage": "setup",
+      "title": {
+        "en": "Hover throttle {throttle}: the aircraft is overpowered",
+        "uk": "Газ у зависанні {throttle}: апарат має надлишок тяги"
+      },
+      "action": {
+        "en": "Very low hover throttle makes control coarse. Smaller props, a lower voltage or more payload bring it into the usual band; a well-learned MOT_THST_HOVER helps meanwhile.",
+        "uk": "Дуже малий газ зависання робить керування грубим. Менші пропелери, нижча напруга чи більше навантаження повертають його в звичайний діапазон; тим часом допомагає добре вивчений MOT_THST_HOVER."
+      }
+    },
+    "power.board_voltage": {
+      "stage": "mechanical",
+      "title": {
+        "en": "Board supply fell to {lowest} V (usually {typical} V), {at_s} s into the flight",
+        "uk": "Живлення плати впало до {lowest} В (зазвичай {typical} В) на {at_s} с польоту"
+      },
+      "action": {
+        "en": "Check the power module or BEC feeding the flight controller, and what switched on at that moment: servos, a gripper, a camera or the payload. Give heavy loads their own supply.",
+        "uk": "Перевірте модуль живлення або BEC, що живить польотний контролер, і що ввімкнулося в той момент: серви, захват, камера чи навантаження. Дайте великим навантаженням окреме живлення."
+      }
+    }
+  }
+}

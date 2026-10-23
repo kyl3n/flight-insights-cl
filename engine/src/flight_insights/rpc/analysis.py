@@ -63,7 +63,7 @@ def add_analysis_methods(server: Server, state: EngineState, guarded: Callable[[
                     "definition": dict(m.definition),
                     "method": dict(m.method),
                     "messages": list(m.messages),
-                    "zones": {z: list(b) for z, b in m.zones.items()},
+                    "zones": {z: [list(i) for i in b] for z, b in m.zones.items()},
                     "source": dict(m.source),
                 }
                 for m in reg.metrics.values()
