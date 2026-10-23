@@ -1,0 +1,44 @@
+{
+  "about": "Gyro filters (spec: The filter analyzer in detail). The filter model is ArduPilot's own filters, run sample by sample on the flight's logged pre-filter gyro data.",
+  "metrics": {
+    "filter.model_error": {
+      "name": {
+        "en": "Filter model error",
+        "uk": "Похибка моделі фільтрів"
+      },
+      "unit": "dB",
+      "direction": "lower",
+      "definition": {
+        "en": "How far the app's model of the gyro filters is from what the autopilot actually did on this flight. Small means the app's predictions for other filter settings can be trusted on this aircraft.",
+        "uk": "Наскільки модель фільтрів гіроскопа в застосунку відрізняється від того, що автопілот насправді зробив у цьому польоті. Мала похибка означає, що прогнозам застосунку для інших налаштувань фільтрів на цьому апараті можна довіряти."
+      },
+      "method": {
+        "en": "The primary gyro's pre-filter samples (GYR) go through the flight's own notch and low-pass settings, the notches following what the flight's tracking mode followed. The result's spectrum is compared with the post-filter samples the autopilot logged (INS_RAW_LOG_OPT bit 3) in 10 Hz bands up to 45% of the sample rate; the root mean square of the band differences in dB.",
+        "uk": "Вибірки основного гіроскопа до фільтрів (GYR) проходять через власні налаштування режекторних і низькочастотного фільтрів польоту, а режекторні фільтри стежать за тим самим джерелом, що й у польоті. Спектр результату порівнюється з вибірками після фільтрів, які записав автопілот (біт 3 INS_RAW_LOG_OPT), у смугах по 10 Гц до 45% частоти вибірок; середньоквадратичне значення різниць смуг у дБ."
+      },
+      "messages": ["GYR", "ESC", "MOTB", "FCNS", "FCN"],
+      "zones": {
+        "target": [null, 1],
+        "caution": [1, 3],
+        "out": [3, null]
+      },
+      "source": {
+        "kind": "app",
+        "title": "App rule, uncalibrated: the Phase 1 gate sets the target from the first 50 raw-IMU logs of the reference aircraft; the simulator fixtures agree to within 0.05 dB"
+      }
+    }
+  },
+  "findings": {
+    "filter.model_mismatch": {
+      "stage": "evidence",
+      "title": {
+        "en": "The filter model is {error} dB off what the autopilot did on this flight",
+        "uk": "Модель фільтрів відрізняється на {error} дБ від того, що автопілот зробив у цьому польоті"
+      },
+      "action": {
+        "en": "Filter recommendations for this aircraft are less certain until this is understood. Common causes: the primary IMU changed in flight, a notch parameter changed during the flight, or the notch followed something the log does not record. Check the evidence for which notch set and which band differ.",
+        "uk": "Доки причину не з'ясовано, рекомендації щодо фільтрів для цього апарата менш певні. Звичайні причини: основний IMU змінився в польоті, параметр режекторного фільтра змінили під час польоту або фільтр стежив за тим, чого немає в журналі. Перевірте в доказах, який набір фільтрів і яка смуга відрізняються."
+      }
+    }
+  }
+}

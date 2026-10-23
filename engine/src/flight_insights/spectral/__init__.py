@@ -4,7 +4,7 @@ telemetry (spec: The filter analyzer in detail)."""
 from flight_insights.spectral.esc import EscQuality, quality
 from flight_insights.spectral.gyro import GyroLayout, Run, layout, runs
 from flight_insights.spectral.peaks import Peak, db, harmonic_of, peaks
-from flight_insights.spectral.welch import Spectrum, segment_length, welch
+from flight_insights.spectral.welch import Spectrum, Windows, segment_length, welch, windows
 
 __all__ = [
     "EscQuality",
@@ -12,6 +12,7 @@ __all__ = [
     "Peak",
     "Run",
     "Spectrum",
+    "Windows",
     "db",
     "harmonic_of",
     "layout",
@@ -20,4 +21,5 @@ __all__ = [
     "runs",
     "segment_length",
     "welch",
+    "windows",
 ]
