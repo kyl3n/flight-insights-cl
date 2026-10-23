@@ -24,6 +24,7 @@ from flight_insights.analyzers.flight import FlightData
 from flight_insights.analyzers.log_adequacy import LOG_ADEQUACY
 from flight_insights.analyzers.model import Analyzer, Evidence, Result
 from flight_insights.analyzers.motors_health import MOTORS_HEALTH
+from flight_insights.analyzers.options import OPTIONS
 from flight_insights.analyzers.power import POWER
 from flight_insights.analyzers.registry import Registry
 from flight_insights.analyzers.system import SYSTEM
@@ -35,7 +36,8 @@ from flight_insights.store.db import Store
 log = logging.getLogger(__name__)
 
 ANALYZERS: tuple[Analyzer, ...] = (
-    LOG_ADEQUACY, SYSTEM, VIBRATION, ESC_RPM, FILTER_MODEL, FILTERS, POWER, MOTORS_HEALTH, BUSES,
+    LOG_ADEQUACY, SYSTEM, VIBRATION, ESC_RPM, FILTER_MODEL, FILTERS, POWER, MOTORS_HEALTH,
+    BUSES, OPTIONS,
 )  # fmt: skip
 
 
@@ -125,13 +127,19 @@ def run_analysis(
     return out
 
 
+def declares(a: Analyzer, code: str) -> bool:
+    """Whether the analyzer declares a finding code; "prefix.*" declares a family whose
+    codes come from the knowledge pack (the Better options catalog)."""
+    return any(code == d or (d.endswith(".*") and code.startswith(d[:-1])) for d in a.findings)
+
+
 def _check(a: Analyzer, r: Result, reg: Registry) -> None:
     """What an analyzer emits must be declared by it and described in the registry."""
     for m in r.metrics:
         if m.metric not in a.metrics or m.metric not in reg.metrics:
             raise AnalyzerBug(f"{a.name} emitted metric {m.metric} it does not declare")
     for f in r.findings:
-        if f.code not in a.findings or f.code not in reg.findings:
+        if not declares(a, f.code) or f.code not in reg.findings:
             raise AnalyzerBug(f"{a.name} emitted finding {f.code} it does not declare")
     cited = {e.id for e in r.evidence} | {e.id for f in r.findings for e in f.evidence}
     for m in r.metrics:

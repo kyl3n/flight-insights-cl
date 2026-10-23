@@ -75,7 +75,10 @@ def test_nothing_an_analyzer_emits_goes_unexplained(pack: Pack) -> None:
         for m in a.metrics:
             assert m in reg.metrics, (a.name, m)
         for f in a.findings:
-            assert f in reg.findings, (a.name, f)
+            if f.endswith(".*"):  # a family from the pack, such as the Better options
+                assert any(code.startswith(f[:-1]) for code in reg.findings), (a.name, f)
+            else:
+                assert f in reg.findings, (a.name, f)
     for m in reg.metrics.values():  # every field the explanation card needs
         assert m.name["uk"] and m.definition["uk"] and m.method["uk"] and m.source["title"]
 
@@ -180,7 +183,9 @@ def test_a_run_is_stored_and_reused_while_current(
     vib = metrics["vibration.p95", "hover"]
     assert vib["zone"] == "target" and 0 < vib["value"] < 30  # SITL flies smoothly
     assert metrics["vibration.clipping", "flight"]["value"] == 0
-    assert [f["code"] for f in first["findings"]] == ["logging.no_prefilter_gyro"]  # no GYR
+    codes = {f["code"] for f in first["findings"]}
+    assert "logging.no_prefilter_gyro" in codes  # no GYR
+    assert not [f for f in first["findings"] if f["analyzer"] == "vibration"]
     cited = {e["id"] for e in first["evidence"]}
     assert all(m["evidence"] in cited for m in first["metrics"])
     assert run_analysis(store, cache, pack, fid)["run"] == first["run"]  # nothing recomputed

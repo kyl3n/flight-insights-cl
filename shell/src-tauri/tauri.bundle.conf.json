@@ -9,7 +9,8 @@
       "../../knowledge/boards/": "knowledge/boards/",
       "../../knowledge/rules/": "knowledge/rules/",
       "../../knowledge/metrics/": "knowledge/metrics/",
-      "../../knowledge/setup/": "knowledge/setup/"
+      "../../knowledge/setup/": "knowledge/setup/",
+      "../../knowledge/options/": "knowledge/options/"
     },
     "linux": {
       "rpm": {
