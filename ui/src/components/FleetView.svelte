@@ -1,9 +1,39 @@
 <script lang="ts">
+  // The fleet overview (spec: User interface, "Fleet"; mock-up Main): every platform
+  // and its airframes, each with its status, tuning stage, key metrics and last
+  // flight, most urgent first; and what needs attention across the fleet.
   import { app, t } from "../lib/app.svelte";
+  import { getRegistry } from "../lib/data";
+  import {
+    byUrgency,
+    findingCount,
+    keep,
+    stagePosition,
+    statusLook,
+    type AirframeHealth,
+    type Attention,
+    type FleetOverview,
+    type Filter,
+  } from "../lib/fleet";
   import type { MessageKey } from "../lib/i18n";
+  import {
+    findingTitle,
+    formatDuration,
+    formatNumber,
+    formatTakeoff,
+    formatValue,
+    severityLook,
+    stageKey,
+    subsystem,
+    subsystemName,
+    type Registry,
+  } from "../lib/report";
+  import { engineCall } from "../lib/shell";
+  import type { AirframeView, PlatformView } from "../lib/setup";
+  import { cardKey } from "../lib/trends";
   import StatusBadge from "./StatusBadge.svelte";
+  import Value from "./Value.svelte";
 
-  type Filter = "all" | "attention" | "tuning" | "healthy";
   let filter: Filter = $state("all");
   const filters: [Filter, MessageKey][] = [
     ["all", "fleet.filter.all"],
@@ -11,11 +41,11 @@
     ["tuning", "fleet.filter.tuning"],
     ["healthy", "fleet.filter.healthy"],
   ];
-  import { engineCall } from "../lib/shell";
-  import type { AirframeView, PlatformView } from "../lib/setup";
 
   let platforms: PlatformView[] = $state([]);
   let airframes: AirframeView[] = $state([]);
+  let fleet = $state<FleetOverview>({ airframes: {}, attention: [] });
+  let registry = $state<Registry | null>(null);
   let creating = $state(false);
   let newName = $state("");
   let newVehicle: "copter" | "plane" = $state("copter");
@@ -28,6 +58,7 @@
     try {
       platforms = await engineCall<PlatformView[]>("platform.list");
       airframes = await engineCall<AirframeView[]>("airframe.list");
+      [fleet, registry] = await Promise.all([engineCall<FleetOverview>("fleet.overview"), getRegistry()]);
     } catch (e) {
       error = String(e);
     }
@@ -58,22 +89,57 @@
     }
   }
 
-  const attention = $derived(platforms.filter((p) => !p.completeness.ready).length);
-  const shown = $derived(
-    platforms.filter((p) =>
-      filter === "all" ? true
-      : filter === "attention" ? !p.completeness.ready
-      : filter === "healthy" ? p.completeness.ready
-      : true,
-    ),
-  );
+  function openFlight(airframeId: string, flight: string | null) {
+    app.scope.airframe = airframeId;
+    app.scope.flight = flight;
+    app.view = "flights";
+  }
+
+  function openTrends(airframeId: string, card: string | null = null) {
+    app.scope.airframe = airframeId;
+    app.trendCard = card;
+    app.view = "trends";
+  }
+
+  function openItem(item: Attention) {
+    if (item.kind === "drift") openTrends(item.airframe_id, cardKey(item));
+    else openFlight(item.airframe_id, item.flight);
+  }
+
+  function lastText(h: AirframeHealth): string {
+    const when = formatTakeoff(h.last?.utc_us ?? null, app.locale) ?? "–";
+    const d = formatDuration(h.last?.duration_s ?? null);
+    return d ? t("fleet.last", { when, min: d.min }) : when;
+  }
+
+  function itemText(item: Attention): string {
+    if (!registry) return "";
+    if (item.kind === "finding") return findingTitle(registry, item, app.locale);
+    const metric = registry.metrics[item.metric];
+    return t("attention.drift", {
+      metric: metric?.name[app.locale] ?? item.metric,
+      low: item.baseline ? formatNumber(Math.round(item.baseline.low * 10) / 10, app.locale) : "–",
+      high: item.baseline ? formatValue(Math.round(item.baseline.high * 10) / 10, item.unit, app.locale) : "–",
+    });
+  }
+
+  const itemArea = (item: Attention) =>
+    subsystemName(item.kind === "drift" ? subsystem(item.metric) : item.analyzer, app.locale);
+
+  const needing = $derived(airframes.filter((a) => keep("attention", fleet.airframes[a.id])).length);
+  const shownAirframes = (platformId: string) =>
+    byUrgency(
+      airframes.filter((a) => a.platform.id === platformId && keep(filter, fleet.airframes[a.id])),
+      fleet.airframes,
+    );
+  const shown = $derived(platforms.filter((p) => filter === "all" || shownAirframes(p.id).length > 0));
 </script>
 
 <main>
   <section class="fleet" aria-labelledby="fleet-title">
     <div class="heading">
       <h1 id="fleet-title">{t("fleet.title")}</h1>
-      <p>{t("fleet.summary", { platforms: platforms.length, airframes: airframes.length, attention })}</p>
+      <p>{t("fleet.summary", { platforms: platforms.length, airframes: airframes.length, attention: needing })}</p>
     </div>
     <div role="group" aria-label={t("fleet.filter.label")} class="filters">
       {#each filters as [id, label] (id)}
@@ -120,12 +186,54 @@
             </button>
           </div>
           <div class="cards">
-            {#each airframes.filter((a) => a.platform.id === p.id) as a (a.id)}
-              <article>
-                <span class="mono name">{a.name}</span>
-                <span class="faint">{t("fleet.airframe.build", { number: a.build.number })}</span>
-                {#if a.differs_from_reference.length}
-                  <span class="faint">{t("fleet.airframe.differs", { count: a.differs_from_reference.length })}</span>
+            {#each shownAirframes(p.id) as a (a.id)}
+              {@const h = fleet.airframes[a.id]}
+              {@const look = statusLook(h?.status ?? "none")}
+              <article class="airframe">
+                <div class="row">
+                  <button type="button" class="name mono plain" onclick={() => openFlight(a.id, h?.last?.flight ?? null)}>
+                    {a.name}
+                  </button>
+                  <StatusBadge status={look.status} label={t(look.label)} />
+                </div>
+                <span class="faint">
+                  {t("fleet.airframe.build", { number: a.build.number })}{#if a.differs_from_reference.length}
+                    · {t("fleet.airframe.differs", { count: a.differs_from_reference.length })}{/if}
+                </span>
+                {#if h?.stage}
+                  {@const pos = stagePosition(h.stage)}
+                  <span class="stage">
+                    {pos ? t("fleet.stage", { ...pos, stage: t(stageKey(h.stage)) }) : t(stageKey(h.stage))}
+                  </span>
+                {:else if h?.planned}
+                  <span class="stage done">{t("fleet.stage.clear")}</span>
+                {/if}
+                {#if h?.metrics?.length && registry}
+                  <div class="metrics">
+                    {#each h.metrics as m (cardKey(m))}
+                      {@const info = registry.metrics[m.metric]}
+                      {#if info}
+                        <span class="metric">
+                          <Value id={m.metric} metric={info} value={m.value} zone={m.zone} context={t(`segment.${m.segment}` as MessageKey)} />
+                          {#if m.drift}<span class="drift">▲ {t("fleet.drift")}</span>{/if}
+                        </span>
+                      {/if}
+                    {/each}
+                  </div>
+                {/if}
+                {#if h?.last}
+                  <div class="row foot">
+                    <span class="faint">{lastText(h)}</span>
+                    <span class="faint">
+                      {findingCount(h) === 0
+                        ? t("fleet.findings.none")
+                        : findingCount(h) === 1
+                          ? t("fleet.findings.one")
+                          : t("fleet.findings", { count: findingCount(h) })}
+                    </span>
+                  </div>
+                  {#if h.current === false}<span class="faint">{t("fleet.stale")}</span>{/if}
+                  <button type="button" class="link" onclick={() => openTrends(a.id)}>{t("fleet.trends")}</button>
                 {/if}
               </article>
             {/each}
@@ -175,7 +283,19 @@
         <h2 id="attention-title">{t("attention.title")}</h2>
         <span class="faint">{t("attention.order")}</span>
       </div>
-      <p class="faint">{t("attention.none")}</p>
+      {#each fleet.attention as item, i (i)}
+        {@const look = severityLook(item.severity)}
+        <button type="button" class="item" onclick={() => openItem(item)}>
+          <span class="row">
+            <StatusBadge status={look.status} label={t(look.label)} />
+            <span class="mono who">{item.airframe}</span>
+          </span>
+          <span class="text">{itemText(item)}</span>
+          <span class="faint">{formatTakeoff(item.utc_us, app.locale) ?? "–"} · {itemArea(item)}</span>
+        </button>
+      {:else}
+        <p class="faint">{t("attention.none")}</p>
+      {/each}
     </section>
   </aside>
 </main>
@@ -282,7 +402,7 @@
   }
   .cards {
     display: grid;
-    grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
+    grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
     gap: 12px;
   }
   article,
@@ -297,6 +417,70 @@
   }
   .name {
     font-size: 17px;
+  }
+  .plain {
+    background: none;
+    border: 0;
+    padding: 0;
+    color: var(--text);
+    cursor: pointer;
+    text-align: left;
+  }
+  .plain:hover {
+    color: var(--link);
+  }
+  .airframe {
+    gap: 8px;
+  }
+  .stage {
+    font-size: 12px;
+    color: var(--accent);
+  }
+  .stage.done {
+    color: var(--text-faint);
+  }
+  .metrics {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px;
+  }
+  .metric {
+    display: inline-flex;
+    flex-direction: column;
+    gap: 2px;
+  }
+  .drift {
+    font-size: 11px;
+    color: var(--caution);
+  }
+  .foot {
+    font-size: 12px;
+  }
+  .item {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+    padding: 10px 0;
+    border: 0;
+    border-top: 1px solid var(--border-soft);
+    background: none;
+    color: var(--text);
+    text-align: left;
+    cursor: pointer;
+  }
+  .item:hover .text {
+    color: var(--link);
+  }
+  .item .row {
+    justify-content: flex-start;
+    align-items: center;
+  }
+  .who {
+    font-size: 13px;
+  }
+  .text {
+    font-size: 13px;
+    line-height: 1.4;
   }
   input,
   select {

@@ -15,7 +15,15 @@ from flight_insights.knowledge import load_pack
 from flight_insights.platforms.records import create_airframe, create_platform
 from flight_insights.platforms.schema import load_schema
 from flight_insights.store import Store, StoreKeys, open_store
-from flight_insights.trends import baseline, events, flight_list, overview, platform, series
+from flight_insights.trends import (
+    baseline,
+    events,
+    fleet_overview,
+    flight_list,
+    overview,
+    platform,
+    series,
+)
 
 VIBE = "vibration.p95"  # lower is better; target below 30 m/s/s
 T0 = 1_760_000_000_000_000
@@ -185,6 +193,50 @@ def test_the_flight_list_is_newest_first_with_its_worst_finding(store: Store) ->
     assert [f["id"] for f in flight_list(store, flight_id=first)] == [first]
 
 
+def test_the_fleet_overview_puts_the_most_urgent_first(store: Store, reg: Registry) -> None:
+    pack = load_pack()
+    pid = create_platform(store, load_schema(pack), "HL", "copter")
+    quiet, steady, drifting, broken = (
+        airframe(store, n, pid) for n in ("HL0", "HL1", "HL2", "HL3")
+    )
+    for n in range(6):
+        fly(store, steady, n, hover(12) | {(VIBE, "flight"): 18})
+    for n, v in enumerate([12, 13, 12.5, 14, 13, 12, 22, 24]):
+        fly(store, drifting, n, hover(v))
+    fly(store, broken, 0, hover(12))
+    last = fly(store, broken, 1, hover(70), bad=True)
+    run = store.conn.execute("SELECT id FROM analysis_run WHERE flight_id = ?", (last,)).fetchone()
+    store.insert(
+        "finding",
+        {"run_id": run[0], "flight_id": last, "analyzer": "esc", "code": "esc.hot",
+         "severity": "caution", "confidence": "high", "evidence_json": "[]"},
+    )  # fmt: skip
+    view = fleet_overview(store, reg, pack)
+    cards = view["airframes"]
+    assert cards[quiet] == {"status": "none", "flights": 0}
+    assert cards[steady]["status"] == "ok" and cards[steady]["flights"] == 6
+    assert cards[drifting]["status"] == "inspect" and cards[broken]["status"] == "fix"
+    assert cards[broken]["counts"] == {"out": 1, "caution": 1}
+    # The key metrics read the hover segment first; a metric the flight lacks is left out.
+    [vibe] = cards[steady]["metrics"]
+    assert (vibe["metric"], vibe["segment"], vibe["value"]) == (VIBE, "hover", 12)
+    assert cards[drifting]["metrics"][0]["drift"]
+    assert cards[steady]["stage"] is None  # no parameters on these flights: no plan
+    assert not cards[steady]["planned"]
+    assert cards[broken]["last"]["flight"] == last
+    order = [(a["airframe"], a["kind"], a["severity"]) for a in view["attention"]]
+    assert order == [  # by severity, then newest first: HL2 flew last
+        ("HL3", "finding", "out"), ("HL2", "drift", "caution"), ("HL3", "finding", "caution"),
+    ]  # fmt: skip
+    assert view["attention"][1]["metric"] == VIBE
+
+
+def test_the_key_metrics_are_known_metrics(reg: Registry) -> None:
+    rules = reg.rules["trends"]
+    for metrics in rules["key_metrics"].values():
+        assert len(metrics) == 3 and all(m in reg.metrics for m in metrics)
+
+
 def test_trends_over_rpc(tmp_path: Path) -> None:
     from test_rpc import LAPTOP, Output, call, keys
 
@@ -216,6 +268,11 @@ def test_trends_over_rpc(tmp_path: Path) -> None:
     assert [r["airframe"] for r in view["airframes"]] == [af["id"]]
     [listed] = call(server, out, 13, "flight.list", airframe_id=af["id"])["result"]
     assert listed["id"] == done["flights"][0] and listed["analysis"]["status"] == "complete"
+    fleet = call(server, out, 14, "fleet.overview")["result"]
+    mine = fleet["airframes"][af["id"]]
+    assert mine["last"]["flight"] == done["flights"][0] and mine["metrics"]
+    assert mine["planned"]  # the fixture has parameters: its stage is read from its plan
+    assert mine["stage"] is None or isinstance(mine["stage"], str)
     bad = call(server, out, 11, "trend.series", airframe_id=af["id"], metric="no.such")
     assert bad["error"]["code"] == -32602
     call(server, out, 12, "engine.shutdown")

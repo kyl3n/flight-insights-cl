@@ -27,17 +27,19 @@ from flight_insights.store.db import Store
 
 def flight_plan(
     store: Store,
-    cache: ColumnCache,
+    cache: ColumnCache | None,
     pack: Pack,
     flight_id: str,
     analysis: Mapping[str, Any] | None = None,
 ) -> Plan:
-    """The plan for a flight's current analysis (running it first if needed), in the
-    dialect of the firmware the flight flew."""
+    """The plan for a flight's current analysis (running it first if needed, which
+    needs the cache), in the dialect of the firmware the flight flew."""
     row = store.get("flight", flight_id)
     if row is None or not row["param_snapshot_id"]:
         raise FlightError(f"no flight {flight_id} with parameters")
     if analysis is None:
+        if cache is None:
+            raise FlightError(f"flight {flight_id} has no analysis to plan from")
         analysis = run_analysis(store, cache, pack, flight_id)
     snapshot = load_snapshot(store, row["param_snapshot_id"])
     dialect = snapshot.dialect(pack)

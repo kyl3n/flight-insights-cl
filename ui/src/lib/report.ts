@@ -3,7 +3,7 @@
 // Wording comes from the engine's registry in both languages; nothing here invents
 // a threshold or an explanation.
 
-import type { Locale, MessageKey } from "./i18n";
+import { CATALOGS, translate, type Locale, type MessageKey } from "./i18n";
 import type { Status } from "./status";
 
 export type Severity = "info" | "caution" | "out" | "safety";
@@ -198,7 +198,7 @@ export function fill(template: string, params: Record<string, unknown>, locale: 
   );
 }
 
-export function findingTitle(reg: Registry, f: FindingRow, locale: Locale): string {
+export function findingTitle(reg: Registry, f: Pick<FindingRow, "code" | "params">, locale: Locale): string {
   const text = reg.findings[f.code];
   return text ? fill(text.title[locale], f.params, locale) : f.code;
 }
@@ -272,6 +272,12 @@ export function formatTakeoff(utcUs: number | null, locale: Locale): string | nu
 /** The subsystem a metric belongs to: the part of its id before the first dot. */
 export function subsystem(metricId: string): string {
   return metricId.split(".")[0] ?? metricId;
+}
+
+/** A subsystem's name in the interface language; an unknown one shows its key. */
+export function subsystemName(key: string, locale: Locale): string {
+  const k = `subsystem.${key}`;
+  return k in CATALOGS.en ? translate(locale, k as MessageKey) : key;
 }
 
 /** Metric values grouped by subsystem, in registry order inside each group. */

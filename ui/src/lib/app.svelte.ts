@@ -31,6 +31,7 @@ export const app = $state({
   setupPlatform: null as string | null, // the platform open in the setup wizard
   importOpen: false, // the import dialog
   pending: [] as PendingFile[], // new files found in watched folders
+  trendCard: null as string | null, // the metric@segment the Trends view opens on
 });
 
 export function t(key: MessageKey, vars?: Record<string, string | number>): string {

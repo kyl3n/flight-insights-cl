@@ -29,7 +29,11 @@ from typing import Any
 
 import numpy as np
 
+from flight_insights.analyzers.flight import FlightError
 from flight_insights.analyzers.registry import Metric, Registry
+from flight_insights.analyzers.run import analysis_results
+from flight_insights.knowledge import Pack
+from flight_insights.recommend import flight_plan
 from flight_insights.store.db import Store
 
 BAD_SEVERITIES = ("out", "safety")
@@ -336,3 +340,97 @@ def flight_list(
              "modes": sorted(fp.get("mode_s", {})), "analysis": analysis}
         )  # fmt: skip
     return out
+
+
+SEVERITY_RANK = {"safety": 0, "out": 1, "caution": 2}
+
+
+def _key_metrics(
+    store: Store, reg: Registry, airframe_id: str, run_id: str, vehicle: str, payload: str | None
+) -> list[dict[str, Any]]:
+    """The airframe's key metrics on its latest flight, each in the first segment the
+    flight has from the preferred order, with its zone and whether it is drifting."""
+    rules: Mapping[str, Any] = reg.rules["trends"]
+    wanted: list[str] = list(rules["key_metrics"].get(vehicle, rules["key_metrics"]["copter"]))
+    order: list[str] = list(rules["key_segments"])
+    out: list[dict[str, Any]] = []
+    for metric_id in wanted:
+        if metric_id not in reg.metrics:
+            continue
+        rows = store.conn.execute(
+            "SELECT segment, value, zone FROM metric_value WHERE run_id = ? AND metric = ?",
+            (run_id, metric_id),
+        ).fetchall()
+        if not rows:
+            continue
+        segment, value, zone = min(
+            rows, key=lambda r: (order.index(r[0]) if r[0] in order else len(order), r[0])
+        )
+        s = series(store, reg, airframe_id, metric_id, segment, payload)
+        out.append(
+            {"metric": metric_id, "segment": segment, "unit": reg.metrics[metric_id].unit,
+             "value": float(value), "zone": zone, "drift": s["drift"] is not None}
+        )  # fmt: skip
+    return out
+
+
+def fleet_overview(store: Store, reg: Registry, pack: Pack) -> dict[str, Any]:
+    """The fleet overview: for each airframe its status from its latest analysed flight,
+    the tuning stage on offer, its key metrics and that flight; and what needs attention
+    across the fleet, most urgent first. Stored analyses only: nothing is re-run here."""
+    airframes: dict[str, dict[str, Any]] = {}
+    attention: list[dict[str, Any]] = []
+    for airframe_id, name, vehicle in store.conn.execute(
+        "SELECT a.id, a.name, p.vehicle FROM airframe a JOIN platform p ON p.id = a.platform_id"
+    ).fetchall():
+        flights = [f for f in _flights(store, airframe_id) if f.run_id is not None]
+        if not flights:
+            airframes[airframe_id] = {"status": "none", "flights": 0}
+            continue
+        latest = flights[-1]
+        assert latest.run_id is not None
+        analysis = analysis_results(store, latest.id, reg)
+        assert analysis is not None
+        findings: list[dict[str, Any]] = analysis["findings"]
+        counts: dict[str, int] = {}
+        for f in findings:
+            counts[f["severity"]] = counts.get(f["severity"], 0) + 1
+        try:
+            stage: str | None = flight_plan(store, None, pack, latest.id, analysis).stage
+            planned = True
+        except FlightError:  # no parameters on the flight: no plan to read a stage from
+            stage, planned = None, False
+        metrics = _key_metrics(store, reg, airframe_id, latest.run_id, vehicle, latest.payload)
+        worst = min((SEVERITY_RANK.get(f["severity"], 9) for f in findings), default=9)
+        drifting = [c for c in overview(store, reg, airframe_id) if c["drift"]]
+        status = "fix" if worst <= 1 else "inspect" if worst == 2 or drifting else "ok"
+        row = store.get("flight", latest.id)
+        assert row is not None
+        duration = (
+            (int(row["disarm_us"]) - int(row["arm_us"])) / 1e6
+            if row["arm_us"] is not None and row["disarm_us"] is not None
+            else None
+        )
+        airframes[airframe_id] = {
+            "status": status, "stage": stage, "planned": planned, "flights": len(flights),
+            "counts": counts,
+            "current": analysis["current"], "metrics": metrics,
+            "last": {"flight": latest.id, "utc_us": latest.utc_us, "duration_s": duration,
+                     "payload": latest.payload},
+        }  # fmt: skip
+        base = {"airframe_id": airframe_id, "airframe": name, "flight": latest.id,
+                "utc_us": latest.utc_us}  # fmt: skip
+        for f in findings:
+            if f["severity"] in SEVERITY_RANK:
+                attention.append(
+                    base | {"kind": "finding", "severity": f["severity"], "code": f["code"],
+                            "analyzer": f["analyzer"], "params": f["params"], "finding": f["id"]}
+                )  # fmt: skip
+        for c in drifting:
+            attention.append(
+                base | {"kind": "drift", "severity": "caution", "metric": c["metric"],
+                        "segment": c["segment"], "unit": c["unit"], "value": c["value"],
+                        "baseline": c["baseline"]}
+            )  # fmt: skip
+    attention.sort(key=lambda a: (SEVERITY_RANK[a["severity"]], -(a["utc_us"] or 0)))
+    return {"airframes": airframes, "attention": attention}
