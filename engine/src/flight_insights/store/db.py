@@ -11,6 +11,7 @@ from __future__ import annotations
 import re
 import secrets
 import sqlite3
+import threading
 from collections.abc import Generator, Mapping
 from contextlib import contextmanager
 from importlib import resources
@@ -56,6 +57,7 @@ class Store:
         self.laptop_id = laptop_id
         self.clock = HybridClock(laptop_id)
         self._depth = 0
+        self._lock = threading.RLock()  # one thread at a time; nested calls join in
         self._record_tables: frozenset[str] = frozenset()
         self.conn.execute(
             "CREATE TABLE IF NOT EXISTS schema_migrations "
@@ -75,26 +77,29 @@ class Store:
         self.close()
 
     def close(self) -> None:
-        self.conn.close()
+        with self._lock:
+            self.conn.close()
 
     # --- transactions ---------------------------------------------------------------
 
     @contextmanager
     def transaction(self) -> Generator[sqlite3.Connection]:
-        """All of it or none of it. Nested calls join the outermost transaction."""
-        if self._depth == 0:
-            self.conn.execute("BEGIN IMMEDIATE")
-        self._depth += 1
-        try:
-            yield self.conn
-        except BaseException:
+        """All of it or none of it. Nested calls join the outermost transaction; other
+        threads wait until it ends."""
+        with self._lock:
+            if self._depth == 0:
+                self.conn.execute("BEGIN IMMEDIATE")
+            self._depth += 1
+            try:
+                yield self.conn
+            except BaseException:
+                self._depth -= 1
+                if self._depth == 0:
+                    self.conn.execute("ROLLBACK")
+                raise
             self._depth -= 1
             if self._depth == 0:
-                self.conn.execute("ROLLBACK")
-            raise
-        self._depth -= 1
-        if self._depth == 0:
-            self.conn.execute("COMMIT")
+                self.conn.execute("COMMIT")
 
     # --- records --------------------------------------------------------------------
 
@@ -140,11 +145,12 @@ class Store:
 
     def get(self, table: str, record_id: str) -> dict[str, Any] | None:
         self._check_table(table)
-        cur = self.conn.execute(f"SELECT * FROM {table} WHERE id = ?", (record_id,))
-        row = cur.fetchone()
-        if row is None:
-            return None
-        return {d[0]: v for d, v in zip(cur.description, row, strict=True)}
+        with self._lock:
+            cur = self.conn.execute(f"SELECT * FROM {table} WHERE id = ?", (record_id,))
+            row = cur.fetchone()
+            if row is None:
+                return None
+            return {d[0]: v for d, v in zip(cur.description, row, strict=True)}
 
     @property
     def record_tables(self) -> frozenset[str]:

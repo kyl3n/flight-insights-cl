@@ -18,4 +18,9 @@ IntegrityError = cast(type[Exception], _module.IntegrityError)
 
 def connect(path: str) -> sqlite3.Connection:
     # isolation_level=None: the store opens and closes its own transactions.
-    return cast(sqlite3.Connection, _module.connect(path, isolation_level=None))
+    # check_same_thread=False: the engine's request threads share the connection, and
+    # the Store serialises every use of it with its own lock.
+    return cast(
+        sqlite3.Connection,
+        _module.connect(path, isolation_level=None, check_same_thread=False),
+    )

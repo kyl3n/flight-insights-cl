@@ -27,6 +27,8 @@ packages = ["src/flight_insights"]
 dev = [
     "hypothesis>=6.170.5",
     "pyarrow-stubs>=20.0.0.20260819",
+    "pyinstaller==6.22.3",
+    "pyinstaller-hooks-contrib==2026.8",
     "pyright",
     "pytest",
     "ruff",

@@ -29,6 +29,8 @@ node_modules/
 target/
 dist/
 build/
+# Frozen engine sidecars, built by engine/packaging/freeze.py
+shell/src-tauri/binaries/
 __pycache__/
 *.pyc
 .venv/
