@@ -30,10 +30,10 @@ from flight_insights.analyzers.model import (
     Result,
     Segment,
 )
+from flight_insights.analyzers.motors import MotorPicture, picture
 from flight_insights.analyzers.registry import Registry
-from flight_insights.spectral import EscQuality, harmonic_of, layout, peaks, quality, runs, welch
+from flight_insights.spectral import EscQuality, harmonic_of
 
-LOW_HZ = 0.3  # motor peaks are searched from this share of the ESC motor frequency up
 PEAKS = 5  # the strongest peaks looked at
 CONFIDENT_DB = 10.0  # a peak this far above the floor makes the comparison high confidence
 STEADY_ENOUGH_S = 10.0
@@ -130,21 +130,13 @@ def _telemetry(
     return hz
 
 
-def _against_gyro(flight: FlightData, motor_hz: float, out: Result) -> None:
-    hover = flight.hover()
-    gyr = flight.table("GYR")
-    if gyr is None or not hover or not np.isfinite(motor_hz) or motor_hz <= 0:
+def _against_gyro(flight: FlightData, m: MotorPicture, out: Result) -> None:
+    motor_hz = m.esc_hz
+    spectrum = m.spectrum
+    if m.kind != "hover" or spectrum is None or m.instance is None or not motor_hz:
         return
-    imu_count = flight.fingerprint.get("imu_count", {}).get("value")
-    instances = sorted({int(i) for i in np.unique(gyr.column("I").to_numpy())})
-    gyros = layout(int(flight.params.get("INS_RAW_LOG_OPT", 0)), imu_count, instances)
-    if not gyros.pre:
-        return
-    primary = gyros.pre[0]
-    spectrum = welch([r for w in hover for r in runs(gyr, primary, w.start_us, w.end_us)])
-    if spectrum is None:
-        return
-    found = peaks(spectrum, LOW_HZ * motor_hz, spectrum.rate_hz / 2)[:PEAKS]
+    primary = m.instance
+    found = m.peaks[:PEAKS]
     seconds = round(spectrum.seconds, 1)
     ev = Evidence(
         id="esc:gyro",
@@ -159,7 +151,7 @@ def _against_gyro(flight: FlightData, motor_hz: float, out: Result) -> None:
         ),
         messages=("GYR", "ESC"),
         fields=("GyrX", "GyrY", "GyrZ", "RPM"),
-        segment=Segment("hover", hover[0].start_us, hover[-1].end_us),
+        segment=Segment("hover", m.spans[0][0], m.spans[-1][1]),
         values={
             "instance": primary,
             "rate_hz": round(spectrum.rate_hz, 1),
@@ -208,23 +200,18 @@ def _against_gyro(flight: FlightData, motor_hz: float, out: Result) -> None:
 
 
 def _esc_rpm(flight: FlightData, reg: Registry) -> Result:
-    esc = flight.table("ESC")
-    if esc is None or esc.num_rows == 0 or "RPM" not in esc.column_names:
-        return Result(skipped="the log has no ESC telemetry")
+    m = picture(flight)
+    if not m.escs:
+        return Result(skipped="the log has no ESC telemetry while armed")
     out = Result()
-    hover = flight.hover()
-    spans = [(w.start_us, w.end_us) for w in hover] or [(flight.arm_us, flight.disarm_us)]
-    found = quality(esc, flight.arm_us, flight.disarm_us, spans)
-    if not found:
-        return Result(skipped="no ESC telemetry while armed")
-    motor_hz = _telemetry(flight, reg, found, "hover" if hover else "flight", out)
-    _against_gyro(flight, motor_hz, out)
+    _telemetry(flight, reg, m.escs, m.kind, out)
+    _against_gyro(flight, m, out)
     return out
 
 
 ESC_RPM = Analyzer(
     name="esc_rpm",
-    version=1,
+    version=2,
     run=_esc_rpm,
     metrics=("esc.telemetry_error_rate", "esc.telemetry_dropouts"),
     findings=("esc.telemetry_errors", "esc.telemetry_dropouts", "esc.rpm_mismatch"),
