@@ -1,6 +1,8 @@
 <script lang="ts">
   import { onMount } from "svelte";
   import FleetView from "./components/FleetView.svelte";
+  import FlightReport from "./components/FlightReport.svelte";
+  import FlightsView from "./components/FlightsView.svelte";
   import ImportDialog from "./components/ImportDialog.svelte";
   import Header from "./components/Header.svelte";
   import Rail from "./components/Rail.svelte";
@@ -85,6 +87,10 @@
       <SetupView schema={setup.schema} platform={setup.platform} />
     {:else if app.view === "fleet"}
       <FleetView />
+    {:else if app.view === "flights" && app.scope.flight}
+      <FlightReport flightId={app.scope.flight} />
+    {:else if app.view === "flights"}
+      <FlightsView />
     {:else if app.view === "stations"}
       <StationsView />
     {:else}

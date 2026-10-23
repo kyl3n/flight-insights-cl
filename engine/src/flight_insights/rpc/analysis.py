@@ -13,6 +13,7 @@
 | trend.series | One metric's series for an airframe, with its zones, baseline and drift |
 | trend.events | What changed on an airframe, placed at the flight it first applies to |
 | trend.platform | One metric for every airframe of a platform, on shared axes |
+| flight.list | Flights, newest first, with a summary of each one's latest analysis |
 
 Analysing a flight also grades its airframe's earlier recommendations against it.
 
@@ -138,6 +139,18 @@ def add_analysis_methods(server: Server, state: EngineState, guarded: Callable[[
         if not isinstance(segment, str):
             raise RpcError(INVALID_PARAMS, "segment must be a segment name")
         return metric, segment
+
+    @server.method("flight.list")
+    @guarded
+    def flight_list(_ctx: Context, params: dict[str, Any]) -> list[dict[str, Any]]:
+        airframe, platform = params.get("airframe_id"), params.get("platform_id")
+        flight = params.get("flight_id")
+        for name, value in (
+            ("airframe_id", airframe), ("platform_id", platform), ("flight_id", flight),
+        ):  # fmt: skip
+            if value is not None and not isinstance(value, str):
+                raise RpcError(INVALID_PARAMS, f"{name} must be an id or null")
+        return trends.flight_list(state.require_store(), airframe, platform, flight_id=flight)
 
     @server.method("trend.overview")
     @guarded

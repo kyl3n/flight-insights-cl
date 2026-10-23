@@ -26,6 +26,7 @@
 | analysis.run / .get / .registry | Analysing a flight: see rpc/analysis.py |
 | recommend.plan / .export / .set_status / .history | Recommendations: see rpc/analysis.py |
 | trend.overview / .series / .events / .platform | Trends and ideal ranges: see rpc/analysis.py |
+| flight.list | Flights with their analysis summary: see rpc/analysis.py |
 
 Position columns are never written to an IPC file in Phase 0. Keys arrive over
 stdin, live in memory only, and are never logged or echoed in an error.

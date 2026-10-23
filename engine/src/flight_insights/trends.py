@@ -278,3 +278,61 @@ def platform(
             mine is not None and len(others) >= 2 and _worse(metric, mine, min(others), max(others))
         )
     return {"platform": platform_id, "metric": metric_id, "segment": segment, "airframes": rows}
+
+
+def flight_list(
+    store: Store,
+    airframe_id: str | None = None,
+    platform_id: str | None = None,
+    limit: int = 200,
+    flight_id: str | None = None,
+) -> list[dict[str, Any]]:
+    """Flights, newest first, each with its airframe, take-off, duration, modes and a
+    summary of its latest analysis (worst severity and counts), for the Flights view;
+    or the one flight asked for."""
+    where, args = "WHERE f.airframe_id IS NOT NULL", []
+    if flight_id is not None:
+        where, args = "WHERE f.id = ?", [flight_id]
+    elif airframe_id is not None:
+        where, args = "WHERE f.airframe_id = ?", [airframe_id]
+    elif platform_id is not None:
+        where, args = "WHERE a.platform_id = ?", [platform_id]
+    cur = store.conn.execute(
+        "SELECT f.id, f.airframe_id, a.name AS airframe, f.boot_utc_us, f.arm_us, f.disarm_us, "
+        "f.created_hlc, f.firmware, f.payload, f.fingerprint_json "
+        f"FROM flight f JOIN airframe a ON a.id = f.airframe_id {where}",
+        args,
+    )
+    rows = [{d[0]: v for d, v in zip(cur.description, r, strict=True)} for r in cur.fetchall()]
+    rows.sort(key=flight_order, reverse=True)
+    out: list[dict[str, Any]] = []
+    for r in rows[:limit]:
+        fp: dict[str, Any] = json.loads(r["fingerprint_json"]) if r["fingerprint_json"] else {}
+        run = store.conn.execute(
+            "SELECT id, status FROM analysis_run WHERE flight_id = ? "
+            "ORDER BY created_hlc DESC LIMIT 1",
+            (r["id"],),
+        ).fetchone()
+        analysis: dict[str, Any] | None = None
+        if run is not None:
+            counts = dict(
+                store.conn.execute(
+                    "SELECT severity, count(*) FROM finding WHERE run_id = ? GROUP BY severity",
+                    (run[0],),
+                ).fetchall()
+            )
+            worst = next((s for s in ("safety", "out", "caution", "info") if counts.get(s)), None)
+            analysis = {"status": run[1], "counts": counts, "worst": worst}
+        order = flight_order(r)
+        duration = (
+            (int(r["disarm_us"]) - int(r["arm_us"])) / 1e6
+            if r["arm_us"] is not None and r["disarm_us"] is not None
+            else None
+        )
+        out.append(
+            {"id": r["id"], "airframe_id": r["airframe_id"], "airframe": r["airframe"],
+             "utc_us": None if order[0] else order[1], "duration_s": duration,
+             "firmware": r["firmware"], "payload": r["payload"],
+             "modes": sorted(fp.get("mode_s", {})), "analysis": analysis}
+        )  # fmt: skip
+    return out
