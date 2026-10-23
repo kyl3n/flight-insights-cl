@@ -10,6 +10,7 @@
   import Rail from "./components/Rail.svelte";
   import SetupView from "./components/SetupView.svelte";
   import StationsView from "./components/StationsView.svelte";
+  import TrendsView from "./components/TrendsView.svelte";
   import type { PlatformView, SetupSchema } from "./lib/setup";
   import { app, t, type View } from "./lib/app.svelte";
   import type { MessageKey } from "./lib/i18n";
@@ -93,6 +94,8 @@
       <FlightReport flightId={app.scope.flight} />
     {:else if app.view === "flights"}
       <FlightsView />
+    {:else if app.view === "trends"}
+      <TrendsView />
     {:else if app.view === "plan"}
       <PlanView />
     {:else if app.view === "params"}

@@ -5,5 +5,11 @@
   "baseline_max_flights": 20,
   "baseline_percentiles": [10, 90],
   "drift_flights": 2,
-  "sparkline_flights": 12
+  "sparkline_flights": 12,
+  "key_metrics_about": "The three metrics the fleet overview shows for each airframe, by vehicle: the first segment the latest flight has, in the order given.",
+  "key_metrics": {
+    "copter": ["vibration.p95", "power.hover_throttle", "esc.peak_temperature"],
+    "plane": ["vibration.p95", "power.energy_per_minute", "system.slow_loops"]
+  },
+  "key_segments": ["hover", "flight"]
 }

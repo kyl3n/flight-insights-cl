@@ -5,7 +5,7 @@
   // The written summary arrives with the AI layer; this view stands without it.
   import { app, t } from "../lib/app.svelte";
   import { getRegistry } from "../lib/data";
-  import { CATALOGS, type MessageKey } from "../lib/i18n";
+  import type { MessageKey } from "../lib/i18n";
   import {
     findingAction,
     findingTitle,
@@ -17,6 +17,7 @@
     sortFindings,
     stageKey,
     subsystem,
+    subsystemName as subsystemLabel,
     type Analysis,
     type Baseline,
     type FindingRow,
@@ -90,10 +91,7 @@
     };
   }
 
-  function subsystemName(key: string): string {
-    const k = `subsystem.${key}`;
-    return k in CATALOGS.en ? t(k as MessageKey) : key;
-  }
+  const subsystemName = (key: string) => subsystemLabel(key, app.locale);
 
   function shown(v: unknown): string {
     if (typeof v === "number") return formatNumber(v, app.locale);

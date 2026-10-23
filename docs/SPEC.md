@@ -1202,8 +1202,18 @@ Platform targets that an engineer edits, with a recorded reason, come with the U
 
 - **Airframe dashboard:** metric cards grouped by subsystem. Each card shows the latest value, its zone, the change since the previous flight and since baseline, and a sparkline with its band. A card opens the full trend.
 - **Trend chart:** one point per flight with a whisker for the spread across its segments, and an event lane with markers for parameter change sets, build changes, firmware updates and applied app recommendations. Selecting a marker shows the diff and the effect measured by attribution.
+  - **Phase 1:** each point is coloured by its zone, with the baseline as a dashed band and the start of drift marked. A whisker is drawn only where the analyzer reports a spread.
+  - Selecting a marker lists the changes recorded at that flight. Their measured effect, and the ranking of which change caused a shift, arrive with change attribution in Phase 2.
+  - Selecting a point shows that flight's value, zone, payload and change since the previous flight, and opens its report.
+  - Payload is picked from the labels the airframe has flown with, or all payloads together.
 - **Platform view:** the same metric for every airframe of a platform as small multiples on shared axes, with the platform band. Airframes drifting away from their siblings are highlighted.
-- **Fleet overview:** one row per platform with its worst metrics and open findings.
+- **Fleet overview:** each platform with its airframes, most urgent first, then a needs-attention list across the fleet. Phase 1 builds it from each airframe's latest analysed flight, read as stored and never re-run for the overview:
+  - **Status:** *fix before flight* when that flight has an out-of-range or safety finding; *inspect* when it has a caution finding or a metric drifting from the airframe's baseline; *healthy* otherwise; *not flown yet* with no analysed flight.
+  - **Tuning stage:** the stage on offer in that flight's plan, or "stages clear". It is left out when the flight has no parameters to plan from.
+  - **Three key metrics** for each vehicle type, listed in the knowledge pack's trend rules (Copter: vibration, hover throttle, ESC peak temperature). Each is shown in the first segment the flight has, hover before whole flight, with its zone and drift.
+  - **The last flight:** when it flew, how long, and how many findings need a look.
+  - **Needs attention:** every out-of-range, safety and caution finding from those flights, plus every drifting metric. Sorted by severity, then newest first. A finding opens its flight report; a drift opens the trend.
+  - **Filters:** *needs attention* (fix or inspect), *tuning* (a stage on offer) and *healthy* (healthy with no stage on offer).
 - **Export:** every chart goes into the flight report as drawn.
 
 ## Reference range library

@@ -14,6 +14,7 @@
 | trend.events | What changed on an airframe, placed at the flight it first applies to |
 | trend.platform | One metric for every airframe of a platform, on shared axes |
 | flight.list | Flights, newest first, with a summary of each one's latest analysis |
+| fleet.overview | Each airframe's status, stage, key metrics and last flight; what is urgent |
 | filter.workbench | A flight's spectra before, as flown and with candidate filter values |
 
 Analysing a flight also grades its airframe's earlier recommendations against it.
@@ -208,6 +209,12 @@ def add_analysis_methods(server: Server, state: EngineState, guarded: Callable[[
             if value is not None and not isinstance(value, str):
                 raise RpcError(INVALID_PARAMS, f"{name} must be an id or null")
         return trends.flight_list(state.require_store(), airframe, platform, flight_id=flight)
+
+    @server.method("fleet.overview")
+    @guarded
+    def fleet_overview(_ctx: Context, _params: dict[str, Any]) -> dict[str, Any]:
+        reg = analyzers.Registry.load(state.pack)
+        return trends.fleet_overview(state.require_store(), reg, state.pack)
 
     @server.method("trend.overview")
     @guarded
