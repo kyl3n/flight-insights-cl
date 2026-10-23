@@ -15,6 +15,7 @@ finishes first, and no later request starts until the barrier is done.
 
 from __future__ import annotations
 
+import io
 import json
 import logging
 import math
@@ -36,6 +37,7 @@ INTERNAL_ERROR = -32603
 LOCKED = -32001  # the store is not unlocked yet
 CANCELLED = -32002
 BAD_INPUT = -32003  # the file or arguments cannot be used
+CONFLICT = -32004  # the record changed since the caller read it
 
 
 class RpcError(Exception):
@@ -231,6 +233,9 @@ class Server:
 def run_stdio(build: Callable[[IO[str]], Server]) -> int:
     """Serve on the process's stdin and stdout until stdin closes or shutdown."""
     protocol_out = sys.stdout
+    for stream in (sys.stdin, protocol_out):  # the protocol is UTF-8 whatever the locale
+        if isinstance(stream, io.TextIOWrapper):
+            stream.reconfigure(encoding="utf-8")
     sys.stdout = sys.stderr  # stray prints must not corrupt the protocol
     try:
         build(protocol_out).serve(sys.stdin)

@@ -10,6 +10,12 @@
 | log.columns | Writes chosen columns of a message type to an Arrow IPC file; returns its path |
 | files.release | Deletes an Arrow IPC file the shell has finished with |
 | source.register | Registers a source file by its content hash; duplicates are reported |
+| setup.schema | The guided setup's steps and fields, in every language |
+| platform.create / .list / .get | Platforms with their setup answers and completeness |
+| platform.save | Saves setup answers on a platform's reference build |
+| platform.detect | Answers read from a parameter file or bench log, each with its source |
+| airframe.create / .list / .get | Airframes: the reference build plus their own differences |
+| airframe.record_change | A new build version with its reason |
 
 Position columns are never written to an IPC file in Phase 0. Keys arrive over
 stdin, live in memory only, and are never logged or echoed in an error.
@@ -26,13 +32,22 @@ from typing import IO, Any, cast
 
 import pyarrow as pa
 
-from flight_insights import __version__
+from flight_insights import __version__, platforms
 from flight_insights.analysis import analyze_log, summary
 from flight_insights.dataflash import read_dataflash
 from flight_insights.knowledge import Pack, load_pack
-from flight_insights.rpc.server import BAD_INPUT, INVALID_PARAMS, LOCKED, Context, RpcError, Server
+from flight_insights.rpc.server import (
+    BAD_INPUT,
+    CONFLICT,
+    INVALID_PARAMS,
+    LOCKED,
+    Context,
+    RpcError,
+    Server,
+)
 from flight_insights.store import ColumnCache, Store, StoreKeys, is_position, open_store
 from flight_insights.store.cache import schema_fields
+from flight_insights.store.db import StoreError
 from flight_insights.store.keys import KEY_BYTES, check_laptop_id, short_code
 from flight_insights.store.register import register_source
 
@@ -195,5 +210,124 @@ def build_server(out: IO[str], pack: Pack | None = None) -> Server:
         with state.lock:
             r = register_source(store, path, kind)
         return {"id": r.id, "sha256": r.sha256, "duplicate": r.duplicate}
+
+    schema = platforms.load_schema(state.pack)
+
+    def guarded(fn: Any) -> Any:
+        """Setup and store errors become JSON-RPC errors the UI can show."""
+
+        def run(ctx: Context, params: dict[str, Any]) -> Any:
+            try:
+                return fn(ctx, params)
+            except platforms.SetupError as e:
+                raise RpcError(BAD_INPUT, str(e)) from None
+            except StoreError as e:
+                raise RpcError(CONFLICT, str(e)) from None
+            except ValueError as e:
+                raise RpcError(INVALID_PARAMS, str(e)) from None
+
+        return run
+
+    def _dict(params: dict[str, Any], name: str) -> dict[str, Any]:
+        value = params.get(name)
+        if not isinstance(value, dict):
+            raise RpcError(INVALID_PARAMS, f"{name} must be an object")
+        return cast(dict[str, Any], value)
+
+    def _int(params: dict[str, Any], name: str) -> int:
+        value = params.get(name)
+        if not isinstance(value, int) or isinstance(value, bool):
+            raise RpcError(INVALID_PARAMS, f"{name} must be a whole number")
+        return value
+
+    @server.method("setup.schema")
+    def setup_schema(_ctx: Context, _params: dict[str, Any]) -> dict[str, Any]:
+        return schema.raw
+
+    @server.method("platform.create")
+    @guarded
+    def platform_create(_ctx: Context, params: dict[str, Any]) -> dict[str, Any]:
+        store = state.require_store()
+        pid = platforms.create_platform(
+            store, schema, _str(params, "name"), _str(params, "vehicle")
+        )
+        return platforms.platform_view(store, schema, pid)
+
+    @server.method("platform.list")
+    @guarded
+    def platform_list(_ctx: Context, _params: dict[str, Any]) -> list[dict[str, Any]]:
+        return platforms.list_platforms(state.require_store(), schema)
+
+    @server.method("platform.get")
+    @guarded
+    def platform_get(_ctx: Context, params: dict[str, Any]) -> dict[str, Any]:
+        return platforms.platform_view(state.require_store(), schema, _str(params, "id"))
+
+    @server.method("platform.save")
+    @guarded
+    def platform_save(_ctx: Context, params: dict[str, Any]) -> dict[str, Any]:
+        return platforms.save_answers(
+            state.require_store(),
+            schema,
+            _str(params, "id"),
+            _int(params, "build_version"),
+            _dict(params, "values"),
+            "detected" if params.get("detected") else "entered",
+            _sources(params),
+        )
+
+    def _sources(params: dict[str, Any]) -> dict[str, str] | None:
+        raw = params.get("sources")
+        if raw is None:
+            return None
+        if not isinstance(raw, dict) or not all(
+            isinstance(v, str) for v in cast(dict[str, Any], raw).values()
+        ):
+            raise RpcError(INVALID_PARAMS, "sources must map field ids to text")
+        return cast(dict[str, str], raw)
+
+    @server.method("platform.detect")
+    @guarded
+    def platform_detect(_ctx: Context, params: dict[str, Any]) -> dict[str, Any]:
+        return platforms.detect(_file(params), state.pack)
+
+    @server.method("airframe.create")
+    @guarded
+    def airframe_create(_ctx: Context, params: dict[str, Any]) -> dict[str, Any]:
+        store = state.require_store()
+        aid = platforms.create_airframe(store, _str(params, "platform_id"), _str(params, "name"))
+        return platforms.airframe_view(store, schema, aid)
+
+    @server.method("airframe.list")
+    @guarded
+    def airframe_list(_ctx: Context, params: dict[str, Any]) -> list[dict[str, Any]]:
+        platform_id = params.get("platform_id")
+        if platform_id is not None and not isinstance(platform_id, str):
+            raise RpcError(INVALID_PARAMS, "platform_id must be a string")
+        return platforms.list_airframes(state.require_store(), schema, platform_id)
+
+    @server.method("airframe.get")
+    @guarded
+    def airframe_get(_ctx: Context, params: dict[str, Any]) -> dict[str, Any]:
+        return platforms.airframe_view(state.require_store(), schema, _str(params, "id"))
+
+    @server.method("airframe.record_change")
+    @guarded
+    def airframe_record_change(_ctx: Context, params: dict[str, Any]) -> dict[str, Any]:
+        reason_kind = _str(params, "reason_kind")
+        if reason_kind not in ("failure", "upgrade", "test", "detected"):
+            raise RpcError(INVALID_PARAMS, "reason_kind is failure, upgrade, test or detected")
+        when = params.get("effective_date")
+        if when is not None and not isinstance(when, str):
+            raise RpcError(INVALID_PARAMS, "effective_date must be a date like 2026-10-20")
+        return platforms.record_change(
+            state.require_store(),
+            schema,
+            _str(params, "id"),
+            _dict(params, "changes"),
+            reason_kind,
+            str(params.get("reason") or ""),
+            when,
+        )
 
     return server
