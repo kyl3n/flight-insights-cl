@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import mmap
 from collections.abc import Iterator
+from dataclasses import replace
 from functools import cached_property
 from pathlib import Path
 from types import TracebackType
@@ -13,7 +14,7 @@ import numpy as np
 import pyarrow as pa
 
 from flight_insights.dataflash.decode import BLOCK_ROWS, decode_rows, to_table
-from flight_insights.dataflash.formats import DfFormat, text
+from flight_insights.dataflash.formats import FMT_FORMAT, DfFormat, text
 from flight_insights.dataflash.index import LogIndex, index_log
 
 
@@ -76,8 +77,12 @@ class DataflashLog:
                         text(bytes(r["UnitIds"])),
                         text(bytes(r["MultIds"])),
                     )
-        for fmt in self.index.formats:
+        for fid, fmt in enumerate(self.index.formats):
             if fmt.type in fmtu:
+                if fmt is FMT_FORMAT:  # shared by every log: units go on this log's own copy
+                    fmt = self.index.formats[fid] = replace(
+                        fmt, units=list(fmt.units), mults=list(fmt.mults)
+                    )
                 fmt.apply_units(*fmtu[fmt.type], units, mults)
 
     @cached_property

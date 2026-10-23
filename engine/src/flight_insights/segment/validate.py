@@ -147,9 +147,10 @@ def validate(df: DataflashLog, armed: list[tuple[int, int, int]] | None = None) 
                 detail=f"time went back: boot {b.number + 1} of the same file",
             )
         )
-    out.issues += _gaps(tl, boots, armed or [])
+    gaps = _gaps(tl, boots, armed or [])
+    out.issues += gaps
     out.issues += _dropouts(df, boots)
-    out.issues += _sample_loss(df, boots)
+    out.issues += _sample_loss(df, boots, [g for g in gaps if g.kind == "logging paused"])
     out.issues += _imu_errors(df, boots)
     out.issues = _merged(out.issues)
     out.issues.sort(key=lambda i: (i.boot, i.start_us, i.kind))
@@ -227,7 +228,10 @@ def _dropouts(df: DataflashLog, boots: list[Boot]) -> list[Issue]:
     return issues
 
 
-def _sample_loss(df: DataflashLog, boots: list[Boot]) -> list[Issue]:
+def _sample_loss(df: DataflashLog, boots: list[Boot], paused: list[Issue]) -> list[Issue]:
+    """Holes in each raw-IMU sample clock. A hole across a logging pause is not sample
+    loss: nothing at all was logged then (the logger stops while disarmed), and the
+    pause is reported on its own."""
     issues: list[Issue] = []
     for name in ("GYR", "ACC"):
         for fid in df.formats_named(name):
@@ -239,15 +243,19 @@ def _sample_loss(df: DataflashLog, boots: list[Boot]) -> list[Issue]:
             inst = df.field(fid, "I").astype(np.int64)
             boot_ids = boot_index(boots, df.offsets(fid))
             for boot in np.unique(boot_ids):
+                pauses = [(p.start_us, p.end_us) for p in paused if p.boot == boot]
                 for i in np.unique(inst):
                     sel = (inst == i) & (boot_ids == boot)
-                    issues += _holes(sample[sel], name, int(i), int(boot))
+                    issues += _holes(sample[sel], name, int(i), int(boot), pauses)
     return issues
 
 
-def _holes(sample_us: Ints, name: str, instance: int, boot: int) -> list[Issue]:
+def _holes(
+    sample_us: Ints, name: str, instance: int, boot: int, pauses: list[tuple[int, int]]
+) -> list[Issue]:
     """Runs of lost samples in one sensor's sample clock, holes within MERGE_US of each
-    other counted as one run. Vectorised: a starved logger can leave millions of holes."""
+    other counted as one run, holes overlapping a logging pause (sorted (start, end)
+    spans) left out. Vectorised: a starved logger can leave millions of holes."""
     if len(sample_us) < 3:
         return []
     d = np.diff(sample_us)
@@ -255,6 +263,12 @@ def _holes(sample_us: Ints, name: str, instance: int, boot: int) -> list[Issue]:
     if usual <= 0:
         return []
     j = np.flatnonzero(d > SAMPLE_GAP * usual)
+    if pauses and len(j):
+        # The last pause starting before a hole ends is the one that can overlap it.
+        p_start = np.array([a for a, _ in pauses], np.int64)
+        p_end = np.array([b for _, b in pauses], np.int64)
+        k = np.searchsorted(p_start, sample_us[j + 1], side="left") - 1
+        j = j[(k < 0) | (p_end[np.maximum(k, 0)] <= sample_us[j])]
     if not len(j):
         return []
     lost = np.maximum(np.rint(d[j] / usual).astype(np.int64) - 1, 1)

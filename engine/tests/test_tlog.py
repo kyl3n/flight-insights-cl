@@ -183,6 +183,48 @@ def test_command_rows_decide_whether_x_and_y_are_a_position(
     assert row_is_position(message, row) is expected
 
 
+def test_every_command_with_a_location_is_a_position_in_a_global_frame() -> None:
+    """The definitions' has_location flag decides, as well as the param5/6 labels:
+    DO_SET_ROI and NAV_ROI label them only "x" and "y"."""
+    located = [k for k, e in m.enums["MAV_CMD"].items() if getattr(e, "has_location", False)]
+    assert {m.MAV_CMD_DO_SET_ROI, m.MAV_CMD_NAV_ROI} <= set(located)
+    for command in located:
+        for message in ("MISSION_ITEM_INT", "MISSION_ITEM", "COMMAND_INT"):
+            row = {"command": command, "frame": m.MAV_FRAME_GLOBAL_RELATIVE_ALT_INT}
+            assert row_is_position(message, row), (message, command)
+        assert row_is_position("COMMAND_LONG", {"command": command}), command
+
+
+def test_rtcm_corrections_are_tagged_as_positions(tmp_path: Path) -> None:
+    """RTCM 1005/1006 carry the base station's position, so the payload is one."""
+    path = tlog(
+        tmp_path / "rtk.tlog",
+        [
+            (0, VEHICLE, heartbeat(gcs=False)),
+            (10, GCS, m.MAVLink_gps_rtcm_data_message(0, 3, bytes(180))),
+            (20, GCS, m.MAVLink_gps_inject_data_message(1, 1, 3, bytes(110))),
+        ],
+    )
+    log = read_tlog(path)
+    for name in ("GPS_RTCM_DATA", "GPS_INJECT_DATA"):
+        meta = {f.name: (f.metadata or {}).get(b"position") for f in log.tables[name].schema}
+        assert meta["data"] == b"1" and meta["len"] is None, name
+
+
+def test_a_download_needs_every_index_from_zero_to_count(tmp_path: Path) -> None:
+    """Three replies to a three-parameter set are not a download if one is index 5."""
+    path = tlog(
+        tmp_path / "gaps.tlog",
+        [
+            (0, VEHICLE, heartbeat(gcs=False)),
+            (1000, VEHICLE, param_value("ATC_RAT_RLL_P", 0.135, 0)),
+            (1100, VEHICLE, param_value("BATT_CAPACITY", 5000, 1)),
+            (1200, VEHICLE, param_value("INS_HNTCH_BW", 40, 5)),
+        ],
+    )
+    assert param_downloads(read_tlog(path)) == []
+
+
 # --- untrusted input ---------------------------------------------------------------------
 
 

@@ -108,6 +108,8 @@ def param_downloads(log: TlogLog) -> list[ParamDownload]:
             if count is not None and r["param_count"] != count:
                 seen = {}  # the parameter count changed: a new set, start again
             count = r["param_count"]
+            if r["param_index"] >= count:
+                continue  # not an index of this set: it cannot complete it
             seen[r["param_index"]] = r
             if len(seen) == count:
                 ordered = [seen[i] for i in sorted(seen)]

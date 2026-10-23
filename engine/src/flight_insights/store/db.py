@@ -106,12 +106,11 @@ class Store:
     def insert(self, table: str, values: Mapping[str, Any]) -> str:
         """Add a record, stamped as written by this laptop now. Returns its id."""
         self._check_table(table)
-        stamp = self.clock.now()
         record_id: str = values.get("id") or new_id()
         row: dict[str, Any] = {
             "id": record_id,
-            "created_hlc": stamp,
-            "updated_hlc": stamp,
+            "created_hlc": None,
+            "updated_hlc": None,
             "version": 1,
             "laptop_id": self.laptop_id,
         }
@@ -119,6 +118,8 @@ class Store:
         names = ", ".join(_ident(k) for k in row)
         marks = ", ".join("?" for _ in row)
         with self.transaction() as conn:
+            # Stamped under the lock: two threads reading the clock at once share a stamp.
+            row["created_hlc"] = row["updated_hlc"] = self.clock.now()
             conn.execute(f"INSERT INTO {table} ({names}) VALUES ({marks})", list(row.values()))
         return record_id
 

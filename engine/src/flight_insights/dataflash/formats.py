@@ -56,6 +56,10 @@ FORMAT_CHARS: dict[str, FormatChar] = {
 }
 
 INSTANCE_UNIT = "#"  # FMTU unit id marking the instance column
+POSITION_CHAR = "L"  # a latitude or longitude, whatever FMTU says or leaves out
+# Raw GNSS observations: pseudoranges and carrier phases are enough to solve the
+# receiver's position, so every column of these is a position.
+RAW_GNSS = frozenset({"GRAW", "GRXH", "GRXS"})
 
 
 class FormatError(ValueError):
@@ -148,6 +152,8 @@ class DfFormat:
         self.instance_column = self.field_names[idx] if 0 <= idx < len(self.format) else None
 
     def is_position(self, i: int) -> bool:
+        if self.name in RAW_GNSS or self.format[i] == POSITION_CHAR:
+            return True
         label = self.units[i].lower()
         return "latitude" in label or "longitude" in label
 

@@ -99,6 +99,23 @@ def test_lost_samples_are_counted_exactly(tmp_path: Path) -> None:
     assert "about 4 samples missing" in loss.detail
 
 
+def test_a_logging_pause_between_flights_is_not_imu_sample_loss(tmp_path: Path, pack: Pack) -> None:
+    """LOG_DISARMED=0 without rotating the file on disarm: two flights in one file with
+    a minute of nothing between them. The raw-IMU clock jumps, but no sample was lost."""
+    b = builder()
+    for arm_us in (1_000_000, 62_000_000):
+        b.write("EV", arm_us, 10)
+        for t in range(arm_us, arm_us + 1_000_000, 1000):
+            b.write("GYR", t, 0, t, 0.0, 0.0, 0.0)
+        b.write("EV", arm_us + 1_000_000, 11)
+    with read(b, tmp_path) as df:
+        _, fl = boots_and_flights(df, pack)
+        v = validate(df, [(f.boot, f.arm_us, f.disarm_us) for f in fl])
+    assert len(fl) == 2
+    assert (2_000_000, 62_000_000) in [(i.start_us, i.end_us) for i in v.of_kind("logging paused")]
+    assert v.imu_samples_complete, v.of_kind("imu sample loss")
+
+
 def test_dropouts_and_imu_errors_come_from_their_counters(tmp_path: Path) -> None:
     b = builder()
     for k, (dp, eg) in enumerate([(0, 0), (0, 0), (3, 0), (3, 2), (10, 2)]):

@@ -86,6 +86,27 @@ def test_the_snapshot_is_the_set_at_first_arming(tmp_path: Path) -> None:
     assert [c.time_us for c in early.changes] == [200, 400]
 
 
+def test_a_parameter_first_seen_in_flight_does_not_move_the_snapshot(tmp_path: Path) -> None:
+    """A script or ground station creates a parameter after arming: it is kept, but the
+    snapshot stays at arming and the in-flight change before it stays a change."""
+    b = LogBuilder()
+    b.fmt(0x90, "VER", "QBBBZ", "TimeUS,Maj,Min,Pat,FWS")
+    b.fmt(0x91, "PARM", "QNff", "TimeUS,Name,Value,Default")
+    b.fmt(0x92, "ARM", "QB", "TimeUS,ArmState")
+    b.write("VER", 50, 4, 7, 2, b"ArduCopter V4.7.2 (fb773567)")
+    b.write("PARM", 100, b"INS_HNTCH_BW", 40.0, 40.0)
+    b.write("ARM", 3_000_000, 1)
+    b.write("PARM", 4_000_000, b"INS_HNTCH_BW", 20.0, 40.0)  # changed in flight
+    b.write("PARM", 9_000_000, b"SCR_USER1", 7.0, 0.0)  # created by a script
+    path = tmp_path / "late.bin"
+    path.write_bytes(b.bytes())
+    with read_dataflash(path) as df:
+        s = from_log(df)
+    assert s.time_us == 3_000_000
+    assert s.values == {"INS_HNTCH_BW": 40.0, "SCR_USER1": 7.0}
+    assert [(c.time_us, c.name, c.new) for c in s.changes] == [(4_000_000, "INS_HNTCH_BW", 20.0)]
+
+
 @pytest.mark.parametrize(
     "log", sorted(FIXTURES.rglob("*.bin")), ids=lambda p: str(p.relative_to(FIXTURES))
 )

@@ -89,16 +89,20 @@ def _slices(flights: Sequence[ScannedFlight]) -> list[tuple[ScannedFlight, float
     return out
 
 
-def cache_flights(df: DataflashLog, cache: ColumnCache, flights: Sequence[ScannedFlight]) -> None:
+def cache_flights(
+    df: DataflashLog, cache: ColumnCache, flights: Sequence[ScannedFlight]
+) -> list[str]:
     """Every message type of each flight's stretch of the log, full rate, into the
     cache. The board's system-ID message is never written. A type redefined part-way
-    through the log is kept per definition, as NAME, NAME.2..."""
+    through the log is kept per definition, as NAME, NAME.2... Returns the types left
+    out because their name cannot be a file name (a corrupted FMT)."""
     boots = find_boots(timeline(df))
     by_boot: dict[int, list[ScannedFlight]] = defaultdict(list)
     for f in flights:
         by_boot[f.boot].append(f)
     secret = system_id_rows(df)
     seen: dict[tuple[str, str], int] = defaultdict(int)
+    skipped: list[str] = []
     for fid, fmt in enumerate(df.index.formats):
         n = df.count_format(fid)
         if not n:
@@ -126,7 +130,12 @@ def cache_flights(df: DataflashLog, cache: ColumnCache, flights: Sequence[Scanne
                 seen[(f.key, fmt.name)] += 1
                 count = seen[(f.key, fmt.name)]
                 name = fmt.name if count == 1 else f"{fmt.name}.{count}"
+                if not cache.cacheable(name):
+                    if name not in skipped:
+                        skipped.append(name)
+                    continue
                 cache.write(f.key, name, _batches(df, fid, positions))
+    return skipped
 
 
 def _batches(
@@ -319,7 +328,7 @@ def _dataflash(
 ) -> Result:
     new = [f for f in item.flights if _stored(store, f.key) is None]
     with read_dataflash(item.path) as df:
-        cache_flights(df, cache, new)
+        skipped = cache_flights(df, cache, new)
     airframe_id = decision.airframe_id
     assert item.snapshot is not None and item.hardware is not None
     with store.transaction():
@@ -388,7 +397,10 @@ def _dataflash(
             attach(store, pack, flight_ids, airframe_id, decision.changes, files)
     if item.flights and not flight_ids:
         return Result(item.id, "duplicate", [], source, "every flight was already imported")
-    return Result(item.id, "imported" if airframe_id else "held", flight_ids, source)
+    note = (
+        f"not cached, names no file can have: {', '.join(map(repr, skipped))}" if skipped else None
+    )
+    return Result(item.id, "imported" if airframe_id else "held", flight_ids, source, note)
 
 
 def _tlog(store: Store, item: Scanned, station: str | None) -> Result:

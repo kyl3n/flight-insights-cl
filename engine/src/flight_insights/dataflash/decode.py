@@ -52,7 +52,8 @@ def to_table(rows: np.ndarray[tuple[int], np.dtype[np.void]], fmt: DfFormat) -> 
 
     - `format`: the format character; `scale`: the multiplier it implies (c, C, e, E, L);
     - `unit`, `multiplier`: from the log's FMTU, UNIT and MULT messages;
-    - `position`: 1 if the unit is a latitude or longitude; `instance`: 1 for the
+    - `position`: 1 if the unit is a latitude or longitude, the format is `L`, or the
+      message holds raw GNSS observations; `instance`: 1 for the
       column that tells instances (IMU, ESC, battery...) apart.
     Strings stay as their fixed-width bytes; `formats.text` decodes them.
     """

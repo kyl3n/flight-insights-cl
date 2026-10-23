@@ -192,6 +192,32 @@ def test_a_first_log_matches_nothing_and_is_held(
     assert h["reason"] == "no match" and h["log"] == "a.bin"
 
 
+def test_a_type_no_file_can_name_is_left_out_and_reported(
+    tmp_path: Path, pack: Pack, store: Store, cache: ColumnCache, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """A corrupted FMT can name a type anything: that type is not cached, and the
+    import says so instead of failing."""
+
+    def cacheable(name: str) -> bool:
+        return name != "GPS"
+
+    monkeypatch.setattr(ColumnCache, "cacheable", staticmethod(cacheable))
+    aid = airframe(store, pack)
+    _, _, (r,) = run(
+        store,
+        pack,
+        cache,
+        [variant(tmp_path, "a", system_id="board-A")],
+        {"f1": {"airframe_id": aid}},
+    )
+    assert r.status == "imported" and r.flights
+    assert "'GPS'" in (r.message or "")
+    flight = store.get("flight", r.flights[0])
+    assert flight is not None
+    names = cache.names(flight["flight_key"])
+    assert "GPS" not in names and "ATT" in names
+
+
 def test_the_board_id_finds_its_airframe(
     tmp_path: Path, pack: Pack, store: Store, cache: ColumnCache
 ) -> None:

@@ -5,7 +5,8 @@ latitude or longitude. Mission and command coordinates carry no unit: x/y of
 MISSION_ITEM, MISSION_ITEM_INT and COMMAND_INT, and param5/param6 of
 COMMAND_LONG, hold a latitude and longitude only for some commands and frames,
 so those columns are marked "by_command" and each row decides (spec: AI layer,
-location scrubber).
+location scrubber). RTCM correction data is a position too: it carries the base
+station's coordinates.
 """
 
 # pymavlink ships without type information.
@@ -26,6 +27,12 @@ COMMAND_COORDINATES: dict[str, tuple[str, str, bool]] = {
     "MISSION_ITEM": ("x", "y", True),
 }
 
+# message -> columns that always hold a position although no unit says so
+POSITION_PAYLOADS: dict[str, tuple[str, ...]] = {
+    "GPS_RTCM_DATA": ("data",),  # RTCM 1005/1006 hold the base station's ECEF position
+    "GPS_INJECT_DATA": ("data",),
+}
+
 
 def _named(name: str) -> bool:
     low = name.lower()
@@ -40,6 +47,8 @@ def position_columns(cls: type) -> dict[str, str]:
         unit = units.get(name)
         if unit == "degE7" or (unit == "deg" and _named(name)):
             out[name] = "1"
+    for name in POSITION_PAYLOADS.get(cls.msgname, ()):
+        out[name] = "1"
     command = COMMAND_COORDINATES.get(cls.msgname)
     if command is not None:
         out[command[0]] = out[command[1]] = "by_command"
@@ -55,8 +64,12 @@ def row_is_position(msgname: str, row: dict[str, Any]) -> bool:
     if entry is None:
         positional = True  # unknown command: treat as a position, to be safe
     else:
+        # The definitions flag commands with a location; some (DO_SET_ROI, NAV_ROI)
+        # label param5/6 only "x" and "y", so the labels alone miss them.
         labels = {i: str(entry.param.get(i, "")).lower() for i in (5, 6)}
-        positional = "latitude" in labels[5] and "longitude" in labels[6]
+        positional = bool(getattr(entry, "has_location", False)) or (
+            "latitude" in labels[5] and "longitude" in labels[6]
+        )
     if command[2]:
         frame = mavlink.enums["MAV_FRAME"].get(int(row["frame"]))
         positional = positional and (frame is None or "GLOBAL" in frame.name)

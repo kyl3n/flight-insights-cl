@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import contextlib
 import secrets
 import struct
 from pathlib import Path
@@ -331,6 +332,18 @@ def test_cache_names_cannot_escape_the_cache(tmp_path: Path, keys: StoreKeys) ->
             cache.path(flight, name)
 
 
+def test_a_type_name_no_file_can_have_is_reported_not_cacheable(
+    tmp_path: Path, keys: StoreKeys
+) -> None:
+    """A corrupted FMT can name a type anything: the importer asks first and skips it."""
+    cache = ColumnCache(tmp_path, keys)
+    assert cache.cacheable("GPS") and cache.cacheable("GPS.2")
+    for name in ("", "\\x01AB", "G/S", ".GPS"):
+        assert not cache.cacheable(name), name
+        with pytest.raises(CacheError):
+            cache.path("f", name)
+
+
 def test_a_failed_write_leaves_no_file(tmp_path: Path, keys: StoreKeys) -> None:
     cache = ColumnCache(tmp_path, keys)
     a = pa.Table.from_arrays([pa.array([1], pa.int32())], names=["x"]).to_batches()[0]
@@ -356,3 +369,38 @@ def test_threads_share_the_store_safely(tmp_path: Path, keys: StoreKeys) -> None
         with ThreadPoolExecutor(8) as pool:
             list(pool.map(work, range(200)))
         assert store.conn.execute("SELECT count(*) FROM airframe").fetchone() == (200,)
+
+
+def test_concurrent_inserts_never_share_a_stamp(tmp_path: Path, keys: StoreKeys) -> None:
+    import threading
+
+    both = threading.Barrier(2, timeout=0.5)
+
+    class RacyClock(HybridClock):
+        """Reads its state, then writes it back: two callers at once get one stamp."""
+
+        def __init__(self) -> None:
+            super().__init__(LAPTOP)
+            self.last = super().now()
+
+        def now(self) -> str:
+            seen = self.last
+            with contextlib.suppress(threading.BrokenBarrierError):
+                both.wait()  # meets the other thread only if both read unlocked
+            self.last = super().now()
+            return seen
+
+    with open_store(tmp_path / "fleet.db", keys, LAPTOP) as store:
+        store.clock = RacyClock()
+        threads = [
+            threading.Thread(
+                target=store.insert, args=("platform", {"name": n, "vehicle": "copter"})
+            )
+            for n in ("A", "B")
+        ]
+        for t in threads:
+            t.start()
+        for t in threads:
+            t.join()
+        stamps = store.conn.execute("SELECT created_hlc FROM platform").fetchall()
+    assert len(stamps) == 2 and len(set(stamps)) == 2
