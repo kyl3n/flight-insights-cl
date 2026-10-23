@@ -1176,6 +1176,27 @@ Each band shows its source on hover. Changing a platform's targets is an enginee
 | Transition altitude loss (QuadPlane) | m | Lower | Own baseline |
 | Headspeed deviation (heli) | % | Lower | Community guidance: 1-2% with a tuned governor |
 
+**How the engine builds them, in Phase 1** (`knowledge/rules/trends.json`, uncalibrated):
+
+- **Series.** One point per flight, from that flight's latest analysis.
+  - Points are ordered by UTC take-off, or by import order without UTC.
+  - A series holds one segment (hover or flight). By default it also holds one payload label, the one the flight was imported with; mixing payloads is an explicit choice.
+- **Baseline.** The 10th to 90th percentile of the airframe's 20 most recent good flights in that series, once there are 5.
+  - A good flight has a complete analysis that raised nothing out of range or unsafe.
+  - A metric whose zones come only from the baseline has no fixed zones drawn.
+- **Drift.** The last 2 flights both outside the baseline on the worse side, with the baseline made without them, are flagged as drift, even inside every fixed zone. On a metric with a target band, either side is worse. One bad flight is not drift, and a metric getting better never is.
+- **Event lane.**
+  - Parameter change sets, with their origin and the parameters they changed.
+  - Build changes after the first build.
+  - Firmware updates.
+  - Graded recommendations.
+
+  Each is placed at the flight it first applies to.
+- **Platform view.** An airframe is marked as drifting away from its siblings when its latest value is outside the spread of the others' latest values on the worse side. This needs at least two siblings.
+- **Dashboard cards.** One card for each metric and segment of the latest flight, within that flight's payload.
+
+Platform targets that an engineer edits, with a recorded reason, come with the UI.
+
 **Views**
 
 - **Airframe dashboard:** metric cards grouped by subsystem. Each card shows the latest value, its zone, the change since the previous flight and since baseline, and a sparkline with its band. A card opens the full trend.

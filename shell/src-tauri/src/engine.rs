@@ -250,6 +250,10 @@ pub const UI_METHODS: &[&str] = &[
     "recommend.export",
     "recommend.set_status",
     "recommend.history",
+    "trend.overview",
+    "trend.series",
+    "trend.events",
+    "trend.platform",
 ];
 
 #[cfg(test)]
