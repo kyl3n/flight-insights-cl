@@ -61,6 +61,8 @@ class FlightData:
     # The setup answers of the build the flight flew (platform reference, then the
     # airframe's own), field id -> value; empty for a flight not yet given an airframe.
     answers: Mapping[str, Any] = field(default_factory=dict[str, Any])
+    # The firmware's default for each parameter, canonical, where the log recorded it.
+    defaults: Mapping[str, float] = field(default_factory=dict[str, float])
     _tables: dict[tuple[str, tuple[str, ...] | None], pa.Table | None] = field(
         default_factory=dict[tuple[str, tuple[str, ...] | None], pa.Table | None]
     )
@@ -73,7 +75,9 @@ class FlightData:
         if not row["fingerprint_json"]:
             raise FlightError(f"flight {flight_id} was imported before analysis: import it again")
         snapshot = load_snapshot(store, row["param_snapshot_id"])
-        params = snapshot.dialect(pack).to_canonical(snapshot.values).values
+        dialect = snapshot.dialect(pack)
+        params = dialect.to_canonical(snapshot.values).values
+        defaults = dialect.to_canonical(snapshot.defaults).values
         return FlightData(
             id=flight_id,
             key=row["flight_key"],
@@ -86,6 +90,7 @@ class FlightData:
             cache=cache,
             validation=json.loads(row["validation_json"]) if row["validation_json"] else None,
             answers=_answers(store, row["build_version_id"]),
+            defaults=defaults,
         )
 
     @property

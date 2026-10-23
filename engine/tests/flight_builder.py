@@ -56,6 +56,7 @@ def flight(
     fingerprint: Mapping[str, Any] | None = None,
     firmware: str = "4.7.0",
     answers: Mapping[str, Any] | None = None,
+    defaults: Mapping[str, float] | None = None,
 ) -> FlightData:
     return FlightData(
         id="f",
@@ -70,6 +71,7 @@ def flight(
         cache=FakeCache(tables),  # type: ignore[arg-type]
         validation=validation,
         answers=answers or {},
+        defaults=defaults or {},
     )
 
 
@@ -125,6 +127,7 @@ def hover_flight(
     params: dict[str, float] | None = None,
     fingerprint: dict[str, Any] | None = None,
     answers: dict[str, Any] | None = None,
+    defaults: dict[str, float] | None = None,
 ) -> FlightData:
     """A flight with 30 s of steady hover, pre-filter gyro only (INS_RAW_LOG_OPT 1)."""
     fp: dict[str, Any] = {
@@ -141,4 +144,5 @@ def hover_flight(
         {"INS_RAW_LOG_OPT": 1, **(params or {})},
         fingerprint=fp,
         answers=answers,
+        defaults=defaults,
     )

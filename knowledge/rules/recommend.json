@@ -63,7 +63,7 @@
     },
     "operations": {
       "en": "Test the failsafe or limit on the ground, or in a controlled test, before relying on it.",
-      "uk": "Перевірте failsafe або обмеження на землі чи в контрольованому тесті, перш ніж на нього покладатися."
+      "uk": "Перевірте аварійний режим або обмеження на землі чи в контрольованому тесті, перш ніж на нього покладатися."
     }
   },
   "effects": {
@@ -99,11 +99,11 @@
     },
     "never_add_bits": {
       "en": "Setting bits in {param} weakens arming checks or failsafes: never proposed automatically.",
-      "uk": "Біти в {param} послаблюють перевірки перед озброєнням або failsafe: ніколи не пропонується автоматично."
+      "uk": "Біти в {param} послаблюють перевірки перед взведенням або аварійні режими: ніколи не пропонується автоматично."
     },
     "never_disable": {
       "en": "Setting {param} to 0 switches a failsafe off: never proposed automatically.",
-      "uk": "Значення 0 для {param} вимикає failsafe: ніколи не пропонується автоматично."
+      "uk": "Значення 0 для {param} вимикає аварійний режим: ніколи не пропонується автоматично."
     },
     "never_raise": {
       "en": "Raising {param} past what the logs show the aircraft can do is never proposed automatically.",
