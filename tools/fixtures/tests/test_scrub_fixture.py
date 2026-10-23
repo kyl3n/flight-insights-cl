@@ -163,12 +163,93 @@ def test_format_l_without_a_geographic_unit_is_refused(tmp_path: Path) -> None:
         sf.scrub([path], tmp_path / "out", SHIFT)
 
 
-def test_junk_bytes_are_kept_and_skipped(bin_log: Path, tmp_path: Path) -> None:
+def test_junk_bytes_are_zeroed_and_skipped(bin_log: Path, tmp_path: Path) -> None:
     data = bin_log.read_bytes()
     cut = data.index(b"\xa3\x95\x8c")  # first GPS message
     bin_log.write_bytes(data[:cut] + b"\x00\x13\x37" + data[cut:])
     [out] = sf.scrub([bin_log], tmp_path / "out", SHIFT)
     assert sf.plan_file(out).skipped_bytes == 3
+    assert out.read_bytes()[cut : cut + 3] == bytes(3)
+
+
+PLANT_LAT, PLANT_LNG = HOME_LAT + 0.25, HOME_LNG - 0.25  # in no message pymavlink can decode
+
+
+def assert_no_trace_of_plant(src: Path, out: Path) -> None:
+    planted = [PLANT_LAT, PLANT_LNG]
+    assert sf.find_leaks(src.read_bytes(), planted) > 0  # the search does find them
+    assert sf.find_leaks(out.read_bytes(), planted) == 0
+    assert len(out.read_bytes()) == len(src.read_bytes())
+    assert [m["type"] for m in read_df(src)] == [m["type"] for m in read_df(out)]
+
+
+def test_a_gps_message_cut_off_at_the_end_is_blanked(bin_log: Path, tmp_path: Path) -> None:
+    log = DfLog()
+    log.define(140, "GPS", "QLLf", "TimeUS,Lat,Lng,Alt", "sDUm", "FGG0")
+    log.write("GPS", 1, e7(HOME_LAT), e7(HOME_LNG), 584.0)
+    log.write("GPS", 2, e7(PLANT_LAT), e7(PLANT_LNG), 590.0)
+    path = tmp_path / "cut.bin"
+    path.write_bytes(bytes(log.data[:-2]))  # the last message loses part of its Alt
+    [out] = sf.scrub([path], tmp_path / "out", SHIFT)
+    assert sf.plan_file(path).skipped_bytes == 3 + 8 + 4 + 4 + 2
+    assert_no_trace_of_plant(path, out)
+    assert out.read_bytes().endswith(bytes(3 + 8 + 4 + 4 + 2))
+
+
+def test_junk_between_messages_with_a_position_in_it_is_blanked(
+    bin_log: Path, tmp_path: Path
+) -> None:
+    data = bin_log.read_bytes()
+    cut = data.index(b"\xa3\x95\x8d")  # the QQQQ message, after the GPS samples
+    junk = (
+        b"\x00"
+        + struct.pack("<ii", e7(PLANT_LAT), e7(PLANT_LNG))
+        + struct.pack("<fd", PLANT_LAT, PLANT_LNG)
+        + f"{PLANT_LAT:.7f},{PLANT_LNG:.7f}".encode()
+    )
+    bin_log.write_bytes(data[:cut] + junk + data[cut:])
+    [out] = sf.scrub([bin_log], tmp_path / "out", SHIFT)
+    assert sf.plan_file(out).skipped_bytes == len(junk)
+    assert_no_trace_of_plant(bin_log, out)
+
+
+def test_every_position_sample_is_searched_not_just_the_first(tmp_path: Path) -> None:
+    log = DfLog()
+    log.define(140, "GPS", "QLL", "TimeUS,Lat,Lng", "sDU", "FGG")
+    log.define(144, "MSG", "QZ", "TimeUS,Message", "s-", "F-")
+    log.write("GPS", 1, e7(HOME_LAT), e7(HOME_LNG))
+    log.write("GPS", 2, e7(PLANT_LAT), e7(PLANT_LNG))
+    log.write("MSG", 3, f"land {PLANT_LAT:.7f}".encode())  # the second sample, as text
+    path = tmp_path / "leaky.bin"
+    path.write_bytes(bytes(log.data))
+    with pytest.raises(sf.ScrubError, match="original position"):
+        sf.scrub([path], tmp_path / "out", SHIFT)
+
+
+def test_leak_search_matches_a_plain_substring_search() -> None:
+    degs = [HOME_LAT, HOME_LNG, PLANT_LAT, -7.5, 0.123456]
+    blob = b"xx" + b"".join(sf.leak_patterns(PLANT_LAT)) + b"\x01" + sf.leak_patterns(-7.5)[0]
+    for offset in range(9):  # every alignment
+        data = bytes(offset) + blob + b"-149.16"
+        expected = len({pat for d in degs for pat in sf.leak_patterns(d) if pat in data})
+        assert sf.find_leaks(data, degs) == expected > 0
+
+
+def test_a_lone_four_byte_match_is_chance_but_a_position_is_a_leak() -> None:
+    """Among millions of 4-byte windows a lone int32 or float32 turns up by chance;
+    a latitude beside a longitude, a double or decimal text does not."""
+    lat, lng = e7(PLANT_LAT), e7(PLANT_LNG)
+    lone = b"\x07" * 10 + struct.pack("<i", lat) + b"\x07" * 100 + struct.pack("<f", PLANT_LNG)
+    assert sf.find_position_leaks(lone, [PLANT_LAT], [PLANT_LNG]) == 0
+    for leak in (
+        struct.pack("<iI", lat, 7) + struct.pack("<i", lng),  # stored as a position is
+        struct.pack("<ff", PLANT_LNG, PLANT_LAT),  # either order
+        struct.pack("<d", PLANT_LAT),  # eight exact bytes
+        f"at {PLANT_LNG:.7f}".encode(),  # text
+    ):
+        for offset in range(5):
+            data = bytes(offset) + b"\x07" * 40 + leak + b"\x07" * 40
+            assert sf.find_position_leaks(data, [PLANT_LAT], [PLANT_LNG]) > 0, leak
 
 
 # --- tlogs ----------------------------------------------------------------------

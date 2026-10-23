@@ -100,6 +100,19 @@ def test_bad_lines_are_reported_and_the_rest_still_counts() -> None:
     assert "repeats line 1" in params.problems[-1][1]
 
 
+def test_qgroundcontrol_ids_and_types_must_be_ascii_digits() -> None:
+    """A "²" passes str.isdigit() but not int(): the line is a problem, not a crash."""
+    text = (
+        "1\t1\tATC_RAT_RLL_P\t0.135\t9\n"
+        "1²\t1\tATC_RAT_PIT_P\t0.135\t9\n"
+        "1\t1\tATC_RAT_YAW_P\t0.18\t9²\n"
+    )
+    params = parse_params(text, "qgroundcontrol")
+    assert [line for line, _ in params.problems] == [2]
+    assert params.values() == {"ATC_RAT_RLL_P": 0.135, "ATC_RAT_YAW_P": 0.18}
+    assert [e.type for e in params.entries] == [9, None]
+
+
 def test_format_value_writes_the_shortest_exact_float32() -> None:
     assert format_value(1.0) == "1"
     assert format_value(0.135) == "0.135"

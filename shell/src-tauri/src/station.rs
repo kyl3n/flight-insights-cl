@@ -146,21 +146,23 @@ fn clock() -> (Option<bool>, Option<String>) {
     (None, None)
 }
 
-/// The Windows time service's source: a local clock means not synchronised.
+/// What the Windows time service synchronises with, as a kind only. The source
+/// itself, often a domain controller's or a company time server's name, says
+/// which network the computer is on, so it never leaves the computer. A local
+/// clock means not synchronised.
 #[cfg_attr(not(windows), allow(dead_code))]
 fn parse_w32tm(out: &str) -> (Option<bool>, Option<String>) {
     let source = out.lines().find_map(|line| {
         let (key, value) = line.split_once(':')?;
         (key.trim() == "Source").then(|| value.split(',').next().unwrap_or("").trim().to_owned())
     });
-    match source {
-        Some(s) if s.is_empty() => (None, None),
-        Some(s) if s == "Local CMOS Clock" || s == "Free-running System Clock" => {
-            (Some(false), Some(s))
-        }
-        Some(s) => (Some(true), Some(s)),
-        None => (None, None),
-    }
+    let (synced, kind) = match source.as_deref() {
+        None | Some("") => return (None, None),
+        Some("Local CMOS Clock" | "Free-running System Clock") => (false, "local clock"),
+        Some("VM IC Time Synchronization Provider") => (true, "virtual machine host"),
+        Some(_) => (true, "NTP"),
+    };
+    (Some(synced), Some(kind.to_owned()))
 }
 
 /// A local command's output, or None if it fails.
@@ -222,17 +224,28 @@ mod tests {
     }
 
     #[test]
-    fn the_windows_time_source_is_read_from_w32tm() {
-        let synced = "Leap Indicator: 0(no warning)\r\nSource: time.windows.com,0x9\r\nPoll Interval: 10\r\n";
-        assert_eq!(
-            parse_w32tm(synced),
-            (Some(true), Some("time.windows.com".into()))
-        );
+    fn the_windows_time_source_is_read_from_w32tm_as_a_kind_only() {
+        let ntp = "Leap Indicator: 0(no warning)\r\nSource: time.windows.com,0x9\r\nPoll Interval: 10\r\n";
+        assert_eq!(parse_w32tm(ntp), (Some(true), Some("NTP".into())));
+        // a domain controller's name would say which network this is: never sent
+        let domain = "Stratum: 4 (secondary reference - syncd by (S)NTP)\r\n\
+                      Source: dc01.hangar.example.org\r\nLast Successful Sync Time: 10/23/2026\r\n";
+        let (synced, kind) = parse_w32tm(domain);
+        assert_eq!((synced, kind.as_deref()), (Some(true), Some("NTP")));
         let local = "Source: Local CMOS Clock\r\n";
         assert_eq!(
             parse_w32tm(local),
-            (Some(false), Some("Local CMOS Clock".into()))
+            (Some(false), Some("local clock".into()))
         );
+        assert_eq!(
+            parse_w32tm("Source: Free-running System Clock\r\n"),
+            (Some(false), Some("local clock".into()))
+        );
+        assert_eq!(
+            parse_w32tm("Source: VM IC Time Synchronization Provider\r\n"),
+            (Some(true), Some("virtual machine host".into()))
+        );
+        assert_eq!(parse_w32tm("Source: \r\n"), (None, None));
         assert_eq!(parse_w32tm("Джерело: time.windows.com\r\n"), (None, None));
     }
 }

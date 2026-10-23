@@ -84,6 +84,9 @@ export const PARTS = [
 ] as const;
 export type Part = (typeof PARTS)[number];
 
+/** The stable name a part is recorded under in the shared build history, whatever the UI language. */
+export const partKey = (p: Part): string => p;
+
 export interface LogChoices {
   choice: Choice;
   confirmed: Record<string, boolean>; // detected change part -> confirmed
@@ -113,6 +116,12 @@ export function initialChoices(file: ScannedFile): LogChoices {
   };
 }
 
+/** Detected changes were found against the proposed airframe, so they belong to it alone:
+ * a log assigned to another airframe, or to a new one, does not carry them. */
+export function detectedApplies(file: ScannedFile, choice: Choice): boolean {
+  return choice.kind === "airframe" && file.proposal.airframe_id !== null && choice.airframe_id === file.proposal.airframe_id;
+}
+
 /** Files still waiting for a decision; the import waits for them. */
 export function undecided(files: ScannedFile[], choices: Record<string, LogChoices>): ScannedFile[] {
   return files.filter((f) => {
@@ -136,7 +145,8 @@ export interface Decision {
   station_version_id?: string;
 }
 
-/** The import.commit decisions for the batch. Held logs are imported without an airframe. */
+/** The import.commit decisions for the batch. Held logs are imported without an airframe.
+ * `partName` gives the name a ticked part is recorded under: pass `partKey`, never a translated label. */
 export function decisions(
   files: ScannedFile[],
   choices: Record<string, LogChoices>,
@@ -151,7 +161,7 @@ export function decisions(
     if (c.choice.kind === "airframe") d.airframe_id = c.choice.airframe_id;
     if (c.choice.kind === "new") d.new_airframe = { platform_id: c.choice.platform_id, name: c.choice.name.trim() };
     if (f.kind === "dataflash" && (c.choice.kind === "airframe" || c.choice.kind === "new")) {
-      const detected = f.proposal.changes
+      const detected = (detectedApplies(f, c.choice) ? f.proposal.changes : [])
         .filter((x) => c.confirmed[x.part])
         .map((x) => ({ part: x.part, reason_kind: "detected" as ChangeKind, reason: describeChange(x) }));
       const other = c.other.map((p) => ({ part: partName(p), reason_kind: c.otherReason, reason: "" }));

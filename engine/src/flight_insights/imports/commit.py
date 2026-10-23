@@ -26,7 +26,7 @@ import pyarrow as pa
 
 from flight_insights.dataflash import read_dataflash
 from flight_insights.dataflash.log import DataflashLog
-from flight_insights.fingerprint.board import system_id_row
+from flight_insights.fingerprint.board import system_id_rows
 from flight_insights.fingerprint.devices import to_json
 from flight_insights.history.changes import LoadedFile, diff_snapshots, label_changes
 from flight_insights.history.persist import load_snapshot, save_change_sets, save_snapshot
@@ -37,8 +37,9 @@ from flight_insights.platforms.records import create_airframe, record_build
 from flight_insights.platforms.schema import SetupError
 from flight_insights.segment import find_boots, timeline
 from flight_insights.segment.validate import boot_index
+from flight_insights.store import _sqlcipher
 from flight_insights.store.cache import ColumnCache
-from flight_insights.store.db import Store
+from flight_insights.store.db import Store, StoreError
 from flight_insights.store.register import register_source
 
 ChangeKind = Literal["failure", "upgrade", "test", "detected"]
@@ -88,16 +89,20 @@ def _slices(flights: Sequence[ScannedFlight]) -> list[tuple[ScannedFlight, float
     return out
 
 
-def cache_flights(df: DataflashLog, cache: ColumnCache, flights: Sequence[ScannedFlight]) -> None:
+def cache_flights(
+    df: DataflashLog, cache: ColumnCache, flights: Sequence[ScannedFlight]
+) -> list[str]:
     """Every message type of each flight's stretch of the log, full rate, into the
     cache. The board's system-ID message is never written. A type redefined part-way
-    through the log is kept per definition, as NAME, NAME.2..."""
+    through the log is kept per definition, as NAME, NAME.2... Returns the types left
+    out because their name cannot be a file name (a corrupted FMT)."""
     boots = find_boots(timeline(df))
     by_boot: dict[int, list[ScannedFlight]] = defaultdict(list)
     for f in flights:
         by_boot[f.boot].append(f)
-    secret = system_id_row(df)
+    secret = system_id_rows(df)
     seen: dict[tuple[str, str], int] = defaultdict(int)
+    skipped: list[str] = []
     for fid, fmt in enumerate(df.index.formats):
         n = df.count_format(fid)
         if not n:
@@ -109,8 +114,9 @@ def cache_flights(df: DataflashLog, cache: ColumnCache, flights: Sequence[Scanne
             else None
         )
         keep = np.ones(n, dtype=bool)
-        if secret is not None and secret[0] == fid:
-            keep[secret[1]] = False
+        for secret_fid, position in secret:
+            if secret_fid == fid:
+                keep[position] = False
         for boot, flown in by_boot.items():
             for k, (f, start, end) in enumerate(_slices(flown)):
                 mask = keep & (boots_of == boot)
@@ -124,7 +130,12 @@ def cache_flights(df: DataflashLog, cache: ColumnCache, flights: Sequence[Scanne
                 seen[(f.key, fmt.name)] += 1
                 count = seen[(f.key, fmt.name)]
                 name = fmt.name if count == 1 else f"{fmt.name}.{count}"
+                if not cache.cacheable(name):
+                    if name not in skipped:
+                        skipped.append(name)
+                    continue
                 cache.write(f.key, name, _batches(df, fid, positions))
+    return skipped
 
 
 def _batches(
@@ -146,7 +157,9 @@ def attach(
 ) -> None:
     """Give held or new flights their airframe: record confirmed changes as a new
     build version, label parameter changes since the airframe's previous flight, and
-    remember the board. A new board on an airframe that had one is always recorded."""
+    remember the board. A new board on an airframe that had one is always recorded.
+    The previous flight is the one before these: a log older than the airframe's
+    latest flight is compared with its own predecessor and changes no board."""
     if not flight_ids:
         return
     airframe = store.get("airframe", airframe_id)
@@ -154,17 +167,25 @@ def attach(
         raise SetupError(f"no airframe {airframe_id}")
     marks = ",".join("?" for _ in flight_ids)
     rows = store.conn.execute(
-        f"SELECT id, param_snapshot_id, board_id_hash FROM flight "
+        f"SELECT id, param_snapshot_id, board_id_hash, boot_utc_us + arm_us FROM flight "
         f"WHERE id IN ({marks}) ORDER BY boot_utc_us, arm_us",
         list(flight_ids),
     ).fetchall()
     if len(rows) != len(flight_ids):
         raise SetupError("some of these flights do not exist")
-    first_id, snapshot_id, board = rows[0]
-    previous = last_flight(store, airframe_id)
+    first_id, snapshot_id, board, armed_utc = rows[0]
+    previous = last_flight(store, airframe_id, armed_utc)
+    latest = last_flight(store, airframe_id)
+    newest = latest is None or (previous is not None and previous.flight_id == latest.flight_id)
     confirmed = list(changes)
     old_board = airframe["board_id_hash"]
-    if board and old_board and board != old_board and not any(c.part == "board" for c in confirmed):
+    if (
+        newest
+        and board
+        and old_board
+        and board != old_board
+        and not any(c.part == "board" for c in confirmed)
+    ):
         confirmed.append(
             ConfirmedChange("board", "detected", "flight controller replaced: new board ID")
         )
@@ -186,7 +207,7 @@ def attach(
                 current["version"],
                 {"airframe_id": airframe_id, "build_version_id": build, "hold_json": None},
             )
-        if board and board != airframe["board_id_hash"]:
+        if newest and board and board != airframe["board_id_hash"]:
             store.update("airframe", airframe_id, airframe["version"], {"board_id_hash": board})
         if previous and previous.snapshot_id and snapshot_id:
             before, after = (
@@ -248,6 +269,13 @@ def _source(
     return reg.id
 
 
+def _stored(store: Store, key: str) -> str | None:
+    """The flight stored under this key: the scan's answer may be out of date, as the
+    same flight can arrive twice in a batch, or from another batch since."""
+    row = store.conn.execute("SELECT id FROM flight WHERE flight_key = ?", (key,)).fetchone()
+    return row[0] if row else None
+
+
 def _link(store: Store, flight_id: str, source_id: str, role: str) -> None:
     store.conn.execute(
         "INSERT OR IGNORE INTO flight_source (flight_id, source_file_id, role) VALUES (?, ?, ?)",
@@ -298,9 +326,9 @@ def _dataflash(
     station: str | None,
     files: Sequence[LoadedFile],
 ) -> Result:
-    new = [f for f in item.flights if f.known_id is None]
+    new = [f for f in item.flights if _stored(store, f.key) is None]
     with read_dataflash(item.path) as df:
-        cache_flights(df, cache, new)
+        skipped = cache_flights(df, cache, new)
     airframe_id = decision.airframe_id
     assert item.snapshot is not None and item.hardware is not None
     with store.transaction():
@@ -312,6 +340,13 @@ def _dataflash(
             (source,),
         ).fetchone()
         snapshot_id = row[0] if row else save_snapshot(store, item.snapshot, pack, source)
+        if airframe_id and not item.flights:  # a bench log: kept as the airframe's, as a file is
+            snap = store.get("param_snapshot", snapshot_id)
+            assert snap is not None
+            if snap["airframe_id"] is None:
+                store.update(
+                    "param_snapshot", snapshot_id, snap["version"], {"airframe_id": airframe_id}
+                )
         hold = (
             None
             if airframe_id
@@ -328,8 +363,8 @@ def _dataflash(
         packs = _packs(store, decision.packs)
         flight_ids: list[str] = []
         for f in item.flights:
-            if f.known_id:
-                _link(store, f.known_id, source, "dataflash")
+            if known := _stored(store, f.key):
+                _link(store, known, source, "dataflash")
                 continue
             fid = store.insert(
                 "flight",
@@ -360,9 +395,12 @@ def _dataflash(
                 )
         if airframe_id and flight_ids:
             attach(store, pack, flight_ids, airframe_id, decision.changes, files)
-    if not new:
+    if item.flights and not flight_ids:
         return Result(item.id, "duplicate", [], source, "every flight was already imported")
-    return Result(item.id, "imported" if airframe_id else "held", flight_ids, source)
+    note = (
+        f"not cached, names no file can have: {', '.join(map(repr, skipped))}" if skipped else None
+    )
+    return Result(item.id, "imported" if airframe_id else "held", flight_ids, source, note)
 
 
 def _tlog(store: Store, item: Scanned, station: str | None) -> Result:
@@ -389,6 +427,12 @@ def _param_file(
     snapshot = file_snapshot(item, pack)
     with store.transaction():
         source = _source(store, item, item.kind or "param", station)
+        kept = store.conn.execute(
+            "SELECT 1 FROM param_snapshot WHERE source_file_id = ? AND airframe_id = ?",
+            (source, airframe_id),
+        ).fetchone()
+        if kept:
+            return Result(item.id, "duplicate", [], source, "already kept for this airframe")
         if snapshot is not None and airframe_id:
             sid = save_snapshot(store, snapshot, pack, source)
             row = store.get("param_snapshot", sid)
@@ -448,5 +492,7 @@ def commit(
                     results.append(_param_file(store, pack, item, chosen, station))
         except (SetupError, ValueError) as e:
             results.append(Result(item.id, "error", message=str(e)))
+        except (StoreError, OSError, _sqlcipher.DatabaseError) as e:  # this file only
+            results.append(Result(item.id, "error", message=f"{type(e).__name__}: {e}"))
     progress(1.0, "imported")
     return sorted(results, key=lambda r: int(r.log[1:]))

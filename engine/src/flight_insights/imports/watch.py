@@ -16,7 +16,10 @@ def unknown(store: Store, paths: Sequence[Path]) -> list[Path]:
     for path in paths:
         if kind_of(path) is None or not path.is_file():
             continue
-        sha = file_sha256(path)
+        try:
+            sha = file_sha256(path)
+        except OSError:  # locked or gone: not offered now, tried again at the next look
+            continue
         stored = store.conn.execute(
             "SELECT 1 FROM source_file WHERE sha256 = ? UNION ALL "
             "SELECT 1 FROM ignored_file WHERE sha256 = ?",

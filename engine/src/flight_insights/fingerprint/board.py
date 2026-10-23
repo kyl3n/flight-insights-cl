@@ -44,21 +44,27 @@ def hash_board_id(key: bytes, unique_id: str) -> str:
     return f"bid1-{digest}"
 
 
+def system_id_rows(df: DataflashLog) -> list[tuple[int, int]]:
+    """(format id, position) of the MSG written immediately after each VER, in file
+    order: the board's system ID, logged again at every boot of a multi-boot file,
+    which caches and exports leave out."""
+    ver = [df.offsets(f) for f in df.formats_named("VER") if df.count_format(f)]
+    msg = [f for f in df.formats_named("MSG") if df.count_format(f)]
+    if not ver or not msg:
+        return []
+    offsets = np.concatenate([df.offsets(f) for f in msg])
+    fids = np.concatenate([np.full(df.count_format(f), f) for f in msg])
+    positions = np.concatenate([np.arange(df.count_format(f)) for f in msg])
+    order = np.argsort(offsets, kind="stable")
+    after = np.searchsorted(offsets[order], np.unique(np.concatenate(ver)), side="right")
+    found = np.unique(after[after < len(order)])  # a boot without one shares the next's
+    return [(int(fids[order[k]]), int(positions[order[k]])) for k in found]
+
+
 def system_id_row(df: DataflashLog) -> tuple[int, int] | None:
-    """(format id, position) of the MSG written immediately after the first VER, in
-    file order: the board's system ID, which caches and exports leave out."""
-    ver = [int(df.offsets(f)[0]) for f in df.formats_named("VER") if df.count_format(f)]
-    if not ver or "MSG" not in df.message_types:
-        return None
-    best: tuple[int, int, int] | None = None  # (offset, fid, position)
-    for fid in df.formats_named("MSG"):
-        if not df.count_format(fid):
-            continue
-        offsets = df.offsets(fid)
-        after = np.flatnonzero(offsets > min(ver))
-        if len(after) and (best is None or int(offsets[after[0]]) < best[0]):
-            best = (int(offsets[after[0]]), fid, int(after[0]))
-    return None if best is None else (best[1], best[2])
+    """The first boot's system-ID row: the one the board is identified by."""
+    rows = system_id_rows(df)
+    return rows[0] if rows else None
 
 
 def _system_id_message(df: DataflashLog) -> str | None:

@@ -95,6 +95,13 @@ class ColumnCache:
         self._all = _factory({CACHE_KEY: keys.cache, POSITIONS_KEY: keys.positions})
         self._analysis = _factory({CACHE_KEY: keys.cache})
 
+    @staticmethod
+    def cacheable(name: str) -> bool:
+        """Whether a message type name can name a cache file. A corrupted FMT can give a
+        type any bytes as its name; the caller skips that type and reports it, rather
+        than failing the whole import (path() raises CacheError for it)."""
+        return NAME.fullmatch(name) is not None
+
     def path(self, flight_key: str, name: str) -> Path:
         if not FLIGHT_KEY.fullmatch(flight_key) or not NAME.fullmatch(name):
             raise CacheError(f"not a cache file name: {flight_key!r}/{name!r}")

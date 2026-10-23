@@ -109,10 +109,22 @@ class Server:
     # --- output -----------------------------------------------------------------
 
     def _send(self, message: dict[str, Any]) -> None:
-        line = json.dumps(jsonable(message), allow_nan=False, separators=(",", ":"))
+        self._write(json.dumps(jsonable(message), allow_nan=False, separators=(",", ":")))
+
+    def _write(self, line: str) -> None:
         with self._write_lock:
             self._out.write(line + "\n")
             self._out.flush()
+
+    def _encode(self, reply: dict[str, Any]) -> str:
+        """A reply as JSON. One that cannot be encoded is answered with an internal
+        error instead, so the caller is not left waiting."""
+        try:
+            return json.dumps(jsonable(reply), allow_nan=False, separators=(",", ":"))
+        except (TypeError, ValueError) as e:
+            log.exception("the reply to %r could not be encoded", reply.get("id"))
+            error = self._error(reply.get("id"), INTERNAL_ERROR, f"{type(e).__name__}: {e}")
+            return json.dumps(error, separators=(",", ":"))
 
     def notify(self, method: str, params: dict[str, Any]) -> None:
         self._send({"jsonrpc": "2.0", "method": method, "params": params})
@@ -150,9 +162,7 @@ class Server:
             futures = [self._dispatch(m, batch=True) for m in batch]
             replies = [r for f in futures if f is not None for r in [f.result()] if r is not None]
             if replies:
-                with self._write_lock:
-                    self._out.write(json.dumps(jsonable(replies), allow_nan=False) + "\n")
-                    self._out.flush()
+                self._write("[" + ",".join(self._encode(r) for r in replies) + "]")
             return
         self._dispatch(message, batch=False)
 
@@ -226,7 +236,7 @@ class Server:
             return None
         if batch:
             return reply
-        self._send(reply)
+        self._write(self._encode(reply))
         return None
 
 

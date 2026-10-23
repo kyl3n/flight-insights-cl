@@ -67,6 +67,25 @@ def test_only_new_files_are_offered(store: Store, tmp_path: Path) -> None:
     assert watch.unknown(store, [renamed]) == []  # known by content, not by name
 
 
+def test_a_locked_file_is_left_for_the_next_look(
+    store: Store, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    for name in ("copter-quad-hover.bin", "copter-quad-hover.tlog"):
+        shutil.copy(FIXTURES / name, tmp_path / name)
+    paths = sorted(tmp_path.iterdir())
+    locked, read = tmp_path / "copter-quad-hover.tlog", watch.file_sha256
+
+    def sha256(path: Path) -> str:
+        if path == locked:  # Mission Planner still writing it, on Windows
+            raise PermissionError(13, "used by another process", str(path))
+        return read(path)
+
+    monkeypatch.setattr(watch, "file_sha256", sha256)
+    assert [p.name for p in watch.unknown(store, paths)] == ["copter-quad-hover.bin"]
+    monkeypatch.undo()
+    assert len(watch.unknown(store, paths)) == 2
+
+
 def test_folders_over_rpc(tmp_path: Path) -> None:
     from test_rpc import Output, call
 

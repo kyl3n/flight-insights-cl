@@ -19,7 +19,14 @@ import pytest
 from flight_insights.dataflash import read_dataflash
 from flight_insights.knowledge import Pack, load_pack
 from flight_insights.rpc import build_server
-from flight_insights.rpc.server import CANCELLED, LOCKED, METHOD_NOT_FOUND, Context, Server
+from flight_insights.rpc.server import (
+    CANCELLED,
+    INTERNAL_ERROR,
+    LOCKED,
+    METHOD_NOT_FOUND,
+    Context,
+    Server,
+)
 
 ENGINE = Path(__file__).resolve().parents[1]
 FIXTURES = ENGINE.parent / "tests" / "fixtures" / "sitl"
@@ -166,6 +173,51 @@ def test_a_running_request_can_be_cancelled(engine: tuple[Server, Output]) -> No
         json.dumps({"jsonrpc": "2.0", "method": "$/cancelRequest", "params": {"id": "s1"}})
     )
     assert out.reply("s1")["error"]["code"] == CANCELLED
+
+
+def test_a_reply_that_cannot_be_encoded_is_still_answered(engine: tuple[Server, Output]) -> None:
+    server, out = engine
+
+    @server.method("test.odd")
+    def odd(_ctx: Context, _params: dict[str, Any]) -> Any:  # pyright: ignore[reportUnusedFunction]
+        return {"value": object()}
+
+    server.handle_line(json.dumps({"jsonrpc": "2.0", "id": "o1", "method": "test.odd"}))
+    assert out.reply("o1", timeout=5)["error"]["code"] == INTERNAL_ERROR
+    server.handle_line(
+        json.dumps(
+            [
+                {"jsonrpc": "2.0", "id": "o2", "method": "test.odd"},
+                {"jsonrpc": "2.0", "id": "o3", "method": "engine.hello"},
+            ]
+        )
+    )
+    batches: list[list[dict[str, Any]]] = [m for m in out.messages() if isinstance(m, list)]
+    (batch,) = batches
+    assert batch[0]["error"]["code"] == INTERNAL_ERROR and "result" in batch[1]
+
+
+def test_columns_leave_out_every_system_id(engine: tuple[Server, Output], tmp_path: Path) -> None:
+    from df_builder import LogBuilder
+
+    b = LogBuilder()
+    b.fmt(0x84, "VER", "QB", "TimeUS,BT")
+    b.fmt(0x85, "MSG", "QZ", "TimeUS,Message")
+    for board in ("SECRET-1", "SECRET-2"):  # two boots in one file
+        b.write("VER", 1, 10)
+        b.write("MSG", 2, f"CubeOrange {board}".encode())
+        b.write("MSG", 3, b"ArduCopter V4.7.0")
+    log = tmp_path / "boots.bin"
+    log.write_bytes(b.bytes())
+    server, out = engine
+    call(server, out, 1, "engine.unlock", laptop_id=LAPTOP, data_dir=str(tmp_path), keys=keys())
+    reply = call(server, out, 2, "log.columns", path=str(log), type="MSG")["result"]
+    path = Path(reply["path"])
+    assert b"SECRET" not in path.read_bytes()
+    with pa.memory_map(str(path)) as source:
+        table = pa.ipc.open_file(source).read_all()
+    assert table.num_rows == reply["rows"] == 2
+    call(server, out, 3, "engine.shutdown")
 
 
 def test_the_cli_analysis_holds_no_positions() -> None:

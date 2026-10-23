@@ -138,6 +138,37 @@ def test_units_instances_and_positions_come_from_the_log(tmp_path: Path) -> None
         assert split[1].column("TimeUS").to_pylist() == [1, 3, 5]
 
 
+def test_positions_are_tagged_without_fmtu(tmp_path: Path) -> None:
+    """An 'L' column is a latitude or longitude, and raw GNSS observations solve to the
+    receiver's position: both are positions even in a log without units."""
+    log = LogBuilder(units=False)
+    log.fmt(0x91, "TERR", "QLLf", "TimeUS,Lat,Lng,Alt")
+    log.fmt(0x92, "GRXS", "QddfBBB", "TimeUS,prMes,cpMes,doMes,gnss,sv,cno")
+    log.write("TERR", 1, -353632621, 1491652374, 584.0)
+    log.write("GRXS", 1, 2.1e7, 1.1e8, -120.0, 0, 7, 40)
+    with read_dataflash(write(tmp_path, log)) as df:
+        terr, grxs = df.table("TERR"), df.table("GRXS")
+
+    def tagged(t: pa.Table) -> set[str]:
+        return {name for name in t.schema.names if meta(t, name)[b"position"] == b"1"}
+
+    assert tagged(terr) == {"Lat", "Lng"}
+    assert tagged(grxs) == set(grxs.schema.names)
+
+
+def test_units_do_not_leak_from_one_log_into_the_next(tmp_path: Path) -> None:
+    """FMT's own format is shared by every log; one log's FMTU for it stays its own."""
+    with_units = LogBuilder()
+    with_units.units("FMT", "-#---", "-----")
+    with read_dataflash(write(tmp_path, with_units, "a.bin")) as df:
+        fmts = [df.index.formats[i] for i in df.formats_named("FMT")]
+        assert len(fmts) == 2  # the built-in one reads the first FMT, which redefines it
+        assert all(f.instance_column == "Length" for f in fmts)
+    with read_dataflash(write(tmp_path, LogBuilder(), "b.bin")) as df:
+        for f in (df.index.formats[i] for i in df.formats_named("FMT")):
+            assert (f.instance_column, f.units) == (None, [""] * 5)
+
+
 def test_units_written_after_the_messages_still_apply(tmp_path: Path) -> None:
     log = LogBuilder()
     log.fmt(0x91, "BARO", "Qf", "TimeUS,Alt")

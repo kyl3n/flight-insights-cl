@@ -8,9 +8,11 @@
     declined,
     decisions,
     describeChange,
+    detectedApplies,
     fileStatus,
     initialChoices,
     matchKey,
+    partKey,
     resultCounts,
     undecided,
     whenText,
@@ -24,7 +26,7 @@
     type ScannedFile,
   } from "../lib/imports";
   import type { AirframeView, PlatformView } from "../lib/setup";
-  import { engineCall, inDesktopApp, onProgress, pendingImports } from "../lib/shell";
+  import { engineCall, inDesktopApp, onProgress, pendingImports, type PendingFile } from "../lib/shell";
   import type { StationView } from "../lib/stations";
 
   type Phase = "pick" | "scanning" | "review" | "committing" | "done";
@@ -41,6 +43,9 @@
   let heldFlights: { id: string; log?: string; reason?: string; candidates?: { airframe_id: string; name: string }[] }[] =
     $state([]);
   let heldPick: Record<string, string> = $state({});
+  // The watched files as they were when the scan started: an import-pending event during
+  // review must not change which station or set-aside list the scanned files are recorded with.
+  let scanPending: PendingFile[] = [];
 
   const files = $derived(scanned?.files ?? []);
   const waiting = $derived(undecided(files, choices));
@@ -53,7 +58,7 @@
     files.filter((f) => {
       const c = choices[f.id];
       if (!c || (c.choice.kind !== "airframe" && c.choice.kind !== "new")) return false;
-      return c.other.length > 0 || f.proposal.changes.some((x) => c.confirmed[x.part]);
+      return c.other.length > 0 || (detectedApplies(f, c.choice) && f.proposal.changes.some((x) => c.confirmed[x.part]));
     }).length,
   );
   const reasons: [ChangeKind, MessageKey][] = [
@@ -107,6 +112,7 @@
   async function scanPaths(paths: string[]) {
     error = "";
     phase = "scanning";
+    scanPending = $state.snapshot(app.pending);
     try {
       scanned = await engineCall<ScanResult>("import.scan", { paths });
       choices = Object.fromEntries(scanned.files.map((f) => [f.id, initialChoices(f)]));
@@ -121,13 +127,11 @@
     if (!scanned || waiting.length) return;
     phase = "committing";
     try {
-      const partName = (p: Part) => t(`import.part.${p}` as MessageKey);
-      const pending = app.pending;
       results = await engineCall<CommitResult[]>("import.commit", {
         batch: scanned.batch,
-        decisions: withStations(decisions(files, choices, partName, station || null), files, pending),
+        decisions: withStations(decisions(files, choices, partKey, station || null), files, scanPending),
       });
-      const setAside = declined(files, choices, pending);
+      const setAside = declined(files, choices, scanPending);
       if (setAside.length) await engineCall("import.ignore", { paths: setAside });
       app.pending = await pendingImports(true);
       phase = "done";
@@ -290,7 +294,9 @@
             <span role="cell" class="faint">{t(matchKey(f.proposal))}</span>
             <span role="cell" class="status">
               <span aria-hidden="true" class="glyph g{st.glyph === "●" ? "ok" : st.glyph === "▲" ? "ask" : st.glyph === "■" ? "out" : "off"}">{st.glyph}</span>
-              {f.proposal.changes.length ? t("import.changes.count", { count: f.proposal.changes.length }) : t(st.key)}
+              {detectedApplies(f, c.choice) && f.proposal.changes.length
+                ? t("import.changes.count", { count: f.proposal.changes.length })
+                : t(st.key)}
             </span>
           </div>
         {/each}
@@ -334,12 +340,14 @@
         {#if f.kind === "dataflash" && (c.choice.kind === "airframe" || c.choice.kind === "new")}
           <section class="changes" aria-labelledby="changes-{f.id}">
             <h2 id="changes-{f.id}">{t("import.changes.title", { airframe: airframeName(c.choice, f) })} <span class="faint mono">{f.name}</span></h2>
-            {#each f.proposal.changes as x (x.part)}
-              <label class="check">
-                <input type="checkbox" bind:checked={c.confirmed[x.part]} />
-                <span><span class="mono">{x.part}</span> {describeChange(x)} <span class="faint">({x.evidence})</span></span>
-              </label>
-            {/each}
+            {#if detectedApplies(f, c.choice)}
+              {#each f.proposal.changes as x (x.part)}
+                <label class="check">
+                  <input type="checkbox" bind:checked={c.confirmed[x.part]} />
+                  <span><span class="mono">{x.part}</span> {describeChange(x)} <span class="faint">({x.evidence})</span></span>
+                </label>
+              {/each}
+            {/if}
             <p>{t("import.changes.other")}</p>
             <div class="parts">
               {#each PARTS as p (p)}

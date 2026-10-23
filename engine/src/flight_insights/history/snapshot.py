@@ -36,6 +36,9 @@ SET_ID_CLASSES: frozenset[ParamClass] = frozenset({"tuning", "calibration", "har
 SET_ID_VERSION = "ps1"
 FIRMWARE = re.compile(r"\bArdu(Copter|Plane)\b")
 ARMED_EVENT = 10  # EV Id: armed
+# The start-of-log dump writes parameters back to back; a first appearance this long
+# after the one before it is a parameter created later, not the dump.
+DUMP_GAP_US = 1_000_000
 
 
 class SnapshotError(ValueError):
@@ -126,13 +129,17 @@ def from_log(df: DataflashLog, at_us: int | None = None) -> Snapshot:
     initial: dict[str, float] = {}
     current: dict[str, float] = {}
     defaults: dict[str, float] = {}
-    dump_end = 0
+    dump_end: int | None = None
     changes: list[ParamChange] = []
     for r in sorted(df.table("PARM").to_pylist(), key=lambda r: r["TimeUS"]):
         name, value = text(r["Name"]), float(r["Value"])
         if name not in initial:
-            initial[name] = current[name] = value  # the start-of-log dump
-            dump_end = max(dump_end, r["TimeUS"])
+            initial[name] = current[name] = value
+            # The start-of-log dump is the opening run of first appearances. A name first
+            # seen well after it (created by a script, set from a ground station) is
+            # kept, but does not move the snapshot past arming.
+            if dump_end is None or r["TimeUS"] - dump_end <= DUMP_GAP_US:
+                dump_end = r["TimeUS"]
             default = r.get("Default")
             if default is not None and not math.isnan(default):
                 defaults[name] = float(default)
@@ -140,6 +147,7 @@ def from_log(df: DataflashLog, at_us: int | None = None) -> Snapshot:
             changes.append(ParamChange(r["TimeUS"], name, current[name], value))
             current[name] = value
     at = at_us if at_us is not None else first_arm_us(df)
+    dump_end = dump_end or 0
     # A parameter not dumped yet has no value to report, so never before the dump ends.
     at = dump_end if at is None else max(at, dump_end)
     values = dict(initial)

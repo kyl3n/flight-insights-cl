@@ -1151,6 +1151,7 @@ dependencies = [
  "getrandom 0.4.3",
  "hex",
  "keyring-core",
+ "libc",
  "serde",
  "serde_json",
  "sysinfo",

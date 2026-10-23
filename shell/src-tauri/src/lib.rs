@@ -14,6 +14,7 @@ pub mod station;
 pub mod watch;
 
 use std::path::PathBuf;
+use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::{Arc, Mutex};
 
 use serde::Serialize;
@@ -47,6 +48,10 @@ struct Shell {
     watch: Mutex<watch::Watcher>,
     identity: Mutex<Option<Arc<LaptopIdentity>>>,
     engine: Mutex<Option<Arc<Engine>>>,
+    /// Held while the engine is started, so only one is ever started at a time.
+    starting: Mutex<()>,
+    /// Set when the app exits: no engine is started after that.
+    exiting: AtomicBool,
     status: Mutex<Status>,
     command: Mutex<Option<EngineCommand>>,
     knowledge_dir: Option<PathBuf>,
@@ -92,16 +97,41 @@ impl Shell {
         Ok(engine)
     }
 
+    /// The engine, if it is running.
+    fn current_engine(&self) -> Option<Arc<Engine>> {
+        self.engine
+            .lock()
+            .expect("engine")
+            .clone()
+            .filter(|e| e.is_running())
+    }
+
     fn running_engine(&self, app: &AppHandle) -> Result<Arc<Engine>, String> {
-        let current = self.engine.lock().expect("engine").clone();
-        match current {
-            Some(e) if e.is_running() => Ok(e),
-            _ => {
-                // The engine stopped (crashed or was killed): start a fresh one.
-                let _ = app.emit("engine-restarting", ());
-                self.start_engine(app)
-            }
+        if let Some(e) = self.current_engine() {
+            return Ok(e);
         }
+        let _starting = self.starting.lock().expect("engine start");
+        // Another call, or start-up, may have started one while this one waited.
+        if let Some(e) = self.current_engine() {
+            return Ok(e);
+        }
+        if self.exiting.load(Ordering::SeqCst) {
+            return Err("Flight Insights is closing".into());
+        }
+        if self.command.lock().expect("command").is_none() {
+            // Start-up is still reading the keychain, or failed before the engine
+            // could be started and said why.
+            let error = self.status.lock().expect("status").error.clone();
+            return Err(error.unwrap_or_else(|| "the engine is still starting".into()));
+        }
+        // The engine stopped (crashed or was killed): start a fresh one.
+        let _ = app.emit("engine-restarting", ());
+        let started = self.start_engine(app);
+        if let Err(e) = &started {
+            self.set_failed(e.clone());
+        }
+        let _ = app.emit("shell-status", self.status.lock().expect("status").clone());
+        started
     }
 }
 
@@ -151,17 +181,14 @@ async fn detect_this_computer(app: AppHandle, id: String, version: i64) -> Resul
 
 /// Ask the engine which of `paths` are new, and offer those. Returns whether the
 /// offered files changed. Only a running engine is asked; the watcher never starts one.
-fn check_files(app: &AppHandle, ask: Vec<PathBuf>) -> Result<bool, String> {
+/// A chunk the engine cannot answer is left unchecked, to be asked about next poll,
+/// and the rest are still checked.
+fn check_files(app: &AppHandle, ask: Vec<PathBuf>) -> bool {
     let shell = app.state::<Shell>();
-    let Some(engine) = shell
-        .engine
-        .lock()
-        .expect("engine")
-        .clone()
-        .filter(|e| e.is_running())
-    else {
-        return Ok(false);
+    let Some(engine) = shell.current_engine() else {
+        return false;
     };
+    let mut asked: Vec<PathBuf> = Vec::new();
     let mut new: Vec<String> = Vec::new();
     for chunk in ask.chunks(500) {
         let paths: Vec<String> = chunk
@@ -175,25 +202,26 @@ fn check_files(app: &AppHandle, ask: Vec<PathBuf>) -> Result<bool, String> {
                 serde_json::json!({ "paths": paths }),
                 CALL_TIMEOUT,
             )
-            .map_err(|e| e.to_string())?;
-        new.extend(serde_json::from_value::<Vec<String>>(reply).map_err(|e| e.to_string())?);
+            .map_err(|e| e.to_string())
+            .and_then(|r| serde_json::from_value::<Vec<String>>(r).map_err(|e| e.to_string()));
+        match reply {
+            Ok(n) => {
+                asked.extend_from_slice(chunk);
+                new.extend(n);
+            }
+            Err(e) => eprintln!("watched folders: {e}"),
+        }
     }
     let mut w = shell.watch.lock().expect("watcher");
     let before = w.pending().to_vec();
-    w.checked(&ask, &new);
-    Ok(w.pending() != before.as_slice())
+    w.checked(&asked, &new);
+    w.pending() != before.as_slice()
 }
 
 /// One poll of the watched folders.
 fn poll_folders(app: &AppHandle) -> Result<(), String> {
     let shell = app.state::<Shell>();
-    let Some(engine) = shell
-        .engine
-        .lock()
-        .expect("engine")
-        .clone()
-        .filter(|e| e.is_running())
-    else {
+    let Some(engine) = shell.current_engine() else {
         return Ok(());
     };
     let reply = engine
@@ -201,16 +229,14 @@ fn poll_folders(app: &AppHandle) -> Result<(), String> {
         .call("station.folders", serde_json::json!({}), CALL_TIMEOUT)
         .map_err(|e| e.to_string())?;
     let folders: Vec<watch::Folder> = serde_json::from_value(reply).map_err(|e| e.to_string())?;
+    // The walk can be long; the import dialog waits on the watcher's lock.
+    let scanned = watch::scan(&folders);
     let (ready, before) = {
         let mut w = shell.watch.lock().expect("watcher");
         let before = w.pending().to_vec();
-        (w.poll(&folders), before)
+        (w.update(scanned), before)
     };
-    let changed = if ready.is_empty() {
-        false
-    } else {
-        check_files(app, ready)?
-    };
+    let changed = !ready.is_empty() && check_files(app, ready);
     let pending = shell.watch.lock().expect("watcher").pending().to_vec();
     if changed || pending != before {
         let _ = app.emit("import-pending", pending);
@@ -231,7 +257,7 @@ async fn pending_imports(app: AppHandle, refresh: bool) -> Result<Vec<watch::Pen
                 .expect("watcher")
                 .recheck();
             if !ask.is_empty() {
-                check_files(&app, ask)?;
+                check_files(&app, ask);
             }
         }
         Ok(app
@@ -267,6 +293,11 @@ fn start_up(app: &AppHandle) {
         .ok()
         .and_then(|p| p.parent().map(PathBuf::from))
         .unwrap_or_default();
+    // Calls made meanwhile wait for this start rather than racing it with their own.
+    let starting = shell.starting.lock().expect("engine start");
+    if shell.exiting.load(Ordering::SeqCst) {
+        return;
+    }
     match EngineCommand::resolve(&exe_dir) {
         Ok(cmd) => *shell.command.lock().expect("command") = Some(cmd),
         Err(e) => return shell.set_failed(e),
@@ -274,6 +305,7 @@ fn start_up(app: &AppHandle) {
     if let Err(e) = shell.start_engine(app) {
         shell.set_failed(e);
     }
+    drop(starting);
     let _ = app.emit("shell-status", shell.status.lock().expect("status").clone());
     let watcher = app.clone();
     let _ = std::thread::Builder::new()
@@ -301,6 +333,8 @@ pub fn run() {
                 watch: Mutex::new(watch::Watcher::default()),
                 identity: Mutex::new(None),
                 engine: Mutex::new(None),
+                starting: Mutex::new(()),
+                exiting: AtomicBool::new(false),
                 status: Mutex::new(Status::default()),
                 command: Mutex::new(None),
                 knowledge_dir,
@@ -320,10 +354,15 @@ pub fn run() {
         .build(tauri::generate_context!())
         .expect("error while building Flight Insights");
     app.run(|app, event| {
-        if let RunEvent::Exit = event
-            && let Some(engine) = app.state::<Shell>().engine.lock().expect("engine").take()
-        {
-            engine.stop();
+        if let RunEvent::Exit = event {
+            let shell = app.state::<Shell>();
+            shell.exiting.store(true, Ordering::SeqCst);
+            // Wait out a start in progress, so the engine it starts is stopped too.
+            let _starting = shell.starting.lock().expect("engine start");
+            let engine = shell.engine.lock().expect("engine").take();
+            if let Some(engine) = engine {
+                engine.stop();
+            }
         }
     });
 }

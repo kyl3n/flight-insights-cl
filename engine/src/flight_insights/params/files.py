@@ -25,6 +25,8 @@ Kind = Literal["mission planner", "qgroundcontrol"]
 
 NAME = re.compile(r"^[A-Za-z][A-Za-z0-9_]{0,15}$")  # ArduPilot names: at most 16 characters
 STEP_FILE = re.compile(r"^(\d+)_(.+)\.param$", re.IGNORECASE)
+# ASCII digits only: str.isdigit() also takes "²", which int() refuses.
+ID = re.compile(r"[0-9]{1,10}")
 MAV_PARAM_TYPE_REAL32 = 9
 
 
@@ -87,7 +89,7 @@ def parse_params(text: str, kind: Kind | None = None) -> ParamFile:
         ptype: int | None = None
         if kind == "qgroundcontrol":
             parts = raw.split("\t")
-            if len(parts) < 5 or not (parts[0].strip().isdigit() and parts[1].strip().isdigit()):
+            if len(parts) < 5 or not all(ID.fullmatch(p.strip()) for p in parts[:2]):
                 out.problems.append(
                     (number, "not a vehicle-id, component-id, name, value, type line")
                 )
@@ -95,7 +97,7 @@ def parse_params(text: str, kind: Kind | None = None) -> ParamFile:
             component = (int(parts[0]), int(parts[1]))
             name, value_text = parts[2].strip(), parts[3].strip()
             type_text = parts[4].strip()
-            ptype = int(type_text) if type_text.isdigit() else None
+            ptype = int(type_text) if ID.fullmatch(type_text) else None
         else:
             fields = re.split(r"[,\s]+", body.strip(), maxsplit=1)
             if len(fields) != 2:

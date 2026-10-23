@@ -66,12 +66,14 @@ class LastFlight:
     hardware_json: str
 
 
-def last_flight(store: Store, airframe_id: str) -> LastFlight | None:
+def last_flight(store: Store, airframe_id: str, before_us: int | None = None) -> LastFlight | None:
+    """The airframe's latest flight, or its latest that armed by `before_us` (UTC).
+    Flights with no UTC time count as the oldest."""
     row = store.conn.execute(
         "SELECT id, param_snapshot_id, board_id_hash, hardware_json FROM flight "
-        "WHERE airframe_id = ? ORDER BY boot_utc_us IS NULL, boot_utc_us DESC, arm_us DESC, "
-        "created_hlc DESC LIMIT 1",
-        (airframe_id,),
+        "WHERE airframe_id = ? AND (? IS NULL OR boot_utc_us IS NULL OR boot_utc_us + arm_us <= ?) "
+        "ORDER BY boot_utc_us IS NULL, boot_utc_us DESC, arm_us DESC, created_hlc DESC LIMIT 1",
+        (airframe_id, before_us, before_us),
     ).fetchone()
     return LastFlight(*row) if row else None
 
@@ -107,6 +109,13 @@ class Proposer:
                 "SELECT id, name, board_id_hash FROM airframe ORDER BY name"
             )
         ]
+        self.flown = {  # every board each airframe has flown with, current or not
+            (r[0], r[1])
+            for r in store.conn.execute(
+                "SELECT DISTINCT airframe_id, board_id_hash FROM flight "
+                "WHERE airframe_id IS NOT NULL AND board_id_hash IS NOT NULL"
+            )
+        }
         self._last: dict[str, LastFlight | None] = {}
         self._tuning: dict[str, dict[str, float] | None] = {}
 
@@ -156,7 +165,7 @@ class Proposer:
         p.candidates = ranked[:CANDIDATES]
         by_board = next(
             (a for a in self.airframes if item.board_id_hash and a[2] == item.board_id_hash), None
-        )
+        ) or next((a for a in self.airframes if (a[0], item.board_id_hash) in self.flown), None)
         best = ranked[0] if ranked and ranked[0].score >= MATCH else None
         if by_board:
             p.airframe_id, p.airframe_name, p.confidence, p.how = (

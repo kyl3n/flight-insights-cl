@@ -16,7 +16,9 @@ use serde::{Deserialize, Serialize};
 pub const POLL: Duration = Duration::from_secs(15);
 const SUFFIXES: &[&str] = &["bin", "tlog", "param", "params"];
 const MAX_DEPTH: usize = 6; // Mission Planner keeps logs under logs/<vehicle>/<sysid>/
-const MAX_FILES: usize = 20_000; // per folder and poll: a wrong folder must not stall the app
+// Per folder and poll: a wrong folder (a home folder, a whole drive) must not stall the app.
+const MAX_FILES: usize = 20_000;
+const MAX_ENTRIES: usize = 200_000; // directory entries visited, files or not
 
 /// A watched folder, as `station.folders` gives it.
 #[derive(Clone, Debug, Deserialize, PartialEq)]
@@ -72,15 +74,26 @@ fn wanted(path: &Path) -> bool {
         .is_some_and(|e| SUFFIXES.contains(&e.to_ascii_lowercase().as_str()))
 }
 
+type Found = Vec<(PathBuf, u64, Option<SystemTime>)>;
+
 /// Log and parameter files under `root`, not following links.
-pub fn walk(root: &Path) -> Vec<(PathBuf, u64, Option<SystemTime>)> {
+pub fn walk(root: &Path) -> Found {
+    walk_limited(root, MAX_ENTRIES, MAX_FILES)
+}
+
+fn walk_limited(root: &Path, max_entries: usize, max_files: usize) -> Found {
     let mut out = Vec::new();
+    let mut visited = 0usize;
     let mut stack = vec![(root.to_path_buf(), 0usize)];
     while let Some((dir, depth)) = stack.pop() {
         let Ok(entries) = std::fs::read_dir(&dir) else {
             continue;
         };
         for entry in entries.flatten() {
+            visited += 1;
+            if visited > max_entries {
+                return out;
+            }
             let Ok(kind) = entry.file_type() else {
                 continue;
             };
@@ -91,7 +104,7 @@ pub fn walk(root: &Path) -> Vec<(PathBuf, u64, Option<SystemTime>)> {
                 if let Ok(meta) = entry.metadata() {
                     out.push((path, meta.len(), meta.modified().ok()));
                 }
-                if out.len() >= MAX_FILES {
+                if out.len() >= max_files {
                     return out;
                 }
             }
@@ -100,12 +113,21 @@ pub fn walk(root: &Path) -> Vec<(PathBuf, u64, Option<SystemTime>)> {
     out
 }
 
+/// Walk the folders. Done without the watcher, whose lock the import dialog
+/// waits on, since a large folder takes a while; `Watcher::update` takes the result.
+pub fn scan(folders: &[Folder]) -> Vec<(Folder, Found)> {
+    folders
+        .iter()
+        .map(|f| (f.clone(), walk(Path::new(&f.path))))
+        .collect()
+}
+
 impl Watcher {
-    /// Walk the folders. Returns the files that are ready and not yet checked.
-    pub fn poll(&mut self, folders: &[Folder]) -> Vec<PathBuf> {
+    /// Take a `scan` of the folders. Returns the files that are ready and not yet checked.
+    pub fn update(&mut self, scanned: Vec<(Folder, Found)>) -> Vec<PathBuf> {
         let mut present: HashMap<PathBuf, ()> = HashMap::new();
-        for folder in folders {
-            for (path, size, modified) in walk(Path::new(&folder.path)) {
+        for (folder, found) in scanned {
+            for (path, size, modified) in found {
                 present.insert(path.clone(), ());
                 match self.seen.get_mut(&path) {
                     Some(s) if s.size == size && s.modified == modified => {
@@ -113,10 +135,10 @@ impl Watcher {
                         s.folder = folder.clone();
                     }
                     Some(s) => {
-                        *s = Seen::new(size, modified, folder);
+                        *s = Seen::new(size, modified, &folder);
                     }
                     None => {
-                        self.seen.insert(path, Seen::new(size, modified, folder));
+                        self.seen.insert(path, Seen::new(size, modified, &folder));
                     }
                 }
             }
@@ -194,6 +216,11 @@ mod tests {
         }
     }
 
+    /// One poll, as the folder watcher does it: scan, then update.
+    fn poll(w: &mut Watcher, folders: &[Folder]) -> Vec<PathBuf> {
+        w.update(scan(folders))
+    }
+
     fn temp(name: &str) -> PathBuf {
         let dir = std::env::temp_dir().join(format!("fi-watch-{name}-{}", std::process::id()));
         let _ = std::fs::remove_dir_all(&dir);
@@ -223,16 +250,38 @@ mod tests {
     }
 
     #[test]
+    fn a_huge_folder_is_walked_only_so_far_each_poll() {
+        let dir = temp("huge");
+        for n in 0..10 {
+            std::fs::write(dir.join(format!("{n}.bin")), b"x").unwrap();
+        }
+        assert_eq!(walk_limited(&dir, 4, MAX_FILES).len(), 4);
+        assert_eq!(walk_limited(&dir, MAX_ENTRIES, 3).len(), 3);
+        assert_eq!(walk(&dir).len(), 10);
+        // entries that are not wanted count too: 10 notes and the subfolder come first
+        let other = temp("huge-notes");
+        for n in 0..10 {
+            std::fs::write(other.join(format!("{n}.txt")), b"x").unwrap();
+        }
+        std::fs::create_dir(other.join("logs")).unwrap();
+        std::fs::write(other.join("logs/1.bin"), b"x").unwrap();
+        assert!(walk_limited(&other, 11, MAX_FILES).is_empty());
+        assert_eq!(walk_limited(&other, 12, MAX_FILES).len(), 1);
+        let _ = std::fs::remove_dir_all(dir);
+        let _ = std::fs::remove_dir_all(other);
+    }
+
+    #[test]
     fn a_file_is_offered_once_it_holds_still_and_the_engine_calls_it_new() {
         let dir = temp("steady");
         let folders = [folder(&dir)];
         let tlog = dir.join("a.tlog");
         std::fs::write(&tlog, b"first").unwrap();
         let mut w = Watcher::default();
-        assert!(w.poll(&folders).is_empty()); // just seen
+        assert!(poll(&mut w, &folders).is_empty()); // just seen
         std::fs::write(&tlog, b"first and more").unwrap(); // still being written
-        assert!(w.poll(&folders).is_empty());
-        let ready = w.poll(&folders); // held still for a poll
+        assert!(poll(&mut w, &folders).is_empty());
+        let ready = poll(&mut w, &folders); // held still for a poll
         assert_eq!(ready, std::slice::from_ref(&tlog));
         w.checked(&ready, &[tlog.to_string_lossy().into_owned()]);
         let pending = w.pending();
@@ -241,7 +290,7 @@ mod tests {
             (pending[0].name.as_str(), pending[0].station.as_str()),
             ("a.tlog", "Field tablet")
         );
-        assert!(w.poll(&folders).is_empty()); // checked: not asked again
+        assert!(poll(&mut w, &folders).is_empty()); // checked: not asked again
         assert_eq!(w.pending().len(), 1);
         // imported elsewhere: the engine no longer calls it new
         let again = w.recheck();
@@ -259,8 +308,8 @@ mod tests {
         std::fs::write(&a, b"A,1\n").unwrap();
         std::fs::write(&b, b"B,1\n").unwrap();
         let mut w = Watcher::default();
-        w.poll(&folders);
-        let ready = w.poll(&folders);
+        poll(&mut w, &folders);
+        let ready = poll(&mut w, &folders);
         let names: Vec<String> = ready
             .iter()
             .map(|p| p.to_string_lossy().into_owned())
@@ -269,7 +318,7 @@ mod tests {
         assert_eq!(w.pending().len(), 2);
         std::fs::remove_file(&a).unwrap();
         std::fs::write(&b, b"B,2 and longer\n").unwrap();
-        assert!(w.poll(&folders).is_empty());
+        assert!(poll(&mut w, &folders).is_empty());
         assert!(w.pending().is_empty());
         let _ = std::fs::remove_dir_all(dir);
     }

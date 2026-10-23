@@ -159,13 +159,14 @@ def scan(
     for n, path in enumerate(paths, 1):
         check()
         progress((n - 1) / max(len(paths), 1), path.name)
-        sha = file_sha256(path)
-        row = store.conn.execute("SELECT id FROM source_file WHERE sha256 = ?", (sha,)).fetchone()
-        item = Scanned(
-            f"f{n}", path, kind_of(path), path.stat().st_size, sha, row[0] if row else None
-        )
+        item = Scanned(f"f{n}", path, kind_of(path), 0, "")
         out.append(item)
-        try:
+        try:  # locked, deleted or unreadable since it was chosen: this file's error only
+            item.size, item.sha256 = path.stat().st_size, file_sha256(path)
+            row = store.conn.execute(
+                "SELECT id FROM source_file WHERE sha256 = ?", (item.sha256,)
+            ).fetchone()
+            item.known_source = row[0] if row else None
             match item.kind:
                 case "dataflash":
                     with read_dataflash(path) as df:

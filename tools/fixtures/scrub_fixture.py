@@ -25,6 +25,10 @@ What is changed:
   and AUTOPILOT_VERSION uid and uid2.
 - Embedded files that copy the autopilot's storage (@SYS/storage.bin, which
   holds every parameter and the mission, fence and rally points) are zeroed.
+- DataFlash bytes that are not part of a whole message (a message cut off at
+  the end of the file, junk between messages) are zeroed: they cannot be
+  decoded, so a position in them could not be shifted. The file keeps its
+  length, so every message stays at its offset.
 
 Absolute altitudes are not changed. Logs from real aircraft need a further
 review before they become fixtures; see tests/fixtures/README.md.
@@ -32,7 +36,8 @@ review before they become fixtures; see tests/fixtures/README.md.
 After writing, each output is checked against the input with pymavlink's own
 decoder: the same messages in the same order, every position moved by
 exactly the shift, every other value unchanged, and none of the input's
-positions left anywhere in the output bytes in any common encoding.
+position values (every sample of every position field) left anywhere in the
+output bytes in any common encoding.
 
 Usage:
   uv run tools/fixtures/scrub_fixture.py --out DIR [--manifest FILE] FILE...
@@ -41,6 +46,7 @@ Usage:
 from __future__ import annotations
 
 import argparse
+import bisect
 import hashlib
 import math
 import re
@@ -49,7 +55,7 @@ import struct
 import sys
 import tempfile
 from collections import Counter
-from collections.abc import Iterator, Sequence
+from collections.abc import Iterable, Iterator, Sequence
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Literal
@@ -114,7 +120,10 @@ def choose_shift(lats: Sequence[float]) -> Shift:
     lo, hi = (min(lats), max(lats)) if lats else (0.0, 0.0)
     ranges = [
         (r0, r1)
-        for r0, r1 in ((-LAT_LIMIT_DEG - lo, -MIN_SHIFT_DEG), (MIN_SHIFT_DEG, LAT_LIMIT_DEG - hi))
+        for r0, r1 in (
+            (-LAT_LIMIT_DEG - lo, -MIN_SHIFT_DEG),
+            (MIN_SHIFT_DEG, LAT_LIMIT_DEG - hi),
+        )
         if r1 > r0
     ]
     if not ranges:
@@ -166,17 +175,25 @@ class Plan:
     positions: list[PosRef] = field(default_factory=list[PosRef])
     edits: list[Edit] = field(default_factory=list[Edit])
     counts: Counter[str] = field(default_factory=Counter[str])
-    skipped_bytes: int = 0
+    unparsed: list[tuple[int, int]] = field(default_factory=list[tuple[int, int]])
+
+    @property
+    def skipped_bytes(self) -> int:
+        return sum(end - start for start, end in self.unparsed)
+
+    def skip(self, offset: int) -> None:
+        """Record one byte that starts no message, merging runs into [start, end) ranges."""
+        if self.unparsed and self.unparsed[-1][1] == offset:
+            self.unparsed[-1] = (self.unparsed[-1][0], offset + 1)
+        else:
+            self.unparsed.append((offset, offset + 1))
 
     def degrees(self, kind: Kind) -> list[float]:
         return [p.deg for p in self.positions if p.kind == kind]
 
     def sentinels(self) -> list[float]:
-        """The first value of each position field: what must not survive scrubbing."""
-        first: dict[str, float] = {}
-        for p in self.positions:
-            first.setdefault(p.what, p.deg)
-        return list(first.values())
+        """Every position value in the input: none may survive scrubbing."""
+        return list(dict.fromkeys(p.deg for p in self.positions))
 
 
 def blank_hex_ids(raw: bytes) -> bytes:
@@ -235,7 +252,11 @@ def _df_format(type_: int, length: int, name: str, fmt: str, columns: list[str])
 
 
 DF_FMT = _df_format(
-    DF_FMT_ID, DF_FMT_LENGTH, "FMT", "BBnNZ", ["Type", "Length", "Name", "Format", "Columns"]
+    DF_FMT_ID,
+    DF_FMT_LENGTH,
+    "FMT",
+    "BBnNZ",
+    ["Type", "Length", "Name", "Format", "Columns"],
 )
 
 
@@ -335,7 +356,7 @@ def plan_dataflash(data: bytes) -> Plan:
     fields: dict[DfFormat, list[DfField]] = {}
     for o, fmt in iter_dataflash(data):
         if fmt is None:
-            plan.skipped_bytes += 1
+            plan.skip(o)
             continue
         plan.counts[fmt.name] += 1
         if fmt not in fields:
@@ -401,12 +422,18 @@ def apply_dataflash(data: bytes, plan: Plan, shift: Shift) -> bytes:
             out[offset : offset + size] = blank_hex_ids(bytes(out[offset : offset + size]))
         else:
             out[offset : offset + size] = bytes(size)
+    for (
+        start,
+        end,
+    ) in plan.unparsed:  # cannot be decoded, so cannot be shifted: blank it
+        out[start:end] = bytes(end - start)
     return bytes(out)
 
 
 def _changed_ranges(plan: Plan) -> list[tuple[int, int]]:
     locs = [p.loc for p in plan.positions] + [e.loc for e in plan.edits]
-    return sorted((o, o + struct.calcsize("<" + code)) for o, code in locs)
+    ranges = [(o, o + struct.calcsize("<" + code)) for o, code in locs]
+    return sorted(ranges + plan.unparsed)
 
 
 def verify_dataflash(original: Path, scrubbed: Path, shift: Shift) -> list[str]:
@@ -426,8 +453,11 @@ def verify_dataflash(original: Path, scrubbed: Path, shift: Shift) -> list[str]:
     if a[pos:] != b[pos:]:
         problems.append(f"{scrubbed.name}: bytes changed outside position fields")
 
+    if any(b[start:end].strip(b"\0") for start, end in plan.unparsed):
+        problems.append(f"{scrubbed.name}: unparsed bytes not blanked")
+
     after = plan_dataflash(b)
-    if after.counts != plan.counts or after.skipped_bytes != plan.skipped_bytes:
+    if after.counts != plan.counts or after.unparsed != plan.unparsed:
         problems.append(f"{scrubbed.name}: message counts changed")
     if after.edits:
         problems.append(f"{scrubbed.name}: board IDs or zeroed parameters left")
@@ -472,7 +502,11 @@ def verify_dataflash(original: Path, scrubbed: Path, shift: Shift) -> list[str]:
                 f = pos_cols[col]
                 to_deg = 1.0 if f.implicit else f.scale
                 problem = _check_shifted(
-                    va * to_deg, vb * to_deg, f.kind, shift, None if f.is_float else f.scale
+                    va * to_deg,
+                    vb * to_deg,
+                    f.kind,
+                    shift,
+                    None if f.is_float else f.scale,
                 )
             elif parm_kind is not None and col in ("Value", "Default"):
                 problem = _check_shifted(va, vb, parm_kind, shift, None)
@@ -881,18 +915,120 @@ def verify_params(original: Path, scrubbed: Path, qgc: bool, shift: Shift) -> li
 # --- leak search, manifest and command line ----------------------------------
 
 
-def leak_patterns(deg: float) -> list[bytes]:
-    """Common encodings of a coordinate: int32 x1e7, float32, float64, and decimal text."""
+def _leak_encodings(deg: float) -> tuple[list[bytes], bytes]:
+    """(binary encodings: float32, float64, int32 x1e7; decimal text to four places)."""
     text = f"{deg:.7f}"
-    pats = [struct.pack("<f", deg), struct.pack("<d", deg), text[: text.index(".") + 5].encode()]
+    binary = [struct.pack("<f", deg), struct.pack("<d", deg)]
     raw = round(deg * 1e7)
     if raw:
-        pats.append(struct.pack("<i", raw))
-    return pats
+        binary.append(struct.pack("<i", raw))
+    return binary, text[: text.index(".") + 5].encode()
+
+
+def leak_patterns(deg: float) -> list[bytes]:
+    """Common encodings of a coordinate: int32 x1e7, float32, float64, and decimal text."""
+    binary, text = _leak_encodings(deg)
+    return [*binary, text]
+
+
+LEAK_TEXT = re.compile(rb"\.[0-9]{4}")
+
+
+def _windows(data: bytes, size: int) -> Iterator[memoryview]:
+    """Every `size`-byte window of `data`, as `size` views of fixed-width integers."""
+    code = {4: "I", 8: "Q"}[size]
+    view = memoryview(data)
+    for start in range(min(size, len(data))):
+        usable = (len(data) - start) // size * size
+        yield view[start : start + usable].cast(code)
+
+
+def _present(data: bytes, size: int, wanted: set[int]) -> set[int]:
+    """Which of the `size`-byte integers in `wanted` appear anywhere in `data`."""
+    hits: set[int] = set()
+    for view in _windows(data, size):
+        hits |= wanted.intersection(view)
+        view.release()
+    return hits
+
+
+def _offsets(data: bytes, patterns: Iterable[bytes]) -> list[int]:
+    out: list[int] = []
+    for pat in patterns:
+        start = 0
+        while (i := data.find(pat, start)) != -1:
+            out.append(i)
+            start = i + 1
+    return sorted(out)
+
+
+def _text_hits(data: bytes, texts: set[bytes]) -> dict[bytes, list[int]]:
+    hits: dict[bytes, list[int]] = {}
+    for m in LEAK_TEXT.finditer(data):  # a text pattern is a sign, up to 3 digits, ".dddd"
+        dot = m.start()
+        for start in range(max(0, dot - 4), dot):
+            if data[start : dot + 5] in texts:
+                hits.setdefault(data[start : dot + 5], []).append(start)
+    return hits
 
 
 def find_leaks(data: bytes, sentinels: Sequence[float]) -> int:
-    return sum(1 for deg in sentinels for pat in leak_patterns(deg) if pat in data)
+    """How many distinct encodings of the sentinel positions appear anywhere in `data`.
+
+    The same search as `pattern in data` for every pattern of every sentinel, but
+    one pass per window width. A 4-byte pattern can turn up by chance in a large
+    log, so search every sample of a log with `find_position_leaks` instead.
+    """
+    by_size: dict[int, set[int]] = {4: set(), 8: set()}
+    texts: set[bytes] = set()
+    for deg in sentinels:
+        binary, text = _leak_encodings(deg)
+        texts.add(text)
+        for pat in binary:
+            by_size[len(pat)].add(int.from_bytes(pat, sys.byteorder))
+    found = sum(len(_present(data, size, wanted)) for size, wanted in by_size.items())
+    return found + len(_text_hits(data, texts))
+
+
+PAIR_BYTES = 32  # a latitude and a longitude this close together are one position
+
+
+def find_position_leaks(data: bytes, lats: Sequence[float], lngs: Sequence[float]) -> int:
+    """Encodings of the original positions left in `data`, every sample searched.
+
+    Decimal text and 8-byte doubles count wherever they appear: a chance match of
+    eight exact bytes does not happen. A 4-byte value (int32 x1e7 or float32) does
+    turn up by chance among the millions of 4-byte windows of a large log, so it
+    counts only beside a 4-byte encoding of a longitude (or latitude), as a
+    position is stored: that pairing does not happen by chance.
+    """
+    texts: set[bytes] = set()
+    doubles: set[int] = set()
+    small: dict[str, set[int]] = {"lat": set(), "lng": set()}
+    for kind, degs in (("lat", lats), ("lng", lngs)):
+        for deg in degs:
+            binary, text = _leak_encodings(deg)
+            texts.add(text)
+            for pat in binary:
+                if len(pat) == 8:
+                    doubles.add(int.from_bytes(pat, sys.byteorder))
+                else:
+                    small[kind].add(int.from_bytes(pat, sys.byteorder))
+    found = len(_present(data, 8, doubles)) + len(_text_hits(data, texts))
+    present = {kind: _present(data, 4, wanted) for kind, wanted in small.items()}
+    if present["lat"] and present["lng"]:
+
+        def at(values: set[int]) -> list[int]:
+            return _offsets(data, (v.to_bytes(4, sys.byteorder) for v in values))
+
+        lat_at, lng_at = at(present["lat"]), at(present["lng"])
+        found += sum(
+            1
+            for i in lat_at
+            if bisect.bisect_right(lng_at, i + PAIR_BYTES)
+            > bisect.bisect_left(lng_at, i - PAIR_BYTES)
+        )
+    return found
 
 
 def file_kind(path: Path) -> str:
@@ -930,7 +1066,8 @@ def scrub(paths: Sequence[Path], out_dir: Path, shift: Shift | None = None) -> l
     plans = {p: plan_file(p) for p in paths}
     if shift is None:
         shift = choose_shift([d for plan in plans.values() for d in plan.degrees("lat")])
-    sentinels = [d for plan in plans.values() for d in plan.sentinels()]
+    lats = [d for plan in plans.values() for d in dict.fromkeys(plan.degrees("lat"))]
+    lngs = [d for plan in plans.values() for d in dict.fromkeys(plan.degrees("lng"))]
     out_dir.mkdir(parents=True, exist_ok=True)
     outputs: list[Path] = []
     problems: list[str] = []
@@ -938,7 +1075,7 @@ def scrub(paths: Sequence[Path], out_dir: Path, shift: Shift | None = None) -> l
         for p, plan in plans.items():
             staged = Path(tmp) / p.name
             problems += scrub_file(p, plan, shift, staged)
-            leaks = find_leaks(staged.read_bytes(), sentinels)
+            leaks = find_position_leaks(staged.read_bytes(), lats, lngs)
             if leaks:
                 problems.append(f"{p.name}: {leaks} original position encoding(s) still present")
             outputs.append(staged)
