@@ -16,7 +16,7 @@ from typing import Any
 
 from flight_insights import __version__
 from flight_insights.dataflash.log import DataflashLog
-from flight_insights.fingerprint import Attr, fingerprint, score_archetypes
+from flight_insights.fingerprint import Attr, Fingerprint, fingerprint, score_archetypes
 from flight_insights.history import from_log, param_set_id
 from flight_insights.knowledge import Pack
 from flight_insights.segment import (
@@ -53,6 +53,43 @@ def _attr(a: Attr[Any]) -> dict[str, Any]:
     v: Any = a.value
     value = dataclasses.asdict(v) if dataclasses.is_dataclass(v) and not isinstance(v, type) else v
     return {"value": value, "source": a.source, "note": a.note}
+
+
+FINGERPRINT_ATTRS = (
+    "imu_count",
+    "imu_rates_hz",
+    "frame",
+    "motor_protocol",
+    "bidirectional_dshot",
+    "rpm_sources",
+    "notch_mode",
+    "cells",
+    "capacity_mah",
+    "hover_throttle",
+    "learned_hover_throttle",
+    "motor_hz_at_hover",
+    "gps",
+    "compasses",
+    "other_nav",
+    "ekf_sources",
+)
+
+
+def fingerprint_record(fp: Fingerprint, board: dict[str, Any]) -> dict[str, Any]:
+    """A fingerprint as JSON-ready data: each attribute with where it came from, and the
+    steady-hover windows that analyzers read their hover metrics in."""
+    return {
+        "vehicle": fp.vehicle,
+        "firmware": fp.firmware,
+        "board": board,
+        **{name: _attr(getattr(fp, name)) for name in FINGERPRINT_ATTRS},
+        "hover_s": fp.hover_s,
+        "flight_s": fp.flight_s,
+        "mode_s": fp.mode_s,
+        "hover_windows": [
+            dataclasses.asdict(w) | {"duration_s": w.duration_s} for w in fp.hover_windows
+        ],
+    }
 
 
 def analyze_log(
@@ -113,35 +150,7 @@ def analyze_log(
             "unknown": unknown,
             "in_flight_changes": [dataclasses.asdict(c) for c in snapshot.changes],
         },
-        "fingerprint": {
-            "vehicle": fp.vehicle,
-            "firmware": fp.firmware,
-            "board": board,
-            **{
-                name: _attr(getattr(fp, name))
-                for name in (
-                    "imu_count",
-                    "imu_rates_hz",
-                    "frame",
-                    "motor_protocol",
-                    "bidirectional_dshot",
-                    "rpm_sources",
-                    "notch_mode",
-                    "cells",
-                    "capacity_mah",
-                    "hover_throttle",
-                    "learned_hover_throttle",
-                    "motor_hz_at_hover",
-                    "gps",
-                    "compasses",
-                    "other_nav",
-                    "ekf_sources",
-                )
-            },
-            "hover_s": fp.hover_s,
-            "flight_s": fp.flight_s,
-            "mode_s": fp.mode_s,
-        },
+        "fingerprint": fingerprint_record(fp, board),
         "archetypes": {
             "calibrated": fp.rules_calibrated,
             "ranked": [dataclasses.asdict(s) for s in score_archetypes(fp, pack)[:TOP_ARCHETYPES]],

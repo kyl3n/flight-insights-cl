@@ -1,0 +1,83 @@
+{
+  "about": "Vibration and accelerometer clipping (spec: Reference range library, 'Vibration and estimator'). Zones from ArduPilot's own guidance.",
+  "metrics": {
+    "vibration.p95": {
+      "name": {
+        "en": "Vibration, 95th percentile",
+        "uk": "Вібрація, 95-й процентиль"
+      },
+      "unit": "m/s/s",
+      "direction": "lower",
+      "definition": {
+        "en": "How hard the accelerometers are shaken. Strong vibration corrupts the estimate of height and position and can make the aircraft climb or drift on its own. The worst axis of any IMU, as a level only 5% of the samples exceed.",
+        "uk": "Наскільки сильно трусить акселерометри. Сильна вібрація псує оцінку висоти й положення і може змусити апарат самовільно набирати висоту або зноситися. Найгірша вісь будь-якого IMU, рівень, який перевищують лише 5% вибірок."
+      },
+      "method": {
+        "en": "VIBE.VibeX, VibeY and VibeZ for every IMU, in the flight's steady-hover windows, or over the whole armed flight when it never hovered steadily. The 95th percentile of each axis; the highest is reported.",
+        "uk": "VIBE.VibeX, VibeY і VibeZ для кожного IMU у вікнах стабільного зависання, або за весь політ зі зброєю, якщо стабільного зависання не було. 95-й процентиль кожної осі; повідомляється найбільший."
+      },
+      "messages": ["VIBE"],
+      "zones": {
+        "target": [null, 30],
+        "caution": [30, 60],
+        "out": [60, null]
+      },
+      "source": {
+        "kind": "ardupilot",
+        "title": "ArduPilot: Measuring vibration (below 30 m/s/s normally fine, above 60 m/s/s nearly always a problem)",
+        "url": "https://ardupilot.org/copter/docs/common-measuring-vibration.html"
+      }
+    },
+    "vibration.clipping": {
+      "name": {
+        "en": "Accelerometer clipping",
+        "uk": "Обмеження акселерометра"
+      },
+      "unit": "count",
+      "direction": "lower",
+      "definition": {
+        "en": "How often an accelerometer reading hit the sensor's limit during the flight. A clipped reading is lost, so the estimator flies on wrong data while it lasts.",
+        "uk": "Скільки разів показання акселерометра впиралися в межу датчика під час польоту. Обмежене показання втрачене, тож поки воно триває, оцінювач працює на хибних даних."
+      },
+      "method": {
+        "en": "VIBE.Clip counts clipping events since boot, per IMU; the rise between arming and disarming, added over all IMUs.",
+        "uk": "VIBE.Clip рахує події обмеження від увімкнення, для кожного IMU; приріст між взведенням і зняттям зі зброї, сумарно за всіма IMU."
+      },
+      "messages": ["VIBE"],
+      "zones": {
+        "target": [0, 1],
+        "caution": [1, 100],
+        "out": [100, null]
+      },
+      "source": {
+        "kind": "ardupilot",
+        "title": "ArduPilot: Measuring vibration (clipping ideally zero, under 100 likely fine, for example from hard landings)",
+        "url": "https://ardupilot.org/copter/docs/common-measuring-vibration.html"
+      }
+    }
+  },
+  "findings": {
+    "vibration.high": {
+      "stage": "mechanical",
+      "title": {
+        "en": "Vibration {value} m/s/s on the {axis} axis (IMU {imu}) in {segment}",
+        "uk": "Вібрація {value} м/с² по осі {axis} (IMU {imu}), {segment}"
+      },
+      "action": {
+        "en": "Fix it at the source before touching filters: check propeller balance and damage, motor bearings and mounts, and how the flight controller is mounted. Then fly the same profile again.",
+        "uk": "Усуньте причину, перш ніж змінювати фільтри: перевірте балансування та пошкодження пропелерів, підшипники й кріплення моторів і кріплення польотного контролера. Потім повторіть той самий політ."
+      }
+    },
+    "vibration.clipping": {
+      "stage": "mechanical",
+      "title": {
+        "en": "The accelerometers clipped {count} times in this flight",
+        "uk": "Акселерометри обмежувалися {count} разів за цей політ"
+      },
+      "action": {
+        "en": "A few from a hard landing are harmless; a count that rises through the flight means the vibration is too strong for the sensors. Check the vibration level and the mounting.",
+        "uk": "Кілька подій від жорсткої посадки нешкідливі; якщо лічильник росте впродовж польоту, вібрація завелика для датчиків. Перевірте рівень вібрації та кріплення."
+      }
+    }
+  }
+}

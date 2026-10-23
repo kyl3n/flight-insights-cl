@@ -23,6 +23,7 @@
 | station.record_computer | This computer's facts, read by the shell (the shell's own call) |
 | station.folders / .add_folder / .remove_folder | Save folders this laptop watches, per station |
 | import.scan / .commit / .held / .resolve | Importing logs: see rpc/imports.py |
+| analysis.run / .get / .registry | Analysing a flight: see rpc/analysis.py |
 
 Position columns are never written to an IPC file in Phase 0. Keys arrive over
 stdin, live in memory only, and are never logged or echoed in an error.
@@ -45,6 +46,7 @@ from flight_insights.analysis import analyze_log, summary
 from flight_insights.dataflash import read_dataflash
 from flight_insights.fingerprint.board import system_id_rows
 from flight_insights.knowledge import Pack, load_pack
+from flight_insights.rpc.analysis import add_analysis_methods
 from flight_insights.rpc.imports import add_import_methods
 from flight_insights.rpc.server import (
     BAD_INPUT,
@@ -468,4 +470,5 @@ def build_server(out: IO[str], pack: Pack | None = None) -> Server:
         return {}
 
     add_import_methods(server, state, guarded)
+    add_analysis_methods(server, state, guarded)
     return server

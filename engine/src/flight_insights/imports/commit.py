@@ -15,7 +15,9 @@ airframe it matched.
 
 from __future__ import annotations
 
+import dataclasses
 import json
+import secrets
 from collections import defaultdict
 from collections.abc import Callable, Iterator, Sequence
 from dataclasses import asdict, dataclass, field
@@ -24,8 +26,10 @@ from typing import Any, Literal, cast
 import numpy as np
 import pyarrow as pa
 
+from flight_insights.analysis import fingerprint_record
 from flight_insights.dataflash import read_dataflash
 from flight_insights.dataflash.log import DataflashLog
+from flight_insights.fingerprint import fingerprint
 from flight_insights.fingerprint.board import system_id_rows
 from flight_insights.fingerprint.devices import to_json
 from flight_insights.history.changes import LoadedFile, diff_snapshots, label_changes
@@ -329,6 +333,14 @@ def _dataflash(
     new = [f for f in item.flights if _stored(store, f.key) is None]
     with read_dataflash(item.path) as df:
         skipped = cache_flights(df, cache, new)
+        # Worked out once, while the log is open: analyzers read the cache and this.
+        # The board's hash is the flight's own column, so a throwaway key does here.
+        fp = fingerprint(df, pack, secrets.token_bytes(32)) if new else None
+    fingerprint_json = (
+        json.dumps(fingerprint_record(fp, dataclasses.asdict(fp.board) | {"id_hash": None}))
+        if fp is not None
+        else None
+    )
     airframe_id = decision.airframe_id
     assert item.snapshot is not None and item.hardware is not None
     with store.transaction():
@@ -382,6 +394,7 @@ def _dataflash(
                     "hardware_json": json.dumps(to_json(item.hardware)),
                     "hold_json": hold,
                     "payload": (decision.payload or "").strip()[:200] or None,
+                    "fingerprint_json": fingerprint_json,
                 },
             )
             flight_ids.append(fid)

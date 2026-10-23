@@ -250,7 +250,8 @@ sys.exit(main(["rpc"]))
 
 
 def test_the_engine_makes_no_network_use(tmp_path: Path) -> None:
-    """Every Phase 0 method, run in an engine whose every socket call raises."""
+    """Every method that needs no stored flight, run in an engine whose every socket
+    call raises."""
     k = keys()
     requests: list[tuple[str, dict[str, Any]]] = [
         ("engine.hello", {}),
@@ -270,6 +271,8 @@ def test_the_engine_makes_no_network_use(tmp_path: Path) -> None:
         ("import.held", {}),
         ("station.folders", {}),
         ("import.unknown", {"paths": [str(LOG)]}),
+        ("analysis.registry", {}),
+        ("analysis.get", {"flight_id": "none"}),
         ("engine.shutdown", {}),
     ]
     stdin = "".join(
