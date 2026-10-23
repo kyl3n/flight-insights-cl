@@ -15,7 +15,7 @@ from flight_insights.knowledge import load_pack
 from flight_insights.platforms.records import create_airframe, create_platform
 from flight_insights.platforms.schema import load_schema
 from flight_insights.store import Store, StoreKeys, open_store
-from flight_insights.trends import baseline, events, overview, platform, series
+from flight_insights.trends import baseline, events, flight_list, overview, platform, series
 
 VIBE = "vibration.p95"  # lower is better; target below 30 m/s/s
 T0 = 1_760_000_000_000_000
@@ -173,6 +173,18 @@ def test_the_platform_view_marks_an_airframe_drifting_from_its_siblings(
     assert apart == {ids["HL1"]: False, ids["HL2"]: False, ids["HL3"]: False, ids["HL4"]: True}
 
 
+def test_the_flight_list_is_newest_first_with_its_worst_finding(store: Store) -> None:
+    af = airframe(store)
+    first = fly(store, af, 0, hover(12))
+    second = fly(store, af, 1, hover(70), bad=True)
+    listed = flight_list(store, airframe_id=af)
+    assert [f["id"] for f in listed] == [second, first]
+    assert listed[0]["analysis"]["worst"] == "out" and listed[1]["analysis"]["worst"] is None
+    assert listed[0]["airframe"] == "HL1" and listed[0]["utc_us"] is not None
+    assert flight_list(store, airframe_id="none") == []
+    assert [f["id"] for f in flight_list(store, flight_id=first)] == [first]
+
+
 def test_trends_over_rpc(tmp_path: Path) -> None:
     from test_rpc import LAPTOP, Output, call, keys
 
@@ -202,6 +214,8 @@ def test_trends_over_rpc(tmp_path: Path) -> None:
     view = call(server, out, 10, "trend.platform", platform_id=pl["id"], metric=card["metric"],
                 segment=card["segment"])["result"]  # fmt: skip
     assert [r["airframe"] for r in view["airframes"]] == [af["id"]]
+    [listed] = call(server, out, 13, "flight.list", airframe_id=af["id"])["result"]
+    assert listed["id"] == done["flights"][0] and listed["analysis"]["status"] == "complete"
     bad = call(server, out, 11, "trend.series", airframe_id=af["id"], metric="no.such")
     assert bad["error"]["code"] == -32602
     call(server, out, 12, "engine.shutdown")

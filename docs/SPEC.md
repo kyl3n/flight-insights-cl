@@ -1131,7 +1131,7 @@ Every number, chart point, log field and parameter in the app explains itself. H
 
 **Plotting at log scale.** The engine decimates series for display and sends full resolution only for the zoomed window. uPlot handles time series of millions of points; spectrograms render in WebGL.
 
-**Languages.** Interface text goes through an i18n layer from the first release, with English and Ukrainian as the initial languages. Parameter names stay in ArduPilot's English form everywhere.
+**Languages.** Interface text goes through an i18n layer from the first release, with English and Ukrainian as the initial languages. Parameter names stay in ArduPilot's English form everywhere. Units follow the language: Ukrainian writes SI symbols in Cyrillic (В, Вт, Гц, дБ, м/с²), as its own texts do. Numbers use each language's own decimal separator and digit grouping.
 
 ## Performance trends and ideal ranges
 
