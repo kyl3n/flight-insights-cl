@@ -3,15 +3,39 @@
   "title": "Flight log label",
   "description": "What a log in the test corpus is and what it should show. SITL fixtures carry one beside each log in tests/fixtures/; real fleet logs use the same format, kept with the logs outside the repository. Labels never hold positions, place names or identifiers.",
   "type": "object",
-  "required": ["source", "vehicle", "firmware", "description", "faults", "expected"],
+  "required": [
+    "source",
+    "vehicle",
+    "firmware",
+    "description",
+    "faults",
+    "expected"
+  ],
   "additionalProperties": false,
   "properties": {
     "source": {
-      "enum": ["sitl", "fleet"],
+      "enum": [
+        "sitl",
+        "fleet"
+      ],
       "description": "Simulator run or a real aircraft of the fleet"
     },
-    "vehicle": { "enum": ["copter", "heli", "plane", "quadplane"] },
-    "frame": { "type": "string", "description": "Frame as flown, e.g. 'quad +', 'octo X', 'tiltrotor'" },
+    "airframe": {
+      "type": "string",
+      "description": "Fleet logs: the airframe's name in the app, e.g. HL1. Never a serial number or board ID"
+    },
+    "vehicle": {
+      "enum": [
+        "copter",
+        "heli",
+        "plane",
+        "quadplane"
+      ]
+    },
+    "frame": {
+      "type": "string",
+      "description": "Frame as flown, e.g. 'quad +', 'octo X', 'tiltrotor'"
+    },
     "archetype": {
       "type": "string",
       "description": "Archetype an engineer assigned (spec: Vehicle fingerprinting), e.g. 'heavy-lift with variable payload'"
@@ -21,39 +45,200 @@
       "pattern": "^[0-9]+\\.[0-9]+\\.[0-9]+",
       "description": "ArduPilot version, e.g. 4.7.0"
     },
-    "ardupilot_commit": { "type": "string", "pattern": "^([0-9a-f]{7,40}|unknown)$" },
-    "scenario": { "type": "string", "description": "SITL scenario name, or a short name for the flight" },
-    "description": { "type": "string", "minLength": 1 },
+    "ardupilot_commit": {
+      "type": "string",
+      "pattern": "^([0-9a-f]{7,40}|unknown)$"
+    },
+    "scenario": {
+      "type": "string",
+      "description": "SITL scenario name, or a short name for the flight"
+    },
+    "purpose": {
+      "enum": [
+        "hover-test",
+        "tuning",
+        "autotune",
+        "payload-trial",
+        "mission",
+        "training",
+        "other"
+      ],
+      "description": "Why the flight was flown"
+    },
+    "payload": {
+      "type": "object",
+      "description": "What the aircraft carried; mass 0 for none",
+      "required": [
+        "mass_kg"
+      ],
+      "additionalProperties": false,
+      "properties": {
+        "mass_kg": {
+          "type": "number",
+          "minimum": 0
+        },
+        "type": {
+          "type": "string",
+          "description": "e.g. camera, spray tank, sling load"
+        },
+        "mount": {
+          "type": "string",
+          "description": "Where and how it is mounted, e.g. 'under the centre, rigid'"
+        }
+      }
+    },
+    "takeoff_mass_kg": {
+      "type": "number",
+      "exclusiveMinimum": 0
+    },
+    "packs": {
+      "type": "array",
+      "description": "Battery pack codes, e.g. B-12",
+      "items": {
+        "type": "string"
+      }
+    },
+    "conditions": {
+      "type": "object",
+      "description": "Conditions as the pilot judged them. Never name the site",
+      "additionalProperties": false,
+      "properties": {
+        "wind": {
+          "enum": [
+            "calm",
+            "light",
+            "moderate",
+            "gusty",
+            "strong"
+          ]
+        },
+        "temperature_c": {
+          "type": "number"
+        },
+        "note": {
+          "type": "string"
+        }
+      }
+    },
+    "handling": {
+      "type": "object",
+      "description": "How it flew, in the pilot's judgement",
+      "required": [
+        "rating"
+      ],
+      "additionalProperties": false,
+      "properties": {
+        "rating": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 5,
+          "description": "1 unsafe, 3 acceptable, 5 excellent"
+        },
+        "note": {
+          "type": "string"
+        }
+      }
+    },
+    "changes_since_last": {
+      "type": "array",
+      "description": "What changed since the airframe's previous flight: parameters, parts, payload",
+      "items": {
+        "type": "string"
+      }
+    },
+    "description": {
+      "type": "string",
+      "minLength": 1
+    },
     "parameters_set": {
       "type": "object",
       "description": "Parameters set on purpose for this log, beyond the defaults",
-      "additionalProperties": { "type": ["number", "string"] }
+      "additionalProperties": {
+        "type": [
+          "number",
+          "string"
+        ]
+      }
     },
     "faults": {
       "type": "array",
-      "description": "Faults injected (SITL) or known to be present (fleet)",
+      "description": "Faults injected (SITL) or known to be present (fleet). Kinds come from a fixed list so analyzer tests can check against them",
       "items": {
         "type": "object",
-        "required": ["kind", "description"],
+        "required": [
+          "kind",
+          "description"
+        ],
         "additionalProperties": false,
         "properties": {
-          "kind": { "type": "string", "description": "e.g. vibration, parameter-error, sensor-failure" },
-          "description": { "type": "string" },
-          "parameters": { "type": "array", "items": { "type": "string" } }
+          "kind": {
+            "enum": [
+              "vibration",
+              "oscillation",
+              "overshoot",
+              "slow-response",
+              "filter-setting",
+              "motor-esc",
+              "battery-sag",
+              "high-hover-throttle",
+              "compass-interference",
+              "gnss",
+              "cpu-logging",
+              "parameter-error",
+              "sensor-failure",
+              "other"
+            ]
+          },
+          "description": {
+            "type": "string"
+          },
+          "parameters": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "axis": {
+            "enum": [
+              "roll",
+              "pitch",
+              "yaw",
+              "x",
+              "y",
+              "z",
+              "all"
+            ]
+          },
+          "severity": {
+            "enum": [
+              "mild",
+              "moderate",
+              "severe"
+            ]
+          }
         }
       }
     },
     "expected": {
       "type": "array",
       "description": "What an engineer expects the log to show; analyzer golden tests check against these",
-      "items": { "type": "string" }
+      "items": {
+        "type": "string"
+      }
     },
     "fixes": {
       "type": "array",
       "description": "Fleet logs: what fixed the known problems",
-      "items": { "type": "string" }
+      "items": {
+        "type": "string"
+      }
     },
-    "labelled_by": { "type": "string" },
-    "labelled_on": { "type": "string", "format": "date" }
+    "labelled_by": {
+      "type": "string"
+    },
+    "labelled_on": {
+      "type": "string",
+      "format": "date"
+    }
   }
 }
