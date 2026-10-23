@@ -7,6 +7,7 @@ from __future__ import annotations
 import json
 import secrets
 import struct
+import sys
 from pathlib import Path
 from typing import Any, LiteralString
 
@@ -16,7 +17,7 @@ from df_builder import LogBuilder
 
 from flight_insights.dataflash import read_dataflash
 from flight_insights.dataflash.formats import text
-from flight_insights.fingerprint.board import system_id_row
+from flight_insights.fingerprint.board import system_id_row, system_id_rows
 from flight_insights.fingerprint.devices import (
     Hardware,
     can_nodes,
@@ -25,16 +26,26 @@ from flight_insights.fingerprint.devices import (
     from_json,
     to_json,
 )
-from flight_insights.imports import ConfirmedChange, Decision, commit, held, propose, resolve, scan
+from flight_insights.imports import (
+    ConfirmedChange,
+    Decision,
+    Result,
+    commit,
+    held,
+    propose,
+    resolve,
+    scan,
+)
 from flight_insights.knowledge import Pack, load_pack
 from flight_insights.platforms import create_airframe, create_platform, load_schema
-from flight_insights.store import Store, StoreKeys, open_store
+from flight_insights.store import Store, StoreKeys, _sqlcipher, open_store
 from flight_insights.store.cache import ColumnCache
 
 FIXTURES = Path(__file__).resolve().parents[2] / "tests" / "fixtures" / "sitl" / "4.7.0"
 QUAD = FIXTURES / "copter-quad-hover"
 LAPTOP = "f" * 32
 KEY = bytes(range(32))
+DAY_US = 86_400_000_000
 
 
 @pytest.fixture(scope="module")
@@ -88,6 +99,26 @@ def variant(tmp_path: Path, name: str, system_id: str | None = None, **params: f
     out = tmp_path / f"{name}.bin"
     out.write_bytes(data)
     return out
+
+
+def bench(tmp_path: Path) -> Path:
+    """The quad fixture cut off before it armed, logging while disarmed: a log with
+    parameters but no flight."""
+    data = variant(tmp_path, "full", LOG_DISARMED=1).read_bytes()
+    with read_dataflash(QUAD.with_suffix(".bin")) as df:
+        cut = min(
+            int(df.offsets(f)[0])
+            for name in ("ARM", "EV")
+            for f in df.formats_named(name)
+            if df.count_format(f)
+        )
+    out = tmp_path / "bench.bin"
+    out.write_bytes(data[:cut])
+    return out
+
+
+def count(store: Store, sql: str, *args: Any) -> int:
+    return store.conn.execute(sql, args).fetchone()[0]
 
 
 def airframe(store: Store, pack: Pack, name: str = "Q-1") -> str:
@@ -415,6 +446,115 @@ def test_skipped_and_unreadable_files_are_reported(
     assert store.conn.execute("SELECT count(*) FROM flight").fetchone()[0] == 0
 
 
+def test_a_flight_stored_since_the_scan_is_a_duplicate(
+    tmp_path: Path, pack: Pack, store: Store, cache: ColumnCache
+) -> None:
+    aid = airframe(store, pack)
+    log = variant(tmp_path, "a", system_id="board-A")
+    copy = tmp_path / "copy.bin"
+    copy.write_bytes(log.read_bytes())
+    decide: dict[str, Any] = {"airframe_id": aid}
+    _, _, results = run(store, pack, cache, [log, copy], {"f1": decide, "f2": decide})
+    assert [r.status for r in results] == ["imported", "duplicate"]
+    # two batches of the same log, both scanned before either is stored
+    other = variant(tmp_path, "b", system_id="board-A", STAT_BOOTCNT=1234)
+    first, second = (scan(store, pack, KEY, [other]) for _ in range(2))
+    for batch in (first, second):
+        proposals = propose(store, pack, batch)
+        (r,) = commit(store, pack, cache, batch, proposals, [Decision("f1", airframe_id=aid)])
+    assert r.status == "duplicate"
+    assert count(store, "SELECT count(*) FROM flight") == 2
+    assert count(store, "SELECT count(*) FROM flight_source") == 2
+
+
+def test_a_store_error_fails_only_its_own_file(
+    pack: Pack, store: Store, cache: ColumnCache, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    def broken(*_args: Any) -> Result:
+        raise _sqlcipher.IntegrityError("UNIQUE constraint failed")
+
+    monkeypatch.setattr(sys.modules["flight_insights.imports.commit"], "_tlog", broken)
+    aid = airframe(store, pack)
+    paths = [QUAD.with_suffix(e) for e in (".bin", ".tlog")]
+    _, _, results = run(store, pack, cache, paths, {"f1": {"airframe_id": aid}})
+    assert [r.status for r in results] == ["imported", "error"]
+    assert "IntegrityError" in (results[1].message or "")
+
+
+def test_a_bench_log_is_imported_as_the_chosen_airframe_s_snapshot(
+    tmp_path: Path, pack: Pack, store: Store, cache: ColumnCache
+) -> None:
+    aid = airframe(store, pack)
+    _, _, (r,) = run(store, pack, cache, [bench(tmp_path)], {"f1": {"airframe_id": aid}})
+    assert (r.status, r.flights) == ("imported", [])
+    assert count(store, "SELECT count(*) FROM param_snapshot WHERE airframe_id = ?", aid) == 1
+
+
+def test_a_parameter_file_is_kept_once_per_airframe(
+    pack: Pack, store: Store, cache: ColumnCache
+) -> None:
+    aid = airframe(store, pack)
+    param = QUAD.with_suffix(".param")
+    for status in ("imported", "duplicate"):
+        _, _, (r,) = run(store, pack, cache, [param], {"f1": {"airframe_id": aid}})
+        assert r.status == status
+    assert count(store, "SELECT count(*) FROM param_snapshot WHERE airframe_id = ?", aid) == 1
+
+
+def test_an_older_log_is_compared_with_the_flight_before_it(
+    tmp_path: Path, pack: Pack, store: Store, cache: ColumnCache
+) -> None:
+    aid = airframe(store, pack)
+    run(
+        store,
+        pack,
+        cache,
+        [variant(tmp_path, "a", system_id="board-A")],
+        {"f1": {"airframe_id": aid}},
+    )
+    newer = variant(tmp_path, "b", system_id="board-B", STAT_BOOTCNT=1234)
+    batch, _, (r,) = run(store, pack, cache, [newer], {"f1": {"airframe_id": aid}})
+    (fid,) = r.flights
+    row = store.get("flight", fid)
+    assert row is not None and row["boot_utc_us"] is not None
+    store.update("flight", fid, row["version"], {"boot_utc_us": row["boot_utc_us"] + DAY_US})
+    builds = count(store, "SELECT count(*) FROM build_version WHERE airframe_id = ?", aid)
+    # a log of board A from before board B flew, found later, with other tuning
+    older = variant(tmp_path, "c", system_id="board-A", STAT_BOOTCNT=1235, ATC_RAT_RLL_P=0.2)
+    _, (p,), (r,) = run(store, pack, cache, [older], {"f1": {"airframe_id": aid}})
+    assert (p.status, p.how, p.airframe_id) == ("ready", "board", aid)
+    assert r.status == "imported"
+    assert count(store, "SELECT count(*) FROM build_version WHERE airframe_id = ?", aid) == builds
+    current = store.get("airframe", aid)
+    assert current is not None and current["board_id_hash"] == batch[0].board_id_hash
+    assert count(store, "SELECT count(*) FROM change_set WHERE before_flight_id = ?", fid) == 0
+
+
+def test_a_file_gone_before_its_scan_is_its_own_error(
+    pack: Pack, store: Store, tmp_path: Path
+) -> None:
+    gone, ok = scan(store, pack, KEY, [tmp_path / "gone.bin", QUAD.with_suffix(".bin")])
+    assert "FileNotFoundError" in (gone.error or "")
+    assert ok.error is None and len(ok.flights) == 1
+
+
+def test_every_boot_s_system_id_is_found(tmp_path: Path) -> None:
+    b = LogBuilder()
+    b.fmt(0x84, "VER", "QB", "TimeUS,BT")
+    b.fmt(0x85, "MSG", "QZ", "TimeUS,Message")
+    for board in ("SECRET-1", "SECRET-2"):
+        b.write("VER", 1, 10)
+        b.write("MSG", 2, f"CubeOrange {board}".encode())
+        b.write("MSG", 3, b"ArduCopter V4.7.0")
+    path = tmp_path / "boots.bin"
+    path.write_bytes(b.bytes())
+    with read_dataflash(path) as df:
+        rows = system_id_rows(df)
+        found = [text(df.rows(f)["Message"][k].tobytes()) for f, k in rows]
+        assert system_id_row(df) == rows[0]
+    assert found == ["CubeOrange SECRET-1", "CubeOrange SECRET-2"]
+
+
 # --- over RPC -------------------------------------------------------------------------
 
 
@@ -467,3 +607,26 @@ def test_import_over_rpc(tmp_path: Path, pack: Pack) -> None:
     assert odd["error"]["code"] in (-32003, -32602)
     assert call(server, out, 9, "import.held")["result"] == []
     call(server, out, 10, "engine.shutdown")
+
+
+def test_a_batch_committed_twice_at_once_is_stored_once(tmp_path: Path, pack: Pack) -> None:
+    from test_rpc import Output, call
+
+    from flight_insights.rpc import build_server
+
+    out = Output()
+    server = build_server(out, pack)
+    keys = {k: secrets.token_hex(32) for k in ("database", "cache", "positions", "board_id")}
+    call(server, out, 1, "engine.unlock", laptop_id=LAPTOP, data_dir=str(tmp_path), keys=keys)
+    platform = call(server, out, 2, "platform.create", name="Quad", vehicle="copter")["result"]
+    af = call(server, out, 3, "airframe.create", platform_id=platform["id"], name="Q-1")["result"]
+    batch = call(server, out, 4, "import.scan", paths=[str(QUAD.with_suffix(".bin"))])["result"]
+    params = {"batch": batch["batch"], "decisions": [{"log": "f1", "airframe_id": af["id"]}]}
+    for rid in (5, 6):
+        server.handle_line(
+            json.dumps({"jsonrpc": "2.0", "id": rid, "method": "import.commit", "params": params})
+        )
+    first, second = sorted((out.reply(5), out.reply(6)), key=lambda r: "error" in r)
+    assert [r["status"] for r in first["result"]] == ["imported"]
+    assert second["error"]["code"] == -32003
+    call(server, out, 7, "engine.shutdown")

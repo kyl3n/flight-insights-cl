@@ -167,8 +167,10 @@ def add_import_methods(server: Server, state: EngineState, guarded: Callable[[An
         station = None
         if state.host_hash and (sid := stations.station_for_host(store, state.host_hash)):
             station = (store.get("ground_station", sid) or {}).get("current_version_id")
-        batch, proposals = batches[batch_id]
-        with state.lock:
+        with state.lock:  # a second commit of the batch waits here, then finds it gone
+            if batch_id not in batches:
+                raise RpcError(BAD_INPUT, "this batch is already imported: scan the files again")
+            batch, proposals = batches[batch_id]
             results = imports.commit(
                 store,
                 state.pack,
@@ -180,7 +182,7 @@ def add_import_methods(server: Server, state: EngineState, guarded: Callable[[An
                 ctx.progress,
                 ctx.check,
             )
-        del batches[batch_id]
+            del batches[batch_id]
         return [asdict(r) for r in results]
 
     @server.method("import.held")

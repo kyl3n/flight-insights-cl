@@ -37,11 +37,13 @@ from dataclasses import dataclass, field
 from pathlib import Path
 from typing import IO, Any, cast
 
+import numpy as np
 import pyarrow as pa
 
 from flight_insights import __version__, platforms, stations
 from flight_insights.analysis import analyze_log, summary
 from flight_insights.dataflash import read_dataflash
+from flight_insights.fingerprint.board import system_id_rows
 from flight_insights.knowledge import Pack, load_pack
 from flight_insights.rpc.imports import add_import_methods
 from flight_insights.rpc.server import (
@@ -203,7 +205,12 @@ def build_server(out: IO[str], pack: Pack | None = None) -> Server:
         with read_dataflash(path) as df:
             if name not in df.message_types:
                 raise RpcError(BAD_INPUT, f"the log has no {name} messages")
+            ids = [f for f in df.formats_named(name) if df.count_format(f)]
             table = df.table(name)
+            if secret := [int(df.offsets(f)[k]) for f, k in system_id_rows(df) if f in ids]:
+                # the board's raw system ID never reaches an unencrypted file
+                order = np.sort(np.concatenate([df.offsets(f) for f in ids]))
+                table = table.filter(pa.array(~np.isin(order, secret)))
         fields = schema_fields(table.schema)
         hidden = {f.name for f in fields if is_position(f)}
         if wanted is None:
