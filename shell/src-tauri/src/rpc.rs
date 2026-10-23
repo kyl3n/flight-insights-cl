@@ -95,12 +95,23 @@ impl RpcClient {
             return Err(RpcError::Closed);
         }
         let id = self.next_id.fetch_add(1, Ordering::SeqCst);
+        let method = serde_json::to_string(method).map_err(|e| RpcError::Io(e.to_string()))?;
+        // Built in one allocation sized up front, so the params (which may hold
+        // keys) are never copied into memory freed unwiped as the line grows.
+        let head = format!(r#"{{"jsonrpc":"2.0","id":{id},"method":{method},"params":"#);
+        let mut line =
+            zeroize::Zeroizing::new(String::with_capacity(head.len() + params_json.len() + 1));
+        line.push_str(&head);
+        line.push_str(params_json);
+        line.push('}');
         let (tx, rx) = mpsc::channel();
         self.pending.lock().expect("pending calls").insert(id, tx);
-        let method = serde_json::to_string(method).map_err(|e| RpcError::Io(e.to_string()))?;
-        let line = zeroize::Zeroizing::new(format!(
-            r#"{{"jsonrpc":"2.0","id":{id},"method":{method},"params":{params_json}}}"#
-        ));
+        // The reader may have closed after the check above and failed every call it
+        // knew of before this one was added: fail now, not after the whole timeout.
+        if self.is_closed() {
+            self.pending.lock().expect("pending calls").remove(&id);
+            return Err(RpcError::Closed);
+        }
         if let Err(e) = self.write_line(&line) {
             self.pending.lock().expect("pending calls").remove(&id);
             return Err(e);

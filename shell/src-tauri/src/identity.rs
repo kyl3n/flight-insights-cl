@@ -256,7 +256,9 @@ impl LaptopIdentity {
         self.signing.sign(message).to_bytes()
     }
 
-    /// The engine.unlock params, written straight into memory that is wiped on drop.
+    /// The engine.unlock params, written straight into memory that is wiped on drop:
+    /// each key is hex-encoded into a wiped buffer, and the text is built in one
+    /// allocation sized up front, so growing it never leaves a copy behind.
     /// `host` is this computer's host name, which the engine keeps only as a
     /// keyed hash, to recognise the ground station it runs on.
     pub fn unlock_params(
@@ -267,14 +269,43 @@ impl LaptopIdentity {
         let k = &self.store_keys;
         let dir = serde_json::to_string(data_dir).map_err(|e| e.to_string())?;
         let host = serde_json::to_string(&host).map_err(|e| e.to_string())?;
-        Ok(Zeroizing::new(format!(
-            r#"{{"laptop_id":"{}","data_dir":{dir},"host":{host},"keys":{{"database":"{}","cache":"{}","positions":"{}","board_id":"{}"}}}}"#,
-            self.laptop_id_hex(),
-            hex::encode(*k.database),
-            hex::encode(*k.cache),
-            hex::encode(*k.positions),
-            hex::encode(*k.board_id),
-        )))
+        let keys = [
+            ("database", &k.database),
+            ("cache", &k.cache),
+            ("positions", &k.positions),
+            ("board_id", &k.board_id),
+        ];
+        // The fixed text and the laptop ID take under 128 bytes; each key under 80.
+        let mut out = Zeroizing::new(String::with_capacity(
+            128 + dir.len() + host.len() + 80 * keys.len(),
+        ));
+        let capacity = out.capacity();
+        out.push_str(r#"{"laptop_id":""#);
+        out.push_str(&self.laptop_id_hex());
+        out.push_str(r#"","data_dir":"#);
+        out.push_str(&dir);
+        out.push_str(r#","host":"#);
+        out.push_str(&host);
+        out.push_str(r#","keys":{"#);
+        let mut hex = Zeroizing::new([0u8; 64]);
+        for (i, (name, key)) in keys.into_iter().enumerate() {
+            hex::encode_to_slice(**key, hex.as_mut()).map_err(|e| e.to_string())?;
+            if i > 0 {
+                out.push(',');
+            }
+            out.push('"');
+            out.push_str(name);
+            out.push_str(r#"":""#);
+            out.push_str(std::str::from_utf8(hex.as_ref()).expect("hex is ASCII"));
+            out.push('"');
+        }
+        out.push_str("}}");
+        debug_assert_eq!(
+            out.capacity(),
+            capacity,
+            "the unlock params outgrew their buffer"
+        );
+        Ok(out)
     }
 }
 
@@ -365,5 +396,12 @@ mod tests {
         for k in ["database", "cache", "positions", "board_id"] {
             assert_eq!(v["keys"][k].as_str().unwrap().len(), 64);
         }
+        assert_eq!(v["keys"]["database"], hex::encode(*id.store_keys.database));
+        assert_eq!(v["keys"]["board_id"], hex::encode(*id.store_keys.board_id));
+        // a long path still fits the buffer sized up front (checked in debug builds)
+        let long = "é\"\\".repeat(500);
+        let v: serde_json::Value =
+            serde_json::from_str(&id.unlock_params(&long, Some(&long)).unwrap()).unwrap();
+        assert_eq!(v["data_dir"], long.as_str());
     }
 }

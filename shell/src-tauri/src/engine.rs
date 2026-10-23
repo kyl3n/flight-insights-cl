@@ -93,6 +93,13 @@ impl Engine {
             const CREATE_NO_WINDOW: u32 = 0x0800_0000;
             command.creation_flags(CREATE_NO_WINDOW);
         }
+        // Its own process group, so `kill` reaches the Python process that a
+        // one-file bundle's bootloader starts, not only the bootloader.
+        #[cfg(unix)]
+        {
+            use std::os::unix::process::CommandExt;
+            command.process_group(0);
+        }
         let mut child = command.spawn().map_err(|e| {
             format!(
                 "could not start the engine ({}): {e}",
@@ -176,8 +183,18 @@ impl Engine {
         self.kill();
     }
 
+    /// Kill the engine. On Unix its whole process group, while the leader is not
+    /// yet reaped, so the group ID cannot belong to anything else. On Windows only
+    /// the process started: a one-file bundle's own child may outlive it.
     fn kill(&self) {
         let mut child = self.child.lock().expect("engine process");
+        #[cfg(unix)]
+        if matches!(child.try_wait(), Ok(None))
+            && let Ok(group) = libc::pid_t::try_from(child.id())
+        {
+            // SAFETY: killpg only sends a signal; the group is the engine's own.
+            unsafe { libc::killpg(group, libc::SIGKILL) };
+        }
         let _ = child.kill();
         let _ = child.wait();
     }
@@ -307,6 +324,51 @@ mod tests {
         };
         let err = Engine::start(&cmd, None, |_, _| {}).err().unwrap();
         assert!(err.contains("could not start the engine"));
+    }
+
+    /// Whether process `pid` has gone (or is only waiting to be reaped).
+    #[cfg(target_os = "linux")]
+    fn gone(pid: &str) -> bool {
+        match std::fs::read_to_string(format!("/proc/{pid}/stat")) {
+            Ok(stat) => stat
+                .rsplit_once(") ")
+                .is_some_and(|(_, s)| s.starts_with('Z')),
+            Err(_) => true,
+        }
+    }
+
+    #[cfg(target_os = "linux")]
+    #[test]
+    fn killing_the_engine_also_kills_what_it_started() {
+        // A stand-in for a one-file bundle: answers hello, then waits on a child.
+        let script = r#"read line; echo '{"jsonrpc":"2.0","id":1,"result":{}}'; sleep 300 & echo "child $!" >&2; wait"#;
+        let cmd = EngineCommand {
+            program: "sh".into(),
+            args: vec!["-c".into(), script.into()],
+        };
+        let (engine, _) = Engine::start(&cmd, None, |_, _| {}).unwrap();
+        let deadline = Instant::now() + Duration::from_secs(10);
+        let pid = loop {
+            let found = engine
+                .log_tail()
+                .iter()
+                .find_map(|l| l.strip_prefix("child ").map(str::to_owned));
+            if let Some(pid) = found {
+                break pid;
+            }
+            assert!(
+                Instant::now() < deadline,
+                "the stand-in never started its child"
+            );
+            thread::sleep(Duration::from_millis(10));
+        };
+        assert!(!gone(&pid));
+        drop(engine);
+        let deadline = Instant::now() + Duration::from_secs(10);
+        while !gone(&pid) && Instant::now() < deadline {
+            thread::sleep(Duration::from_millis(10));
+        }
+        assert!(gone(&pid), "the engine's child outlived it");
     }
 
     #[test]
