@@ -42,6 +42,12 @@ class Scenario:
     expected: list[str]
     fly: Callable[[Vehicle], None]
     params: dict[str, float | SetBits] = field(default_factory=dict)
+    boot_params: dict[str, float] = field(default_factory=dict)  # read at boot, as defaults
+    # A frame model from ArduPilot's Tools/autotest/models, flown carrying a payload.
+    model_json: str | None = None
+    payload_kg: float = 0.0
+    speedup: int | None = None  # slower than the runner's default where logging is heavy
+    faults: list[dict[str, Any]] = field(default_factory=list)  # planted on purpose, for the label
 
     def label(self, version: str, commit: str) -> dict[str, Any]:
         return {
@@ -52,10 +58,10 @@ class Scenario:
             "ardupilot_commit": commit,
             "scenario": self.name,
             "description": self.description,
-            "parameters_set": {
-                k: v.note if isinstance(v, SetBits) else v for k, v in self.params.items()
-            },
-            "faults": [],
+            "parameters_set": self.boot_params
+            | {k: v.note if isinstance(v, SetBits) else v for k, v in self.params.items()},
+            **({"payload": {"mass_kg": self.payload_kg}} if self.payload_kg else {}),
+            "faults": self.faults,
             "expected": self.expected,
         }
 
@@ -78,13 +84,24 @@ def land_and_disarm(v: Vehicle, mode: str = "LAND") -> None:
     v.wait_disarmed(120)
 
 
-def copter_hover(seconds: float) -> Callable[[Vehicle], None]:
+def copter_hover(
+    seconds: float, altitude: float = 10, raw_in_hover: bool = False
+) -> Callable[[Vehicle], None]:
+    """Take off, hover, land. With `raw_in_hover`, raw IMU logging runs during the hover
+    only, as for a filter test flight: a slow heavy-lift climb and descent would
+    otherwise fill the log."""
+
     def fly(v: Vehicle) -> None:
         v.mode("GUIDED")
         v.arm()
-        v.command(ML.MAV_CMD_NAV_TAKEOFF, 0, 0, 0, 0, 0, 0, 10)
-        v.wait_altitude(9.5)
+        v.command(ML.MAV_CMD_NAV_TAKEOFF, 0, 0, 0, 0, 0, 0, altitude)
+        v.wait_altitude(altitude - 0.5)
+        if raw_in_hover:
+            bitmask = v.get_param("LOG_BITMASK")
+            v.set_param("LOG_BITMASK", LOG_IMU_RAW(bitmask))
         v.hold(seconds)
+        if raw_in_hover:
+            v.set_param("LOG_BITMASK", bitmask)
         land_and_disarm(v)
 
     return fly
@@ -142,6 +159,68 @@ def quadplane_hover(v: Vehicle) -> None:
 
 COPTER = dict(binary="arducopter", model="+", defaults=["default_params/copter.parm"])
 
+# Motor vibration and ESC telemetry as ArduPilot's DynamicRpmNotches autotest simulates
+# them, with raw IMU logging, so filter analysis has a motor peak to find and both the
+# pre- and post-filter gyro to check its prediction against.
+VIBRATING = {
+    "SIM_VIB_MOT_MAX": 350,
+    "SIM_GYR1_RND": 20,
+    "SIM_ESC_TELEM": 1,
+    "INS_RAW_LOG_OPT": 9,
+    "LOG_DISARMED": 0,
+    "LOG_FILE_BUFSIZE": 64,
+}
+RAW_SPEEDUP = 2  # full-rate raw IMU logging drops data at the default speed-up
+
+# ArduPilot's heavy-lift SITL model: Callisto, a 32.5 kg coaxial octocopter on 30-inch
+# props, with the autotest's own defaults (which turn hover learning off).
+CALLISTO = dict(
+    binary="arducopter",
+    model="octa-quad",
+    model_json="Callisto.json",
+    defaults=[
+        "default_params/copter.parm",
+        "default_params/copter-octaquad.parm",
+        "models/Callisto.param",
+    ],
+    speedup=RAW_SPEEDUP,
+)
+# Eight motors add their vibration together: a quarter of the quad's per-motor amplitude
+# leaves a clear motor peak, where the full amount shook the simulated X8 off its hover.
+X8_VIBRATION = {"SIM_GYR1_RND": 5}
+# The notch follows throttle, though ESC RPM arrives: the better option is to track it.
+# Set up as an engineer would on the light flight (motor peak about 188 Hz at hover
+# throttle 0.375); carrying the payload, throttle tracking then runs behind the motors.
+THROTTLE_NOTCH = {
+    "INS_HNTCH_ENABLE": 1,
+    "INS_HNTCH_MODE": 1,
+    "INS_HNTCH_FREQ": 180,
+    "INS_HNTCH_REF": 0.375,
+    "INS_HNTCH_BW": 90,
+    "INS_HNTCH_HMNCS": 3,
+    "INS_HNTCH_ATT": 40,
+}
+HEAVY_LIFT_FAULTS = [
+    {
+        "kind": "filter-setting",
+        "description": "harmonic notch tracks throttle although ESC RPM telemetry is present",
+        "parameters": ["INS_HNTCH_MODE"],
+    },
+    {
+        "kind": "parameter-error",
+        "description": "hover-throttle learning off on an aircraft flown with and without payload",
+        "parameters": ["MOT_HOVER_LEARN"],
+    },
+]
+HEAVY_LIFT_EXPECTED = [
+    "one armed period with about 14 s of steady hover at 5 m",
+    "raw IMU logged during the hover only",
+    "ESC RPM from all eight motors",
+    "a motor vibration peak in the pre-filter gyro",
+    "a throttle-tracking notch: the better option is ESC RPM tracking (INS_HNTCH_MODE 3)",
+    "MOT_HOVER_LEARN 0: hover learning should be on for a variable payload",
+]
+
 SCENARIOS: dict[str, Scenario] = {
     s.name: s
     for s in [
@@ -163,19 +242,57 @@ SCENARIOS: dict[str, Scenario] = {
             name="copter-quad-rawimu",
             vehicle="copter",
             frame="quad +",
-            description="Short hover with pre- and post-filter primary gyro logged at full rate.",
+            description=(
+                "Short hover with simulated motor vibration, ESC RPM and an RPM-tracking"
+                " harmonic notch, with pre- and post-filter primary gyro logged at full rate."
+            ),
             expected=[
                 "INS_RAW_LOG_OPT = 9: primary gyro, pre- and post-filter",
-                "raw IMU messages for the whole armed period",
-                "about 10 s of steady hover",
+                "raw IMU messages for the whole armed period, with no logging gaps",
+                "about 6 s of steady hover at 4 m",
+                "a motor vibration peak in the pre-filter gyro, attenuated after the filters",
+                "the notch centre tracking ESC RPM (INS_HNTCH_MODE 3)",
             ],
-            fly=copter_hover(10),
-            params={
-                "INS_RAW_LOG_OPT": 9,
-                "LOG_BITMASK": LOG_IMU_RAW,
-                "SIM_ESC_TELEM": 0,  # not needed here; keeps the log small
+            fly=copter_hover(6, altitude=4),  # full-rate raw IMU fills a log fast
+            params={"LOG_BITMASK": LOG_IMU_RAW},
+            boot_params=VIBRATING
+            | {
+                "INS_HNTCH_ENABLE": 1,
+                "INS_HNTCH_MODE": 3,
+                "INS_HNTCH_FREQ": 80,
+                "INS_HNTCH_REF": 1,
+                "INS_HNTCH_HMNCS": 5,
+                "INS_HNTCH_ATT": 50,
+                "INS_HNTCH_BW": 40,
             },
+            speedup=RAW_SPEEDUP,
             **COPTER,  # type: ignore[arg-type]
+        ),
+        Scenario(
+            name="copter-heavylift-light",
+            vehicle="copter",
+            frame="octo coaxial X8",
+            description="Heavy-lift X8 without payload: GUIDED take-off to 5 m, 15 s hover, LAND.",
+            expected=HEAVY_LIFT_EXPECTED,
+            fly=copter_hover(15, altitude=5, raw_in_hover=True),
+            boot_params=VIBRATING | THROTTLE_NOTCH | X8_VIBRATION,
+            faults=HEAVY_LIFT_FAULTS,
+            **CALLISTO,  # type: ignore[arg-type]
+        ),
+        Scenario(
+            name="copter-heavylift-loaded",
+            vehicle="copter",
+            frame="octo coaxial X8",
+            description=(
+                "The same heavy-lift X8 carrying 8 kg more (40.5 kg in all):"
+                " GUIDED take-off to 5 m, 15 s hover, LAND."
+            ),
+            expected=[*HEAVY_LIFT_EXPECTED, "hover throttle higher than the light flight's"],
+            fly=copter_hover(15, altitude=5, raw_in_hover=True),
+            boot_params=VIBRATING | THROTTLE_NOTCH | X8_VIBRATION,
+            payload_kg=8.0,
+            faults=HEAVY_LIFT_FAULTS,
+            **CALLISTO,  # type: ignore[arg-type]
         ),
         Scenario(
             name="heli-hover",
