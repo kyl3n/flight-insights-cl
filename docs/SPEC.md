@@ -1132,6 +1132,24 @@ Every number, chart point, log field and parameter in the app explains itself. H
 
 **Plotting at log scale.** The engine decimates series for display and sends full resolution only for the zoomed window. uPlot handles time series of millions of points; spectrograms render in WebGL.
 
+- **How display reduction works:** each trace is cut into at most 600 time bins, and each bin keeps its lowest and highest sample. It is drawn as the band between them, so a single-sample spike still shows.
+- **Zooming:** a zoomed stretch is asked for again and gets its own bins. Where the stretch holds fewer samples than bins, every sample is sent.
+- **Analysis is unaffected:** analyzers never see the reduced traces.
+
+**Propulsion and power, and System and buses (Phase 1).** Both are tabs on the flight report, next to Report and Filters. Every plot of a flight shares one cursor and draws the same events: hover windows shaded, disarmed time dimmed, mode changes as lines, logged errors as ticks. Each view switches between the whole flight and its hover stretch.
+
+- **Propulsion and power:**
+  - **Per-motor table:** hover output, RPM, peak ESC temperature, current and supply voltage. The motor that works hardest, or runs hottest, is picked out when it is clearly above its siblings.
+  - **Plots:** outputs against the MOT_SPIN_MAX limit, then ESC RPM, temperature, current and voltage, and the battery's voltage, current, power and resistance.
+  - **Motor selection:** motors can be shown or hidden.
+  - **In the simulator:** the ESC's temperature, current and voltage are left out, because they are placeholders there.
+  - **Later:** the thrust-model fit and motor-out margin by payload come with the heavy-lift work (Phase 2).
+- **System and buses:**
+  - **Plots:** main-loop load, the share of long loops, the longest loop, and the messages the logger dropped since arming.
+  - **The loop period** from SCHED_LOOP_RATE.
+  - **Errors:** a table of the errors logged, grouped by subsystem and meaning, using the release's own names.
+  - **Not shown:** per-task CPU is not in the onboard log, and the latency budget is not built yet.
+
 **Languages.** Interface text goes through an i18n layer from the first release, with English and Ukrainian as the initial languages. Parameter names stay in ArduPilot's English form everywhere. Units follow the language: Ukrainian writes SI symbols in Cyrillic (В, Вт, Гц, дБ, м/с²), as its own texts do. Numbers use each language's own decimal separator and digit grouping.
 
 ## Performance trends and ideal ranges

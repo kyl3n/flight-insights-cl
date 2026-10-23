@@ -256,6 +256,8 @@ pub const UI_METHODS: &[&str] = &[
     "trend.platform",
     "flight.list",
     "fleet.overview",
+    "flight.propulsion",
+    "flight.system",
     "filter.workbench",
 ];
 

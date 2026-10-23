@@ -28,6 +28,8 @@
 | trend.overview / .series / .events / .platform | Trends and ideal ranges: see rpc/analysis.py |
 | flight.list | Flights with their analysis summary: see rpc/analysis.py |
 | fleet.overview | The fleet overview and what needs attention: see rpc/analysis.py |
+| flight.propulsion | Motors, ESCs and battery over a flight, for display: see rpc/analysis.py |
+| flight.system | Loop load, timing, logging drops and errors, for display: see rpc/analysis.py |
 | filter.workbench | Spectra and candidate filter predictions: see rpc/analysis.py |
 
 Position columns are never written to an IPC file in Phase 0. Keys arrive over

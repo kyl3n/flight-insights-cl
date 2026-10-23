@@ -181,6 +181,11 @@ def _general_name(code: int, codes: Mapping[str, list[str]]) -> str:
     return _words(candidates[0]) if code in (1, 4) and candidates else f"code {code}"
 
 
+def error_name(subsystem: str, code: int, codes: Mapping[str, list[str]]) -> str:
+    """What an error code means in its subsystem, in words."""
+    return _code_name(subsystem, code, codes) or _general_name(code, codes)
+
+
 def _errors(flight: FlightData, names: Mapping[str, Any], pm_errors: bool, out: Result) -> bool:
     err = flight.table("ERR")
     if err is None or err.num_rows == 0:
