@@ -293,6 +293,34 @@ def test_a_redefinition_that_changes_only_types_is_refused_cleanly(tmp_path: Pat
         df.table("RATE")
 
 
+@pytest.mark.parametrize("path", FIXTURE_LOGS[:2], ids=lambda p: str(p.relative_to(FIXTURES)))
+def test_one_pass_indexes_real_logs_like_two(path: Path) -> None:
+    """ArduPilot writes each FMT before its messages, so the second pass is skipped."""
+    from flight_insights.dataflash.formats import FMT_FORMAT, FMT_TYPE
+    from flight_insights.dataflash.index import _walk, index_log  # pyright: ignore[reportPrivateUsage]
+
+    data = path.read_bytes()
+    learned = {FMT_TYPE: FMT_FORMAT}
+    _walk(memoryview(data), learned)
+    two = _walk(memoryview(data), dict(learned))
+    one = index_log(data)
+    assert not one.early_types
+    assert (one.offsets == two.offsets).all()
+
+
+def test_batches_stream_a_type_in_file_order(tmp_path: Path) -> None:
+    log = LogBuilder()
+    log.fmt(0x92, "RATE", "Qf", "TimeUS,R")
+    for t in range(10):
+        log.write("RATE", t, t / 4)
+    with read_dataflash(write(tmp_path, log)) as df:
+        batches = list(df.iter_batches("RATE", rows=3))
+        assert [b.num_rows for b in batches] == [3, 3, 3, 1]
+        streamed = pa.Table.from_batches(batches)
+        assert streamed.column("TimeUS").to_pylist() == list(range(10))
+        assert set(df.decode_all()) == {"FMT", "UNIT", "MULT", "RATE"}
+
+
 def test_a_shortened_fmt_definition_cannot_overrun_the_buffer(tmp_path: Path) -> None:
     """A log that redefines FMT's own layout shorter, then ends in an FMT message that
     fits the short layout but not the real one (found by fuzzing): the message is
