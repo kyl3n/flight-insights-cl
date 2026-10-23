@@ -16,6 +16,7 @@ from collections.abc import Sequence
 from typing import Any
 
 from flight_insights import __version__
+from flight_insights.analyzers.buses import BUSES
 from flight_insights.analyzers.esc_rpm import ESC_RPM
 from flight_insights.analyzers.filter_model import FILTER_MODEL
 from flight_insights.analyzers.filters import FILTERS
@@ -34,7 +35,7 @@ from flight_insights.store.db import Store
 log = logging.getLogger(__name__)
 
 ANALYZERS: tuple[Analyzer, ...] = (
-    LOG_ADEQUACY, SYSTEM, VIBRATION, ESC_RPM, FILTER_MODEL, FILTERS, POWER, MOTORS_HEALTH,
+    LOG_ADEQUACY, SYSTEM, VIBRATION, ESC_RPM, FILTER_MODEL, FILTERS, POWER, MOTORS_HEALTH, BUSES,
 )  # fmt: skip
 
 

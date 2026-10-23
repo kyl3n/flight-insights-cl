@@ -1,0 +1,146 @@
+{
+  "about": "Buses and interfaces (spec: Bus, interface and processor health; Reference range library, 'Processor, buses and environment').",
+  "metrics": {
+    "bus.serial_dropped": {
+      "name": {
+        "en": "Serial data dropped",
+        "uk": "Відкинуті дані послідовного порту"
+      },
+      "unit": "B/s",
+      "direction": "lower",
+      "definition": {
+        "en": "Incoming bytes per second a serial port received but could not process, for the worst port. A GPS, telemetry radio, ESC telemetry or companion computer on that port loses data.",
+        "uk": "Вхідні байти за секунду, які послідовний порт отримав, але не встиг обробити, для найгіршого порту. GPS, телеметрійне радіо, телеметрія ESC чи бортовий комп'ютер на цьому порту втрачає дані."
+      },
+      "method": {
+        "en": "The highest UART.RxDp of any port between arming and disarming.",
+        "uk": "Найбільше UART.RxDp будь-якого порту між взведенням і зняттям зі зброї."
+      },
+      "messages": [
+        "UART"
+      ],
+      "zones": {
+        "target": [
+          null,
+          1
+        ],
+        "caution": [
+          1,
+          null
+        ]
+      },
+      "source": {
+        "kind": "ardupilot",
+        "title": "ArduPilot LogStructure (AP_HAL): UART.RxDp, the rate of dropped received bytes, ideally 0",
+        "url": "https://github.com/ArduPilot/ardupilot/blob/Copter-4.7.0/libraries/AP_HAL/LogStructure.h"
+      }
+    },
+    "bus.errors": {
+      "name": {
+        "en": "Bus and sensor errors",
+        "uk": "Помилки шин і датчиків"
+      },
+      "unit": "count",
+      "direction": "lower",
+      "definition": {
+        "en": "Errors on the aircraft's internal links during the flight: CAN bus, the IO co-processor that drives the outputs, and the IMU drivers.",
+        "uk": "Помилки внутрішніх зв'язків апарата під час польоту: шина CAN, IO-співпроцесор, що керує виходами, і драйвери IMU."
+      },
+      "method": {
+        "en": "Rises between arming and disarming of the CANS error counters (transmit rejects, overflows, timeouts and aborts, receive overflows and errors, bus-off, failed ESC and servo sends), IOMC failures and delayed packets, and IMU.EG and IMU.EA, added up.",
+        "uk": "Приріст між взведенням і зняттям зі зброї лічильників помилок CANS (відмови, переповнення, тайм-аути й скасування передавання, переповнення й помилки приймання, bus-off, невдалі надсилання до ESC і сервоприводів), збоїв і затриманих пакетів IOMC, а також IMU.EG і IMU.EA, сумарно."
+      },
+      "messages": [
+        "CANS",
+        "IOMC",
+        "IMU"
+      ],
+      "zones": {
+        "target": [
+          null,
+          1
+        ],
+        "caution": [
+          1,
+          null
+        ]
+      },
+      "source": {
+        "kind": "app",
+        "title": "App rule: zero is the target, isolated errors a caution, errors growing through a flight out of range (no published range)"
+      }
+    },
+    "bus.gps_gap": {
+      "name": {
+        "en": "Longest GPS update gap",
+        "uk": "Найдовша пауза оновлень GPS"
+      },
+      "unit": "s",
+      "direction": "lower",
+      "definition": {
+        "en": "The longest time between GPS position updates while armed. The estimator coasts without position during a gap.",
+        "uk": "Найдовший час між оновленнями позиції GPS під час польоту. Під час паузи оцінювач летить без позиції."
+      },
+      "method": {
+        "en": "The longest interval between GPS messages of any receiver between arming and disarming.",
+        "uk": "Найдовший інтервал між повідомленнями GPS будь-якого приймача між взведенням і зняттям зі зброї."
+      },
+      "messages": [
+        "GPS"
+      ],
+      "zones": {
+        "target": [
+          null,
+          0.5
+        ],
+        "caution": [
+          0.5,
+          2
+        ],
+        "out": [
+          2,
+          null
+        ]
+      },
+      "source": {
+        "kind": "app",
+        "title": "App rule, uncalibrated: receivers update at 5 to 10 Hz; half a second without one is a gap, two seconds a loss"
+      }
+    }
+  },
+  "findings": {
+    "bus.serial_drops": {
+      "stage": "setup",
+      "title": {
+        "en": "SERIAL{port} ({protocol}) dropped up to {rate} bytes/s of incoming data",
+        "uk": "SERIAL{port} ({protocol}) відкидав до {rate} байт/с вхідних даних"
+      },
+      "action": {
+        "en": "The port cannot keep up: raise its baud rate if the device allows, reduce the data the device sends, or enable flow control.",
+        "uk": "Порт не встигає: підвищте швидкість обміну, якщо пристрій дозволяє, зменште обсяг даних, які він надсилає, або ввімкніть керування потоком."
+      }
+    },
+    "bus.errors": {
+      "stage": "mechanical",
+      "title": {
+        "en": "{count} bus and sensor errors in flight, {pattern}: {sources}",
+        "uk": "{count} помилок шин і датчиків у польоті, {pattern}: {sources}"
+      },
+      "action": {
+        "en": "Errors from boot point to wiring or CAN termination; errors that grow with flight point to routing near power wires or vibration at a connector. Check that bus's connectors, termination and cable routing.",
+        "uk": "Помилки від увімкнення вказують на проводку або термінацію CAN; помилки, що зростають у польоті, — на прокладання поруч силових проводів або вібрацію роз'єму. Перевірте роз'єми, термінацію та прокладання кабелю цієї шини."
+      }
+    },
+    "bus.gps_gaps": {
+      "stage": "navigation",
+      "title": {
+        "en": "GPS updates stopped for {seconds} s in flight",
+        "uk": "Оновлення GPS зупинялися на {seconds} с у польоті"
+      },
+      "action": {
+        "en": "Check the GPS serial port for dropped data, the receiver's update rate, and its cable and connector.",
+        "uk": "Перевірте послідовний порт GPS на відкинуті дані, частоту оновлень приймача, його кабель і роз'єм."
+      }
+    }
+  }
+}
