@@ -1,0 +1,626 @@
+{
+  "about": "The Better options catalog for multicopters (spec: Configuration review, 'Better options'). Each option says when the aircraft is set up the weaker way, what the better way is, what it needs, and what it brings. The engine works out facts about the aircraft (engine/src/flight_insights/analyzers/facts.py); an option whose needs all hold is available now as parameter changes, one whose hardware cannot do it needs hardware, and one that depends on something unknown asks a question that the platform setup stores. Cases another analyzer already reports with its fix (a throttle notch while ESC RPM is reliable: filter.better_source) are left out here.",
+  "version": 1,
+  "questions": {
+    "esc_dshot_capable": {
+      "field": "esc_firmware",
+      "text": {
+        "en": "Which firmware do the ESCs run: BLHeli_32, AM32, Bluejay, BLHeli_S or other?",
+        "uk": "Яку прошивку мають ESC: BLHeli_32, AM32, Bluejay, BLHeli_S чи іншу?"
+      }
+    },
+    "esc_bdshot_capable": {
+      "field": "esc_firmware",
+      "text": {
+        "en": "Which firmware do the ESCs run: BLHeli_32, AM32, Bluejay, BLHeli_S or other?",
+        "uk": "Яку прошивку мають ESC: BLHeli_32, AM32, Bluejay, BLHeli_S чи іншу?"
+      }
+    },
+    "variable_payload": {
+      "field": "payload",
+      "text": {
+        "en": "Does the payload change between flights or during a flight?",
+        "uk": "Чи змінюється навантаження між польотами або під час польоту?"
+      }
+    },
+    "batt_volt_max": {
+      "field": "battery_chemistry",
+      "text": {
+        "en": "What chemistry are the battery packs: LiPo, LiHV, Li-ion or LiFePO4?",
+        "uk": "Яка хімія батарей: LiPo, LiHV, Li-ion чи LiFePO4?"
+      }
+    }
+  },
+  "options": {
+    "dshot_output": {
+      "area": "motors",
+      "subsystem": "motor_outputs",
+      "title": {
+        "en": "Drive the ESCs with DShot instead of PWM",
+        "uk": "Керуйте ESC через DShot замість PWM"
+      },
+      "hardware": {
+        "en": "ESCs that understand DShot",
+        "uk": "ESC, що підтримують DShot"
+      },
+      "benefit": {
+        "en": "DShot is digital: no ESC calibration, no drift, and it opens the way to bidirectional DShot, which reports each motor's RPM for the harmonic notch.",
+        "uk": "DShot цифровий: без калібрування ESC, без дрейфу, і він відкриває шлях до двонаправленого DShot, що повідомляє оберти кожного мотора для гармонійного режекторного фільтра."
+      },
+      "how": {
+        "en": "Set MOT_PWM_TYPE to DShot600 and reboot. The main outputs of boards with an IO co-processor do not support DShot; use the outputs the board's documentation lists.",
+        "uk": "Встановіть MOT_PWM_TYPE у DShot600 і перезавантажте. Основні виходи плат з IO-співпроцесором не підтримують DShot; використайте виходи, вказані в документації плати."
+      },
+      "applies": [
+        {
+          "fact": "copter",
+          "is": true
+        },
+        {
+          "fact": "heli",
+          "is": false
+        }
+      ],
+      "when": [
+        {
+          "fact": "dshot_output",
+          "is": false
+        },
+        {
+          "param": "MOT_PWM_TYPE",
+          "in": [
+            0,
+            1,
+            2
+          ]
+        }
+      ],
+      "outcomes": [
+        {
+          "outcome": "available",
+          "requires": [
+            {
+              "fact": "esc_dshot_capable",
+              "is": true
+            }
+          ],
+          "changes": [
+            {
+              "param": "MOT_PWM_TYPE",
+              "value": 6
+            }
+          ]
+        },
+        {
+          "outcome": "hardware",
+          "requires": [
+            {
+              "fact": "esc_dshot_capable",
+              "is": false
+            }
+          ]
+        }
+      ],
+      "benefit_by_priority": {
+        "stability": 2,
+        "agility": 2,
+        "endurance": 1,
+        "efficiency": 1
+      },
+      "cost": "reboot",
+      "sources": [
+        {
+          "kind": "ardupilot",
+          "title": "ArduPilot: DShot ESCs",
+          "url": "https://ardupilot.org/copter/docs/common-dshot-escs.html"
+        }
+      ]
+    },
+    "bdshot_enable": {
+      "area": "filters",
+      "subsystem": "rpm_sources",
+      "title": {
+        "en": "Turn on bidirectional DShot so every motor reports its RPM",
+        "uk": "Увімкніть двонаправлений DShot, щоб кожен мотор повідомляв свої оберти"
+      },
+      "hardware": {
+        "en": "ESC firmware with bidirectional DShot (BLHeli_32, AM32 or Bluejay)",
+        "uk": "Прошивка ESC із двонаправленим DShot (BLHeli_32, AM32 або Bluejay)"
+      },
+      "benefit": {
+        "en": "With every motor's RPM, the harmonic notch follows the real motor speed at any payload or battery voltage, which ArduPilot calls generally the best source. It also gives per-motor health data.",
+        "uk": "З обертами кожного мотора гармонійний режекторний фільтр стежить за справжньою швидкістю моторів за будь-якого навантаження чи напруги батареї; ArduPilot вважає це загалом найкращим джерелом. Також це дає дані про стан кожного мотора."
+      },
+      "how": {
+        "en": "Set SERVO_BLH_BDMASK to the motor outputs, set SERVO_BLH_POLES to the motors' magnet count, and reboot. The board must support bidirectional DShot on those outputs. Then the notch can follow ESC RPM (INS_HNTCH_MODE 3, REF 1).",
+        "uk": "Встановіть SERVO_BLH_BDMASK на виходи моторів, SERVO_BLH_POLES — на кількість магнітів моторів і перезавантажте. Плата має підтримувати двонаправлений DShot на цих виходах. Тоді фільтр зможе стежити за обертами ESC (INS_HNTCH_MODE 3, REF 1)."
+      },
+      "applies": [
+        {
+          "fact": "copter",
+          "is": true
+        },
+        {
+          "fact": "heli",
+          "is": false
+        }
+      ],
+      "when": [
+        {
+          "fact": "esc_rpm_reliable",
+          "is": false
+        },
+        {
+          "fact": "bdshot_enabled",
+          "is": false
+        },
+        {
+          "fact": "dshot_output",
+          "is": true
+        }
+      ],
+      "outcomes": [
+        {
+          "outcome": "available",
+          "requires": [
+            {
+              "fact": "esc_bdshot_capable",
+              "is": true
+            }
+          ],
+          "changes": [
+            {
+              "param": "SERVO_BLH_BDMASK",
+              "value": {
+                "fact": "motor_mask"
+              }
+            }
+          ]
+        },
+        {
+          "outcome": "hardware",
+          "requires": [
+            {
+              "fact": "esc_bdshot_capable",
+              "is": false
+            }
+          ]
+        }
+      ],
+      "benefit_by_priority": {
+        "stability": 3,
+        "agility": 3,
+        "endurance": 2,
+        "efficiency": 2
+      },
+      "cost": "reboot",
+      "sources": [
+        {
+          "kind": "ardupilot",
+          "title": "ArduPilot: ESC telemetry based dynamic notch",
+          "url": "https://ardupilot.org/copter/docs/common-esc-telem-based-notch.html"
+        },
+        {
+          "kind": "ardupilot",
+          "title": "ArduPilot: DShot ESCs",
+          "url": "https://ardupilot.org/copter/docs/common-dshot-escs.html"
+        }
+      ]
+    },
+    "notch_all_imus": {
+      "area": "filters",
+      "subsystem": "harmonic_notch",
+      "title": {
+        "en": "Run the harmonic notch on every IMU",
+        "uk": "Застосуйте гармонійний режекторний фільтр до кожного IMU"
+      },
+      "hardware": {
+        "en": "A processor with time to spare",
+        "uk": "Процесор із запасом часу"
+      },
+      "benefit": {
+        "en": "By default only the IMU in use is notched. If the estimator switches to another IMU in flight, that one's gyro reaches the controllers unfiltered.",
+        "uk": "Типово фільтрується лише IMU, що використовується. Якщо оцінювач у польоті перемкнеться на інший IMU, його гіроскоп надійде до регуляторів без фільтрації."
+      },
+      "how": {
+        "en": "Set INS_HNTCH_OPTS bit 3 (EnableOnAllIMUs) and reboot. It multiplies the notch count by the number of IMUs.",
+        "uk": "Встановіть біт 3 INS_HNTCH_OPTS (EnableOnAllIMUs) і перезавантажте. Це множить кількість фільтрів на кількість IMU."
+      },
+      "applies": [
+        {
+          "fact": "copter",
+          "is": true
+        }
+      ],
+      "when": [
+        {
+          "fact": "notch_enabled",
+          "is": true
+        },
+        {
+          "fact": "imu_count",
+          "gt": 1
+        },
+        {
+          "param": "INS_HNTCH_OPTS",
+          "bit_clear": 3
+        }
+      ],
+      "outcomes": [
+        {
+          "outcome": "available",
+          "requires": [
+            {
+              "fact": "cpu_headroom",
+              "is": true
+            }
+          ],
+          "changes": [
+            {
+              "param": "INS_HNTCH_OPTS",
+              "value": {
+                "or_bits": 8
+              }
+            }
+          ]
+        }
+      ],
+      "benefit_by_priority": {
+        "stability": 2,
+        "agility": 1,
+        "endurance": 1,
+        "efficiency": 0
+      },
+      "cost": "reboot",
+      "sources": [
+        {
+          "kind": "ardupilot",
+          "title": "ArduPilot: Managing gyro noise with the dynamic harmonic notch filters",
+          "url": "https://ardupilot.org/copter/docs/common-imu-notch-filtering.html"
+        }
+      ]
+    },
+    "notch_loop_rate": {
+      "area": "filters",
+      "subsystem": "harmonic_notch",
+      "title": {
+        "en": "Update the RPM-tracking notch at loop rate",
+        "uk": "Оновлюйте фільтр за обертами з частотою головного циклу"
+      },
+      "hardware": {
+        "en": "An H7 board with time to spare",
+        "uk": "Плата H7 із запасом часу процесора"
+      },
+      "benefit": {
+        "en": "With bidirectional DShot the notch can move with the motors at the full loop rate instead of 200 times a second, so it follows fast throttle changes more closely.",
+        "uk": "З двонаправленим DShot фільтр може рухатися разом із моторами з повною частотою циклу замість 200 разів на секунду й точніше стежити за швидкими змінами газу."
+      },
+      "how": {
+        "en": "Set INS_HNTCH_OPTS bit 2 (Update at loop rate) and reboot.",
+        "uk": "Встановіть біт 2 INS_HNTCH_OPTS (оновлення з частотою циклу) і перезавантажте."
+      },
+      "applies": [
+        {
+          "fact": "copter",
+          "is": true
+        }
+      ],
+      "when": [
+        {
+          "param": "INS_HNTCH_MODE",
+          "eq": 3
+        },
+        {
+          "fact": "bdshot_enabled",
+          "is": true
+        },
+        {
+          "param": "INS_HNTCH_OPTS",
+          "bit_clear": 2
+        }
+      ],
+      "outcomes": [
+        {
+          "outcome": "available",
+          "requires": [
+            {
+              "fact": "board_h7",
+              "is": true
+            },
+            {
+              "fact": "cpu_headroom",
+              "is": true
+            }
+          ],
+          "changes": [
+            {
+              "param": "INS_HNTCH_OPTS",
+              "value": {
+                "or_bits": 4
+              }
+            }
+          ]
+        }
+      ],
+      "benefit_by_priority": {
+        "stability": 1,
+        "agility": 2,
+        "endurance": 0,
+        "efficiency": 0
+      },
+      "cost": "reboot",
+      "sources": [
+        {
+          "kind": "ardupilot",
+          "title": "ArduPilot: Managing gyro noise with the dynamic harmonic notch filters",
+          "url": "https://ardupilot.org/copter/docs/common-imu-notch-filtering.html"
+        }
+      ]
+    },
+    "hover_learn": {
+      "area": "control",
+      "subsystem": "thrust_model",
+      "title": {
+        "en": "Let the autopilot learn hover throttle and keep it",
+        "uk": "Дайте автопілоту вивчати й зберігати газ зависання"
+      },
+      "hardware": {
+        "en": "Nothing",
+        "uk": "Нічого"
+      },
+      "benefit": {
+        "en": "With a payload that changes, the hover throttle the controllers assume changes too. Learning it keeps altitude control and the throttle-based estimates right at every payload.",
+        "uk": "Коли навантаження змінюється, змінюється й газ зависання, який припускають регулятори. Його вивчення тримає керування висотою й оцінки за газом правильними за будь-якого навантаження."
+      },
+      "how": {
+        "en": "Set MOT_HOVER_LEARN to 2 (learn and save).",
+        "uk": "Встановіть MOT_HOVER_LEARN у 2 (вивчати й зберігати)."
+      },
+      "applies": [
+        {
+          "fact": "copter",
+          "is": true
+        }
+      ],
+      "when": [
+        {
+          "param": "MOT_HOVER_LEARN",
+          "in": [
+            0,
+            1
+          ]
+        }
+      ],
+      "outcomes": [
+        {
+          "outcome": "available",
+          "requires": [
+            {
+              "fact": "variable_payload",
+              "is": true
+            }
+          ],
+          "changes": [
+            {
+              "param": "MOT_HOVER_LEARN",
+              "value": 2
+            }
+          ]
+        }
+      ],
+      "benefit_by_priority": {
+        "stability": 2,
+        "agility": 1,
+        "endurance": 1,
+        "efficiency": 1
+      },
+      "cost": "parameter",
+      "sources": [
+        {
+          "kind": "ardupilot",
+          "title": "ArduPilot: Hover throttle (MOT_HOVER_LEARN)",
+          "url": "https://ardupilot.org/copter/docs/ac_throttlemid.html"
+        }
+      ]
+    },
+    "battery_voltage_scaling": {
+      "area": "power",
+      "subsystem": "thrust_model",
+      "title": {
+        "en": "Scale motor thrust for battery voltage",
+        "uk": "Масштабуйте тягу моторів за напругою батареї"
+      },
+      "hardware": {
+        "en": "A battery monitor",
+        "uk": "Монітор батареї"
+      },
+      "benefit": {
+        "en": "As the pack sags, the same motor command gives less thrust. Voltage scaling keeps the controllers' gains effective from a full pack to an empty one.",
+        "uk": "Коли батарея просідає, та сама команда моторам дає меншу тягу. Масштабування за напругою зберігає дію коефіцієнтів регуляторів від повної батареї до порожньої."
+      },
+      "how": {
+        "en": "Set MOT_BAT_VOLT_MAX and MOT_BAT_VOLT_MIN to the pack's full and empty voltage under load, as proposed from the cell count and chemistry.",
+        "uk": "Встановіть MOT_BAT_VOLT_MAX і MOT_BAT_VOLT_MIN на повну й порожню напругу батареї під навантаженням, як запропоновано за кількістю елементів і хімією."
+      },
+      "applies": [
+        {
+          "fact": "copter",
+          "is": true
+        }
+      ],
+      "when": [
+        {
+          "param": "MOT_BAT_VOLT_MAX",
+          "eq": 0
+        },
+        {
+          "fact": "cells",
+          "gt": 0
+        }
+      ],
+      "outcomes": [
+        {
+          "outcome": "available",
+          "requires": [
+            {
+              "fact": "batt_volt_max",
+              "gt": 0
+            }
+          ],
+          "changes": [
+            {
+              "param": "MOT_BAT_VOLT_MAX",
+              "value": {
+                "fact": "batt_volt_max"
+              }
+            },
+            {
+              "param": "MOT_BAT_VOLT_MIN",
+              "value": {
+                "fact": "batt_volt_min"
+              }
+            }
+          ]
+        }
+      ],
+      "benefit_by_priority": {
+        "stability": 2,
+        "agility": 1,
+        "endurance": 1,
+        "efficiency": 1
+      },
+      "cost": "parameter",
+      "sources": [
+        {
+          "kind": "ardupilot",
+          "title": "ArduPilot: Motor thrust scaling (4.2 V and 3.3 V a cell for LiPo)",
+          "url": "https://ardupilot.org/copter/docs/motor-thrust-scaling.html"
+        }
+      ]
+    },
+    "log_per_flight": {
+      "area": "logging",
+      "subsystem": "logging",
+      "title": {
+        "en": "Start a new log file at every disarm",
+        "uk": "Починайте новий файл журналу після кожного зняття зі зброї"
+      },
+      "hardware": {
+        "en": "Nothing",
+        "uk": "Нічого"
+      },
+      "benefit": {
+        "en": "One flight per file imports cleanly, keeps files small, and a damaged file loses one flight instead of a day.",
+        "uk": "Один політ на файл імпортується чисто, файли лишаються малими, а пошкоджений файл втрачає один політ, а не цілий день."
+      },
+      "how": {
+        "en": "Set LOG_FILE_DSRMROT to 1.",
+        "uk": "Встановіть LOG_FILE_DSRMROT у 1."
+      },
+      "applies": [],
+      "when": [
+        {
+          "param": "LOG_FILE_DSRMROT",
+          "eq": 0
+        }
+      ],
+      "outcomes": [
+        {
+          "outcome": "available",
+          "requires": [],
+          "changes": [
+            {
+              "param": "LOG_FILE_DSRMROT",
+              "value": 1
+            }
+          ]
+        }
+      ],
+      "benefit_by_priority": {
+        "stability": 0,
+        "agility": 0,
+        "endurance": 0,
+        "efficiency": 0
+      },
+      "cost": "parameter",
+      "sources": [
+        {
+          "kind": "ardupilot",
+          "title": "ArduPilot parameter LOG_FILE_DSRMROT",
+          "url": "https://ardupilot.org/copter/docs/parameters.html"
+        }
+      ]
+    },
+    "fast_rate_loop": {
+      "area": "control",
+      "subsystem": "control_loop",
+      "title": {
+        "en": "Run the rate controller in its own fast thread",
+        "uk": "Запускайте регулятор кутової швидкості в окремому швидкому потоці"
+      },
+      "hardware": {
+        "en": "An H7 board with time to spare",
+        "uk": "Плата H7 із запасом часу процесора"
+      },
+      "benefit": {
+        "en": "ArduPilot 4.7 can run the rate loop at the gyro rate in a thread of its own, cutting the delay between a gyro sample and the motors' response.",
+        "uk": "ArduPilot 4.7 може виконувати контур кутової швидкості з частотою гіроскопа в окремому потоці, скорочуючи затримку між вибіркою гіроскопа й реакцією моторів."
+      },
+      "how": {
+        "en": "Set FSTRATE_ENABLE to 1 (dynamic: it backs off when the processor is busy), then check slow loops and CPU load on the next flight.",
+        "uk": "Встановіть FSTRATE_ENABLE у 1 (динамічно: потік відступає, коли процесор зайнятий), потім перевірте повільні цикли й завантаження процесора в наступному польоті."
+      },
+      "applies": [
+        {
+          "fact": "copter",
+          "is": true
+        },
+        {
+          "fact": "heli",
+          "is": false
+        }
+      ],
+      "when": [
+        {
+          "param": "FSTRATE_ENABLE",
+          "eq": 0
+        }
+      ],
+      "outcomes": [
+        {
+          "outcome": "available",
+          "requires": [
+            {
+              "fact": "board_h7",
+              "is": true
+            },
+            {
+              "fact": "cpu_headroom",
+              "is": true
+            }
+          ],
+          "changes": [
+            {
+              "param": "FSTRATE_ENABLE",
+              "value": 1
+            }
+          ]
+        }
+      ],
+      "benefit_by_priority": {
+        "stability": 1,
+        "agility": 3,
+        "endurance": 0,
+        "efficiency": 0
+      },
+      "cost": "parameter",
+      "sources": [
+        {
+          "kind": "ardupilot",
+          "title": "ArduPilot parameter FSTRATE_ENABLE (4.7)",
+          "url": "https://ardupilot.org/copter/docs/parameters.html"
+        }
+      ]
+    }
+  }
+}

@@ -72,4 +72,25 @@ def add_analysis_methods(server: Server, state: EngineState, guarded: Callable[[
                 f.code: {"title": dict(f.title), "action": dict(f.action), "stage": f.stage}
                 for f in reg.findings.values()
             },
+            "options": {
+                o.id: {
+                    "area": o.area,
+                    "subsystem": o.subsystem,
+                    "title": dict(o.title),
+                    "benefit": dict(o.benefit),
+                    "how": dict(o.how),
+                    "hardware": dict(o.hardware),
+                    "cost": o.cost,
+                    "sources": [dict(x) for x in o.sources],
+                }
+                for o in reg.options.values()
+            },
+            "coverage": {
+                sid: {
+                    "title": dict(sub["title"]),
+                    "options": list(sub["options"]),
+                    "covered": bool(sub["options"]),
+                }
+                for sid, sub in reg.coverage.items()
+            },
         }

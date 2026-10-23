@@ -10,6 +10,7 @@ the app shows goes unexplained.
 
 from __future__ import annotations
 
+import dataclasses
 import hashlib
 import json
 import math
@@ -69,6 +70,35 @@ class FindingText:
 
 
 @dataclass(frozen=True)
+class Option:
+    """A Better options catalog entry (knowledge/options/*.json)."""
+
+    id: str
+    area: str
+    subsystem: str
+    title: Mapping[str, str]
+    hardware: Mapping[str, str]
+    benefit: Mapping[str, str]
+    how: Mapping[str, str]
+    applies: tuple[Mapping[str, Any], ...]
+    when: tuple[Mapping[str, Any], ...]
+    outcomes: tuple[Mapping[str, Any], ...]
+    benefit_by_priority: Mapping[str, int]
+    cost: str
+    sources: tuple[Mapping[str, str], ...]
+
+
+OPTION_STAGES = {
+    "filters": "filters",
+    "logging": "evidence",
+    "motors": "setup",
+    "control": "setup",
+    "power": "setup",
+}
+OPTION_COSTS = ("parameter", "reboot", "firmware", "hardware")
+
+
+@dataclass(frozen=True)
 class Registry:
     """What the knowledge pack tells the analyzers: the metric and finding registry,
     the curated rules (knowledge/rules/*.json, by file stem), and each release's names
@@ -76,9 +106,12 @@ class Registry:
 
     metrics: Mapping[str, Metric]
     findings: Mapping[str, FindingText]
-    version: str  # changes whenever any registry, rule or name file changes
+    version: str  # changes whenever any registry, rule, option or name file changes
     rules: Mapping[str, Any]
     pack: Pack
+    options: Mapping[str, Option] = dataclasses.field(default_factory=dict[str, Option])
+    questions: Mapping[str, Mapping[str, Any]] = dataclasses.field(default_factory=dict[str, Any])
+    coverage: Mapping[str, Mapping[str, Any]] = dataclasses.field(default_factory=dict[str, Any])
 
     def names(self, firmware: str | None) -> Mapping[str, Any]:
         """Mode, event and error names of the flight's release, or the nearest earlier
@@ -103,14 +136,17 @@ class Registry:
             path.stem: json.loads(path.read_text(encoding="utf-8"))
             for path in sorted((pack.root / "rules").glob("*.json"))
         }
-        return Registry(metrics, findings, knowledge_version(pack), rules, pack)
+        options, questions, coverage = _options(pack, findings)
+        return Registry(
+            metrics, findings, knowledge_version(pack), rules, pack, options, questions, coverage
+        )
 
 
 def knowledge_version(pack: Pack) -> str:
     """A short hash of every file an analysis reads from the pack: the registry, the
     rules and the names. A result made with another version is recomputed, not reused."""
     h = hashlib.sha256()
-    for folder in ("metrics", "rules", "enums"):
+    for folder in ("metrics", "rules", "enums", "options"):
         for path in sorted((pack.root / folder).glob("*.json")):
             h.update(f"{folder}/{path.name}\0".encode())
             h.update(path.read_bytes())
@@ -178,3 +214,69 @@ def _finding(file: str, code: str, f: Mapping[str, Any]) -> FindingText:
     if len({frozenset(n) for n in names.values()}) != 1:
         raise KnowledgeError(f"{where}: every language must use the same placeholders")
     return FindingText(code, title, action, f["stage"])
+
+
+def _options(
+    pack: Pack, findings: dict[str, FindingText]
+) -> tuple[dict[str, Option], dict[str, Mapping[str, Any]], dict[str, Mapping[str, Any]]]:
+    """The Better options catalog, its questions and coverage table. Each option's own
+    text becomes the wording of its findings: option.<id>.available and
+    option.<id>.hardware, and option.question.<fact> for each question."""
+    folder = pack.root / "options"
+    options: dict[str, Option] = {}
+    questions: dict[str, Mapping[str, Any]] = {}
+    coverage: dict[str, Mapping[str, Any]] = {}
+    if not folder.is_dir():
+        return options, questions, coverage
+    shared = json.loads((folder / "coverage.json").read_text(encoding="utf-8"))
+    coverage = dict(shared["subsystems"])
+    question_action = _text("coverage.json", shared["texts"], "question_action")
+    needs = _text("coverage.json", shared["texts"], "needs")
+    for path in sorted(folder.glob("*.json")):
+        if path.stem == "coverage":
+            continue
+        doc = json.loads(path.read_text(encoding="utf-8"))
+        for fact, q in doc.get("questions", {}).items():
+            where = f"{path.name}: question {fact}"
+            text = _text(where, q, "text")
+            questions[fact] = q
+            findings[f"option.question.{fact}"] = FindingText(
+                f"option.question.{fact}", text, question_action, "setup"
+            )
+        for oid, o in doc.get("options", {}).items():
+            where = f"{path.name}: option {oid}"
+            if oid in options:
+                raise KnowledgeError(f"{where}: defined twice")
+            if o.get("cost") not in OPTION_COSTS or o.get("area") not in OPTION_STAGES:
+                raise KnowledgeError(
+                    f"{where}: needs an area of {sorted(OPTION_STAGES)} "
+                    f"and a cost of {OPTION_COSTS}"
+                )
+            if not o.get("sources"):
+                raise KnowledgeError(f"{where}: needs its sources")
+            title, hardware = _text(where, o, "title"), _text(where, o, "hardware")
+            benefit, how = _text(where, o, "benefit"), _text(where, o, "how")
+            options[oid] = Option(
+                oid, o["area"], o["subsystem"], title, hardware, benefit, how,
+                tuple(o.get("applies", [])), tuple(o.get("when", [])), tuple(o["outcomes"]),
+                dict(o["benefit_by_priority"]), o["cost"], tuple(o["sources"]),
+            )  # fmt: skip
+            stage = OPTION_STAGES[o["area"]]
+            findings[f"option.{oid}.available"] = FindingText(
+                f"option.{oid}.available",
+                {lang: f"{title[lang]}" for lang in LANGUAGES},
+                {lang: f"{benefit[lang]} {how[lang]}" for lang in LANGUAGES},
+                stage,
+            )
+            findings[f"option.{oid}.hardware"] = FindingText(
+                f"option.{oid}.hardware",
+                {lang: f"{title[lang]}: {needs[lang]} {hardware[lang]}" for lang in LANGUAGES},
+                {lang: benefit[lang] for lang in LANGUAGES},
+                stage,
+            )
+    for oid, option in options.items():
+        if option.subsystem not in coverage or oid not in coverage[option.subsystem]["options"]:
+            raise KnowledgeError(
+                f"option {oid}: its subsystem {option.subsystem} must list it in coverage.json"
+            )
+    return options, questions, coverage

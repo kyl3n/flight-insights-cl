@@ -1,0 +1,128 @@
+{
+  "about": "Every configurable subsystem the spec names, with the Better options that cover it. A subsystem with none is listed as not yet covered in the app's metrics reference, so gaps are visible, not silent (spec: Configuration review, 'Better options').",
+  "texts": {
+    "question_action": {
+      "en": "Answer it in the platform setup ({field}): the app then tells you which better options this aircraft can use.",
+      "uk": "Дайте відповідь у налаштуванні платформи ({field}): тоді застосунок скаже, які кращі варіанти доступні цьому апарату."
+    },
+    "needs": {
+      "en": "needs",
+      "uk": "потрібно"
+    }
+  },
+  "subsystems": {
+    "harmonic_notch": {
+      "title": {
+        "en": "Harmonic notch",
+        "uk": "Гармонійний режекторний фільтр"
+      },
+      "options": [
+        "notch_all_imus",
+        "notch_loop_rate"
+      ],
+      "also": [
+        "filter.better_source",
+        "filter.better_settings"
+      ]
+    },
+    "rpm_sources": {
+      "title": {
+        "en": "Motor RPM sources",
+        "uk": "Джерела обертів моторів"
+      },
+      "options": [
+        "bdshot_enable"
+      ]
+    },
+    "motor_outputs": {
+      "title": {
+        "en": "Motor output protocol",
+        "uk": "Протокол виходів моторів"
+      },
+      "options": [
+        "dshot_output"
+      ]
+    },
+    "thrust_model": {
+      "title": {
+        "en": "Thrust model and hover throttle",
+        "uk": "Модель тяги й газ зависання"
+      },
+      "options": [
+        "hover_learn",
+        "battery_voltage_scaling"
+      ]
+    },
+    "control_loop": {
+      "title": {
+        "en": "Control loop timing",
+        "uk": "Таймінг контуру керування"
+      },
+      "options": [
+        "fast_rate_loop"
+      ]
+    },
+    "logging": {
+      "title": {
+        "en": "Logging",
+        "uk": "Журнали"
+      },
+      "options": [
+        "log_per_flight"
+      ],
+      "also": [
+        "logging.no_prefilter_gyro",
+        "logging.missing_messages"
+      ]
+    },
+    "gyro_sampling": {
+      "title": {
+        "en": "Gyro sampling",
+        "uk": "Вибірка гіроскопа"
+      },
+      "options": []
+    },
+    "estimator_sources": {
+      "title": {
+        "en": "Estimator and GNSS sources",
+        "uk": "Джерела оцінювача та GNSS"
+      },
+      "options": []
+    },
+    "links_failsafes": {
+      "title": {
+        "en": "Links and failsafes",
+        "uk": "Зв'язки та аварійні режими"
+      },
+      "options": []
+    },
+    "battery_failsafe": {
+      "title": {
+        "en": "Battery failsafe",
+        "uk": "Аварійний режим батареї"
+      },
+      "options": []
+    },
+    "compass": {
+      "title": {
+        "en": "Compass",
+        "uk": "Компас"
+      },
+      "options": []
+    },
+    "plane": {
+      "title": {
+        "en": "Plane and QuadPlane",
+        "uk": "Літак і QuadPlane"
+      },
+      "options": []
+    },
+    "heli": {
+      "title": {
+        "en": "Traditional helicopter",
+        "uk": "Класичний гелікоптер"
+      },
+      "options": []
+    }
+  }
+}

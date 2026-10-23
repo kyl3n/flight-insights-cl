@@ -22,6 +22,24 @@ from flight_insights.store.cache import ColumnCache
 from flight_insights.store.db import Store
 
 
+def _answers(store: Store, build_id: str | None) -> dict[str, Any]:
+    """The answers the build holds: its platform's reference answers, then the
+    airframe's own changes on top (spec: Platforms, airframes and build configuration)."""
+    if build_id is None:
+        return {}
+    build = store.get("build_version", build_id)
+    if build is None:
+        return {}
+    spec: dict[str, Any] = json.loads(build["spec_json"])
+    if build["airframe_id"]:
+        airframe = store.get("airframe", build["airframe_id"])
+        platform = store.get("platform", airframe["platform_id"]) if airframe else None
+        reference = store.get("build_version", platform["reference_build_id"]) if platform else None
+        if reference is not None:
+            spec = json.loads(reference["spec_json"]) | spec
+    return {k: v["value"] for k, v in spec.items() if isinstance(v, dict) and "value" in v}
+
+
 class FlightError(RuntimeError):
     """The flight cannot be analysed: unknown, or imported before analysis existed."""
 
@@ -40,6 +58,9 @@ class FlightData:
     # The log checks overlapping the flight, from import; None for a flight imported
     # before they were kept.
     validation: Mapping[str, Any] | None = None
+    # The setup answers of the build the flight flew (platform reference, then the
+    # airframe's own), field id -> value; empty for a flight not yet given an airframe.
+    answers: Mapping[str, Any] = field(default_factory=dict[str, Any])
     _tables: dict[tuple[str, tuple[str, ...] | None], pa.Table | None] = field(
         default_factory=dict[tuple[str, tuple[str, ...] | None], pa.Table | None]
     )
@@ -64,6 +85,7 @@ class FlightData:
             fingerprint=json.loads(row["fingerprint_json"]),
             cache=cache,
             validation=json.loads(row["validation_json"]) if row["validation_json"] else None,
+            answers=_answers(store, row["build_version_id"]),
         )
 
     @property
