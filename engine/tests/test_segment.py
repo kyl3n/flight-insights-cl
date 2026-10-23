@@ -99,6 +99,42 @@ def test_lost_samples_are_counted_exactly(tmp_path: Path) -> None:
     assert "about 4 samples missing" in loss.detail
 
 
+def test_a_jittered_sample_clock_has_lost_nothing(tmp_path: Path) -> None:
+    """SITL timestamps a sample when it is processed, as some drivers do with FIFO
+    batches: steps of 833, 833 and 1334 us average a steady 1 kHz. Only a real hole
+    counts, in samples of the clock's real period."""
+    b = builder()
+    t, steps = 1_000_000, [833, 833, 1334]
+    for k in range(3000):
+        b.write("GYR", t, 0, t, 0.0, 0.0, 0.0)
+        t += steps[k % 3] + (50_000 if k == 1500 else 0)  # one 50 ms hole
+    with read(b, tmp_path) as df:
+        v = validate(df)
+    [loss] = v.of_kind("imu sample loss")
+    assert loss.count == 50
+
+
+def test_raw_logging_switched_off_in_flight_is_not_sample_loss(tmp_path: Path) -> None:
+    """Raw IMU logged for the steady hover only: LOG_BITMASK bit 19 switched on and off
+    in flight leaves a gap in the clock that is not loss; a hole while on still is."""
+    b = builder()
+    raw = 1 << 19
+    switches = {1_000_000: raw, 2_000_000: 0, 12_000_000: raw}  # off for ten seconds
+    on = False
+    for t in range(1_000_000, 13_000_000, 1000):
+        if t in switches:
+            b.write("PARM", t, b"LOG_BITMASK", float(switches[t]), 0.0)
+            on = bool(switches[t])
+        if t % 100_000 == 0:
+            b.write("ATT", t, 0.0, 0.0)  # the rest of the log carries on
+        if on and not 12_500_000 < t < 12_510_000:  # 9 samples lost while on
+            b.write("GYR", t, 0, t, 0.0, 0.0, 0.0)
+    with read(b, tmp_path) as df:
+        v = validate(df)
+    [loss] = v.of_kind("imu sample loss")
+    assert (loss.count, loss.start_us) == (9, 12_500_000)
+
+
 def test_a_logging_pause_between_flights_is_not_imu_sample_loss(tmp_path: Path, pack: Pack) -> None:
     """LOG_DISARMED=0 without rotating the file on disarm: two flights in one file with
     a minute of nothing between them. The raw-IMU clock jumps, but no sample was lost."""
