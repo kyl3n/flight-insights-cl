@@ -94,9 +94,10 @@ def test_a_zoomed_window_gets_its_own_bins(flown: tuple[Any, Any, str]) -> None:
     rpm = view["motors"][0]["rpm"]["t"]
     inside = [t for t in whole["motors"][0]["rpm"]["t"] if a <= t <= b]
     assert all(a <= t <= b for t in rpm) and len(rpm) > 2 * len(inside)
-    for bad in ([1, 2, 3], ["a", 1], [1e9, 2e9]):
-        reply = call(server, out, 22, "flight.system", flight_id=flight, window_s=bad)
-        assert reply["error"]["code"] in (-32602, -32003)
+    cases = (([1, 2, 3], -32602), (["a", 1], -32602), ([1e9, 2e9], -32003))
+    for n, (bad, code) in enumerate(cases):
+        reply = call(server, out, 30 + n, "flight.system", flight_id=flight, window_s=bad)
+        assert reply["error"]["code"] == code  # each request its own id: one shared output
 
 
 def test_the_system_view_reads_load_timing_and_errors(flown: tuple[Any, Any, str]) -> None:
