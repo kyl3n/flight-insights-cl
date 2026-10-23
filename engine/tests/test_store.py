@@ -4,7 +4,6 @@ from __future__ import annotations
 
 import contextlib
 import secrets
-import struct
 from pathlib import Path
 
 import numpy as np
@@ -316,10 +315,17 @@ def test_cache_files_hold_no_plaintext(tmp_path: Path, keys: StoreKeys) -> None:
         msg = df.table("MSG")
     path = cache.write_table("f", "GPS", gps)
     data = path.read_bytes()
-    lat = gps.column("Lat").to_numpy()
-    for value in np.unique(lat)[:50]:
-        assert struct.pack("<i", int(value)) not in data
-    assert b"Lat" not in data and b"TimeUS" not in data and b"ARROW" not in data
+    # Ciphertext is random, so a short pattern turns up by chance (a 3-byte one in
+    # about 1% of runs): each search is 8 bytes or longer. Plaintext values would sit
+    # side by side, as consecutive rows or as a dictionary in first-seen order.
+    lat = gps.column("Lat").to_numpy().astype("<i4")
+    first_seen = lat[np.sort(np.unique(lat, return_index=True)[1])]
+    for values in (lat, first_seen):
+        for i in range(min(50, len(values) - 1)):
+            assert values[i : i + 2].tobytes() not in data
+    for name in (b"Lat", b"TimeUS"):  # a plaintext Thrift footer writes length, then name
+        assert bytes([len(name)]) + name not in data
+    assert b"ARROW:schema" not in data
     text = cache.write_table("f", "MSG", msg).read_bytes()
     first = bytes(msg.column("Message")[0].as_py()).rstrip(b"\x00")
     assert len(first) > 8 and first not in text

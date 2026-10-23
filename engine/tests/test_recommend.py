@@ -416,4 +416,12 @@ def test_the_plan_and_its_file_over_rpc(tmp_path: Path) -> None:
         call(server, out, 10, "recommend.plan", flight_id="none")["error"]["code"],
     ]  # fmt: skip
     assert bad == [-32602, -32003, -32003]
-    call(server, out, 11, "engine.shutdown")
+    kept = call(server, out, 11, "recommend.history", airframe_id=af["id"])["result"]
+    assert {h["id"] for h in kept} == {r["id"] for r in p["recommendations"] if "id" in r}
+    rid = kept[0]["id"]
+    done = call(server, out, 12, "recommend.set_status", id=rid, status="accepted", version=1)
+    assert done["result"]["status"] == "accepted"
+    stale = call(server, out, 13, "recommend.set_status", id=rid, status="applied", version=1)
+    graded = call(server, out, 14, "recommend.set_status", id=rid, status="confirmed", version=2)
+    assert (stale["error"]["code"], graded["error"]["code"]) == (-32004, -32003)
+    call(server, out, 15, "engine.shutdown")
