@@ -34,6 +34,7 @@ from flight_insights.segment import (
 HELI_FRAME_CLASSES = {6: "single", 11: "dual", 13: "quad"}  # FRAME_CLASS: Heli, Heli_Dual, HeliQuad
 DSHOT_FIRST, DSHOT_LAST = 4, 7  # MOT_PWM_TYPE DShot150 ... DShot1200
 CELL_MIN_V, CELL_MAX_V, CELL_TYPICAL_V = 3.0, 4.4, 3.9
+CELL_FULL_V = (4.1, 4.4)  # a full cell: LiPo and Li-ion 4.2 V, HV LiPo 4.35 V
 RTK_FLOAT = 5  # GPS.Status: 5 RTK float, 6 RTK fixed
 
 
@@ -148,8 +149,13 @@ def _frame(p: _Params, vehicle: str) -> Attr[Frame]:
     return Attr(frame, "FRAME_CLASS, FRAME_TYPE")
 
 
-def _cells(df: DataflashLog) -> Attr[int]:
-    """Cell count from the highest resting voltage of the first battery."""
+def _cells(
+    df: DataflashLog, volt_max: float | None = None, volt_max_name: str = "MOT_BAT_VOLT_MAX"
+) -> Attr[int]:
+    """Cell count from the highest resting voltage of the first battery. Several counts
+    can fit one voltage (50 V is a full 12S or a half-empty 13S), so the voltage scaling
+    the aircraft is set up with, `MOT_BAT_VOLT_MAX` (a full cell's 4.2 V, or 4.35 V for
+    HV packs, times the count), settles it when it agrees."""
     if "BAT" not in df.message_types:
         return Attr(None, "BAT", "no battery messages")
     bat = df.table("BAT")
@@ -164,10 +170,18 @@ def _cells(df: DataflashLog) -> Attr[int]:
     candidates = [n for n in range(1, 25) if CELL_MIN_V <= v / n <= CELL_MAX_V]
     if not candidates:
         return Attr(None, "BAT.Volt", f"{v:.2f} V fits no whole number of cells")
+    if volt_max:
+        set_up = [n for n in candidates if CELL_FULL_V[0] <= volt_max / n <= CELL_FULL_V[1]]
+        if set_up:
+            n = min(set_up, key=lambda c: abs(volt_max / c - 4.2))
+            note = f"{v:.2f} V, {v / n:.2f} V per cell; voltage scaling set for {volt_max:g} V"
+            return Attr(n, f"BAT.Volt (instance 0), {volt_max_name}", note)
     n = min(candidates, key=lambda c: abs(v / c - CELL_TYPICAL_V))
     note = f"{v:.2f} V, {v / n:.2f} V per cell"
     if len(candidates) > 1:
         note += f"; also possible: {', '.join(str(c) for c in candidates if c != n)}"
+    if volt_max:
+        note += f"; {volt_max_name} {volt_max:g} V fits none of these"
     return Attr(n, "BAT.Volt (instance 0)", note)
 
 
@@ -223,6 +237,7 @@ def fingerprint(df: DataflashLog, pack: Pack, board_key: bytes) -> Fingerprint:
 
     q = vehicle == "plane" and p.on("Q_ENABLE")
     pwm_name = "Q_M_PWM_TYPE" if q else "MOT_PWM_TYPE"
+    volt_max_name = "Q_M_BAT_VOLT_MAX" if q else "MOT_BAT_VOLT_MAX"
     pwm = p.get(pwm_name)
     dshot = pwm is not None and DSHOT_FIRST <= round(pwm) <= DSHOT_LAST
     bdshot = dshot and p.on("SERVO_BLH_BDMASK")
@@ -280,7 +295,7 @@ def fingerprint(df: DataflashLog, pack: Pack, board_key: bytes) -> Fingerprint:
         bidirectional_dshot=Attr(bdshot, f"{pwm_name}, SERVO_BLH_BDMASK"),
         rpm_sources=Attr(sources, "ESC.RPM, RPM messages, RPM1_TYPE, FFT_ENABLE"),
         notch_mode=Attr(notch, "INS_HNTCH_ENABLE, INS_HNTCH_MODE"),
-        cells=_cells(df),
+        cells=_cells(df, p.get(volt_max_name), volt_max_name),
         capacity_mah=Attr(p.get("BATT_CAPACITY"), "BATT_CAPACITY"),
         hover_throttle=_hover_throttle(df, vehicle, windows),
         learned_hover_throttle=Attr(p.get(learned), learned),

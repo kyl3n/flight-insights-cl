@@ -18,6 +18,8 @@ Usage:
 from __future__ import annotations
 
 import argparse
+import json
+import math
 import shutil
 import struct
 import subprocess
@@ -306,19 +308,53 @@ def _diagnose(proc: subprocess.Popen[bytes], sitl_out: Path, vehicle: Vehicle | 
     )
 
 
+def load_frame_model(path: Path) -> dict[str, float]:
+    """One of ArduPilot's SITL frame models: JSON with # comments."""
+    text = "\n".join(line.split("#", 1)[0] for line in path.read_text().splitlines())
+    return json.loads(text)
+
+
+def carry_payload(model: dict[str, float], kg: float) -> dict[str, float]:
+    """The same airframe carrying `kg` more. SITL sizes the motors from the model's
+    mass, hover throttle and hover current, so those move together and the motors stay
+    as they were: hover throttle scales with the mass, hover power with its 1.5 power
+    (momentum theory), and the drag reference angle keeps the same drag area."""
+    if not kg:
+        return model
+    r = (model["mass"] + kg) / model["mass"]
+    return model | {
+        "mass": model["mass"] * r,
+        "hoverThrOut": model["hoverThrOut"] * r,
+        "refCurrent": model["refCurrent"] * r**1.5,
+        "refAngle": math.degrees(math.atan(math.tan(math.radians(model["refAngle"])) / r)),
+    }
+
+
 def run(scenario: Scenario, ardupilot: Path, version: str, out_dir: Path) -> None:
     binary = ardupilot / "build" / "sitl" / "bin" / scenario.binary
     if not binary.exists():
         raise ScenarioFailed(f"{binary} not built")
-    defaults = ",".join(str(ardupilot / "Tools" / "autotest" / d) for d in scenario.defaults)
     out_dir.mkdir(parents=True, exist_ok=True)
     stem = out_dir / scenario.name
     with tempfile.TemporaryDirectory() as work:
+        defaults = [str(ardupilot / "Tools" / "autotest" / d) for d in scenario.defaults]
+        if scenario.boot_params:
+            boot = Path(work) / "boot.parm"
+            boot.write_text("".join(f"{k} {v}\n" for k, v in scenario.boot_params.items()))
+            defaults.append(str(boot))
+        model = scenario.model
+        if scenario.model_json:
+            source = ardupilot / "Tools" / "autotest" / "models" / scenario.model_json
+            frame = Path(work) / scenario.model_json
+            frame.write_text(
+                json.dumps(carry_payload(load_frame_model(source), scenario.payload_kg))
+            )
+            model += ":" + frame.name  # SITL reads it from its working folder; a full path fails
         sitl_out = (Path(work) / "sitl.txt").open("w")
         proc = subprocess.Popen(
             [
-                str(binary), "--model", scenario.model, "--speedup", str(SPEEDUP),
-                "--defaults", defaults, "--home", SITL_HOME, "-I0",
+                str(binary), "--model", model, "--speedup", str(scenario.speedup or SPEEDUP),
+                "--defaults", ",".join(defaults), "--home", SITL_HOME, "-I0",
             ],
             cwd=work, stdout=sitl_out, stderr=subprocess.STDOUT,
         )  # fmt: skip

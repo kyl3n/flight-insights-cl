@@ -289,7 +289,7 @@ Link and MAVLink performance depend as much on the ground side as on the aircraf
 
 ## Configuration review
 
-The app reviews every parameter file, and the parameters of every flight, against what the aircraft is, how it is used and what its logs show. It finds errors and settings that are wrong for this kind of aircraft, explains why with evidence, and proposes the fix. This is where ArduPilot's guidance and the team's tuning knowledge are applied to each airframe.
+The app reviews every parameter file, and the parameters of every flight, against what the aircraft is, how it is used and what its logs show. It finds errors, settings that are wrong for this kind of aircraft, and better options the aircraft could use, explains why with evidence, and proposes the fix. This is where ArduPilot's guidance and the team's tuning knowledge are applied to each airframe.
 
 ### Questions about the aircraft
 
@@ -317,6 +317,7 @@ The right settings depend on facts a log only partly shows. The app fills in wha
 | Never tuned | Values still at the firmware default where this type of aircraft needs its own |
 | Logging gaps | Pre-filter gyro data not logged, so filter changes cannot be verified; one log per power-up instead of one per flight |
 | Leftovers | Settings for hardware the build no longer has, such as an output still assigned to a gripper |
+| Better option available | A setup that works but is not the best this aircraft could have: throttle notch tracking where the ESCs could report RPM over bidirectional DShot; PWM outputs to ESCs that speak DShot; harmonic notches on the primary IMU only when the estimator uses several (see Better options) |
 
 Each finding states what is wrong, why it matters for this aircraft (citing the answers and the log evidence), the proposed value in the firmware's own parameter names, the expected effect, and the flight that confirms it. Fixes join the tuning plan in stage order, so filters are settled before gains.
 
@@ -328,6 +329,32 @@ Each finding states what is wrong, why it matters for this aircraft (citing the 
 - the tune holds at both the lightest and the heaviest payload, with separate gain sets switched by payload where the spread is wide;
 - hover throttle at the heaviest payload stays inside 0.2–0.6, leaving headroom for control and wind;
 - the low-battery reserve covers the return trip at the heaviest payload.
+
+### Better options
+
+A setup can be free of errors and still not be the best this aircraft could fly with. For every part of the configuration, the review also asks whether a better option exists, and tells the user, with the evidence, the benefit and what it would take. Throttle-based notch tracking that works is still reported when the ESCs could send RPM over bidirectional DShot, because RPM tracking follows the motors at every payload.
+
+**The options catalog.** Every better option the app knows is an entry in a catalog in the knowledge pack, versioned with the rule pack. Each entry states:
+
+| Part | Content |
+| --- | --- |
+| Area and scope | The subsystem it improves, and the vehicles, archetypes, prop classes and answers it applies to |
+| Current choice | How the app tells what the aircraft does now, from parameters, the fingerprint and the logs |
+| Better choice | The configuration that would serve this aircraft better |
+| What it needs | The capability it depends on, and how the app tells whether the aircraft has it: board class from the board table, ESC protocol and telemetry seen in the logs, sensors present, firmware version |
+| Benefit | What improves and how much, simulated where the engine can (filters, CPU budget) and qualitative where it cannot |
+| Cost and risk | Reboot, CPU and memory, parts to buy, wiring, re-calibration, the flights needed to verify it |
+| Sources | ArduPilot documentation, maker data or the team's own measurements, as for the reference range library |
+
+**Three outcomes.** Each entry that applies ends in one of these:
+
+- **Available now:** the aircraft already has what the better option needs, so it becomes a parameter change that passes the same validator as every other recommendation and joins the plan in stage order. Example: ESC telemetry already arrives over a serial port, so the notch can track it with `INS_HNTCH_MODE` = 3.
+- **Needs hardware:** the better option needs a part the aircraft lacks, such as ESCs whose firmware supports bidirectional DShot, or an H7 board for in-flight FFT. It is shown as a hardware recommendation with its benefit and cost, never applied automatically, and joins the plan at its stage once the user records the build change.
+- **Unknown:** the app cannot tell whether the aircraft could support it. It asks one question, such as "Do the ESCs run BLHeli\_32, AM32 or Bluejay firmware?", and keeps the answer with the platform's answers, so it is asked once per platform.
+
+**Ranking.** Better options are ranked by expected benefit for this aircraft's mission and priority answers, then by cost. Each shows what it improves, the evidence that it applies, and the trade-off, so the user can decide. Safety findings and errors always come first.
+
+**Covering every part of the configuration.** The catalog grows with each phase, starting with Copter filters, propulsion, power and logging in Phase 1: notch tracking source (ESC RPM, then in-flight FFT, then throttle), DShot rather than PWM, bidirectional DShot or serial ESC telemetry, loop-rate notch updates on H7, notches on every IMU the estimator uses, the fast-rate loop where the CPU budget allows, gyro rate and fast sampling, raw IMU logging and one log per flight, battery voltage scaling and per-ESC current, hover learning on variable-payload aircraft, and `MOT_THST_EXPO` fitted from RPM. A coverage table lists every configurable subsystem in this spec against its catalog entries. A subsystem with none is shown as not yet covered in the app's metrics reference, so a gap is visible rather than silent.
 
 **Deeper reasoning.** After the rules run, the AI layer reviews the full parameter set together with the answers, the findings and the flight evidence, looking for problems that span subsystems, for example a narrowed notch and a hot ESC that both began at the same flight. Its findings are labelled as hypotheses, and every change it proposes passes the same validator as the rule-based ones.
 
@@ -951,7 +978,7 @@ Rules that keep decisions easy:
 | Import | The proposed airframe for each log, detected hardware changes with their evidence, batteries, payload and ground station | Confirm or change the airframe; confirm changes; pick packs and station |
 | Performance dashboard | Metric cards per airframe and platform; trend charts against ideal ranges with change markers | Filter by phase, payload band and wind; open any trend |
 | Build configuration | Current build per airframe, build history, component life, detected-change prompts | Record a change; confirm or dismiss a detected one |
-| Configuration review | Questions about the aircraft, then errors and settings wrong for its type, each with reasoning and a fix | Answer or change a question; add fixes to the plan |
+| Configuration review | Questions about the aircraft, then errors, settings wrong for its type and better options, each with reasoning and a fix | Answer or change a question; add fixes and better options to the plan |
 | Flight report | Subsystem status, findings by severity, AI narrative with evidence links | Open any finding's evidence |
 | Incident timeline | Onboard events, tlog events, commands, warnings, bus errors, ground station session records, parameter and build changes on one time axis, first fault marked | Jump from any event to its data |
 | Weather | The flight's weather record, aircraft-measured against model wind, the airframe's wind envelope | Compare models; filter trends by wind and density |
@@ -1416,7 +1443,7 @@ A tuning tool earns trust only by being right on real aircraft, so validation is
 
 **Log corpus**
 
-- **Own fleet logs,** labelled by engineers with archetype, known problems and what fixed them. This is the most valuable asset the project builds.
+- **Own fleet logs,** labelled by engineers with archetype, known problems and what fixed them. This is the most valuable asset the project builds. A label also records the purpose of the flight, the payload (mass, type and mounting), take-off weight, battery packs, conditions as the pilot judged them (never the site), a 1–5 handling rating, what changed since the airframe's last flight, and what the log should show. Known problems come from a fixed list (vibration, oscillation, overshoot, slow response, filter setting, motor or ESC, battery sag, high hover throttle, compass interference, GNSS, CPU or logging, other) with axis and severity, so analyzer tests can check against them.
 - **SITL logs** with injected vibration, sensor faults and parameter errors, generated per firmware version, so every analyzer has positive and negative cases with known answers.
 - **Where the corpus lives.** SITL logs, with their tlogs and parameter files, are committed as test fixtures after their positions are shifted by a random, unrecorded offset; CI checks each against a hash manifest written by the scrubbing tool. Real fleet logs never enter the repository: they stay on engineers' machines, and the decoder gate runs on them there.
 - **Version coverage:** at least one real log per vehicle type for each supported firmware line, starting with 4.7, the oldest in the fleet, and adding each new release as it ships.
@@ -1436,11 +1463,11 @@ A tuning tool earns trust only by being right on real aircraft, so validation is
 
 **Paired logs.** The corpus includes onboard logs and tlogs from the same flights, recorded by both Mission Planner and QGroundControl, with real link outages and ground-station faults among them. Clock alignment between the two is a tested quantity, and attribution is tested on airframes where the effect of a parameter change is already known.
 
-**Flight-test discipline.** Every test card lists what to fly, what the next log should show, and abort criteria. Each release is flown on at least one reference airframe per supported vehicle type, applying the app's own recommendations.
+**Flight-test discipline.** Every test card lists what to fly, what the next log should show, and abort criteria. Each release is flown on at least one reference airframe per supported vehicle type, applying the app's own recommendations. The Copter reference airframes are HL1 and HL2, heavy-lift copters flown both without and with payload; each stays one airframe whatever it carries. Their logs are labelled by the team's engineer, with raw IMU logging on (`LOG_BITMASK` bit 19, `INS_RAW_LOG_OPT` = 9), so filter predictions can be checked against what was flown.
 
 **Sync soak test.** Simulated laptops on a test drive import the same logs, edit the same airframes, lose their connections and crash mid-transfer, for days at a time, while some objects are deliberately altered. The release gate is zero duplicates, zero lost objects, every altered object quarantined, and identical databases on every laptop.
 
-**Configuration review.** SITL logs and parameter files with planted errors and type mismatches, for example a throttle-based notch on a variable-payload heavy-lift, check that every planted problem is found and explained, and that correct files produce no false findings.
+**Configuration review.** SITL logs and parameter files with planted errors and type mismatches, for example a throttle-based notch on a variable-payload heavy-lift, check that every planted problem is found and explained, and that correct files produce no false findings. Each catalog entry of Better options has a case where it applies (available now, needs hardware, or unknown) and a case where the aircraft already uses the better choice, which must produce no finding.
 
 ## Security and deployment
 
@@ -1504,7 +1531,7 @@ The largest risk is a confident wrong recommendation on a heavy aircraft; most o
 
 **Open questions**
 
-- [ ] Which airframes form the reference set, and who labels logs.
+- [x] Which airframes form the reference set, and who labels logs: HL1 and HL2, heavy-lift copters, labelled by the team's engineer (see Testing and validation).
 - [ ] Optional, later: request zero data retention (ZDR) from Anthropic's sales team.
 - [ ] Confirm the deployment fits Anthropic's commercial terms and usage policy for the organization's use.
 - [ ] Licensing of ArduPilot WebTools, if any code reuse is wanted.

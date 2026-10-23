@@ -145,7 +145,20 @@ def test_common_attributes_of_every_fixture(prints: dict[str, Fingerprint]) -> N
         assert fp.motor_protocol.source and fp.cells.source  # every attribute says where from
         assert not fp.rules_calibrated
         if fp.cells.value is not None:
-            assert fp.cells.value == 3  # SITL's default 3S battery
+            # SITL's default 3S battery; ArduPilot's Callisto heavy-lift model flies 12S
+            assert fp.cells.value == (12 if "heavylift" in name else 3), name
+
+
+def test_the_voltage_scaling_settles_an_ambiguous_cell_count() -> None:
+    """A full 12S pack reads 50 V on the pad, which also fits a half-empty 13S. The
+    aircraft's own MOT_BAT_VOLT_MAX (50.4 V = 12 x 4.2 V) says which."""
+    from flight_insights.fingerprint.attributes import _cells  # pyright: ignore[reportPrivateUsage]
+
+    with read_dataflash(FIXTURES / "4.7.0" / "copter-heavylift-light.bin") as df:
+        guessed, set_up, conflict = _cells(df), _cells(df, 50.4), _cells(df, 49.0)
+    assert guessed.value == 13 and "also possible: 12" in guessed.note
+    assert set_up.value == 12 and set_up.source.endswith("MOT_BAT_VOLT_MAX")
+    assert conflict.value == 13 and "fits none" in conflict.note
 
 
 def test_measured_hover_throttle_matches_what_the_autopilot_learned(

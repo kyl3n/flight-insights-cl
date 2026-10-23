@@ -4,13 +4,27 @@ frame: quad +
 firmware: 4.7.0
 ardupilot_commit: 1511f27194f1dcc3728270883047bdf022b3fd53
 scenario: copter-quad-rawimu
-description: Short hover with pre- and post-filter primary gyro logged at full rate.
+description: Short hover with simulated motor vibration, ESC RPM and an RPM-tracking
+  harmonic notch, with pre- and post-filter primary gyro logged at full rate.
 parameters_set:
+  SIM_VIB_MOT_MAX: 350
+  SIM_GYR1_RND: 20
+  SIM_ESC_TELEM: 1
   INS_RAW_LOG_OPT: 9
+  LOG_DISARMED: 0
+  LOG_FILE_BUFSIZE: 64
+  INS_HNTCH_ENABLE: 1
+  INS_HNTCH_MODE: 3
+  INS_HNTCH_FREQ: 80
+  INS_HNTCH_REF: 1
+  INS_HNTCH_HMNCS: 5
+  INS_HNTCH_ATT: 50
+  INS_HNTCH_BW: 40
   LOG_BITMASK: default with bit 19 (raw IMU) set
-  SIM_ESC_TELEM: 0
 faults: []
 expected:
 - 'INS_RAW_LOG_OPT = 9: primary gyro, pre- and post-filter'
-- raw IMU messages for the whole armed period
-- about 10 s of steady hover
+- raw IMU messages for the whole armed period, with no logging gaps
+- about 6 s of steady hover at 4 m
+- a motor vibration peak in the pre-filter gyro, attenuated after the filters
+- the notch centre tracking ESC RPM (INS_HNTCH_MODE 3)

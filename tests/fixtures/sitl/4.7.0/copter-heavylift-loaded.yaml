@@ -1,0 +1,42 @@
+source: sitl
+vehicle: copter
+frame: octo coaxial X8
+firmware: 4.7.0
+ardupilot_commit: 1511f27194f1dcc3728270883047bdf022b3fd53
+scenario: copter-heavylift-loaded
+description: 'The same heavy-lift X8 carrying 8 kg more (40.5 kg in all): GUIDED take-off
+  to 5 m, 15 s hover, LAND.'
+parameters_set:
+  SIM_VIB_MOT_MAX: 350
+  SIM_GYR1_RND: 5
+  SIM_ESC_TELEM: 1
+  INS_RAW_LOG_OPT: 9
+  LOG_DISARMED: 0
+  LOG_FILE_BUFSIZE: 64
+  INS_HNTCH_ENABLE: 1
+  INS_HNTCH_MODE: 1
+  INS_HNTCH_FREQ: 180
+  INS_HNTCH_REF: 0.375
+  INS_HNTCH_BW: 90
+  INS_HNTCH_HMNCS: 3
+  INS_HNTCH_ATT: 40
+payload:
+  mass_kg: 8.0
+faults:
+- kind: filter-setting
+  description: harmonic notch tracks throttle although ESC RPM telemetry is present
+  parameters:
+  - INS_HNTCH_MODE
+- kind: parameter-error
+  description: hover-throttle learning off on an aircraft flown with and without payload
+  parameters:
+  - MOT_HOVER_LEARN
+expected:
+- one armed period with about 14 s of steady hover at 5 m
+- raw IMU logged during the hover only
+- ESC RPM from all eight motors
+- a motor vibration peak in the pre-filter gyro
+- 'a throttle-tracking notch: the better option is ESC RPM tracking (INS_HNTCH_MODE
+  3)'
+- 'MOT_HOVER_LEARN 0: hover learning should be on for a variable payload'
+- hover throttle higher than the light flight's
