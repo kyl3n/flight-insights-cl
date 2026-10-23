@@ -5,7 +5,10 @@ Flags what makes later analysis wrong without making it fail:
 - logging dropouts: messages the logger had to drop (DSF.Dp counts them);
 - timestamp gaps: stretches with no messages at all while the vehicle was armed;
 - raw-IMU sample loss: holes in the GYR/ACC sample clock (SampleUS). Filter
-  analysis on a log with dropped IMU samples gives false spectra, so this gates it;
+  analysis on a log with dropped IMU samples gives false spectra, so this gates it.
+  The clock jitters (samples arrive in FIFO batches or as the scheduler runs), so a
+  hole is measured against its longest usual step, and stretches where raw logging
+  was switched off in flight are not loss;
 - IMU errors: the sensor drivers' own error counters (IMU.EG/EA) going up;
 - clock resets: time jumping back, which means another boot in the same file.
 
@@ -29,7 +32,9 @@ Ints = np.ndarray[tuple[int], np.dtype[np.int64]]
 
 RESET_US = 1_000_000  # time going back by more than this is a new boot
 GAP_US = 500_000  # no message at all for this long is a gap
-SAMPLE_GAP = 1.5  # a raw-IMU interval this many times the usual one has lost samples
+SAMPLE_GAP = 1.5  # a raw-IMU interval this many times the longest usual one has lost samples
+RAW_IMU_BIT = 1 << 19  # LOG_BITMASK "Raw IMU": GYR and ACC
+GYRO_RAW_OPTS = 0b11  # INS_RAW_LOG_OPT "primary gyro only", "all gyros": GYR without the bit
 MERGE_US = 1_000_000  # issues of one stream this close together are reported as one
 
 
@@ -228,12 +233,61 @@ def _dropouts(df: DataflashLog, boots: list[Boot]) -> list[Issue]:
     return issues
 
 
+def _raw_off(df: DataflashLog, boots: list[Boot], name: str) -> dict[int, list[tuple[int, int]]]:
+    """Per boot, the stretches when raw `name` (GYR or ACC) was not being logged because
+    LOG_BITMASK or INS_RAW_LOG_OPT said so, as when raw logging is switched on for the
+    steady part of a filter test flight only. Read from the parameters the log records,
+    changes included."""
+    events: dict[int, list[tuple[int, str, float]]] = {}
+    for fid in df.formats_named("PARM"):
+        if not df.count_format(fid):
+            continue
+        rows = df.rows(fid)
+        boot_ids = boot_index(boots, df.offsets(fid))
+        for param in ("LOG_BITMASK", "INS_RAW_LOG_OPT"):
+            key = param.encode().ljust(rows["Name"].itemsize, b"\0")
+            for k in np.flatnonzero(rows["Name"] == key):
+                events.setdefault(int(boot_ids[k]), []).append(
+                    (int(rows["TimeUS"][k]), param, float(rows["Value"][k]))
+                )
+    last_us = {b.number: b.last_us for b in boots}
+    out: dict[int, list[tuple[int, int]]] = {}
+    for boot, changes in events.items():
+        values: dict[str, int] = {}
+        off_since: int | None = None
+        for t, param, value in sorted(changes):
+            values[param] = int(value)
+            on = bool(values.get("LOG_BITMASK", RAW_IMU_BIT) & RAW_IMU_BIT) or (
+                name == "GYR" and bool(values.get("INS_RAW_LOG_OPT", 0) & GYRO_RAW_OPTS)
+            )
+            if not on and off_since is None:
+                off_since = t
+            elif on and off_since is not None:
+                out.setdefault(boot, []).append((off_since, t))
+                off_since = None
+        if off_since is not None:
+            out.setdefault(boot, []).append((off_since, last_us[boot]))
+    return out
+
+
+def _spans(spans: list[tuple[int, int]]) -> list[tuple[int, int]]:
+    """Sorted, with overlapping spans joined."""
+    out: list[tuple[int, int]] = []
+    for a, b in sorted(spans):
+        if out and a <= out[-1][1]:
+            out[-1] = (out[-1][0], max(out[-1][1], b))
+        else:
+            out.append((a, b))
+    return out
+
+
 def _sample_loss(df: DataflashLog, boots: list[Boot], paused: list[Issue]) -> list[Issue]:
     """Holes in each raw-IMU sample clock. A hole across a logging pause is not sample
     loss: nothing at all was logged then (the logger stops while disarmed), and the
-    pause is reported on its own."""
+    pause is reported on its own. Nor is a hole while raw logging was switched off."""
     issues: list[Issue] = []
     for name in ("GYR", "ACC"):
+        raw_off = _raw_off(df, boots, name)
         for fid in df.formats_named(name):
             if not df.count_format(fid):
                 continue
@@ -243,7 +297,10 @@ def _sample_loss(df: DataflashLog, boots: list[Boot], paused: list[Issue]) -> li
             inst = df.field(fid, "I").astype(np.int64)
             boot_ids = boot_index(boots, df.offsets(fid))
             for boot in np.unique(boot_ids):
-                pauses = [(p.start_us, p.end_us) for p in paused if p.boot == boot]
+                pauses = _spans(
+                    [(p.start_us, p.end_us) for p in paused if p.boot == boot]
+                    + raw_off.get(int(boot), [])
+                )
                 for i in np.unique(inst):
                     sel = (inst == i) & (boot_ids == boot)
                     issues += _holes(sample[sel], name, int(i), int(boot), pauses)
@@ -259,9 +316,14 @@ def _holes(
     if len(sample_us) < 3:
         return []
     d = np.diff(sample_us)
-    usual = float(np.median(d))
+    # The longest usual step, not the median: a clock that alternates short and long
+    # steps (FIFO batches, scheduling) has lost nothing. Lost samples are counted in
+    # the mean usual step, the clock's real period.
+    usual = float(np.percentile(d, 90))
     if usual <= 0:
         return []
+    regular = d[(d > 0) & (d <= SAMPLE_GAP * usual)]
+    period = float(regular.mean()) if len(regular) else usual
     j = np.flatnonzero(d > SAMPLE_GAP * usual)
     if pauses and len(j):
         # The last pause starting before a hole ends is the one that can overlap it.
@@ -271,7 +333,7 @@ def _holes(
         j = j[(k < 0) | (p_end[np.maximum(k, 0)] <= sample_us[j])]
     if not len(j):
         return []
-    lost = np.maximum(np.rint(d[j] / usual).astype(np.int64) - 1, 1)
+    lost = np.maximum(np.rint(d[j] / period).astype(np.int64) - 1, 1)
     starts, ends = sample_us[j], sample_us[j + 1]
     first = np.flatnonzero(np.concatenate([[True], starts[1:] - ends[:-1] > MERGE_US]))
     last = np.concatenate([first[1:] - 1, [len(j) - 1]])
