@@ -34,6 +34,7 @@ __pycache__/
 .venv/
 .pytest_cache/
 .ruff_cache/
+.hypothesis/
 
 # OS and editor files
 .DS_Store

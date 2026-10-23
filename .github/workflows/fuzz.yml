@@ -1,0 +1,51 @@
+name: Fuzz
+
+# Coverage-guided fuzzing of the DataFlash decoder (logs are untrusted input).
+# Seeds are the first 20 KB of each scrubbed fixture. A crash fails the run and
+# its input is uploaded; add it as a regression test before fixing.
+on:
+  schedule:
+    - cron: "17 3 * * 1" # Mondays 03:17 UTC
+  workflow_dispatch:
+    inputs:
+      minutes:
+        description: How long to fuzz
+        default: "20"
+  pull_request:
+    paths:
+      - engine/src/flight_insights/dataflash/**
+      - engine/fuzz/**
+      - .github/workflows/fuzz.yml
+
+permissions:
+  contents: read
+
+jobs:
+  dataflash:
+    runs-on: ubuntu-latest
+    timeout-minutes: 75
+    env:
+      MINUTES: ${{ inputs.minutes || (github.event_name == 'pull_request' && '5') || '20' }}
+    defaults:
+      run:
+        working-directory: engine
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v6
+      - run: uv sync --locked
+      - name: Seed corpus
+        run: |
+          mkdir -p "$RUNNER_TEMP/corpus" "$RUNNER_TEMP/crashes"
+          for f in ../tests/fixtures/sitl/*/*.bin; do
+            head -c 20000 "$f" > "$RUNNER_TEMP/corpus/$(basename "$f")"
+          done
+      - name: Fuzz for ${{ env.MINUTES }} minutes
+        run: >
+          uv run --with atheris==3.1.0 python fuzz/fuzz_dataflash.py
+          -max_total_time=$(( MINUTES * 60 )) -max_len=20000 -timeout=20
+          -artifact_prefix="$RUNNER_TEMP/crashes/" "$RUNNER_TEMP/corpus"
+      - uses: actions/upload-artifact@v4
+        if: failure()
+        with:
+          name: fuzz-crashes
+          path: ${{ runner.temp }}/crashes
