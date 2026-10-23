@@ -202,11 +202,18 @@ def test_the_engine_makes_no_network_use(tmp_path: Path) -> None:
     k = keys()
     requests: list[tuple[str, dict[str, Any]]] = [
         ("engine.hello", {}),
-        ("engine.unlock", {"laptop_id": LAPTOP, "data_dir": str(tmp_path), "keys": k}),
+        (
+            "engine.unlock",
+            {"laptop_id": LAPTOP, "data_dir": str(tmp_path), "keys": k, "host": "GCS-LAPTOP"},
+        ),
         ("log.summary", {"path": str(LOG)}),
         ("log.analyze", {"path": str(LOG)}),
         ("log.columns", {"path": str(LOG), "type": "IMU"}),
         ("source.register", {"path": str(LOG), "kind": "dataflash"}),
+        ("station.schema", {}),
+        ("station.create", {"name": "Field laptop"}),
+        ("station.list", {}),
+        ("station.detect_software", {}),
         ("engine.shutdown", {}),
     ]
     stdin = "".join(

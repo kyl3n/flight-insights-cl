@@ -16,6 +16,11 @@
 | platform.detect | Answers read from a parameter file or bench log, each with its source |
 | airframe.create / .list / .get | Airframes: the reference build plus their own differences |
 | airframe.record_change | A new build version with its reason |
+| station.schema | The ground station profile's parts and fields, in every language |
+| station.create / .list / .get / .rename | Ground stations with their current profile and history |
+| station.save | Saves profile answers: in place while set up, otherwise a new version |
+| station.detect_software | Ground station programs installed on this computer |
+| station.record_computer | This computer's facts, read by the shell (the shell's own call) |
 
 Position columns are never written to an IPC file in Phase 0. Keys arrive over
 stdin, live in memory only, and are never logged or echoed in an error.
@@ -32,7 +37,7 @@ from typing import IO, Any, cast
 
 import pyarrow as pa
 
-from flight_insights import __version__, platforms
+from flight_insights import __version__, platforms, stations
 from flight_insights.analysis import analyze_log, summary
 from flight_insights.dataflash import read_dataflash
 from flight_insights.knowledge import Pack, load_pack
@@ -61,6 +66,7 @@ class EngineState:
     store: Store | None = None
     cache: ColumnCache | None = None
     board_key: bytes | None = None
+    host_hash: str | None = None  # this computer's host name, keyed-hashed at unlock
     data_dir: Path | None = None
     lock: threading.Lock = field(default_factory=threading.Lock)
 
@@ -101,6 +107,24 @@ def _key(keys: dict[str, Any], name: str) -> bytes:
     return key
 
 
+def _part_sources(raw: Any) -> dict[str, dict[str, str]] | None:
+    """station.save's `sources`: part -> field id -> where the value came from."""
+    if raw is None:
+        return None
+    error = RpcError(INVALID_PARAMS, "sources must map parts to field ids to text")
+    if not isinstance(raw, dict):
+        raise error
+    out: dict[str, dict[str, str]] = {}
+    for part, fields in cast(dict[str, Any], raw).items():
+        if not isinstance(fields, dict):
+            raise error
+        entries = cast(dict[str, Any], fields)
+        if not all(isinstance(v, str) for v in entries.values()):
+            raise error
+        out[part] = cast(dict[str, str], entries)
+    return out
+
+
 def build_server(out: IO[str], pack: Pack | None = None) -> Server:
     state = EngineState(pack or load_pack())
     server = Server(out)
@@ -127,6 +151,9 @@ def build_server(out: IO[str], pack: Pack | None = None) -> Server:
         except ValueError as e:
             raise RpcError(INVALID_PARAMS, str(e)) from None
         board_key = _key(k, "board_id")
+        host = params.get("host")  # the shell's reading of the host name, never stored raw
+        if host is not None and not isinstance(host, str):
+            raise RpcError(INVALID_PARAMS, "host must be text")
         data_dir = Path(_str(params, "data_dir"))
         with state.lock:
             if state.store is not None:
@@ -136,6 +163,7 @@ def build_server(out: IO[str], pack: Pack | None = None) -> Server:
                 data_dir / "fleet.db", store_keys, laptop_id, params.get("laptop_name")
             )
             state.store, state.board_key, state.data_dir = store, board_key, data_dir
+            state.host_hash = stations.hash_host(board_key, host) if host else None
             state.cache = ColumnCache(data_dir / "cache" / "columns", store_keys)
         return {"laptop": short_code(laptop_id), "migrations_applied": store.applied_migrations}
 
@@ -328,6 +356,80 @@ def build_server(out: IO[str], pack: Pack | None = None) -> Server:
             reason_kind,
             str(params.get("reason") or ""),
             when,
+        )
+
+    station_schema = platforms.load_schema(state.pack, "station")
+
+    def _version(params: dict[str, Any]) -> int:
+        return _int(params, "version")
+
+    @server.method("station.schema")
+    def station_schema_method(_ctx: Context, _params: dict[str, Any]) -> dict[str, Any]:
+        return station_schema.raw
+
+    @server.method("station.create")
+    @guarded
+    def station_create(_ctx: Context, params: dict[str, Any]) -> dict[str, Any]:
+        store = state.require_store()
+        sid = stations.create_station(store, _str(params, "name"))
+        return stations.station_view(store, sid, state.host_hash)
+
+    @server.method("station.list")
+    @guarded
+    def station_list(_ctx: Context, _params: dict[str, Any]) -> list[dict[str, Any]]:
+        return stations.list_stations(state.require_store(), state.host_hash)
+
+    @server.method("station.get")
+    @guarded
+    def station_get(_ctx: Context, params: dict[str, Any]) -> dict[str, Any]:
+        return stations.station_view(state.require_store(), _str(params, "id"), state.host_hash)
+
+    @server.method("station.rename")
+    @guarded
+    def station_rename(_ctx: Context, params: dict[str, Any]) -> dict[str, Any]:
+        store = state.require_store()
+        sid = _str(params, "id")
+        stations.rename_station(store, sid, _version(params), _str(params, "name"))
+        return stations.station_view(store, sid, state.host_hash)
+
+    @server.method("station.save")
+    @guarded
+    def station_save(_ctx: Context, params: dict[str, Any]) -> dict[str, Any]:
+        when = params.get("effective_date")
+        if when is not None and not isinstance(when, str):
+            raise RpcError(INVALID_PARAMS, "effective_date must be a date like 2026-10-20")
+        sources = _part_sources(params.get("sources"))
+        store = state.require_store()
+        sid = _str(params, "id")
+        stations.save_profile(
+            store,
+            station_schema,
+            sid,
+            _version(params),
+            _dict(params, "profile"),
+            str(params.get("reason_kind") or "setup"),
+            str(params.get("reason") or ""),
+            when,
+            "detected" if params.get("detected") else "entered",
+            sources,
+        )
+        return stations.station_view(store, sid, state.host_hash)
+
+    @server.method("station.detect_software")
+    def station_detect_software(_ctx: Context, _params: dict[str, Any]) -> dict[str, Any]:
+        return stations.software_answers(stations.installed_software())
+
+    @server.method("station.record_computer")
+    @guarded
+    def station_record_computer(_ctx: Context, params: dict[str, Any]) -> dict[str, Any]:
+        return stations.record_computer(
+            state.require_store(),
+            station_schema,
+            _str(params, "id"),
+            _version(params),
+            _dict(params, "facts"),
+            stations.installed_software(),
+            state.host_hash,
         )
 
     return server

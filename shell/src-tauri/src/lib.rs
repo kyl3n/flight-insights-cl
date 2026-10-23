@@ -10,6 +10,7 @@
 pub mod engine;
 pub mod identity;
 pub mod rpc;
+pub mod station;
 
 use std::path::PathBuf;
 use std::sync::{Arc, Mutex};
@@ -129,6 +130,23 @@ async fn engine_call(
     .map_err(|e| e.to_string())?
 }
 
+/// Read this computer's facts and record them on a ground station's profile.
+#[tauri::command]
+async fn detect_this_computer(app: AppHandle, id: String, version: i64) -> Result<Value, String> {
+    tauri::async_runtime::spawn_blocking(move || {
+        let shell = app.state::<Shell>();
+        let engine = shell.running_engine(&app)?;
+        let facts = station::computer_facts(&shell.data_dir);
+        let params = serde_json::json!({ "id": id, "version": version, "facts": facts });
+        engine
+            .client
+            .call("station.record_computer", params, CALL_TIMEOUT)
+            .map_err(|e| e.to_string())
+    })
+    .await
+    .map_err(|e| e.to_string())?
+}
+
 fn start_up(app: &AppHandle) {
     let shell = app.state::<Shell>();
     let identifier = app.config().identifier.clone();
@@ -181,7 +199,11 @@ pub fn run() {
             std::thread::spawn(move || start_up(&handle));
             Ok(())
         })
-        .invoke_handler(tauri::generate_handler![shell_status, engine_call])
+        .invoke_handler(tauri::generate_handler![
+            shell_status,
+            engine_call,
+            detect_this_computer
+        ])
         .build(tauri::generate_context!())
         .expect("error while building Flight Insights");
     app.run(|app, event| {

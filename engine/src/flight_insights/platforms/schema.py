@@ -1,5 +1,5 @@
-"""The guided setup's steps and fields, from the knowledge pack
-(knowledge/setup/platform.json), and checking values against them."""
+"""The guided setups' steps and fields, from the knowledge pack
+(knowledge/setup/platform.json and station.json), and checking values against them."""
 
 from __future__ import annotations
 
@@ -29,6 +29,7 @@ class Field:
     prevents: str | None
     detect: str | None
     choices: tuple[str, ...]
+    volatile: bool = False  # changes minute to minute; never a reason for a new version
 
 
 @dataclass(frozen=True)
@@ -37,6 +38,7 @@ class Schema:
     steps: tuple[str, ...]
     fields: dict[str, Field]
     raw: dict[str, Any]  # as the UI renders it
+    repeating: frozenset[str] = frozenset()  # steps that hold a list of entries
 
     def field(self, field_id: str) -> Field:
         if field_id not in self.fields:
@@ -47,15 +49,15 @@ class Schema:
         return [f for f in self.fields.values() if f.step == step]
 
 
-def load_schema(pack: Pack) -> Schema:
-    return _load(pack.root)
+def load_schema(pack: Pack, name: str = "platform") -> Schema:
+    return _load(pack.root, name)
 
 
 @cache
-def _load(root: Path) -> Schema:
+def _load(root: Path, name: str) -> Schema:
     import json
 
-    raw: dict[str, Any] = json.loads((root / "setup" / "platform.json").read_text(encoding="utf-8"))
+    raw: dict[str, Any] = json.loads((root / "setup" / f"{name}.json").read_text(encoding="utf-8"))
     fields: dict[str, Field] = {}
     for step in raw["steps"]:
         for f in step["fields"]:
@@ -70,8 +72,11 @@ def _load(root: Path) -> Schema:
                 _english(f.get("prevents")),
                 f.get("detect"),
                 tuple(f.get("choices", ())),
+                bool(f.get("volatile")),
             )
-    return Schema(raw["version"], tuple(s["id"] for s in raw["steps"]), fields, raw)
+    steps = tuple(s["id"] for s in raw["steps"])
+    repeating = frozenset(s["id"] for s in raw["steps"] if s.get("repeat"))
+    return Schema(raw["version"], steps, fields, raw, repeating)
 
 
 def _english(text: dict[str, str] | None) -> str | None:
