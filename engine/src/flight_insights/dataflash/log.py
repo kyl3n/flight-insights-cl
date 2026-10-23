@@ -193,6 +193,16 @@ class DataflashLog:
                 chunk = decode_rows(self._bytes, offsets[start : start + rows], fmt)
                 yield from to_table(chunk, fmt).to_batches()
 
+    def iter_selected(
+        self, fid: int, positions: np.ndarray[tuple[int], np.dtype[np.intp]], rows: int = 1 << 16
+    ) -> Iterator[pa.RecordBatch]:
+        """Chosen messages of one format (by their positions in it), `rows` at a time."""
+        offsets = self.offsets(fid)[positions]
+        fmt = self.index.formats[fid]
+        for start in range(0, len(offsets), rows):
+            chunk = decode_rows(self._bytes, offsets[start : start + rows], fmt)
+            yield from to_table(chunk, fmt).to_batches()
+
     def instances(self, name: str) -> dict[int, pa.Table]:
         """A type's messages split by its instance column (IMU, ESC, battery...)."""
         table = self.table(name)

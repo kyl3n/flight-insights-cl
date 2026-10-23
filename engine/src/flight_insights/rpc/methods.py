@@ -21,6 +21,7 @@
 | station.save | Saves profile answers: in place while set up, otherwise a new version |
 | station.detect_software | Ground station programs installed on this computer |
 | station.record_computer | This computer's facts, read by the shell (the shell's own call) |
+| import.scan / .commit / .held / .resolve | Importing logs: see rpc/imports.py |
 
 Position columns are never written to an IPC file in Phase 0. Keys arrive over
 stdin, live in memory only, and are never logged or echoed in an error.
@@ -41,6 +42,7 @@ from flight_insights import __version__, platforms, stations
 from flight_insights.analysis import analyze_log, summary
 from flight_insights.dataflash import read_dataflash
 from flight_insights.knowledge import Pack, load_pack
+from flight_insights.rpc.imports import add_import_methods
 from flight_insights.rpc.server import (
     BAD_INPUT,
     CONFLICT,
@@ -432,4 +434,5 @@ def build_server(out: IO[str], pack: Pack | None = None) -> Server:
             state.host_hash,
         )
 
+    add_import_methods(server, state, guarded)
     return server

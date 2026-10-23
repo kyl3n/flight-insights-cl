@@ -44,19 +44,29 @@ def hash_board_id(key: bytes, unique_id: str) -> str:
     return f"bid1-{digest}"
 
 
-def _system_id_message(df: DataflashLog) -> str | None:
-    """The MSG written immediately after the first VER, in file order."""
+def system_id_row(df: DataflashLog) -> tuple[int, int] | None:
+    """(format id, position) of the MSG written immediately after the first VER, in
+    file order: the board's system ID, which caches and exports leave out."""
     ver = [int(df.offsets(f)[0]) for f in df.formats_named("VER") if df.count_format(f)]
     if not ver or "MSG" not in df.message_types:
         return None
+    best: tuple[int, int, int] | None = None  # (offset, fid, position)
     for fid in df.formats_named("MSG"):
         if not df.count_format(fid):
             continue
         offsets = df.offsets(fid)
         after = np.flatnonzero(offsets > min(ver))
-        if len(after):
-            return text(df.rows(fid)["Message"][after[0]].tobytes())
-    return None
+        if len(after) and (best is None or int(offsets[after[0]]) < best[0]):
+            best = (int(offsets[after[0]]), fid, int(after[0]))
+    return None if best is None else (best[1], best[2])
+
+
+def _system_id_message(df: DataflashLog) -> str | None:
+    row = system_id_row(df)
+    if row is None:
+        return None
+    fid, position = row
+    return text(df.rows(fid)["Message"][position].tobytes())
 
 
 def read_board(df: DataflashLog, pack: Pack, firmware: str, board_key: bytes) -> Board:

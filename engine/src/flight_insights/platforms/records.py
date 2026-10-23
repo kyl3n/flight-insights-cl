@@ -192,6 +192,31 @@ def list_airframes(
     return [airframe_view(store, schema, r[0]) for r in store.conn.execute(query, args)]
 
 
+def record_build(
+    store: Store,
+    airframe_id: str,
+    reason_kind: ChangeReason,
+    reason: str,
+    first_flight_id: str | None = None,
+    effective_date: str | None = None,
+) -> str:
+    """A new build version for a change found at import, such as a replaced flight
+    controller: the answers stay as they were, the reason says what changed."""
+    airframe = _require(store, "airframe", airframe_id)
+    current = _require(store, "build_version", airframe["current_build_id"])
+    when = effective_date or date.today().isoformat()
+    with store.transaction():
+        build = store.insert(
+            "build_version",
+            {"airframe_id": airframe_id, "number": current["number"] + 1,
+             "based_on_id": current["id"], "reason_kind": reason_kind, "reason": reason[:500],
+             "spec_json": current["spec_json"], "effective_date": when,
+             "first_flight_id": first_flight_id},
+        )  # fmt: skip
+        store.update("airframe", airframe_id, airframe["version"], {"current_build_id": build})
+    return build
+
+
 def record_change(
     store: Store,
     schema: Schema,
