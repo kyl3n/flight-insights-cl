@@ -16,6 +16,7 @@ from collections.abc import Sequence
 from typing import Any
 
 from flight_insights import __version__
+from flight_insights.analyzers.esc_rpm import ESC_RPM
 from flight_insights.analyzers.flight import FlightData
 from flight_insights.analyzers.log_adequacy import LOG_ADEQUACY
 from flight_insights.analyzers.model import Analyzer, Evidence, Result
@@ -28,7 +29,7 @@ from flight_insights.store.db import Store
 
 log = logging.getLogger(__name__)
 
-ANALYZERS: tuple[Analyzer, ...] = (LOG_ADEQUACY, SYSTEM, VIBRATION)
+ANALYZERS: tuple[Analyzer, ...] = (LOG_ADEQUACY, SYSTEM, VIBRATION, ESC_RPM)
 
 
 class AnalyzerBug(RuntimeError):

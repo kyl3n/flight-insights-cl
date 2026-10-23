@@ -1,0 +1,92 @@
+{
+  "about": "ESC telemetry and motor speed (spec: Motor and ESC health, 'Telemetry quality'; The filter analyzer in detail, 'Reliable ESC RPM telemetry'; Reference range library, 'ESC telemetry error rate').",
+  "metrics": {
+    "esc.telemetry_error_rate": {
+      "name": {
+        "en": "ESC telemetry error rate",
+        "uk": "Частка помилок телеметрії ESC"
+      },
+      "unit": "%",
+      "direction": "lower",
+      "definition": {
+        "en": "The share of telemetry frames an ESC received with errors, for the worst ESC. Bad frames mean lost motor speed readings, which an RPM-tracking notch relies on.",
+        "uk": "Частка кадрів телеметрії з помилками для найгіршого ESC. Пошкоджені кадри означають втрачені показання обертів, на які спирається режекторний фільтр, що стежить за обертами."
+      },
+      "method": {
+        "en": "ESC.Err, the error rate each ESC reports, averaged between arming and disarming; the highest ESC is reported.",
+        "uk": "ESC.Err, частка помилок, яку повідомляє кожен ESC, усереднена між взведенням і зняттям зі зброї; повідомляється найбільша."
+      },
+      "messages": ["ESC"],
+      "zones": {
+        "target": [null, 0.1],
+        "caution": [0.1, 1],
+        "out": [1, null]
+      },
+      "source": {
+        "kind": "community",
+        "title": "ESC Configurator guidance as quoted: bidirectional DShot error rates of 1% or more are usually a hardware problem",
+        "url": "https://intofpv.com/t-bidirectional-dshot-errors-when-transmitter-on"
+      }
+    },
+    "esc.telemetry_dropouts": {
+      "name": {
+        "en": "ESC telemetry dropouts",
+        "uk": "Пропуски телеметрії ESC"
+      },
+      "unit": "count",
+      "direction": "lower",
+      "definition": {
+        "en": "How often ESC telemetry stopped for a while, or read zero for a motor that was spinning. A notch that follows ESC RPM loses its frequency during each one.",
+        "uk": "Скільки разів телеметрія ESC зупинялася на деякий час або показувала нуль для мотора, що обертався. Режекторний фільтр, що стежить за обертами ESC, щоразу втрачає частоту."
+      },
+      "method": {
+        "en": "Gaps between ESC updates longer than five times the usual interval while armed, plus updates reading 0 rpm in steady hover, added over all ESCs.",
+        "uk": "Проміжки між оновленнями ESC, довші за п'ятикратний звичайний інтервал під час польоту, плюс оновлення з 0 об/хв у стабільному зависанні, сумарно за всіма ESC."
+      },
+      "messages": ["ESC"],
+      "zones": {
+        "target": [0, 1],
+        "caution": [1, null]
+      },
+      "source": {
+        "kind": "app",
+        "title": "App rule: an RPM-tracking notch needs unbroken RPM; any dropout is reported to the filter analyzer"
+      }
+    }
+  },
+  "findings": {
+    "esc.telemetry_errors": {
+      "stage": "mechanical",
+      "title": {
+        "en": "ESC {esc} reports {percent}% telemetry errors",
+        "uk": "ESC {esc} повідомляє {percent}% помилок телеметрії"
+      },
+      "action": {
+        "en": "Check the signal wire and its ground for that ESC, keep it away from power wiring, and check the ESC firmware. Until it is fixed, a notch that follows ESC RPM can lose its frequency.",
+        "uk": "Перевірте сигнальний провід і його землю для цього ESC, відведіть його від силових проводів і перевірте прошивку ESC. Доки це не виправлено, режекторний фільтр, що стежить за обертами ESC, може втрачати частоту."
+      }
+    },
+    "esc.telemetry_dropouts": {
+      "stage": "mechanical",
+      "title": {
+        "en": "ESC telemetry dropped out {count} times (ESC {escs})",
+        "uk": "Телеметрія ESC зникала {count} разів (ESC {escs})"
+      },
+      "action": {
+        "en": "Check the telemetry wiring and connectors for those ESCs. If the notch follows ESC RPM, set INS_HNTCH_OPTS bit 5 so it falls back to its minimum frequency when RPM is lost.",
+        "uk": "Перевірте проводку й роз'єми телеметрії цих ESC. Якщо режекторний фільтр стежить за обертами ESC, встановіть біт 5 INS_HNTCH_OPTS, щоб при втраті обертів він повертався до мінімальної частоти."
+      }
+    },
+    "esc.rpm_mismatch": {
+      "stage": "setup",
+      "title": {
+        "en": "ESC RPM says {motor_hz} Hz but the gyro's motor peak is at {peak_hz} Hz ({ratio} times)",
+        "uk": "Оберти ESC дають {motor_hz} Гц, але піковий шум моторів у гіроскопі на {peak_hz} Гц (у {ratio} рази)"
+      },
+      "action": {
+        "en": "The motor pole count the autopilot divides ESC RPM by is probably wrong (SERVO_BLH_POLES, SERVO_FTW_POLES or ESC_HW_POLES): count the magnets on one motor's bell. Fix it before using an ESC-RPM notch, or the notch will sit at the wrong frequency.",
+        "uk": "Імовірно, неправильна кількість полюсів мотора, на яку автопілот ділить оберти ESC (SERVO_BLH_POLES, SERVO_FTW_POLES або ESC_HW_POLES): порахуйте магніти на дзвоні одного мотора. Виправте це до використання режекторного фільтра за обертами ESC, інакше він стоятиме не на тій частоті."
+      }
+    }
+  }
+}

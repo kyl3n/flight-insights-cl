@@ -451,11 +451,13 @@ The checks run top to bottom; the first match sets the mode, and the details for
 - `INS_HNTCH_OPTS` bits: loop-rate updates (bit 2) only with bidirectional DShot on H7; fall back to minimum frequency if the RPM source fails (bit 5); triple notch (bit 4) for broad peaks, never together with double notch or multi-source.
 - Second notch set (`INS_HNTC2_*`): only for a second, independent source such as a frame resonance or a QuadPlane's forward motor. Two close peaks often mean yaw imbalance, a mechanical fix.
 
+**Spectra.** Spectra are Welch estimates from full-rate raw gyro samples: Hann windows with 50% overlap at about 1 Hz resolution, in (deg/s)²/Hz. Windows are taken only inside unbroken runs of samples, so a lost sample never shifts one; each run's sample rate is its sample count over its span, as the Filter Review tool reads it.
+
 **Step 4: simulate before recommending.** The engine applies the candidate low-pass and notch transfer functions to the logged pre-filter spectrum, the same method as ArduPilot's Filter Review tool, and reports predicted noise in the 0-40 Hz control band plus added phase lag. Among candidates it picks the least phase lag that meets the noise target, then checks the notch count against the board's CPU class.
 
 **Step 5: take the payoff.** With motor noise notched out, a higher `INS_GYRO_FILTER` usually becomes possible, which lowers phase lag and allows a tighter tune. The analyzer proposes the highest cutoff whose predicted post-filter noise still meets the target, then hands the rate-loop D-term filters (`ATC_RAT_*_FLTD`) to the tune analyzer.
 
-**What it flags on an existing setup:** notch disabled while clear motor peaks exist; throttle mode when RPM telemetry is present; logged notch centre frequency not tracking the measured peak; `INS_HNTCH_FREQ` above the hover frequency in ESC mode; a dominant harmonic left uncovered; bandwidth so wide it costs more phase than it saves; notches applied only to the primary IMU when lane switches occur; FFT mode on a CPU that cannot carry it.
+**What it flags on an existing setup:** notch disabled while clear motor peaks exist; throttle mode when RPM telemetry is present; ESC RPM that does not match the gyro's motor peak or one of its harmonics, which usually means a wrong motor pole count (`SERVO_BLH_POLES` and its equivalents) and is proposed as a fix; logged notch centre frequency not tracking the measured peak; `INS_HNTCH_FREQ` above the hover frequency in ESC mode; a dominant harmonic left uncovered; bandwidth so wide it costs more phase than it saves; notches applied only to the primary IMU when lane switches occur; FFT mode on a CPU that cannot carry it.
 
 ## Power and efficiency analysis
 
