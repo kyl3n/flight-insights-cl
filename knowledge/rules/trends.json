@@ -1,0 +1,9 @@
+{
+  "about": "Performance trends (spec: Performance trends and ideal ranges). The airframe's baseline is the 10th to 90th percentile of its most recent good flights in the same series (segment and payload), once there are five; the last two flights outside it on the worse side are flagged as drift. Starting values, uncalibrated.",
+  "uncalibrated": true,
+  "baseline_min_flights": 5,
+  "baseline_max_flights": 20,
+  "baseline_percentiles": [10, 90],
+  "drift_flights": 2,
+  "sparkline_flights": 12
+}

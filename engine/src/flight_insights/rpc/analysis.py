@@ -9,6 +9,10 @@
 | recommend.export | One step of that plan as .param or .params text, for a person to load |
 | recommend.set_status | A person accepts, rejects or marks a recommendation applied |
 | recommend.history | An airframe's recommendations, with what happened to each |
+| trend.overview | The airframe dashboard: each metric's latest value, zone, change and drift |
+| trend.series | One metric's series for an airframe, with its zones, baseline and drift |
+| trend.events | What changed on an airframe, placed at the flight it first applies to |
+| trend.platform | One metric for every airframe of a platform, on shared axes |
 
 Analysing a flight also grades its airframe's earlier recommendations against it.
 
@@ -21,7 +25,7 @@ from __future__ import annotations
 from collections.abc import Callable
 from typing import TYPE_CHECKING, Any
 
-from flight_insights import analyzers, recommend
+from flight_insights import analyzers, recommend, trends
 from flight_insights.analyzers.registry import LANGUAGES
 from flight_insights.rpc.server import (
     BAD_INPUT,
@@ -120,6 +124,55 @@ def add_analysis_methods(server: Server, state: EngineState, guarded: Callable[[
             )
         except (analyzers.FlightError, recommend.ExportError) as e:
             raise RpcError(BAD_INPUT, str(e)) from None
+
+    def _id(params: dict[str, Any], key: str) -> str:
+        value = params.get(key)
+        if not isinstance(value, str) or not value:
+            raise RpcError(INVALID_PARAMS, f"{key} must be an id")
+        return value
+
+    def _metric(params: dict[str, Any], reg: analyzers.Registry) -> tuple[str, str]:
+        metric, segment = params.get("metric"), params.get("segment", "flight")
+        if not isinstance(metric, str) or metric not in reg.metrics:
+            raise RpcError(INVALID_PARAMS, "metric must be a metric in the registry")
+        if not isinstance(segment, str):
+            raise RpcError(INVALID_PARAMS, "segment must be a segment name")
+        return metric, segment
+
+    @server.method("trend.overview")
+    @guarded
+    def trend_overview(_ctx: Context, params: dict[str, Any]) -> list[dict[str, Any]]:
+        reg = analyzers.Registry.load(state.pack)
+        return trends.overview(state.require_store(), reg, _id(params, "airframe_id"))
+
+    @server.method("trend.series")
+    @guarded
+    def trend_series(_ctx: Context, params: dict[str, Any]) -> dict[str, Any]:
+        reg = analyzers.Registry.load(state.pack)
+        metric, segment = _metric(params, reg)
+        payload, any_payload = params.get("payload"), params.get("any_payload", False)
+        if payload is not None and not isinstance(payload, str):
+            raise RpcError(INVALID_PARAMS, "payload must be a payload label or null")
+        if not isinstance(any_payload, bool):
+            raise RpcError(INVALID_PARAMS, "any_payload must be true or false")
+        return trends.series(
+            state.require_store(), reg, _id(params, "airframe_id"), metric, segment,
+            payload, any_payload,
+        )  # fmt: skip
+
+    @server.method("trend.events")
+    @guarded
+    def trend_events(_ctx: Context, params: dict[str, Any]) -> list[dict[str, Any]]:
+        return trends.events(state.require_store(), _id(params, "airframe_id"))
+
+    @server.method("trend.platform")
+    @guarded
+    def trend_platform(_ctx: Context, params: dict[str, Any]) -> dict[str, Any]:
+        reg = analyzers.Registry.load(state.pack)
+        metric, segment = _metric(params, reg)
+        return trends.platform(
+            state.require_store(), reg, _id(params, "platform_id"), metric, segment
+        )
 
     @server.method("analysis.registry")
     def analysis_registry(_ctx: Context, _params: dict[str, Any]) -> dict[str, Any]:
