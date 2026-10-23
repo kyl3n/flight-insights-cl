@@ -40,8 +40,25 @@ def segment_length(rate_hz: float, resolution_hz: float) -> int:
     return int(2 ** round(np.log2(rate_hz / resolution_hz)))
 
 
-def welch(runs: Sequence[Run], resolution_hz: float = 1.0) -> Spectrum | None:
-    """The averaged spectrum of every whole window in `runs`, or None if none fits."""
+@dataclass(frozen=True)
+class Windows:
+    """Each window's own spectrum, and the log times it spans."""
+
+    freqs: Floats
+    psd: Floats  # (windows, 3, len(freqs))
+    start_us: np.ndarray[tuple[int], np.dtype[np.int64]]
+    end_us: np.ndarray[tuple[int], np.dtype[np.int64]]
+    rate_hz: float
+    seconds: float
+
+    def mean(self) -> Spectrum:
+        return Spectrum(
+            self.freqs, self.psd.mean(axis=0), self.rate_hz, len(self.psd), self.seconds
+        )
+
+
+def windows(runs: Sequence[Run], resolution_hz: float = 1.0) -> Windows | None:
+    """Every whole window in `runs`, each with its spectrum, or None if none fits."""
     if not runs:
         return None
     rate = float(np.median([r.rate_hz for r in runs]))
@@ -50,8 +67,9 @@ def welch(runs: Sequence[Run], resolution_hz: float = 1.0) -> Spectrum | None:
     step = n // 2
     window = np.hanning(n)
     scale = 1.0 / (rate * float((window**2).sum()))
-    total: Floats = np.zeros((3, n // 2 + 1))
-    count = 0
+    spectra: list[Floats] = []
+    starts_us: list[int] = []
+    ends_us: list[int] = []
     seconds = 0.0
     for r in usable:
         x = r.samples
@@ -61,11 +79,25 @@ def welch(runs: Sequence[Run], resolution_hz: float = 1.0) -> Spectrum | None:
         for s in starts:
             seg = x[s : s + n]
             seg = (seg - seg.mean(axis=0)) * window[:, None]
-            total += np.abs(np.fft.rfft(seg, axis=0).T) ** 2
-            count += 1
+            spectra.append(np.abs(np.fft.rfft(seg, axis=0).T) ** 2 * scale)
+            starts_us.append(int(r.times_us[s]))
+            ends_us.append(int(r.times_us[s + n - 1]))
         seconds += (starts[-1] + n) / r.rate_hz
-    if not count:
+    if not spectra:
         return None
-    psd = total / count * scale
-    psd[:, 1:-1] *= 2  # one-sided: fold negative frequencies (not DC or Nyquist)
-    return Spectrum(np.fft.rfftfreq(n, 1.0 / rate), psd, rate, count, seconds)
+    psd = np.stack(spectra)
+    psd[:, :, 1:-1] *= 2  # one-sided: fold negative frequencies (not DC or Nyquist)
+    return Windows(
+        np.fft.rfftfreq(n, 1.0 / rate),
+        psd,
+        np.asarray(starts_us, np.int64),
+        np.asarray(ends_us, np.int64),
+        rate,
+        seconds,
+    )
+
+
+def welch(runs: Sequence[Run], resolution_hz: float = 1.0) -> Spectrum | None:
+    """The averaged spectrum of every whole window in `runs`, or None if none fits."""
+    w = windows(runs, resolution_hz)
+    return w.mean() if w is not None else None

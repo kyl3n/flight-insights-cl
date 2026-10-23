@@ -29,12 +29,14 @@ POST_FILTER_ONLY, PRE_AND_POST = 2, 3  # INS_RAW_LOG_OPT bits
 
 @dataclass(frozen=True)
 class Run:
-    """Contiguous samples of one gyro: (n, 3) in deg/s, X, Y and Z."""
+    """Contiguous samples of one gyro: (n, 3) in deg/s, X, Y and Z, with each sample's
+    log time."""
 
     start_us: int
     end_us: int
     rate_hz: float
     samples: Floats
+    times_us: np.ndarray[tuple[int], np.dtype[np.int64]]
 
 
 @dataclass(frozen=True)
@@ -75,5 +77,13 @@ def runs(
         span = int(clock[b - 1] - clock[a])
         if n < min_samples or span <= 0:
             continue
-        out.append(Run(int(t[sel[a]]), int(t[sel[b - 1]]), (n - 1) * 1e6 / span, data[a:b].copy()))
+        out.append(
+            Run(
+                int(t[sel[a]]),
+                int(t[sel[b - 1]]),
+                (n - 1) * 1e6 / span,
+                data[a:b].copy(),
+                t[sel[a:b]].copy(),
+            )
+        )
     return out

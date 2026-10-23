@@ -35,6 +35,23 @@ def build_parser() -> argparse.ArgumentParser:
     gate.add_argument(
         "--jobs", type=int, default=os.cpu_count() or 1, help="logs compared in parallel"
     )
+    fcheck = commands.add_parser(
+        "filter-check",
+        help="check the filter model against the post-filter gyro data each log holds",
+        description=(
+            "The Phase 1 gate's filter prediction check. Runs each log's own filter "
+            "settings over its pre-filter gyro data in steady hover and compares the "
+            "result with the post-filter data the autopilot logged (INS_RAW_LOG_OPT 9). "
+            "The report names logs by a hash of their content and holds only errors in "
+            "dB, so it can be shared."
+        ),
+    )
+    fcheck.add_argument("--corpus", type=Path, required=True, help="folder searched for .bin logs")
+    fcheck.add_argument("--report", type=Path, help="write the shareable JSON report here")
+    fcheck.add_argument("--target-db", type=float, help="fail if any log's error is above this")
+    fcheck.add_argument(
+        "--jobs", type=int, default=os.cpu_count() or 1, help="logs checked in parallel"
+    )
     analyze = commands.add_parser(
         "analyze",
         help="validate, segment and fingerprint one .bin log",
@@ -131,11 +148,41 @@ def _gate(args: argparse.Namespace) -> int:
     return 0 if data["passed"] else 1
 
 
+def _filter_check(args: argparse.Namespace) -> int:
+    from flight_insights.filters.corpus import find_logs, report, run
+
+    paths = find_logs(args.corpus)
+    if not paths:
+        print(f"no .bin logs under {args.corpus}", file=sys.stderr)
+        return 2
+    results = run(paths, args.jobs)
+    for path, r in zip(paths, results, strict=True):
+        err = f"{r.spectrum_error_db:6.3f} dB" if r.spectrum_error_db is not None else " " * 9
+        print(f"{r.status:<20}{r.id}  {err}  {r.error or ''} {path}")
+    data = report(results, args.target_db)
+    if args.report:
+        args.report.write_text(json.dumps(data, indent=2) + "\n", encoding="utf-8")
+    stats = data["spectrum_error"]
+    if stats:
+        print(
+            f"\n{data['checked']} log(s) checked: median {stats['median_db']} dB, "
+            f"90th percentile {stats['p90_db']} dB, worst {stats['max_db']} dB"
+        )
+    else:
+        print("\nno log had both pre- and post-filter gyro data in steady hover")
+    if data["passed"] is None:
+        return 0
+    print("PASSED" if data["passed"] else "FAILED", f"against {args.target_db} dB")
+    return 0 if data["passed"] else 1
+
+
 def main(argv: Sequence[str] | None = None) -> int:
     multiprocessing.freeze_support()  # worker processes in a frozen (PyInstaller) build
     args = build_parser().parse_args(argv)
     if args.command == "gate":
         return _gate(args)
+    if args.command == "filter-check":
+        return _filter_check(args)
     if args.command == "analyze":
         return _analyze(args)
     if args.command == "decode":
