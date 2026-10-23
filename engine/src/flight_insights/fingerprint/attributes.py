@@ -79,6 +79,9 @@ class Fingerprint:
     mode_s: dict[str, float] = field(default_factory=dict[str, float])
     hover_windows: list[HoverWindow] = field(default_factory=list[HoverWindow])
     rules_calibrated: bool = False
+    params: dict[str, float] = field(default_factory=dict[str, float])  # canonical names
+    # Parameters set away from the firmware default: chosen for this vehicle.
+    configured: dict[str, float] = field(default_factory=dict[str, float])
 
 
 class _Params:
@@ -87,6 +90,9 @@ class _Params:
     def __init__(self, snapshot: Snapshot, pack: Pack) -> None:
         self.dialect: Dialect = snapshot.dialect(pack)
         self.values = self.dialect.to_canonical(snapshot.values).values
+        self.configured = self.dialect.to_canonical(
+            {n: v for n, v in snapshot.values.items() if not snapshot.is_default(n)}
+        ).values
 
     def get(self, name: str) -> float | None:
         return self.values.get(name)
@@ -288,4 +294,6 @@ def fingerprint(df: DataflashLog, pack: Pack, board_key: bytes) -> Fingerprint:
         mode_s=mode_s,
         hover_windows=windows,
         rules_calibrated=rules.calibrated,
+        params=p.values,
+        configured=p.configured,
     )

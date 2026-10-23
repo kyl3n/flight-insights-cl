@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import dataclasses
 import secrets
 from pathlib import Path
 
@@ -9,7 +10,17 @@ import pytest
 from df_builder import LogBuilder
 
 from flight_insights.dataflash import read_dataflash
-from flight_insights.fingerprint import Fingerprint, fingerprint, hash_board_id, read_board
+from flight_insights.fingerprint import (
+    ArchetypeScore,
+    Attr,
+    Fingerprint,
+    Frame,
+    features,
+    fingerprint,
+    hash_board_id,
+    read_board,
+    score_archetypes,
+)
 from flight_insights.history import from_log
 from flight_insights.knowledge import Pack, load_pack
 
@@ -165,3 +176,83 @@ def test_the_flight_profile(prints: dict[str, Fingerprint]) -> None:
     assert sum(fp.mode_s.values()) == pytest.approx(fp.flight_s, abs=0.1)
     assert 18 < fp.hover_s < 21 and fp.hover_windows
     assert prints["4.7.0/plane-circuit"].hover_s == 0
+
+
+# --- archetypes ---------------------------------------------------------------------
+
+
+def variant(fp: Fingerprint, **changes: object) -> Fingerprint:
+    return dataclasses.replace(fp, **changes)  # type: ignore[arg-type]
+
+
+def top(fp: Fingerprint, pack: Pack) -> ArchetypeScore:
+    return score_archetypes(fp, pack)[0]
+
+
+def test_a_quadplane_is_scored_from_its_vtol_type(
+    prints: dict[str, Fingerprint], pack: Pack
+) -> None:
+    best = top(prints["4.7.0/quadplane-hover"], pack)
+    assert (best.archetype, best.score, best.confidence) == ("standard QuadPlane", 1.0, 1.0)
+    assert best.evidence[0].feature == "vtol" and best.evidence[0].met is True
+
+
+def test_prop_class_decides_between_multirotors(prints: dict[str, Fingerprint], pack: Pack) -> None:
+    quad = prints["4.7.0/copter-quad-hover"]
+    small = variant(
+        quad,
+        motor_hz_at_hover=Attr(320.0, "test"),
+        configured={"MOT_THST_EXPO": 0.55, "INS_GYRO_FILTER": 80.0, "BATT_CAPACITY": 1500.0},
+    )
+    assert top(small, pack).archetype == "small agile copter"
+    heavy = variant(
+        quad,
+        motor_hz_at_hover=Attr(55.0, "test"),
+        cells=Attr(12, "test"),
+        configured={"MOT_THST_EXPO": 0.78, "INS_GYRO_FILTER": 15.0},
+    )
+    assert top(heavy, pack).archetype == "heavy-lift copter"
+    winch = variant(heavy, params=heavy.params | {"WINCH_TYPE": 1.0})
+    assert top(winch, pack).archetype == "heavy-lift copter with variable payload"
+    x8 = variant(heavy, frame=Attr(Frame("multirotor", "OctaQuad", "X"), "test"))
+    assert top(x8, pack).archetype == "coaxial X8"
+
+
+def test_unknown_evidence_lowers_confidence_not_the_score(
+    prints: dict[str, Fingerprint], pack: Pack
+) -> None:
+    quad = prints["4.7.0/copter-quad-hover"]
+    # SITL leaves expo, gyro filter and capacity at their defaults and reports no RPM
+    scores = {s.archetype: s for s in score_archetypes(quad, pack)}
+    small = scores["small agile copter"]
+    unknown = {e.feature for e in small.evidence if e.met is None}
+    assert {"motor_hz_at_hover", "thst_expo", "gyro_filter_hz", "capacity_mah"} <= unknown
+    assert small.confidence < 0.5
+    assert all(s.archetype in scores for s in score_archetypes(quad, pack))
+    assert {s.archetype for s in score_archetypes(quad, pack)}.isdisjoint({"standard QuadPlane"})
+
+
+def test_every_score_shows_its_evidence(prints: dict[str, Fingerprint], pack: Pack) -> None:
+    rules = {a["id"]: a for a in pack.json("rules/archetypes.json")["archetypes"]}
+    for fp in prints.values():
+        for s in score_archetypes(fp, pack):
+            assert len(s.evidence) == len(rules[s.archetype]["conditions"])
+            assert all(e.why and e.condition for e in s.evidence)
+            assert 0 <= s.score <= 1 and 0 <= s.confidence <= 1
+
+
+def test_the_rule_pack_is_well_formed_and_marked_uncalibrated(
+    prints: dict[str, Fingerprint], pack: Pack
+) -> None:
+    rules = pack.json("rules/archetypes.json")
+    assert rules["calibrated"] is False and rules["version"] == "v0"
+    known = set(features(prints["4.7.0/copter-quad-hover"]))
+    classes = {"multirotor", "helicopter", "plane", "quadplane"}
+    ids = [a["id"] for a in rules["archetypes"]]
+    assert len(ids) == len(set(ids))
+    for a in rules["archetypes"]:
+        assert set(a["vehicle_class"]) <= classes
+        for c in a["conditions"]:
+            assert c["feature"] in known, c
+            assert c["weight"] > 0 and c["why"]
+            assert ("equals" in c) != ("min" in c or "max" in c), c

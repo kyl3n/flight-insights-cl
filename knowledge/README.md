@@ -9,6 +9,7 @@ Versioned data the engine reads, updatable without an app release (spec: System 
 | `params/renames.json` | Parameters renamed between releases, each with its proof | `tools/find_renames.py` |
 | `params/classes.json` | How parameters are classed: tuning, calibration, learned, counter, hardware, ground station | Curated |
 | `boards/<version>.json` | Every ChibiOS board's logged short name with its MCU, MCU family (F4, F7, H7...) and bootloader board ID | `tools/build_boards.py`, from the release's `hwdef` files and `board_types.txt` |
+| `rules/archetypes.json` | Rule pack v0 for the archetype scorer: weighted conditions on fingerprint features, each with its reason; marked uncalibrated | Curated |
 | `rules/hover.json` | When a multirotor, helicopter or QuadPlane in VTOL flight counts as hovering steadily; starting values, marked uncalibrated | Curated |
 | `enums/<version>.json` | Flight-mode names per vehicle and log-event names, by the numbers logs record (MODE.ModeNum, EV.Id) | `tools/build_enums.py`, from the release's `mode.h` and `AP_Logger.h` |
 
