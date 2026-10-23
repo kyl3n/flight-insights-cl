@@ -5,6 +5,8 @@
 | analysis.run | Analyses a flight, or returns its stored analysis while that is current |
 | analysis.get | A flight's latest analysis, current or not, or null if it was never analysed |
 | analysis.registry | Every metric and finding the analyzers can produce, with its wording |
+| recommend.plan | A flight's findings as a staged, validated plan of changes and actions |
+| recommend.export | One step of that plan as .param or .params text, for a person to load |
 
 Results hold metric values, findings with the evidence they rest on, and no
 positions: the analyzers read cached columns, where positions stay encrypted.
@@ -15,7 +17,8 @@ from __future__ import annotations
 from collections.abc import Callable
 from typing import TYPE_CHECKING, Any
 
-from flight_insights import analyzers
+from flight_insights import analyzers, recommend
+from flight_insights.analyzers.registry import LANGUAGES
 from flight_insights.rpc.server import BAD_INPUT, INVALID_PARAMS, Context, RpcError, Server
 
 if TYPE_CHECKING:
@@ -49,6 +52,38 @@ def add_analysis_methods(server: Server, state: EngineState, guarded: Callable[[
     def analysis_get(_ctx: Context, params: dict[str, Any]) -> dict[str, Any] | None:
         reg = analyzers.Registry.load(state.pack)
         return analyzers.analysis_results(state.require_store(), _flight(params), reg)
+
+    @server.method("recommend.plan")
+    @guarded
+    def recommend_plan(ctx: Context, params: dict[str, Any]) -> dict[str, Any]:
+        store, cache = state.require_store(), state.cache
+        assert cache is not None
+        ctx.progress(0.0, "planning")
+        try:
+            plan = recommend.flight_plan(store, cache, state.pack, _flight(params))
+        except analyzers.FlightError as e:
+            raise RpcError(BAD_INPUT, str(e)) from None
+        return recommend.to_json(plan, analyzers.Registry.load(state.pack))
+
+    @server.method("recommend.export")
+    @guarded
+    def recommend_export(_ctx: Context, params: dict[str, Any]) -> dict[str, Any]:
+        store, cache = state.require_store(), state.cache
+        assert cache is not None
+        step, kind, lang = params.get("step", 1), params.get("kind"), params.get("lang", "en")
+        if not isinstance(step, int) or isinstance(step, bool) or step < 1:
+            raise RpcError(INVALID_PARAMS, "step must be a step number, from 1")
+        if kind not in ("mission planner", "qgroundcontrol"):
+            raise RpcError(INVALID_PARAMS, "kind must be 'mission planner' or 'qgroundcontrol'")
+        if lang not in LANGUAGES:
+            raise RpcError(INVALID_PARAMS, f"lang must be one of {LANGUAGES}")
+        try:
+            plan = recommend.flight_plan(store, cache, state.pack, _flight(params))
+            return recommend.export_step(
+                plan, analyzers.Registry.load(state.pack), step, kind, lang
+            )
+        except (analyzers.FlightError, recommend.ExportError) as e:
+            raise RpcError(BAD_INPUT, str(e)) from None
 
     @server.method("analysis.registry")
     def analysis_registry(_ctx: Context, _params: dict[str, Any]) -> dict[str, Any]:

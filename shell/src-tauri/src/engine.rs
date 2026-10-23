@@ -246,6 +246,8 @@ pub const UI_METHODS: &[&str] = &[
     "analysis.run",
     "analysis.get",
     "analysis.registry",
+    "recommend.plan",
+    "recommend.export",
 ];
 
 #[cfg(test)]

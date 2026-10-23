@@ -1,0 +1,153 @@
+{
+  "about": "The recommendation engine (spec: Recommendation engine). Names are canonical (the newest release in the pack) and may use * wildcards; a test checks every name or pattern matches a parameter the pack knows. The step limit is the app's own starting value, uncalibrated: the 'closing the loop' grades set it in Phase 1.",
+  "uncalibrated": true,
+  "step_limits": [
+    {
+      "names": ["ATC_RAT_*_P", "ATC_RAT_*_I", "ATC_RAT_*_D", "ATC_RAT_*_FF", "ATC_ANG_*_P", "PSC_*_P", "PSC_*_I", "PSC_*_D"],
+      "max_fraction": 0.25,
+      "why": "A gain changed by more than a quarter in one flight can take the aircraft from stable to oscillating with no warning in between; larger changes are split across flights."
+    }
+  ],
+  "never": {
+    "add_bits": {
+      "names": ["ARMING_SKIPCHK", "FS_OPTIONS"],
+      "why": "A set bit skips an arming check or keeps flying through a failsafe."
+    },
+    "disable": {
+      "names": ["FS_THR_ENABLE", "FS_GCS_ENABLE", "FS_EKF_ACTION", "FS_CRASH_CHECK", "FS_VIBE_ENABLE", "FS_DR_ENABLE", "BATT*_FS_LOW_ACT", "BATT*_FS_CRT_ACT", "FENCE_ENABLE", "FENCE_ACTION"],
+      "why": "Zero switches the failsafe off or leaves it reporting only."
+    },
+    "raise": {
+      "names": ["ATC_ANGLE_MAX", "PSC_ANGLE_MAX", "LOIT_ANG_MAX", "ATC_RATE_*_MAX", "ATC_ACC_*_MAX", "PILOT_SPD_*", "PILOT_ACC_Z", "WP_SPD*", "WP_ACC*", "LOIT_SPEED_MS", "LOIT_ACC_MAX_M", "RTL_SPEED_MS", "FENCE_ALT_MAX", "FENCE_RADIUS", "MOT_SPIN_MAX"],
+      "zero_means_unlimited": ["ATC_RATE_*_MAX", "ATC_ACC_*_MAX", "PSC_ANGLE_MAX", "LOIT_ANG_MAX"],
+      "why": "No analyzer yet measures what the airframe can do beyond what it has flown, so a limit is never raised automatically."
+    }
+  },
+  "risk": {
+    "mechanical": "low", "evidence": "low", "setup": "medium", "filters": "medium",
+    "rate tune": "medium", "autotune": "medium", "feel": "low", "navigation": "medium",
+    "operations": "high"
+  },
+  "verify": {
+    "mechanical": {
+      "en": "Fix the hardware, then fly the same test again: a 60 s hover and a short stretch of normal flight.",
+      "uk": "Усуньте апаратну проблему й повторіть той самий тест: 60 с зависання і коротка ділянка звичайного польоту."
+    },
+    "evidence": {
+      "en": "Load the change, reboot if asked, and fly the same test again so the next analysis has the data it needs.",
+      "uk": "Завантажте зміну, перезавантажте контролер, якщо потрібно, і повторіть той самий тест, щоб наступний аналіз мав потрібні дані."
+    },
+    "setup": {
+      "en": "Fly a 60 s hover and a short stretch of normal flight; the next analysis checks the setting took effect.",
+      "uk": "Виконайте 60 с зависання і коротку ділянку звичайного польоту; наступний аналіз перевірить, що налаштування спрацювало."
+    },
+    "filters": {
+      "en": "Hover 60 s, then fly normally; the next analysis checks the notch follows the motor peak and the noise and lag match the prediction.",
+      "uk": "Зависніть на 60 с, потім летіть як звичайно; наступний аналіз перевірить, що режекторний фільтр стежить за піком моторів, а шум і затримка відповідають прогнозу."
+    },
+    "rate tune": {
+      "en": "Fly gentle, then sharper stick inputs on each axis; land at once if the aircraft oscillates.",
+      "uk": "Дайте плавні, потім різкіші рухи стіками по кожній осі; негайно сідайте, якщо апарат розгойдується."
+    },
+    "autotune": {
+      "en": "Run AutoTune one axis at a time in calm air, then check the result in a normal flight.",
+      "uk": "Запускайте AutoTune по одній осі в безвітряну погоду, потім перевірте результат у звичайному польоті."
+    },
+    "feel": {
+      "en": "Fly the usual manoeuvres and compare the handling with the last flight.",
+      "uk": "Виконайте звичні маневри й порівняйте керованість з попереднім польотом."
+    },
+    "navigation": {
+      "en": "Fly a short mission or a position-hold test and compare the tracking with the last flight.",
+      "uk": "Виконайте коротку місію або тест утримання позиції й порівняйте точність з попереднім польотом."
+    },
+    "operations": {
+      "en": "Test the failsafe or limit on the ground, or in a controlled test, before relying on it.",
+      "uk": "Перевірте failsafe або обмеження на землі чи в контрольованому тесті, перш ніж на нього покладатися."
+    }
+  },
+  "effects": {
+    "default": {
+      "en": "Expected: this finding clears on the next flight.",
+      "uk": "Очікується: це зауваження зникне після наступного польоту."
+    },
+    "filter.better_settings": {
+      "en": "Predicted by simulation: phase lag at {lag_hz} Hz from {lag_now}° to {lag_new}°; noise above the control band changes by {noise_change_db} dB.",
+      "uk": "Прогноз моделювання: фазова затримка на {lag_hz} Гц з {lag_now}° до {lag_new}°; шум вище смуги керування змінюється на {noise_change_db} дБ."
+    }
+  },
+  "texts": {
+    "unknown_param": {
+      "en": "{param} does not exist in firmware {firmware}.",
+      "uk": "{param} не існує у прошивці {firmware}."
+    },
+    "read_only": {
+      "en": "{param} is read-only.",
+      "uk": "{param} лише для читання."
+    },
+    "out_of_range": {
+      "en": "{value} is outside {param}'s range, {low} to {high}.",
+      "uk": "{value} поза межами {param}: від {low} до {high}."
+    },
+    "not_a_value": {
+      "en": "{value} is not one of {param}'s values.",
+      "uk": "{value} не є допустимим значенням {param}."
+    },
+    "undefined_bits": {
+      "en": "{value} sets bits {param} does not define.",
+      "uk": "{value} вмикає біти, яких {param} не визначає."
+    },
+    "never_add_bits": {
+      "en": "Setting bits in {param} weakens arming checks or failsafes: never proposed automatically.",
+      "uk": "Біти в {param} послаблюють перевірки перед озброєнням або failsafe: ніколи не пропонується автоматично."
+    },
+    "never_disable": {
+      "en": "Setting {param} to 0 switches a failsafe off: never proposed automatically.",
+      "uk": "Значення 0 для {param} вимикає failsafe: ніколи не пропонується автоматично."
+    },
+    "never_raise": {
+      "en": "Raising {param} past what the logs show the aircraft can do is never proposed automatically.",
+      "uk": "Підвищення {param} понад те, що апарат показав у журналах, ніколи не пропонується автоматично."
+    },
+    "disputed": {
+      "en": "Findings disagree on {param}: a person decides.",
+      "uk": "Зауваження не згодні щодо {param}: рішення ухвалює людина."
+    },
+    "waiting": {
+      "en": "Waits until the {stage} stage is verified.",
+      "uk": "Чекає, доки етап «{stage}» не буде перевірено."
+    },
+    "split": {
+      "en": "Step {step} of {steps} towards {target}: larger gain changes are split across flights.",
+      "uk": "Крок {step} з {steps} до {target}: великі зміни коефіцієнтів розподіляються на кілька польотів."
+    },
+    "needs_enable": {
+      "en": "{enable} must be on for {param} to take effect.",
+      "uk": "{enable} має бути увімкнено, щоб {param} діяв."
+    },
+    "file_header": {
+      "en": "Changed values only. Review every line before loading; nothing is written to the aircraft automatically.",
+      "uk": "Лише змінені значення. Перегляньте кожен рядок перед завантаженням; нічого не записується в апарат автоматично."
+    },
+    "file_step": {
+      "en": "Step {step} of {steps}: load this file and write the parameters, then {after}.",
+      "uk": "Крок {step} з {steps}: завантажте цей файл і запишіть параметри, потім {after}."
+    },
+    "after_reboot": {
+      "en": "reboot the flight controller",
+      "uk": "перезавантажте польотний контролер"
+    },
+    "after_refresh": {
+      "en": "reboot the flight controller and refresh the parameters, so the next step's parameters appear",
+      "uk": "перезавантажте польотний контролер і оновіть параметри, щоб з'явилися параметри наступного кроку"
+    },
+    "after_fly": {
+      "en": "fly the test",
+      "uk": "виконайте тестовий політ"
+    },
+    "verify_header": {
+      "en": "Verify:",
+      "uk": "Перевірка:"
+    }
+  }
+}
