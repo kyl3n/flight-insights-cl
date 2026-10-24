@@ -139,8 +139,9 @@ class _Apply:
         """One field from another laptop. `changed` says whether someone set it since
         the record was made; a value no one chose to change loses to one someone did,
         whatever the clocks say (a twin's starting value, against a decision made on
-        the other copy). Otherwise the later clock wins, and when neither change was
-        made on top of the other and the values differ, both are kept as a conflict."""
+        the other copy). Between two values no one changed, the kept record's stays.
+        Otherwise the later clock wins, and when neither change was made on top of the
+        other and the values differ, both are kept as a conflict."""
         current = row(self.store, table, {"id": rid})
         assert current is not None
         clock = self.conn.execute(
@@ -154,6 +155,12 @@ class _Apply:
             return  # the same change, seen again
         if changed != local_changed:
             incoming_wins, concurrent = changed, False
+        elif not changed:
+            # Neither copy's value was ever set: two twins' starting values. The kept
+            # record's own stays, on every laptop alike, whatever order the copies met in
+            # (a clock comparison here would depend on that order: the kept record keeps
+            # its own clock, not the clock of a value merged into it).
+            return
         else:
             pending = self.conn.execute(
                 "SELECT 1 FROM sync_pending WHERE tbl = ? AND rid = ? AND field = ?",
