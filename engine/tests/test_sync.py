@@ -418,6 +418,36 @@ def test_recommendations_made_on_both_laptops_are_kept_once(
     assert len([r for r in pb["recommendations"] if r.get("id")]) == len(kept)
 
 
+@pytest.mark.parametrize("order", ["abc", "acb", "bac", "cab", "cba"])
+def test_twins_merge_the_same_whatever_order_the_laptops_meet_in(
+    tmp_path: Path, pack: Pack, order: str
+) -> None:
+    # One log imported on two laptops onto different airframes, and planned on a third
+    # that has seen only one copy: one flight once the copies meet, and the same
+    # recommendations on every laptop, each on the airframe its flight is on. Found by
+    # the soak (seed 1, 30 rounds, 4 laptops): a starting value merged into the kept
+    # record was later compared with the kept record's own clock.
+    lts = {k: Laptop(tmp_path, i) for k, i in zip("abc", (A, B, C), strict=True)}
+    a, b, c = lts["a"], lts["b"], lts["c"]
+    sync(pack, a, b, c)
+    on_a, on_b = quad_airframe(a, pack), quad_airframe(b, pack)
+    sync(pack, a, b, c)
+    (fa,) = import_quad(a, pack, on_a)
+    (fb,) = import_quad(b, pack, on_b)
+    a.send()
+    c.receive(pack, a.sent)
+    for lt, flight in ((a, fa), (b, fb), (c, fa)):
+        plan_and_record(lt.store, lt.cache, pack, flight)
+    for _ in range(3):
+        sync(pack, *(lts[k] for k in order))
+    assert state(a) == state(b) == state(c)
+    for lt in lts.values():
+        (airframe,) = lt.store.conn.execute("SELECT airframe_id FROM flight").fetchone()
+        rows = lt.store.conn.execute("SELECT DISTINCT airframe_id FROM recommendation")
+        assert [r[0] for r in rows] == [airframe]
+        lt.close()
+
+
 # --- refusing ---------------------------------------------------------------------------
 
 
