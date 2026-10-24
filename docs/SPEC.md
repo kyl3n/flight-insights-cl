@@ -1501,7 +1501,7 @@ Every laptop keeps a full working copy of all data and shares it through one com
 2. Set the OAuth consent screen to Internal and create a desktop OAuth client; its ID ships with the app.
 3. Create the shared drive and add each user's company account as a Contributor.
 
-Each user then signs in once per laptop from inside the app.
+Each user then signs in once per laptop from inside the app. The step-by-step guide, including the test drive and secrets for the nightly soak, is `docs/google-setup.md`.
 
 ### Laptop identity
 
