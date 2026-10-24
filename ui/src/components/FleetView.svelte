@@ -270,7 +270,22 @@
           <dt>{t("laptop.version")}</dt>
           <dd class="mono">{app.shell.engine_version}</dd>
         {/if}
+        {#if app.shell.engine !== "browser"}
+          <dt>{t("laptop.ai")}</dt>
+          <dd>
+            {#if app.shell.ai === "ready"}
+              <StatusBadge status="ok" label={t("ai.ready")} />
+            {:else if app.shell.ai === "blocked"}
+              <StatusBadge status="out" label={t("ai.blocked")} />
+            {:else}
+              <StatusBadge status="caution" label={t("ai.pending")} />
+            {/if}
+          </dd>
+        {/if}
       </dl>
+      {#if app.shell.ai === "blocked" && app.shell.ai_failed.length}
+        <p class="error"><strong>{t("ai.failed")}:</strong> {app.shell.ai_failed.join("; ")}</p>
+      {/if}
       {#if app.shell.first_start}
         <p class="note">{t("laptop.firstStart")}</p>
       {/if}
