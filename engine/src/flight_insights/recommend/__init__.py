@@ -56,7 +56,7 @@ def _ai(
     """The changes the flight's accepted AI reply proposes, for this same analysis, as
     findings in canonical names: validated and merged like every other."""
     exchange = results.latest(store, flight_id)
-    if exchange is None or exchange["run_id"] != analysis.get("run"):
+    if exchange is None or not results.same_run(exchange, analysis):
         return []
     out: list[dict[str, Any]] = []
     for f in results.ai_findings(exchange, analysis["findings"]):

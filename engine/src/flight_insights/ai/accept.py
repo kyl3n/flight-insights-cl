@@ -17,7 +17,7 @@ from typing import Any, Literal, cast
 
 from flight_insights import recommend
 from flight_insights.ai.exchange import CHAT_REPLY, REPLY
-from flight_insights.ai.results import AI_CODE
+from flight_insights.ai.results import AI_CODE, local_refs
 from flight_insights.ai.schema import validate
 from flight_insights.analyzers.flight import FlightError
 from flight_insights.analyzers.registry import Registry
@@ -191,8 +191,8 @@ def results_for(store: Store, flight_id: str) -> dict[str, Any] | None:
     packet = store.get("ai_packet", got["packet_id"])
     return _view(got) | {
         "run_id": packet["run_id"] if packet else None,
-        # what each F1/E1 the reply cites stands for, so the report can open it
-        "refs": json.loads(packet["refs_json"]) if packet else {},
+        # what each F1/E1 the reply cites stands for here, so the report can open it
+        "refs": local_refs(store, flight_id, json.loads(packet["refs_json"])) if packet else {},
     }
 
 
@@ -242,7 +242,7 @@ def chat_history(store: Store, flight_id: str, limit: int = 10) -> list[dict[str
                 "question": json.loads(packet).get("question", ""),
                 "answer": answer["answer"],
                 "refs": answer["refs"],
-                "ref_targets": json.loads(refs),
+                "ref_targets": local_refs(store, flight_id, json.loads(refs)),
                 "created": created,
             }
         )

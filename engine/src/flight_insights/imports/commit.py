@@ -281,10 +281,7 @@ def _stored(store: Store, key: str) -> str | None:
 
 
 def _link(store: Store, flight_id: str, source_id: str, role: str) -> None:
-    store.conn.execute(
-        "INSERT OR IGNORE INTO flight_source (flight_id, source_file_id, role) VALUES (?, ?, ?)",
-        (flight_id, source_id, role),
-    )
+    store.link("flight_source", {"flight_id": flight_id, "source_file_id": source_id, "role": role})
 
 
 def _pair_stored_tlogs(store: Store, flight_id: str, boot_utc_us: int | None) -> None:
@@ -404,11 +401,7 @@ def _dataflash(
             _link(store, fid, source, "dataflash")
             _pair_stored_tlogs(store, fid, f.boot_utc_us)
             for pack_id in packs:
-                store.conn.execute(
-                    "INSERT OR IGNORE INTO flight_battery (flight_id, battery_pack_id) "
-                    "VALUES (?, ?)",
-                    (fid, pack_id),
-                )
+                store.link("flight_battery", {"flight_id": fid, "battery_pack_id": pack_id})
         if airframe_id and flight_ids:
             attach(store, pack, flight_ids, airframe_id, decision.changes, files)
     if item.flights and not flight_ids:

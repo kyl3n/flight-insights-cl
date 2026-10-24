@@ -76,8 +76,9 @@ def add_ai_methods(server: Server, state: EngineState, guarded: Callable[[Any], 
         violations = check(packet, points, policy)
         text = record.packet_text(packet)
         kept = record.record_packet(
-            store, flight_id, purpose, text, violations, run_id=built.run_id, refs=built.refs
-        )
+            store, flight_id, purpose, text, violations,
+            run_id=built.run_id, run_key=built.run_key, refs=built.refs,
+        )  # fmt: skip
         reply: dict[str, Any] = {
             "packet_id": kept["id"],
             "engine": {"ok": not violations, "reasons": [asdict(v) for v in violations]},

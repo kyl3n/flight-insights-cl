@@ -28,6 +28,7 @@ def record_packet(
     *,
     parent_id: str | None = None,
     run_id: str | None = None,
+    run_key: str | None = None,
     refs: Mapping[str, str] | None = None,
 ) -> dict[str, Any]:
     """Keeps a packet as built, with the engine's verdict. A tool result names the
@@ -45,6 +46,7 @@ def record_packet(
             "engine_reasons_json": json.dumps([asdict(v) for v in engine_violations]),
             "parent_id": parent_id,
             "run_id": run_id,
+            "run_key": run_key,
             "refs_json": json.dumps(dict(refs or {}), sort_keys=True),
         },
     )

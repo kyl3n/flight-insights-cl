@@ -272,6 +272,8 @@ pub const UI_METHODS: &[&str] = &[
     "ai.chat_history",
     "ai.sent",
     "ai.spend",
+    "sync.status",
+    "sync.conflicts",
 ];
 
 /// The AI path's engine methods that are the shell's alone: `ai.prepare` and `ai.tool`
@@ -285,6 +287,10 @@ pub const AI_SHELL_ONLY: &[&str] = &[
     "ai.tool",
     "ai.accept",
 ];
+
+/// Sync's engine methods that are the shell's alone: the outbox holds the paths of
+/// this laptop's source files, and only objects the shell has checked are applied.
+pub const SYNC_SHELL_ONLY: &[&str] = &["sync.outbox", "sync.sent", "sync.apply", "sync.quarantine"];
 
 #[cfg(test)]
 mod tests {
@@ -323,6 +329,14 @@ mod tests {
             );
         }
         assert!(AI_SHELL_ONLY.iter().all(|m| !UI_METHODS.contains(m)));
+    }
+
+    #[test]
+    fn the_ui_reads_sync_state_but_never_moves_objects() {
+        for m in UI_METHODS.iter().filter(|m| m.starts_with("sync.")) {
+            assert!(["sync.status", "sync.conflicts"].contains(m), "{m}");
+        }
+        assert!(SYNC_SHELL_ONLY.iter().all(|m| !UI_METHODS.contains(m)));
     }
 
     #[test]

@@ -10,9 +10,11 @@ run can always be reproduced.
 from __future__ import annotations
 
 import dataclasses
+import hashlib
 import json
 import logging
-from collections.abc import Sequence
+from collections import Counter
+from collections.abc import Iterable, Mapping, Sequence
 from typing import Any
 
 from flight_insights import __version__
@@ -48,6 +50,39 @@ class AnalyzerBug(RuntimeError):
 
 def _versions(analyzers: Sequence[Analyzer]) -> dict[str, int]:
     return {a.name: a.version for a in analyzers}
+
+
+def run_key(engine: str, knowledge: str, outcomes: Mapping[str, Mapping[str, Any]]) -> str:
+    """What a run was made with, the same on every laptop: two runs with one key found
+    the same things in the same log (spec: Shared storage and sync, portable references)."""
+    made = {"engine": engine, "knowledge": knowledge,
+            "analyzers": {n: o["version"] for n, o in sorted(outcomes.items())}}  # fmt: skip
+    return hashlib.sha256(json.dumps(made, sort_keys=True).encode()).hexdigest()[:16]
+
+
+def finding_keys(rows: Iterable[tuple[str, str, Sequence[str]]]) -> dict[str, str]:
+    """A portable name for each finding of one run, from (id, code, evidence ids) in the
+    order the analyzers emitted them. Finding ids are this laptop's own; evidence ids
+    are labels (never measured numbers, which can differ in the last bit between
+    machines), so code, evidence and the count of earlier twins name it everywhere."""
+    seen: Counter[str] = Counter()
+    out: dict[str, str] = {}
+    for fid, code, evidence in rows:
+        base = f"{code}|{','.join(sorted(evidence))}"
+        seen[base] += 1
+        digest = hashlib.sha256(f"{base}|{seen[base]}".encode()).hexdigest()[:12]
+        out[fid] = f"{code}#{digest}"
+    return out
+
+
+def run_finding_keys(store: Store, run_id: str) -> dict[str, str]:
+    return finding_keys(
+        (fid, code, json.loads(ev))
+        for fid, code, ev in store.conn.execute(
+            "SELECT id, code, evidence_json FROM finding WHERE run_id = ? ORDER BY created_hlc",
+            (run_id,),
+        )
+    )
 
 
 def run_analysis(
@@ -178,9 +213,11 @@ def analysis_results(
             (run_id,),
         )
     ]
+    keys = run_finding_keys(store, run_id)
     findings = [
         {
             "id": fid,
+            "key": keys[fid],
             "analyzer": an,
             "code": code,
             "severity": sev,
@@ -204,6 +241,7 @@ def analysis_results(
         "created": created,
         "engine": engine,
         "knowledge": knowledge,
+        "run_key": run_key(engine, knowledge, outcomes),
         "status": status,
         "current": current,
         "analyzers": outcomes,

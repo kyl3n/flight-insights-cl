@@ -193,7 +193,7 @@ def _analysis(
                 refs[eid] = f"E{len(refs) + 1}"
                 evidence.append(_evidence(e, refs[eid], arm_us, policy))
             cited.append(refs[eid])
-        keys[f"F{i + 1}"] = str(f["id"])
+        keys[f"F{i + 1}"] = str(f["key"])  # portable: the same finding on every laptop
         findings.append(
             {"ref": f"F{i + 1}", "code": f["code"], "severity": f["severity"],
              "confidence": f["confidence"], "params": _keyed(f["params"], policy),
@@ -224,8 +224,9 @@ def _parameters(
 @dataclass(frozen=True)
 class Built:
     packet: dict[str, Any]
-    run_id: str  # the analysis run it was built from
-    refs: dict[str, str]  # "F1" -> finding id, "E1" -> evidence id
+    run_id: str  # the analysis run it was built from, on this laptop
+    run_key: str  # what that run was made with, the same on every laptop
+    refs: dict[str, str]  # "F1" -> finding key, "E1" -> evidence id
 
 
 def build_packet(
@@ -273,4 +274,4 @@ def build(
         packet["conversation"] = [
             {"role": str(t["role"]), "text": str(t["text"])} for t in conversation
         ]
-    return Built(packet, str(analysis["run"]), keys)
+    return Built(packet, str(analysis["run"]), str(analysis["run_key"]), keys)

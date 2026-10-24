@@ -67,6 +67,7 @@ from flight_insights.rpc.server import (
     RpcError,
     Server,
 )
+from flight_insights.rpc.sync import add_sync_methods
 from flight_insights.store import ColumnCache, Store, StoreKeys, is_position, open_store
 from flight_insights.store.cache import schema_fields
 from flight_insights.store.db import StoreError
@@ -482,4 +483,5 @@ def build_server(out: IO[str], pack: Pack | None = None) -> Server:
     add_import_methods(server, state, guarded)
     add_analysis_methods(server, state, guarded)
     add_ai_methods(server, state, guarded)
+    add_sync_methods(server, state, guarded)
     return server

@@ -116,6 +116,7 @@ def record_plan(store: Store, plan: dict[str, Any]) -> dict[str, Any]:
                 "recommendation",
                 {
                     "finding_id": finding_id,
+                    "finding_code": code,
                     "airframe_id": airframe_id,
                     "flight_id": plan["flight"],
                     "param": param,
