@@ -30,6 +30,8 @@ from flight_insights.filters import (
     simulate,
     sources,
 )
+from flight_insights.filters.corpus import TABLES
+from flight_insights.filters.tracking import logged_inputs
 from flight_insights.fingerprint import fingerprint
 from flight_insights.history import from_log
 from flight_insights.knowledge import load_pack
@@ -187,7 +189,7 @@ def _flight_inputs(
         snap = from_log(df)
         p = snap.dialect(pack).to_canonical(snap.values).values
         fp = fingerprint(df, pack, bytes(32))
-        tables = {n: df.table(n) for n in ("GYR", "ESC", "MOTB", "FCNS") if n in df.message_types}
+        tables = {n: df.table(n) for n in TABLES if n in df.message_types}
     spans = [(w.start_us, w.end_us) for w in fp.hover_windows]
     return dict(p), tables, spans, int(fp.imu_count.value or 1), fp.board.family
 
@@ -205,6 +207,41 @@ def test_the_model_reproduces_the_logged_post_filter_gyro(name: str) -> None:
     assert tracking["model_centre_hz"] == pytest.approx(tracking["logged_centre_hz"], rel=0.01)
     lag = result.phase_lag_deg
     assert 0 < lag["10"] < lag["20"] < lag["40"]
+
+
+def test_notch_inputs_logged_at_every_update_replay_the_filters_exactly() -> None:
+    # Per-motor ESC notches moved at loop rate in gusty wind, with fast harmonic notch
+    # logging: following the logged inputs leaves a fraction of the error that
+    # rebuilding them from 100 Hz ESC telemetry does.
+    p, tables, spans, imus, family = _flight_inputs("copter-quad-fastnotch.bin")
+    exact = check(p, tables, spans, imus, family)
+    assert exact is not None and exact.notch_inputs == "exact"
+    [tracking] = exact.tracking
+    assert tracking["source"] == "logged FTN, every update"
+    exact_error = exact.spectrum_error_db()
+    assert exact_error is not None and exact_error < 0.1
+    rebuilt_tables = {n: t for n, t in tables.items() if n not in ("FTN", "FTNS")}
+    rebuilt = check(p, rebuilt_tables, spans, imus, family)
+    assert rebuilt is not None and rebuilt.notch_inputs == "rebuilt"
+    rebuilt_error = rebuilt.spectrum_error_db()
+    assert rebuilt_error is not None and rebuilt_error > 3 * exact_error
+
+
+def test_inputs_logged_at_10_hz_are_not_every_update() -> None:
+    _, tables, spans, *_ = _flight_inputs("copter-quad-rawimu.bin")  # FTNS at 10 Hz
+    assert "FTNS" in tables
+    assert logged_inputs(tables, 0, 5_000, spans[0][0], spans[-1][1]) is None
+
+
+def test_a_candidate_follows_the_logged_inputs_only_if_it_follows_the_same_thing() -> None:
+    p, tables, spans, _, family = _flight_inputs("copter-quad-fastnotch.bin")
+    a, b = spans[0][0], spans[-1][1]
+    shape = chain(p, 1000.0, family, tables, a, b, {"INS_HNTCH_": {"bw": 20.0}})
+    assert shape.sets[0].sources.every_update and shape.inputs == "exact"
+    mode = chain(p, 1000.0, family, tables, a, b, {"INS_HNTCH_": {"mode": 1, "ref": 0.3}})
+    assert not mode.sets[0].sources.every_update and mode.inputs == "rebuilt"
+    single = chain(p, 1000.0, family, tables, a, b, {"INS_HNTCH_": {"opts": 4}})
+    assert not single.sets[0].sources.every_update
 
 
 def test_the_wrong_settings_do_not_reproduce_the_flight(pack_reg: Registry) -> None:
@@ -234,11 +271,15 @@ def test_filter_check_reports_hashes_and_errors_only(
     shutil.copy(FIXTURES / "copter-quad-rawimu.bin", corpus / "secret-name.bin")
     shutil.copy(FIXTURES / "copter-quad-hover.bin", corpus / "another.bin")
     out = tmp_path / "report.json"
-    code = main(["filter-check", "--corpus", str(corpus), "--report", str(out), "--jobs", "1",
-                 "--target-db", "0.5"])  # fmt: skip
+    code = main(["filter-check", "--corpus", str(corpus), "--report", str(out), "--jobs", "1"])
     assert code == 0 and "PASSED" in capsys.readouterr().out
     text = out.read_text(encoding="utf-8")
     assert "secret-name" not in text and "another" not in text
     data = json.loads(text)
     assert data["checked"] == 1 and data["passed"] is True
     assert {log["status"] for log in data["logs"]} == {"checked", "no pre-filter data"}
+    # each log is held to its class's target, from the knowledge pack's zones
+    assert data["targets_db"] == {"exact": 0.1, "rebuilt": 1.5, "control": 0.1}
+    [checked] = [log for log in data["logs"] if log["status"] == "checked"]
+    assert checked["notch_inputs"] == "rebuilt"  # ESC RPM at 100 Hz, the mean of the motors
+    assert (checked["target_db"], checked["passed"]) == (1.5, True)

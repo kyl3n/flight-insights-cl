@@ -1,0 +1,33 @@
+source: sitl
+vehicle: copter
+frame: quad +
+firmware: 4.7.0
+ardupilot_commit: 1511f27194f1dcc3728270883047bdf022b3fd53
+scenario: copter-quad-fastnotch
+description: 'Hover in gusty wind with per-motor ESC RPM notches updated at loop
+  rate, raw IMU and fast harmonic notch logging during the hover: the notch''s own
+  inputs are logged at every update, so the filters can be replayed exactly.'
+parameters_set:
+  SIM_VIB_MOT_MAX: 350
+  SIM_GYR1_RND: 20
+  SIM_ESC_TELEM: 1
+  INS_RAW_LOG_OPT: 9
+  LOG_DISARMED: 0
+  LOG_FILE_BUFSIZE: 64
+  INS_HNTCH_ENABLE: 1
+  INS_HNTCH_MODE: 3
+  INS_HNTCH_REF: 1
+  INS_HNTCH_FREQ: 120
+  INS_HNTCH_BW: 30
+  INS_HNTCH_HMNCS: 3
+  INS_HNTCH_ATT: 40
+  INS_HNTCH_OPTS: 6
+  SIM_WIND_SPD: 2
+  SIM_WIND_TURB: 2
+faults: []
+expected:
+- INS_RAW_LOG_OPT = 9 and LOG_BITMASK bits 19 and 21 during the hover
+- about 10 s of hover at 4 m in gusty wind, the motors correcting for it
+- '8 notches: 4 motors x 2 harmonics, each following its own motor'
+- FTN logged at every notch update (400 Hz) during the hover
+- the filter model matches the logged post-filter gyro when it follows FTN

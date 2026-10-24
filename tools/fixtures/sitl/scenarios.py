@@ -28,6 +28,11 @@ class SetBits:
 
 
 LOG_IMU_RAW = SetBits(1 << 19, "default with bit 19 (raw IMU) set")
+# Copter's bit 21 logs the notch's inputs and centres (FTN, FCN) at every update instead
+# of 10 Hz, so the filters can be replayed exactly (ArduCopter/defines.h MASK_LOG_FTN_FAST).
+LOG_IMU_RAW_FAST_NOTCH = SetBits(
+    1 << 19 | 1 << 21, "default with bits 19 (raw IMU) and 21 (fast harmonic notch logging) set"
+)
 
 
 @dataclass(frozen=True)
@@ -85,11 +90,14 @@ def land_and_disarm(v: Vehicle, mode: str = "LAND") -> None:
 
 
 def copter_hover(
-    seconds: float, altitude: float = 10, raw_in_hover: bool = False
+    seconds: float,
+    altitude: float = 10,
+    raw_in_hover: bool = False,
+    hover_bits: SetBits = LOG_IMU_RAW,
 ) -> Callable[[Vehicle], None]:
-    """Take off, hover, land. With `raw_in_hover`, raw IMU logging runs during the hover
-    only, as for a filter test flight: a slow heavy-lift climb and descent would
-    otherwise fill the log."""
+    """Take off, hover, land. With `raw_in_hover`, raw IMU logging (`hover_bits`) runs
+    during the hover only, as for a filter test flight: a slow heavy-lift climb and
+    descent would otherwise fill the log."""
 
     def fly(v: Vehicle) -> None:
         v.mode("GUIDED")
@@ -98,7 +106,7 @@ def copter_hover(
         v.wait_altitude(altitude - 0.5)
         if raw_in_hover:
             bitmask = v.get_param("LOG_BITMASK")
-            v.set_param("LOG_BITMASK", LOG_IMU_RAW(bitmask))
+            v.set_param("LOG_BITMASK", hover_bits(bitmask))
         v.hold(seconds)
         if raw_in_hover:
             v.set_param("LOG_BITMASK", bitmask)
@@ -264,6 +272,39 @@ SCENARIOS: dict[str, Scenario] = {
                 "INS_HNTCH_HMNCS": 5,
                 "INS_HNTCH_ATT": 50,
                 "INS_HNTCH_BW": 40,
+            },
+            speedup=RAW_SPEEDUP,
+            **COPTER,  # type: ignore[arg-type]
+        ),
+        Scenario(
+            name="copter-quad-fastnotch",
+            vehicle="copter",
+            frame="quad +",
+            description=(
+                "Hover in gusty wind with per-motor ESC RPM notches updated at loop rate,"
+                " raw IMU and fast harmonic notch logging during the hover: the notch's own"
+                " inputs are logged at every update, so the filters can be replayed exactly."
+            ),
+            expected=[
+                "INS_RAW_LOG_OPT = 9 and LOG_BITMASK bits 19 and 21 during the hover",
+                "about 10 s of hover at 4 m in gusty wind, the motors correcting for it",
+                "8 notches: 4 motors x 2 harmonics, each following its own motor",
+                "FTN logged at every notch update (400 Hz) during the hover",
+                "the filter model matches the logged post-filter gyro when it follows FTN",
+            ],
+            fly=copter_hover(10, altitude=4, raw_in_hover=True, hover_bits=LOG_IMU_RAW_FAST_NOTCH),
+            boot_params=VIBRATING
+            | {
+                "INS_HNTCH_ENABLE": 1,
+                "INS_HNTCH_MODE": 3,
+                "INS_HNTCH_REF": 1,
+                "INS_HNTCH_FREQ": 120,
+                "INS_HNTCH_BW": 30,
+                "INS_HNTCH_HMNCS": 3,
+                "INS_HNTCH_ATT": 40,
+                "INS_HNTCH_OPTS": 6,  # bit 1: a notch per motor; bit 2: update at loop rate
+                "SIM_WIND_SPD": 2,
+                "SIM_WIND_TURB": 2,
             },
             speedup=RAW_SPEEDUP,
             **COPTER,  # type: ignore[arg-type]

@@ -31,7 +31,7 @@ from flight_insights.spectral.welch import windows
 
 Floats = np.ndarray[tuple[int, ...], np.dtype[np.float64]]
 
-TABLES = ("GYR", "ESC", "MOTB", "FCN", "FCNS", "RPM")
+TABLES = ("GYR", "ESC", "MOTB", "FCN", "FCNS", "FTN", "FTNS", "RPM")
 # What a person may try in the workbench: the first harmonic notch and the low-pass.
 EDITABLE = (
     "INS_HNTCH_ENABLE", "INS_HNTCH_MODE", "INS_HNTCH_FREQ", "INS_HNTCH_BW", "INS_HNTCH_REF",

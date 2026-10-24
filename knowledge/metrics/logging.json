@@ -120,6 +120,17 @@
         "en": "Set LOG_BITMASK to {proposed}, which adds {bits}.",
         "uk": "Встановіть LOG_BITMASK у {proposed}, що додає {bits}."
       }
+    },
+    "logging.notch_inputs_not_logged": {
+      "stage": "evidence",
+      "title": {
+        "en": "The harmonic notch moves {update_hz} times a second, but the log holds what it followed at most {logged_hz} times a second",
+        "uk": "Гармонійний режекторний фільтр переміщується {update_hz} разів на секунду, але журнал зберігає те, за чим він стежив, щонайбільше {logged_hz} разів на секунду"
+      },
+      "action": {
+        "en": "For the next filter test flight: 1. Set LOG_BITMASK to {proposed}, which adds bit {bit} (fast harmonic notch logging), and INS_RAW_LOG_OPT to 9 if it is not already, for the gyro before and after the filters. 2. Fly a steady hover of at least 30 seconds, then some gentle climbs and turns. 3. Import the log: the app then replays every notch exactly as the autopilot moved it, and holds its filter model to 0.1 dB instead of 1.5 dB. 4. Afterwards set LOG_BITMASK back to {current}: these messages make logs much larger. On an F4 board or a slow card, check the test log for dropped messages.",
+        "uk": "Для наступного тестового польоту для фільтрів: 1. Встановіть LOG_BITMASK у {proposed}, що додає біт {bit} (швидкий запис гармонійного фільтра), і INS_RAW_LOG_OPT у 9, якщо ще не встановлено, щоб записувати гіроскоп до і після фільтрів. 2. Виконайте стабільне зависання щонайменше 30 секунд, потім кілька плавних наборів висоти й поворотів. 3. Імпортуйте журнал: застосунок відтворить кожен режекторний фільтр точно так, як його переміщував автопілот, і триматиме модель фільтрів у межах 0,1 дБ замість 1,5 дБ. 4. Потім поверніть LOG_BITMASK у {current}: ці повідомлення сильно збільшують журнали. На платі F4 або з повільною карткою перевірте тестовий журнал на відкинуті повідомлення."
+      }
     }
   }
 }
