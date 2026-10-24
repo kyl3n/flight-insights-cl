@@ -42,6 +42,13 @@ def register_source(
 ) -> Registered:
     digest = file_sha256(path)
     with store.transaction() as conn:
+        if "source_location" in store.tables:  # where this laptop's copy is, for sync
+            conn.execute(
+                "INSERT INTO source_location (sha256, path, seen_hlc) VALUES (?, ?, ?) "
+                "ON CONFLICT (sha256) DO UPDATE SET path = excluded.path, "
+                "seen_hlc = excluded.seen_hlc",
+                (digest, str(path.resolve()), store.clock.now()),
+            )
         row = conn.execute("SELECT id FROM source_file WHERE sha256 = ?", (digest,)).fetchone()
         if row is not None:
             return Registered(row[0], digest, duplicate=True)

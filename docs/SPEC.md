@@ -1477,7 +1477,7 @@ Every laptop keeps a full working copy of all data and shares it through one com
 - **A shared drive, not a personal folder.** Files in a Google Workspace shared drive belong to the organization, so they survive staff and account changes. Laptops join as Contributors, who can add and edit files but cannot move them to the Trash ([access levels](https://support.google.com/a/users/answer/12380484?hl=en)).
 - **Direct API access.** The Rust shell talks to the Google Drive API itself. Google Drive for desktop does not run on Linux ([system requirements](https://support.google.com/drive/answer/2375082?hl=en)), and folder-mirroring clients cannot guarantee that a file is complete and conflict-free when the app reads it.
 - **Sign-in.** An OAuth app of type Internal in the company's Google Cloud project: only company accounts can sign in, and Google verification is not required ([OAuth app types](https://developers.google.com/identity/protocols/oauth2/production-readiness/overview)). Tokens live in the OS keychain.
-- **The engine stays offline.** Sync, encryption and keys live in the Rust shell; the analysis engine still has no network access.
+- **The engine stays offline.** Sync, encryption and keys live in the Rust shell; the analysis engine still has no network access. The engine turns this laptop's changes into plaintext objects and applies other laptops' objects after the shell has checked them (engine methods `sync.outbox`, `sync.sent`, `sync.apply` and `sync.quarantine`, which only the shell may call; the sync panel reads `sync.status` and `sync.conflicts`).
 
 **No Google Drive app needed.** Nothing from Google is installed on the laptops; the app itself signs in and talks to the Drive API. One-time admin setup:
 
@@ -1499,7 +1499,7 @@ The app never uploads "the latest database": two laptops changing data at the sa
 | --- | --- | --- |
 | Source files | .bin logs, tlogs, `.param` and `.params` files | Large logs upload in chunks and resume after a dropped connection |
 | Records | Platforms, airframes, builds, components, packs, configuration answers, notes, recommendation status, targets | Small; bundled per sync batch |
-| Analysis results | Findings, metrics and spectra | Tagged with engine and rule-pack versions; reused when they match, recomputed locally when they differ |
+| Analysis results | Findings, metrics and spectra | Not shared in the first release: analysis is deterministic and versioned, so each laptop recomputes it from the shared logs. Sharing results to save the work comes later |
 | AI results | Narratives and AI-proposed changes | Not reproducible, so always kept |
 | Weather | Region downloads (see Weather and wind) | Downloaded once per region and period, then shared |
 | Keyring and device registry | Wrapped fleet keys; enrolled laptops and their public keys; the Claude API and Open-Meteo keys, encrypted with the fleet key | Signed |
@@ -1514,6 +1514,23 @@ devices/<laptop-id>/<sequence>-<object-key>.fio
 - `sequence` increases by one with every object the laptop writes, so a gap shows that an object is missing or still uploading.
 - `object-key` is a keyed hash (HMAC-SHA-256 with a key derived from the fleet key) of the object's plaintext. The same content gives the same key on every laptop, but Google cannot test whether a known log is present.
 
+**Which tables sync** is one list in the engine (`store/synced.py`), and a test fails when a table is in no group or in two:
+
+| Kind | Tables | How they travel |
+| --- | --- | --- |
+| Records | laptop, platform, build_version, airframe, component, battery_pack, ground_station, ground_station_version, source_file, param_snapshot, flight, change_set, recommendation, ai_packet, ai_exchange | A new record whole, with each field's clock; a changed record as its changed fields |
+| Links | flight_source, flight_battery, build_component | Added once, never changed |
+| Children | param_value and param_change, with their parameter snapshot | Sent with the snapshot when it is new |
+| Local only | analysis_run, finding, metric_value (recomputed); station_folder, ignored_file, source_location (this laptop's paths); the sync tables themselves | Never sent |
+
+A few fields of synced records name a row that exists only on the laptop that wrote them, and stay there: `recommendation.finding_id` and `ai_packet.run_id`. Each record also carries a **portable reference** to the same thing:
+
+- A recommendation names its flight and its finding's code.
+- An AI packet names its analysis by a run key, a hash of the engine, knowledge and analyzer versions. Two runs with one key found the same things in the same log.
+- An AI packet's F references name findings by a finding key: the code, the evidence ids the finding cites (labels, never measured numbers, which can differ in the last bit between machines) and a count of earlier findings with the same code and evidence. Each laptop resolves the key to its own copy of the finding.
+
+A source file's object holds the file and its SHA-256, never the path it was imported from. A laptop that receives a log decodes it into its own encrypted cache. It does not recompute flight keys, because a key hashes the board ID. Instead it matches each flight in the file to the flight record that came with it by boot and arming time, read from the file itself.
+
 The object type and dates are kept inside the encrypted object rather than in the name. The same log can be imported on two laptops on different days, so only the content key identifies it reliably.
 
 ### No duplicates
@@ -1521,7 +1538,11 @@ The object type and dates are kept inside the encrypted object rather than in th
 Three independent checks keep every item in the app exactly once:
 
 1. **Content key.** Before uploading a source file, the app checks whether its object key already exists locally or on the drive, and uploads nothing if it does. When downloading, an object whose key is already in the ledger is skipped without being fetched.
-2. **Natural identity.** A flight is identified by its airframe, its boot and log start time and its firmware, not only by its file. If two different files describe the same flight, for example a complete log and a truncated copy, the app keeps the complete one and links the other to it.
+2. **Natural identity.** A flight is identified by its airframe, its boot and log start time and its firmware, not only by its file. If two different files describe the same flight, for example a complete log and a truncated copy, the app keeps the complete one and links the other to it. When two laptops each create a record for the same thing before syncing, the two records merge into one, keeping the smaller id on every laptop alike, and the local alias makes later references to the other id land on it. This covers:
+   - a flight, by its flight key;
+   - a source file, by its SHA-256;
+   - the parameters read from a log's start, by the file;
+   - a flight's recommendation, by flight, finding code, parameter and proposed value.
 3. **Ledger.** Every object applied is recorded locally with its key and source. Applying an object twice changes nothing, so a crash or retry can never double-count.
 
 ### Checking incoming data
@@ -1536,13 +1557,19 @@ While a laptop is online, the app reads the shared drive's change feed every min
 6. **Apply in order.** Each laptop's objects apply in sequence, and an object that depends on another waits for it.
 7. **Commit atomically.** The object and its ledger entry are written in one database transaction, so a crash leaves all of it or none of it.
 
-Anything that fails goes to quarantine with the reason. It is never applied and never deleted, and it is listed in the sync panel.
+Anything that fails goes to quarantine with the reason. It is never applied and never deleted, and it is listed in the sync panel. A reason names the check that failed and never holds a value from the object.
 
-**Uploading** works the same way in reverse. A change and its outgoing object are written to the local database in one transaction, then sent by resumable upload, so a file appears on the drive only once it is complete. The app compares the checksum Drive reports with its own before marking the object sent. With no connection, objects wait in the outbox and the app works normally.
+An object written by a newer version of the app waits until this laptop is updated; it is not quarantined.
+
+**Uploading** works the same way in reverse. Every change to a synced record is captured in the same transaction that makes it: which record and fields changed, and each field's clock. Pending changes are then bundled into outgoing objects, each with the laptop's next sequence number (at most 2,000 records an object), and sent by resumable upload, so a file appears on the drive only once it is complete. The app compares the checksum Drive reports with its own before marking the object sent. With no connection, objects wait in the outbox and the app works normally.
 
 ### Two laptops editing the same thing
 
 Flights, logs and results never conflict, because they are never edited. Records such as an airframe's build carry a hybrid logical clock timestamp and the version they were based on. Changes to different fields merge automatically. If two laptops change the same field before syncing, the later change wins and the app shows both values so the user can choose the other; nothing is silently lost.
+
+- **Field clocks.** Each changed field keeps its own clock and the clock of the value it replaced. A change made on top of the other laptop's value is not a conflict. A change made without having seen the other is concurrent.
+- **Changed beats unchanged.** A value someone set wins over a value no one has changed since the record was made, whatever the clocks say. This matters when two copies of one record merge: one laptop's "accepted" must not lose to the other copy's starting "proposed".
+- **Conflicts.** Concurrent changes with different values are kept with both values and both clocks for a person to look at. The same value set on both laptops is no conflict. Both laptops apply the same rules, so they agree on the value that wins.
 
 ### Encryption
 

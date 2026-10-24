@@ -18,7 +18,7 @@ from importlib import resources
 from pathlib import Path
 from typing import Any, Self
 
-from flight_insights.store import _sqlcipher
+from flight_insights.store import _sqlcipher, synced
 from flight_insights.store.hlc import HybridClock
 from flight_insights.store.keys import StoreKeys, check_laptop_id, short_code
 
@@ -58,7 +58,9 @@ class Store:
         self.clock = HybridClock(laptop_id)
         self._depth = 0
         self._lock = threading.RLock()  # one thread at a time; nested calls join in
+        self._applying = 0  # inside sync's apply: changes from another laptop, not captured
         self._record_tables: frozenset[str] = frozenset()
+        self._tables: frozenset[str] = frozenset()
         self.conn.execute(
             "CREATE TABLE IF NOT EXISTS schema_migrations "
             "(number INTEGER PRIMARY KEY, name TEXT NOT NULL, applied_hlc TEXT NOT NULL)"
@@ -99,7 +101,13 @@ class Store:
                 raise
             self._depth -= 1
             if self._depth == 0:
-                self.conn.execute("COMMIT")
+                try:
+                    self.conn.execute("COMMIT")
+                except BaseException:
+                    # A deferred check (foreign keys) can refuse the commit itself.
+                    if self.conn.in_transaction:
+                        self.conn.execute("ROLLBACK")
+                    raise
 
     # --- records --------------------------------------------------------------------
 
@@ -121,6 +129,8 @@ class Store:
             # Stamped under the lock: two threads reading the clock at once share a stamp.
             row["created_hlc"] = row["updated_hlc"] = self.clock.now()
             conn.execute(f"INSERT INTO {table} ({names}) VALUES ({marks})", list(row.values()))
+            if self._capturing(table):
+                self._pending(conn, table, record_id, "*", None)
         return record_id
 
     def update(
@@ -135,14 +145,83 @@ class Store:
         changes = {k: v for k, v in values.items() if k not in RECORD_COLUMNS}
         sets = "".join(f"{_ident(k)} = ?, " for k in changes)
         with self.transaction() as conn:
+            stamp = self.clock.now()
+            capture = self._capturing(table)
+            bases = {f: self.field_hlc(table, record_id, f) for f in changes} if capture else {}
             cur = conn.execute(
                 f"UPDATE {table} SET {sets}version = version + 1, updated_hlc = ?, laptop_id = ? "
                 "WHERE id = ? AND version = ?",
-                [*changes.values(), self.clock.now(), self.laptop_id, record_id, base_version],
+                [*changes.values(), stamp, self.laptop_id, record_id, base_version],
             )
             if cur.rowcount != 1:
                 raise StoreError(f"{table} {record_id} is not at version {base_version}")
+            for field, base in bases.items():
+                self._pending(conn, table, record_id, field, base)
+                conn.execute(
+                    "INSERT INTO field_clock VALUES (?, ?, ?, ?, ?) ON CONFLICT (tbl, rid, field) "
+                    "DO UPDATE SET hlc = excluded.hlc, base_hlc = excluded.base_hlc",
+                    (table, record_id, field, stamp, base),
+                )
         return base_version + 1
+
+    def link(self, table: str, row: Mapping[str, Any]) -> bool:
+        """Add a link between records (one of synced.LINKS) unless it is there; returns
+        whether it was added."""
+        if table not in synced.LINKS:
+            raise StoreError(f"{table!r} is not a link table")
+        names = ", ".join(_ident(k) for k in row)
+        marks = ", ".join("?" for _ in row)
+        with self.transaction() as conn:
+            cur = conn.execute(
+                f"INSERT OR IGNORE INTO {table} ({names}) VALUES ({marks})", list(row.values())
+            )
+            added = cur.rowcount == 1
+            if added and self._capturing(table):
+                self._pending(conn, table, synced.link_key(table, dict(row)), "*", None)
+        return added
+
+    # --- sync capture ---------------------------------------------------------------
+
+    @contextmanager
+    def applying(self) -> Generator[sqlite3.Connection]:
+        """A transaction applying another laptop's changes: they are not captured to be
+        sent again, and foreign keys are checked when it commits, so records that refer
+        to each other can arrive in one object in any order."""
+        with self.transaction() as conn:
+            conn.execute("PRAGMA defer_foreign_keys = ON")
+            self._applying += 1
+            try:
+                yield conn
+            finally:
+                self._applying -= 1
+
+    def _capturing(self, table: str) -> bool:
+        return (
+            not self._applying
+            and (table in synced.SYNCED or table in synced.LINKS)
+            and "sync_pending" in self._tables
+        )
+
+    def _pending(
+        self, conn: sqlite3.Connection, table: str, rid: str, field: str, base: str | None
+    ) -> None:
+        # The first change since the last object keeps the field's earlier clock.
+        conn.execute(
+            "INSERT OR IGNORE INTO sync_pending VALUES (?, ?, ?, ?)", (table, rid, field, base)
+        )
+
+    def field_hlc(self, table: str, record_id: str, field: str) -> str | None:
+        """The clock of a record's field: its last change, or the record's creation."""
+        row = self.conn.execute(
+            "SELECT hlc FROM field_clock WHERE tbl = ? AND rid = ? AND field = ?",
+            (table, record_id, field),
+        ).fetchone()
+        if row:
+            return str(row[0])
+        created = self.conn.execute(
+            f"SELECT created_hlc FROM {_ident(table)} WHERE id = ?", (record_id,)
+        ).fetchone()
+        return str(created[0]) if created else None
 
     def get(self, table: str, record_id: str) -> dict[str, Any] | None:
         self._check_table(table)
@@ -156,6 +235,10 @@ class Store:
     @property
     def record_tables(self) -> frozenset[str]:
         return self._record_tables
+
+    @property
+    def tables(self) -> frozenset[str]:
+        return self._tables
 
     def _check_table(self, table: str) -> None:
         if table not in self._record_tables:
@@ -187,11 +270,14 @@ class Store:
 
     def _load_tables(self) -> None:
         tables: set[str] = set()
+        every: set[str] = set()
         for (name,) in self.conn.execute("SELECT name FROM sqlite_schema WHERE type = 'table'"):
+            every.add(name)
             columns = {r[1] for r in self.conn.execute(f"PRAGMA table_info({_ident(name)})")}
             if set(RECORD_COLUMNS) <= columns:
                 tables.add(name)
         self._record_tables = frozenset(tables)
+        self._tables = frozenset(every)
 
     def _start_clock(self) -> None:
         """Continue after the newest stamp stored, even if the wall clock stepped back."""
