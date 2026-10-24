@@ -8,6 +8,7 @@
   import Header from "./components/Header.svelte";
   import PlanView from "./components/PlanView.svelte";
   import Rail from "./components/Rail.svelte";
+  import AskView from "./components/AskView.svelte";
   import SettingsView from "./components/SettingsView.svelte";
   import { aiSettingsSet, aiStatus, onAiProgress } from "./lib/ai";
   import SetupView from "./components/SetupView.svelte";
@@ -126,6 +127,8 @@
       <StationsView />
     {:else if app.view === "settings"}
       <SettingsView />
+    {:else if app.view === "ask"}
+      <AskView />
     {:else}
       <main class="later">
         <p>{t("view.later", { view: t(viewNames[app.view]) })}</p>

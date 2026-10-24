@@ -62,6 +62,8 @@ struct Shell {
     queue: ai::Queue,
     /// Set when the API refused the key; cleared when a new key is set.
     key_rejected: AtomicBool,
+    /// Chat turns built and checked, waiting for the person's review; never written down.
+    chats: Mutex<std::collections::HashMap<String, claude::Prepared>>,
     identity: Mutex<Option<Arc<LaptopIdentity>>>,
     engine: Mutex<Option<Arc<Engine>>>,
     /// Held while the engine is started, so only one is ever started at a time.
@@ -475,6 +477,92 @@ fn ai_send_now(shell: tauri::State<'_, Shell>, flight_id: String) {
     shell.queue.push(&flight_id, None, true);
 }
 
+/// A chat question, built into a packet and checked by both checks, for the person to
+/// review: the exact text that would be sent comes back, and nothing is sent yet.
+#[tauri::command]
+async fn ai_chat_prepare(
+    app: AppHandle,
+    flight_id: String,
+    question: String,
+) -> Result<Value, String> {
+    tauri::async_runtime::spawn_blocking(move || {
+        let shell = app.state::<Shell>();
+        if shell.status.lock().expect("status").ai != scrub::AiGate::Ready {
+            return Err("AI calls are blocked until the location check's self-test passes".into());
+        }
+        let engine = shell.running_engine(&app)?;
+        match claude::prepare(engine.as_ref(), &flight_id, "chat", Some(question.trim()))? {
+            Err(outcome) => serde_json::to_value(outcome).map_err(|e| e.to_string()),
+            Ok(p) => {
+                let id = p.packet_id.as_str().unwrap_or_default().to_owned();
+                let shown = serde_json::json!({
+                    "state": "review", "packet_id": id, "packet_json": p.text,
+                });
+                shell.chats.lock().expect("chats").insert(id, p);
+                Ok(shown)
+            }
+        }
+    })
+    .await
+    .map_err(|e| e.to_string())?
+}
+
+/// The person read the packet and sends it: the chat model answers.
+#[tauri::command]
+async fn ai_chat_send(app: AppHandle, packet_id: String) -> Result<Value, String> {
+    tauri::async_runtime::spawn_blocking(move || {
+        let shell = app.state::<Shell>();
+        let prepared = shell
+            .chats
+            .lock()
+            .expect("chats")
+            .remove(&packet_id)
+            .ok_or("that question was not prepared, or was already sent")?;
+        let engine = shell.running_engine(&app)?;
+        let keychain = shell.keychain.lock().expect("keychain").clone();
+        let key = keychain.map(|k| ai::key(k.as_ref())).transpose()?.flatten();
+        let Some(key) = key else {
+            claude::withdraw(engine.as_ref(), &prepared)?;
+            return Err("no Claude API key is set".into());
+        };
+        let api = claude::Api::new(claude::API, key)?;
+        let settings = ai::load_settings(&shell.data_dir);
+        let job = claude::Job {
+            engine: engine.as_ref(),
+            api: &api,
+            model: claude::CHAT,
+            language: &settings.language,
+            budget: None, // a person read it and asked
+        };
+        let out = claude::send(&job, prepared)?;
+        if let claude::Outcome::Done { exchange } = &out
+            && exchange["reasons"]
+                .to_string()
+                .contains(&claude::ApiError::Key.to_string())
+        {
+            shell.key_rejected.store(true, Ordering::SeqCst);
+        }
+        serde_json::to_value(out).map_err(|e| e.to_string())
+    })
+    .await
+    .map_err(|e| e.to_string())?
+}
+
+/// The person decided not to send it: recorded as not sent.
+#[tauri::command]
+async fn ai_chat_cancel(app: AppHandle, packet_id: String) -> Result<(), String> {
+    tauri::async_runtime::spawn_blocking(move || {
+        let shell = app.state::<Shell>();
+        let prepared = shell.chats.lock().expect("chats").remove(&packet_id);
+        match (prepared, shell.current_engine()) {
+            (Some(p), Some(engine)) => claude::withdraw(engine.as_ref(), &p),
+            _ => Ok(()),
+        }
+    })
+    .await
+    .map_err(|e| e.to_string())?
+}
+
 fn start_up(app: &AppHandle) {
     let shell = app.state::<Shell>();
     let identifier = app.config().identifier.clone();
@@ -551,6 +639,7 @@ pub fn run() {
                 keychain: Mutex::new(None),
                 queue: ai::Queue::default(),
                 key_rejected: AtomicBool::new(false),
+                chats: Mutex::new(Default::default()),
                 identity: Mutex::new(None),
                 engine: Mutex::new(None),
                 starting: Mutex::new(()),
@@ -574,7 +663,10 @@ pub fn run() {
             ai_key_set,
             ai_key_clear,
             ai_settings_set,
-            ai_send_now
+            ai_send_now,
+            ai_chat_prepare,
+            ai_chat_send,
+            ai_chat_cancel
         ])
         .build(tauri::generate_context!())
         .expect("error while building Flight Insights");

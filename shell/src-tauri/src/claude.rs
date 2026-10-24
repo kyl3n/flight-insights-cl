@@ -231,6 +231,9 @@ pub struct Spec {
     pub system: String,
     pub tools: Vec<Value>,
     pub reply_schema: Value,
+    pub chat_reply_schema: Value,
+    /// The instruction sent with a chat packet.
+    pub chat: String,
     pub language: BTreeMap<String, String>,
     pub max_tool_rounds: usize,
 }
@@ -239,8 +242,9 @@ impl Spec {
     /// The static parts must pass the shell's own detectors like any other text sent.
     pub fn check(&self) -> Vec<Violation> {
         scrub::check_content(&json!({
-            "system": self.system, "tools": self.tools,
-            "reply_schema": self.reply_schema, "language": self.language,
+            "system": self.system, "tools": self.tools, "reply_schema": self.reply_schema,
+            "chat_reply_schema": self.chat_reply_schema, "chat": self.chat,
+            "language": self.language,
         }))
     }
 }
@@ -252,7 +256,7 @@ pub enum Outcome {
     /// Sent, and the engine recorded what came back (accepted, invalid, declined, failed).
     Done { exchange: Value },
     /// One of the checks refused the packet: nothing left the laptop.
-    Refused { by: String },
+    Refused { by: String, reasons: Value },
     /// The monthly spend cap would be passed: nothing left the laptop.
     Capped,
     /// The static parts failed the shell's check: nothing is sent until that is fixed.
@@ -278,15 +282,93 @@ fn reasons(v: &[Violation]) -> Value {
     serde_json::to_value(v).unwrap_or_default()
 }
 
-fn request(job: &Job, spec: &Spec, messages: &[Value]) -> String {
+/// A packet built and passed by both checks, not yet sent: for a chat turn, what the
+/// person reviews before it goes. The tripwire stays here, in memory only.
+#[derive(Debug, Clone)]
+pub struct Prepared {
+    pub packet_id: Value,
+    pub text: String,
+    pub purpose: String,
+    tripwire: Vec<Point>,
+    spec: Spec,
+}
+
+/// Builds a packet in the engine and checks it here. A packet either check refuses is
+/// recorded as not sent, and comes back as the outcome.
+pub fn prepare(
+    engine: &dyn Engine,
+    flight_id: &str,
+    purpose: &str,
+    question: Option<&str>,
+) -> Result<Result<Prepared, Outcome>, String> {
+    let spec: Spec = serde_json::from_value(engine.call("ai.exchange_spec", json!({}))?)
+        .map_err(|e| format!("the exchange's static parts did not read: {e}"))?;
+    if !spec.check().is_empty() {
+        return Ok(Err(Outcome::Blocked));
+    }
+    let mut params = json!({ "flight_id": flight_id, "purpose": purpose });
+    if let Some(q) = question {
+        params["question"] = json!(q);
+    }
+    let got = engine.call("ai.prepare", params)?;
+    let packet_id = got["packet_id"].clone();
+    if got["engine"]["ok"] != true {
+        engine.call(
+            "ai.record",
+            json!({ "packet_id": packet_id, "shell_reasons": [], "sent": false }),
+        )?;
+        let reasons = got["engine"]["reasons"].clone();
+        return Ok(Err(Outcome::Refused {
+            by: "engine".into(),
+            reasons,
+        }));
+    }
+    let text = got["packet_json"].as_str().unwrap_or_default().to_owned();
+    let tripwire = points(&got["tripwire"]);
+    let refused = scrub::check_packet(&text, &tripwire);
+    if !refused.is_empty() {
+        engine.call(
+            "ai.record",
+            json!({ "packet_id": packet_id, "shell_reasons": reasons(&refused), "sent": false }),
+        )?;
+        return Ok(Err(Outcome::Refused {
+            by: "shell".into(),
+            reasons: reasons(&refused),
+        }));
+    }
+    Ok(Ok(Prepared {
+        packet_id,
+        text,
+        purpose: purpose.to_owned(),
+        tripwire,
+        spec,
+    }))
+}
+
+/// A prepared packet that is not going after all: recorded as not sent.
+pub fn withdraw(engine: &dyn Engine, p: &Prepared) -> Result<(), String> {
+    engine
+        .call(
+            "ai.record",
+            json!({ "packet_id": p.packet_id, "shell_reasons": [], "sent": false }),
+        )
+        .map(|_| ())
+}
+
+fn request(job: &Job, p: &Prepared, messages: &[Value]) -> String {
+    let schema = if p.purpose == "chat" {
+        &p.spec.chat_reply_schema
+    } else {
+        &p.spec.reply_schema
+    };
     let mut body = json!({
         "model": job.model.id,
         "max_tokens": MAX_TOKENS,
-        "system": [{"type": "text", "text": spec.system, "cache_control": {"type": "ephemeral"}}],
-        "tools": spec.tools,
+        "system": [{"type": "text", "text": p.spec.system, "cache_control": {"type": "ephemeral"}}],
+        "tools": p.spec.tools,
         "messages": messages,
         "output_config": {
-            "format": {"type": "json_schema", "schema": spec.reply_schema},
+            "format": {"type": "json_schema", "schema": schema},
             "effort": job.model.effort,
         },
         "cache_control": {"type": "ephemeral"},
@@ -299,42 +381,31 @@ fn request(job: &Job, spec: &Spec, messages: &[Value]) -> String {
 
 /// One flight's analysis exchange, end to end.
 pub fn analyse(job: &Job, flight_id: &str) -> Result<Outcome, String> {
-    let spec: Spec = serde_json::from_value(job.engine.call("ai.exchange_spec", json!({}))?)
-        .map_err(|e| format!("the exchange's static parts did not read: {e}"))?;
-    if !spec.check().is_empty() {
-        return Ok(Outcome::Blocked);
+    match prepare(job.engine, flight_id, "analysis", None)? {
+        Err(outcome) => Ok(outcome),
+        Ok(p) => send(job, p),
     }
-    let prepared = job.engine.call(
-        "ai.prepare",
-        json!({ "flight_id": flight_id, "purpose": "analysis" }),
-    )?;
-    let packet_id = prepared["packet_id"].clone();
-    if prepared["engine"]["ok"] != true {
-        job.engine.call(
-            "ai.record",
-            json!({ "packet_id": packet_id, "shell_reasons": [], "sent": false }),
-        )?;
-        return Ok(Outcome::Refused {
-            by: "engine".into(),
-        });
-    }
-    let text = prepared["packet_json"]
-        .as_str()
-        .unwrap_or_default()
-        .to_owned();
-    let tripwire = points(&prepared["tripwire"]);
-    let refused = scrub::check_packet(&text, &tripwire);
-    let instruction = spec
+}
+
+/// Sends a prepared packet and sees the exchange through: tool calls, then the reply
+/// to the engine. Checked once more first, against the same tripwire.
+pub fn send(job: &Job, p: Prepared) -> Result<Outcome, String> {
+    let packet_id = p.packet_id.clone();
+    let refused = scrub::check_packet(&p.text, &p.tripwire);
+    let instruction = p
+        .spec
         .language
         .get(job.language)
-        .or_else(|| spec.language.get("en"))
+        .or_else(|| p.spec.language.get("en"))
         .cloned()
         .unwrap_or_default();
-    let mut messages = vec![json!({"role": "user", "content": [
-        {"type": "text", "text": instruction},
-        {"type": "text", "text": text},
-    ]})];
-    let first = request(job, &spec, &messages);
+    let mut content = vec![json!({"type": "text", "text": instruction})];
+    if p.purpose == "chat" {
+        content.push(json!({"type": "text", "text": p.spec.chat}));
+    }
+    content.push(json!({"type": "text", "text": p.text}));
+    let mut messages = vec![json!({"role": "user", "content": content})];
+    let first = request(job, &p, &messages);
     let capped = job
         .budget
         .is_some_and(|(spent, cap)| spent + worst_case(&job.model, &first) > cap);
@@ -346,11 +417,15 @@ pub fn analyse(job: &Job, flight_id: &str) -> Result<Outcome, String> {
         }),
     )?;
     if !refused.is_empty() {
-        return Ok(Outcome::Refused { by: "shell".into() });
+        return Ok(Outcome::Refused {
+            by: "shell".into(),
+            reasons: reasons(&refused),
+        });
     }
     if capped {
         return Ok(Outcome::Capped);
     }
+    let spec = &p.spec;
 
     let mut usage = Usage::default();
     let mut served = job.model.id.to_owned();
@@ -405,7 +480,7 @@ pub fn analyse(job: &Job, flight_id: &str) -> Result<Outcome, String> {
         }
         messages.push(json!({"role": "assistant", "content": content}));
         messages.push(json!({"role": "user", "content": results}));
-        body = request(job, &spec, &messages);
+        body = request(job, &p, &messages);
         if let Some((spent, cap)) = job.budget
             && spent + cost_so_far + worst_case(&job.model, &body) > cap
         {
@@ -555,7 +630,8 @@ pub(crate) mod tests {
                     "tools": [{"name": "parameter_doc", "description": "Docs.", "strict": true,
                                "input_schema": {"type": "object", "properties": {"name": {"type": "string"}},
                                                 "required": ["name"], "additionalProperties": false}}],
-                    "reply_schema": {"type": "object"}, "language": {"en": "Write in English."},
+                    "reply_schema": {"type": "object"}, "chat_reply_schema": {"type": "object"},
+                    "chat": "Answer the question.", "language": {"en": "Write in English."},
                     "max_tool_rounds": 3,
                 }),
                 "ai.prepare" => {
@@ -707,7 +783,7 @@ pub(crate) mod tests {
         *engine.packet.lock().unwrap() = Some(planted);
         let a = api(&fake.url);
         let out = analyse(&job(&engine, &a, None), "f1").unwrap();
-        assert_eq!(out, Outcome::Refused { by: "shell".into() });
+        assert!(matches!(out, Outcome::Refused { ref by, .. } if by == "shell"));
         let rec = engine.last("ai.record");
         assert_eq!(rec["sent"], false);
         assert!(!rec["shell_reasons"].as_array().unwrap().is_empty());
@@ -814,6 +890,57 @@ pub(crate) mod tests {
             .unwrap()
             .to_owned();
         assert!(failure.contains("rate_limit_error") && !failure.contains("sk-test"));
+    }
+
+    #[test]
+    fn a_chat_turn_is_reviewed_then_sent_on_the_chat_model() {
+        let answer = r#"{"answer":"Yes, see F1.","refs":["F1"]}"#;
+        let fake = fake_api(vec![(
+            200,
+            vec![],
+            message("end_turn", json!([{"type": "text", "text": answer}])),
+        )]);
+        let engine = FakeEngine::default();
+        let a = api(&fake.url);
+        let p = prepare(&engine, "f1", "chat", Some("Is ESC 3 hot?"))
+            .unwrap()
+            .unwrap();
+        assert_eq!(engine.last("ai.prepare")["question"], "Is ESC 3 hot?");
+        assert!(
+            fake.seen.lock().unwrap().is_empty(),
+            "nothing goes before the review"
+        );
+        let job = Job {
+            engine: &engine,
+            api: &a,
+            model: CHAT,
+            language: "en",
+            budget: None,
+        };
+        send(&job, p).unwrap();
+        let seen = fake.seen.lock().unwrap();
+        let body: Value = serde_json::from_str(&seen[0].1).unwrap();
+        assert_eq!(body["model"], "claude-sonnet-5-5");
+        assert!(body.get("fallbacks").is_none());
+        assert_eq!(
+            body["messages"][0]["content"][1]["text"],
+            "Answer the question."
+        );
+        assert_eq!(body["messages"][0]["content"][2]["text"], PACKET);
+        let head = &seen[0].0;
+        assert!(!head.iter().any(|(k, _)| k == "anthropic-beta"));
+        assert_eq!(engine.last("ai.accept")["reply"], answer);
+    }
+
+    #[test]
+    fn a_withdrawn_chat_turn_is_recorded_unsent() {
+        let engine = FakeEngine::default();
+        let p = prepare(&engine, "f1", "chat", Some("Q?")).unwrap().unwrap();
+        withdraw(&engine, &p).unwrap();
+        assert_eq!(
+            engine.last("ai.record"),
+            json!({"packet_id": "p1", "shell_reasons": [], "sent": false})
+        );
     }
 
     #[test]

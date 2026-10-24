@@ -269,6 +269,7 @@ pub const UI_METHODS: &[&str] = &[
     "review.file",
     "filter.workbench",
     "ai.results",
+    "ai.chat_history",
     "ai.sent",
     "ai.spend",
 ];
@@ -316,7 +317,10 @@ mod tests {
         // shell's check: the interface must never be able to ask for them. It may only
         // read what came of an exchange, which holds no tripwire.
         for m in UI_METHODS.iter().filter(|m| m.starts_with("ai.")) {
-            assert!(["ai.results", "ai.sent", "ai.spend"].contains(m), "{m}");
+            assert!(
+                ["ai.results", "ai.chat_history", "ai.sent", "ai.spend"].contains(m),
+                "{m}"
+            );
         }
         assert!(AI_SHELL_ONLY.iter().all(|m| !UI_METHODS.contains(m)));
     }

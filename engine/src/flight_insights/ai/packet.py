@@ -236,9 +236,17 @@ def build_packet(
 
 
 def build(
-    store: Store, cache: ColumnCache, pack: Pack, flight_id: str, purpose: str = "analysis"
+    store: Store,
+    cache: ColumnCache,
+    pack: Pack,
+    flight_id: str,
+    purpose: str = "analysis",
+    question: str | None = None,
+    conversation: Sequence[Mapping[str, str]] = (),
 ) -> Built:
-    """The packet, with what its references stand for."""
+    """The packet, with what its references stand for. A chat packet also holds the
+    engineer's question and the conversation so far, exactly as typed and answered:
+    the scrubber then checks them like everything else."""
     if purpose not in PURPOSES:
         raise ValueError(f"purpose must be one of {', '.join(PURPOSES)}")
     row = store.get("flight", flight_id)
@@ -260,4 +268,9 @@ def build(
         "evidence": evidence,
         "parameters": _parameters(store, pack, row, policy),
     }
+    if purpose == "chat":
+        packet["question"] = question or ""
+        packet["conversation"] = [
+            {"role": str(t["role"]), "text": str(t["text"])} for t in conversation
+        ]
     return Built(packet, str(analysis["run"]), keys)

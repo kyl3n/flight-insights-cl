@@ -320,6 +320,21 @@ PACKET: dict[str, Any] = {
             "maxProperties": 2000,
         },
         "tool": TOOL,
+        # chat: the engineer's question and the earlier turns of the conversation, as
+        # typed and as answered; checked like every other text in the packet
+        "question": {"type": "string", "maxLength": 500},
+        "conversation": {
+            "type": "array",
+            "maxItems": 20,
+            "items": strict(
+                {
+                    "role": {"enum": ["user", "assistant"]},
+                    "text": {"type": "string", "maxLength": 2000},
+                },
+                "role",
+                "text",
+            ),
+        },
     },
     "required": ["schema", "purpose", "aircraft"],
     "additionalProperties": False,

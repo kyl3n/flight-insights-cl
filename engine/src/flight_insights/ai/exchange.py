@@ -68,6 +68,15 @@ REPLY: dict[str, Any] = strict(
     "summary", "root_causes", "recommendations", "disagreements", "questions", "tests_to_fly",
 )  # fmt: skip
 
+# A chat turn's reply: the answer, and the references it rests on.
+CHAT_REPLY: dict[str, Any] = strict({"answer": _text(4000), "refs": _refs()}, "answer", "refs")
+CHAT = (
+    "The packet's \"question\" is the engineer's follow-up question about this flight, and "
+    '"conversation" holds the earlier turns. Answer the question in "answer", briefly and '
+    'concretely, citing the packet\'s references in "refs". Propose no parameter changes here: '
+    "say what to try, and the plan will carry changes from the analysis."
+)
+
 LIMITS = ("maxLength", "maxItems", "maxProperties", "pattern")
 LANGUAGE = {
     "en": "Write every text in the reply in English.",
@@ -111,6 +120,8 @@ def spec(pack: Pack) -> dict[str, Any]:
         "system": system_prompt(pack),
         "tools": DEFINITIONS,
         "reply_schema": api_schema(REPLY),
+        "chat_reply_schema": api_schema(CHAT_REPLY),
+        "chat": CHAT,
         "language": LANGUAGE,
         "max_tool_rounds": MAX_TOOL_ROUNDS,
     }
