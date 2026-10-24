@@ -1491,6 +1491,14 @@ Each user then signs in once per laptop from inside the app.
 
 On first start the app generates a random 128-bit laptop ID (shown as a short code such as LT-3F9A2C next to a name the user chooses), a signing key pair and an encryption key pair. Private keys never leave the OS keychain. A new laptop is enrolled from any laptop already enrolled, which adds its public keys to the signed device registry on the drive and grants it the fleet key (see Encryption below).
 
+**Enrolling a laptop.**
+1. The new laptop shows an enrollment code, which holds its ID, name and public keys, and a short fingerprint such as `3F9A-2C11-0B7E`.
+2. The code is typed or pasted into an enrolled laptop, and the two people compare the fingerprint on both screens before approving.
+3. The enrolled laptop then writes the registry event that adds the new one, with every key sealed to the new laptop's encryption key.
+4. The new laptop checks the registry from its first event, whose hash is the fleet's fingerprint, and takes its keys from that event.
+
+**The device registry** is an append-only chain of signed events on the drive (`registry/<number>-<hash>.json`): the fleet's creation, each enrollment, each revocation and each recovery. Each event names the hash of the one before it. Each is signed by a laptop that was enrolled, and not revoked, at that point; a recovery event is signed by the recovery key instead. A chain that breaks any of these rules is refused whole.
+
 ### What is shared: immutable objects
 
 The app never uploads "the latest database": two laptops changing data at the same time would overwrite each other. Instead, every change is written as a new object that is never modified afterwards, and each laptop replays the objects written by the others.
@@ -1573,18 +1581,38 @@ Flights, logs and results never conflict, because they are never edited. Records
 
 ### Encryption
 
-- Each object is encrypted with its own random key using XChaCha20-Poly1305 in libsodium's streaming format, which also detects truncated or reordered chunks.
+- Each object is encrypted with its own random key using XChaCha20-Poly1305 in libsodium's streaming format, in 64 KiB chunks, which also detects truncated or reordered chunks.
 - The object key is wrapped with the current fleet key, and the fleet key is wrapped for each enrolled laptop's public key in the keyring.
 - Every object is signed with the writing laptop's Ed25519 key.
+- **The object file** (`.fio`):
+  - a header holding the format, the laptop ID, the sequence number, the fleet key's ID, the content key sealed with that fleet key, and the stream header;
+  - the encrypted chunks, of which only the last is marked final;
+  - the writer's Ed25519 signature over the header and a BLAKE2b-256 hash of the chunks.
+
+  The sequence in the file name is zero-padded to 12 digits.
+- **Reading an object** checks, in this order:
+  1. the name against the header;
+  2. the signature, before anything is decrypted;
+  3. each chunk;
+  4. that the stream ended where it should;
+  5. that the plaintext's keyed hash is the object key in the name.
+- **Two kinds of fleet key.** A root key, which never changes, names things: the object-key hash and the board-ID hash both use keys derived from it. Fleet keys encrypt objects, and revoking a laptop adds a new one. Names therefore stay the same across rotations, so the "No duplicates" checks keep working.
+- **Libraries.** libsodium 1.0.22, through the `libsodium-sys-stable` binding. The laptop keys are the existing Ed25519 and X25519 pairs, which are byte-compatible with libsodium's.
 - Only established, audited libraries are used; no custom cryptography.
 - Google sees laptop IDs, file sizes, upload times and which company accounts are signed in. It never sees content, airframe or flight names, parameters or positions.
 
-**A lost laptop** is removed from the registry from any other laptop, its account's access to the drive is revoked, and the fleet key is rotated. Objects written afterwards use the new key, so the lost laptop can read nothing new. The same flow asks an admin for new Claude API and Open-Meteo keys and has the old ones deleted, because the lost laptop held copies.
+**A lost laptop** is removed from the registry from any other laptop, its account's access to the drive is revoked, and the fleet key is rotated. Objects written afterwards use the new key, so the lost laptop can read nothing new.
+- The revocation names the newest of the lost laptop's objects that still counts. Anything it signs with a later sequence number is refused.
+- The new fleet key is sealed to every remaining laptop, and to the recovery key.
+- The lost laptop could still compute object names, which come from the root key, but its drive access is revoked in the same step. The same flow asks an admin for new Claude API and Open-Meteo keys and has the old ones deleted, because the lost laptop held copies.
 
 ### Never losing data
 
 - The app only ever adds objects. Corrections are new objects, so every earlier state can be rebuilt. Contributor access stops a laptop's account from moving files to the Trash, and Drive's version history is a second layer.
 - **Recovery key.** End-to-end encryption means that if every copy of the fleet key were lost, nobody could read the data. Setup therefore creates a recovery key, which an admin keeps offline in a secure place. A second copy in a separate secure location protects against losing the first.
+  - **Form.** 32 random bytes, shown once at setup as 24 words from the BIP-39 English list. The words include a checksum, so a wrong or swapped word is caught. The key is never stored on any laptop.
+  - **What it unlocks.** Two key pairs are derived from it. The first is an encryption pair: the registry holds a copy of every key sealed to its public half, refreshed at each rotation, which any laptop can write and only the words can open. The second is a signing pair, whose public half is in the registry's first event.
+  - **Recovering.** On a fresh laptop, "Recover with the recovery key" opens the latest copy and signs a registry event that adds the new laptop to the fleet. That laptop can then read everything and enroll others.
 - **Rebuilding a laptop.** A new or repaired laptop is enrolled, downloads everything and rebuilds its database. To save disk space, raw logs can be dropped from a laptop and fetched again when opened.
 - **Capacity.** A shared drive holds at most 500,000 items, and each account can upload 750 GB a day ([shared drive limits](https://support.google.com/a/answer/7338880?hl=en)). Bundling small records keeps each flight to a handful of files, and storage is sized from the fleet's real log sizes.
 

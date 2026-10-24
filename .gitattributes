@@ -1,2 +1,4 @@
 # Fixtures are hashed in tests/fixtures/SCRUBBED.sha256: never convert line endings.
 tests/fixtures/** -text
+# Hashed against its published SHA-256 in a test: never convert line endings.
+shell/src-tauri/src/sync/bip39-english.txt -text
