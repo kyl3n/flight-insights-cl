@@ -814,11 +814,20 @@ fn tripwire(found: &[(String, f64, usize)], points: &[Point]) -> Vec<Violation> 
 /// exactly as it will be sent.
 pub fn check_packet(text: &str, points: &[Point]) -> Vec<Violation> {
     let mut out = shape(text);
-    let Ok(value) = serde_json::from_str::<Value>(text) else {
-        return out;
-    };
+    if let Ok(value) = serde_json::from_str::<Value>(text) {
+        out.extend(check_content(&value));
+        out.extend(check_tripwire(&value, points));
+    }
+    out
+}
+
+/// Layer 2 alone, for text the shell sends beside packets that has no packet shape of
+/// its own: the exchange's static parts (system prompt, tool definitions, reply
+/// schema), which hold nothing about any flight and are checked before every send.
+pub fn check_content(value: &Value) -> Vec<Violation> {
     let (mut found, mut texts) = (Vec::new(), Vec::new());
-    numbers(&value, "$", &mut found, &mut texts);
+    numbers(value, "$", &mut found, &mut texts);
+    let mut out = Vec::new();
     for (path, t) in &texts {
         if let Some(rule) = text_rule(t) {
             out.push(violation(path.clone(), rule));
@@ -829,8 +838,14 @@ pub fn check_packet(text: &str, points: &[Point]) -> Vec<Violation> {
             out.push(violation(path.clone(), rule));
         }
     }
-    out.extend(tripwire(&found, points));
     out
+}
+
+/// Layer 3 alone: no number, in `value` or inside its text, near this flight's positions.
+pub fn check_tripwire(value: &Value, points: &[Point]) -> Vec<Violation> {
+    let (mut found, mut texts) = (Vec::new(), Vec::new());
+    numbers(value, "$", &mut found, &mut texts);
+    tripwire(&found, points)
 }
 
 // --- the start-up self-test ----------------------------------------------------------------
