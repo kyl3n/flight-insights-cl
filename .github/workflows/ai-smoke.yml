@@ -1,0 +1,69 @@
+name: AI smoke test
+
+# One fixture flight's analysis and one chat turn against the real Claude API, through
+# both location checks, with a 2 USD cap (shell/src-tauri/src/engine.rs,
+# live_claude_smoke). It reports measured usage and cost. It runs only when the
+# repository has an ANTHROPIC_API_KEY secret; without one it says so and passes.
+
+on:
+  workflow_dispatch:
+  schedule:
+    - cron: "17 3 * * *"
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ai-smoke
+  cancel-in-progress: false
+
+jobs:
+  smoke:
+    name: Claude API smoke test
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    defaults:
+      run:
+        working-directory: shell/src-tauri
+    env:
+      HAS_KEY: ${{ secrets.ANTHROPIC_API_KEY != '' }}
+    steps:
+      - name: No key, nothing to test
+        if: env.HAS_KEY != 'true'
+        working-directory: .
+        run: echo "No ANTHROPIC_API_KEY secret is set; the live smoke test is skipped."
+      - uses: actions/checkout@v4
+        if: env.HAS_KEY == 'true'
+      - name: Linux build dependencies
+        if: env.HAS_KEY == 'true'
+        timeout-minutes: 40
+        run: |
+          apt_opts="-o Acquire::Retries=5 -o Acquire::http::Timeout=60 -o DPkg::Lock::Timeout=300"
+          packages="libwebkit2gtk-4.1-dev libayatana-appindicator3-dev librsvg2-dev"
+          for attempt in 1 2 3; do
+            if sudo apt-get $apt_opts update && sudo apt-get $apt_opts install -y $packages; then
+              exit 0
+            fi
+            echo "apt attempt $attempt failed; retrying"
+            sleep 15
+          done
+          exit 1
+      - uses: dtolnay/rust-toolchain@b725eda525362e7cf34af9a7243cac1e3f01a7ec # stable
+        if: env.HAS_KEY == 'true'
+      - uses: Swatinem/rust-cache@d1527c8f67ef9af357290475d4af4b0fab8f12e0 # v2
+        if: env.HAS_KEY == 'true'
+        with:
+          workspaces: shell/src-tauri
+      - uses: astral-sh/setup-uv@d0cc045d04ccac9d8b7881df0226f9e82c39688e # v6
+        if: env.HAS_KEY == 'true'
+      - name: Engine
+        if: env.HAS_KEY == 'true'
+        working-directory: engine
+        run: uv sync --locked
+      - name: Live smoke test
+        if: env.HAS_KEY == 'true'
+        env:
+          FI_ENGINE_CMD: '["uv", "run", "--project", "../../engine", "python", "-m", "flight_insights", "rpc"]'
+          FI_KNOWLEDGE_DIR: ../../knowledge
+          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+        run: cargo test --locked live_claude_smoke -- --ignored --nocapture

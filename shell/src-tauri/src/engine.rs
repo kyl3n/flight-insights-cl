@@ -713,4 +713,109 @@ mod tests {
         engine.stop();
         let _ = std::fs::remove_dir_all(data);
     }
+
+    /// The live smoke test (`.github/workflows/ai-smoke.yml`): one fixture flight's
+    /// analysis and one chat turn against the real Claude API, with a 2 USD cap. Needs
+    /// the real engine and ANTHROPIC_API_KEY; prints usage and cost, never the key.
+    #[test]
+    #[ignore = "calls the real Claude API: run by the smoke-test workflow"]
+    fn live_claude_smoke() {
+        let Some(cmd) = real_engine() else {
+            panic!("FI_ENGINE_CMD must name the engine");
+        };
+        let key = zeroize::Zeroizing::new(
+            std::env::var("ANTHROPIC_API_KEY").expect("ANTHROPIC_API_KEY must be set"),
+        );
+        let knowledge = std::env::var_os("FI_KNOWLEDGE_DIR").map(PathBuf::from);
+        let (engine, _) = Engine::start(&cmd, knowledge.as_deref(), |_, _| {}).unwrap();
+        let data = std::env::temp_dir().join(format!("fi-shell-live-{}", std::process::id()));
+        let (identity, _) = LaptopIdentity::load_or_create(&MemoryStore::default()).unwrap();
+        engine.unlock(&identity, &data).unwrap();
+        let call = |method: &str, params: Value| engine.client.call(method, params, CALL_TIMEOUT);
+        let (gate, failed) =
+            crate::scrub::gate(call("ai.selftest", json!({})).map_err(|e| e.to_string()));
+        assert_eq!((gate, failed), (crate::scrub::AiGate::Ready, vec![]));
+        let platform = call(
+            "platform.create",
+            json!({ "name": "Smoke", "vehicle": "copter" }),
+        )
+        .unwrap();
+        let airframe = call(
+            "airframe.create",
+            json!({ "platform_id": platform["id"], "name": "S1" }),
+        )
+        .unwrap();
+        let log = Path::new(env!("CARGO_MANIFEST_DIR"))
+            .join("../../tests/fixtures/sitl/4.7.0/copter-heavylift-loaded.bin");
+        let scanned = call("import.scan", json!({ "paths": [log.to_string_lossy()] })).unwrap();
+        let committed = call(
+            "import.commit",
+            json!({ "batch": scanned["batch"],
+                    "decisions": [{ "log": "f1", "airframe_id": airframe["id"] }] }),
+        )
+        .unwrap();
+        let flight = committed[0]["flights"][0].as_str().unwrap().to_owned();
+        call("analysis.run", json!({ "flight_id": flight })).unwrap();
+        let api = crate::claude::Api::new(crate::claude::API, key).unwrap();
+
+        let job = crate::claude::Job {
+            engine: &engine,
+            api: &api,
+            model: crate::claude::ANALYSIS,
+            language: "en",
+            budget: Some((0.0, 2.0)),
+        };
+        let out = crate::claude::analyse(&job, &flight).unwrap();
+        let crate::claude::Outcome::Done { exchange } = out else {
+            panic!("not sent: {out:?}")
+        };
+        println!(
+            "analysis: outcome {}, model {}, {} tool calls, {:.4} USD, verdicts {}",
+            exchange["outcome"],
+            exchange["model"],
+            exchange["tool_calls"],
+            exchange["cost_usd"].as_f64().unwrap_or(0.0),
+            exchange["recommendations"]
+        );
+        assert_eq!(exchange["outcome"], "accepted", "{}", exchange["reasons"]);
+
+        let chat = crate::claude::Job {
+            model: crate::claude::CHAT,
+            budget: None,
+            ..job
+        };
+        let prepared = crate::claude::prepare(
+            &engine,
+            &flight,
+            "chat",
+            Some("What should be fixed first, and why?"),
+        )
+        .unwrap()
+        .unwrap();
+        let crate::claude::Outcome::Done { exchange } =
+            crate::claude::send(&chat, prepared).unwrap()
+        else {
+            panic!("the chat turn was not sent");
+        };
+        println!(
+            "chat: outcome {}, model {}, {:.4} USD",
+            exchange["outcome"],
+            exchange["model"],
+            exchange["cost_usd"].as_f64().unwrap_or(0.0)
+        );
+        assert_eq!(exchange["outcome"], "accepted", "{}", exchange["reasons"]);
+        let sent = call("ai.sent", json!({ "limit": 100 })).unwrap();
+        let rows = sent.as_array().unwrap();
+        println!(
+            "packets: {} built, {} sent",
+            rows.len(),
+            rows.iter().filter(|r| r["sent"] == true).count()
+        );
+        assert!(
+            rows.iter()
+                .all(|r| r["sent"] == false || r["shell_verdict"] == "pass")
+        );
+        engine.stop();
+        let _ = std::fs::remove_dir_all(data);
+    }
 }

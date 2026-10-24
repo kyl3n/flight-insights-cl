@@ -1051,6 +1051,11 @@ Claude is called on every analysis, but it only sees derived measurements and a 
 - **Schema limits:** at most 20 strict tools, 24 optional parameters and 16 union-typed parameters per request. The tool set is designed inside those limits.
 - **Prompt caching** for the system prompt and knowledge-pack excerpts; cache reads on Opus 5.5 and Sonnet 5.5 cost 5% of the base input price.
 - **Rough cost:** an analysis packet of about 60k input and 8k output tokens costs about $0.40 on Opus 5.5 before caching. This is an estimate to be replaced with measured numbers in Phase 1.
+- **Live smoke test** (`.github/workflows/ai-smoke.yml`, run by hand and nightly): one fixture flight's analysis and one chat turn go to the real Claude API, through both location checks, with a 2 USD cap.
+  - It checks that both replies are accepted and that every packet sent passed the shell's check.
+  - It reports measured tokens and cost; those numbers replace the estimate above.
+  - It runs only when the repository has an `ANTHROPIC_API_KEY` secret. Without one it says so and passes.
+  - The key lives only in that secret, and the test never prints it.
 
 **Retention and OPSEC settings**
 
