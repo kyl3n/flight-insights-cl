@@ -543,6 +543,9 @@ def test_sync_methods_over_rpc(tmp_path: Path, pack: Pack) -> None:
     assert st["laptops"] == [{"laptop": A, "latest": 1, "objects": 1, "gaps": []}]
     assert len(st["quarantine"]) == 1
     assert call(server, out, 10, "sync.conflicts")["result"] == []
+    keys = ["ef" * 32, "12" * 32, "34" * 32]
+    assert call(server, out, 11, "sync.unknown", object_keys=keys)["result"] == ["34" * 32]
+    assert call(server, out, 12, "sync.unknown", object_keys=["x"])["error"]["code"] == -32602
 
 
 def test_export_with_nothing_pending_makes_no_object(laptops: tuple[Laptop, Laptop]) -> None:

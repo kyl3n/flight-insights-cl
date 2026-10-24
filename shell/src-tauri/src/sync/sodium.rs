@@ -157,6 +157,52 @@ pub fn sha256(data: &[u8]) -> [u8; 32] {
     out
 }
 
+/// SHA-256 over data fed in parts.
+pub struct Sha256(Box<ffi::crypto_hash_sha256_state>);
+
+impl Sha256 {
+    pub fn new() -> Self {
+        ready();
+        // SAFETY: the state is plain bytes that init fills.
+        let mut state: Box<ffi::crypto_hash_sha256_state> = Box::new(unsafe { std::mem::zeroed() });
+        // SAFETY: the state is a valid crypto_hash_sha256_state.
+        unsafe { ffi::crypto_hash_sha256_init(&mut *state) };
+        Sha256(state)
+    }
+
+    pub fn update(&mut self, data: &[u8]) {
+        // SAFETY: the state was initialised by new.
+        unsafe { ffi::crypto_hash_sha256_update(&mut *self.0, data.as_ptr(), data.len() as u64) };
+    }
+
+    pub fn finish(mut self) -> [u8; 32] {
+        let mut out = [0u8; 32];
+        // SAFETY: a 32-byte digest.
+        unsafe { ffi::crypto_hash_sha256_final(&mut *self.0, out.as_mut_ptr()) };
+        out
+    }
+
+    /// The SHA-256 of a file, read in parts.
+    pub fn of_file(path: &std::path::Path) -> std::io::Result<[u8; 32]> {
+        use std::io::Read;
+        let mut file = std::fs::File::open(path)?;
+        let mut h = Sha256::new();
+        let mut buf = vec![0u8; 1 << 16];
+        loop {
+            match file.read(&mut buf)? {
+                0 => return Ok(h.finish()),
+                n => h.update(&buf[..n]),
+            }
+        }
+    }
+}
+
+impl Default for Sha256 {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 /// BLAKE2b-256, keyed or not, over data fed in parts.
 pub struct Hash(Box<ffi::crypto_generichash_state>);
 
@@ -451,6 +497,14 @@ mod tests {
         let stranger = x25519_dalek::StaticSecret::from(*random::<32>());
         let theirs = x25519_dalek::PublicKey::from(&stranger).to_bytes();
         assert!(seal_open(&theirs, &stranger.to_bytes(), &sealed).is_err());
+    }
+
+    #[test]
+    fn sha256_in_parts_is_sha256() {
+        let mut h = Sha256::new();
+        h.update(b"a");
+        h.update(b"bc");
+        assert_eq!(h.finish(), sha256(b"abc"));
     }
 
     #[test]

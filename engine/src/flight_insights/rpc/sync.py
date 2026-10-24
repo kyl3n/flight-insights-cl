@@ -9,6 +9,7 @@ sync panel reads:
 | sync.sent | The shell wrote an object and the drive confirmed it |
 | sync.apply | Applies another laptop's object the shell checked: records, or a source file |
 | sync.quarantine | Keeps an object the shell's own checks refused, with the reason |
+| sync.unknown | Which of these object keys were never applied or quarantined here |
 
 The UI may read (in the shell's UI allowlist):
 
@@ -23,7 +24,7 @@ from __future__ import annotations
 import re
 from collections.abc import Callable
 from pathlib import Path
-from typing import TYPE_CHECKING, Any
+from typing import TYPE_CHECKING, Any, cast
 
 from flight_insights import sync
 from flight_insights.rpc.server import BAD_INPUT, INVALID_PARAMS, Context, RpcError, Server
@@ -98,6 +99,16 @@ def add_sync_methods(server: Server, state: EngineState, guarded: Callable[[Any]
         if not isinstance(reason, str) or not 0 < len(reason) <= 300:
             raise RpcError(INVALID_PARAMS, "reason must be 1 to 300 characters")
         return sync.quarantine(state.require_store(), key, laptop, sequence, reason).json()
+
+    @server.method("sync.unknown")
+    @guarded
+    def sync_unknown(_ctx: Context, params: dict[str, Any]) -> list[str]:
+        keys = params.get("object_keys")
+        if not isinstance(keys, list) or not all(
+            isinstance(k, str) and OBJECT_KEY.match(k) for k in cast(list[Any], keys)
+        ):
+            raise RpcError(INVALID_PARAMS, "object_keys must be lower-case hex keys")
+        return sync.unknown(state.require_store(), cast(list[str], keys))
 
     @server.method("sync.status")
     @guarded
