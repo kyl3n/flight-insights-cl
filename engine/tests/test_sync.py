@@ -32,6 +32,7 @@ from flight_insights.sync import (
     mark_sent,
     outbox,
     quarantine,
+    resolve,
     status,
 )
 
@@ -304,6 +305,27 @@ def test_concurrent_changes_keep_both_values_and_agree_on_one(
         assert (c["tbl"], c["field"], c["kept"], c["other"]) == (
             "airframe", "name", "from B", "from A"
         )  # fmt: skip
+
+
+def test_keeping_the_other_value_settles_the_conflict_everywhere(
+    laptops: tuple[Laptop, Laptop], pack: Pack
+) -> None:
+    a, b = laptops
+    airframe = quad_airframe(a, pack)
+    sync(pack, a, b)
+    _rename(a, "airframe", airframe, name="from A")
+    _rename(b, "airframe", airframe, name="from B")
+    sync(pack, a, b)
+    (c,) = conflicts(a.store)
+    assert (c["kept"], c["other"]) == ("from B", "from A")
+    resolve(a.store, c["id"], "other")
+    sync(pack, a, b)
+    assert state(a) == state(b)
+    got = b.store.get("airframe", airframe)
+    assert got is not None and got["name"] == "from A"
+    assert conflicts(a.store) == conflicts(b.store) == []
+    with pytest.raises(ValueError):
+        resolve(a.store, c["id"], "kept")  # already settled
 
 
 def test_different_fields_of_one_record_both_survive(

@@ -2,6 +2,7 @@
 // and the shell's status.
 
 import type { AiStatus } from "./ai";
+import type { WorkerState } from "./sync";
 import { translate, type Locale, type MessageKey } from "./i18n";
 import { BROWSER_STATUS, type PendingFile, type ShellStatus } from "./shell";
 import type { Theme } from "./theme";
@@ -14,6 +15,7 @@ export type View =
   | "plan"
   | "ask"
   | "stations"
+  | "sync"
   | "imports"
   | "settings";
 
@@ -34,6 +36,7 @@ export const app = $state({
   pending: [] as PendingFile[], // new files found in watched folders
   trendCard: null as string | null, // the metric@segment the Trends view opens on
   ai: null as AiStatus | null, // the AI layer's status; null outside the desktop app
+  sync: null as WorkerState | null, // the sync worker's last round; null outside the desktop app
 });
 
 export function t(key: MessageKey, vars?: Record<string, string | number>): string {

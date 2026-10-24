@@ -6,12 +6,14 @@
 //! encrypted store with the keys. The UI talks to the engine only through
 //! `engine_call`, limited to `engine::UI_METHODS`. Each engine started runs the
 //! location checks' self-test (`scrub::gate`); AI calls stay blocked unless it passes.
-//! Its only network endpoint so far is the Claude API (`net`, `claude`), reached from
-//! the AI worker, which sends each analysed flight's packet once both checks pass.
+//! Its network endpoints are the Claude API (`net`, `claude`), reached from the AI
+//! worker, and the Google Drive API, reached from the sync worker (`fleet`, `sync`),
+//! which shares this laptop's records with the fleet every minute.
 
 pub mod ai;
 pub mod claude;
 pub mod engine;
+mod fleet;
 pub mod identity;
 pub mod net;
 pub mod rpc;
@@ -67,6 +69,12 @@ struct Shell {
     chats: Mutex<std::collections::HashMap<String, claude::Prepared>>,
     identity: Mutex<Option<Arc<LaptopIdentity>>>,
     engine: Mutex<Option<Arc<Engine>>>,
+    /// The sync worker's state, and what wakes it.
+    sync: sync::app::Worker,
+    /// The signed-in shared drive, by its id.
+    drive: Mutex<Option<(String, Arc<sync::google::GoogleDrive>)>>,
+    /// The device registry as last read, for the sync panel.
+    registry: Mutex<Option<sync::keyring::Registry>>,
     /// Held while the engine is started, so only one is ever started at a time.
     starting: Mutex<()>,
     /// Set when the app exits: no engine is started after that.
@@ -200,6 +208,10 @@ async fn engine_call(
             .client
             .call(&method, params, CALL_TIMEOUT)
             .map_err(|e| e.to_string())?;
+        // A new import goes to the other laptops without waiting for the minute.
+        if method == "import.commit" {
+            shell.sync.wake();
+        }
         // Every analysis gets its AI pass, in the background (spec: AI layer).
         if let (true, Some(flight)) = (method == "analysis.run", flight) {
             let run = reply["run"].as_str().map(str::to_owned);
@@ -621,6 +633,15 @@ fn start_up(app: &AppHandle) {
                 }
             }
         });
+    let syncer = app.clone();
+    let _ = std::thread::Builder::new()
+        .name("sync".into())
+        .spawn(move || {
+            loop {
+                fleet::round(&syncer);
+                syncer.state::<Shell>().sync.wait();
+            }
+        });
     let watcher = app.clone();
     let _ = std::thread::Builder::new()
         .name("folder-watch".into())
@@ -651,6 +672,9 @@ pub fn run() {
                 chats: Mutex::new(Default::default()),
                 identity: Mutex::new(None),
                 engine: Mutex::new(None),
+                sync: sync::app::Worker::default(),
+                drive: Mutex::new(None),
+                registry: Mutex::new(None),
                 starting: Mutex::new(()),
                 exiting: AtomicBool::new(false),
                 status: Mutex::new(Status::default()),
@@ -675,7 +699,21 @@ pub fn run() {
             ai_send_now,
             ai_chat_prepare,
             ai_chat_send,
-            ai_chat_cancel
+            ai_chat_cancel,
+            fleet::sync_status,
+            fleet::sync_now,
+            fleet::sync_choose_drive,
+            fleet::google_sign_in,
+            fleet::google_sign_out,
+            fleet::google_drives,
+            fleet::fleet_create,
+            fleet::fleet_code,
+            fleet::fleet_find,
+            fleet::fleet_join,
+            fleet::fleet_preview,
+            fleet::fleet_approve,
+            fleet::fleet_remove,
+            fleet::fleet_recover
         ])
         .build(tauri::generate_context!())
         .expect("error while building Flight Insights");

@@ -13,6 +13,7 @@ from flight_insights.sync.apply import (
     conflicts,
     digest,
     quarantine,
+    resolve,
     status,
     unknown,
 )
@@ -29,6 +30,7 @@ __all__ = [
     "mark_sent",
     "outbox",
     "quarantine",
+    "resolve",
     "status",
     "unknown",
 ]

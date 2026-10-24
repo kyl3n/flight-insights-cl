@@ -3,6 +3,7 @@
   import { LOCALES, type Locale } from "../lib/i18n";
   import type { Status } from "../lib/status";
   import { STATUS } from "../lib/status";
+  import { ago, syncPill } from "../lib/sync";
 
   let { onTheme }: { onTheme: () => void } = $props();
 
@@ -16,6 +17,24 @@
     if (!ai.key_set) return { status: "caution", title: t("ai.off.no_key") };
     if (ai.gate !== "ready") return { status: "caution", title: t("ai.off.gate") };
     return { status: "ok", title: t("settings.key.set") };
+  });
+
+  // Sync (spec: Shared storage and sync, "Network and status"): where it stands, when it
+  // last ran, what waits to go and anything quarantined; it opens the sync panel.
+  let now = $state(Date.now());
+  $effect(() => {
+    const tick = setInterval(() => (now = Date.now()), 30_000);
+    return () => clearInterval(tick);
+  });
+  const sync = $derived.by((): { status: Status; title: string } | null => {
+    const s = app.sync;
+    if (!s) return null;
+    const pill = syncPill(s);
+    const since = ago(s.last_sync_ms, now);
+    const parts = [t(pill.label), t("sync.last", { when: t(since.key, { n: since.n }) })];
+    if (s.waiting) parts.push(t("sync.waiting", { count: s.waiting }));
+    if (s.quarantined) parts.push(t("sync.quarantined", { count: s.quarantined }));
+    return { status: pill.status, title: parts.join(" · ") };
   });
 
   const engine = $derived.by((): { status: Status; text: string } => {
@@ -50,6 +69,14 @@
       <button type="button" class="pill" title={claude.title} style:--tone="var({STATUS[claude.status].tone})"
         onclick={() => (app.view = "settings")}>
         <span aria-hidden="true">{STATUS[claude.status].glyph}</span>{t("header.claude")}
+      </button>
+    {/if}
+    {#if sync}
+      <button type="button" class="pill" title={sync.title} style:--tone="var({STATUS[sync.status].tone})"
+        onclick={() => (app.view = "sync")}>
+        <span aria-hidden="true">{STATUS[sync.status].glyph}</span>{t("header.sync")}
+        {#if app.sync?.waiting}<span class="mono">↑{app.sync.waiting}</span>{/if}
+        {#if app.sync?.quarantined}<span class="mono">■{app.sync.quarantined}</span>{/if}
       </button>
     {/if}
     {#if app.shell.laptop}

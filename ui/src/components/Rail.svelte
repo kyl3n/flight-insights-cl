@@ -12,6 +12,7 @@
   ];
   const bottom: [View, MessageKey, string][] = [
     ["stations", "nav.stations", "M12 13v8M8 21h8M8.5 9.5a5 5 0 0 1 7 0M5.5 6.5a9 9 0 0 1 13 0M12 12.5h.01"],
+    ["sync", "nav.sync", "M20 12a8 8 0 0 1-14.2 5M4 12a8 8 0 0 1 14.2-5M18 3v4h-4M6 21v-4h4"],
     ["imports", "nav.imports", "M12 3v11M7 9l5 5 5-5M4 17v3h16v-3"],
     ["settings", "nav.settings", "M12 9a3 3 0 1 0 0 6 3 3 0 0 0 0-6zM12 2v3M12 19v3M2 12h3M19 12h3"],
   ];
