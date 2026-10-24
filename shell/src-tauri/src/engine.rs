@@ -288,6 +288,13 @@ mod tests {
     }
 
     #[test]
+    fn the_ui_never_reaches_the_ai_path() {
+        // ai.prepare returns the flight's own positions (the tripwire) for the shell's
+        // check: the interface must never be able to ask for them.
+        assert!(!UI_METHODS.iter().any(|m| m.starts_with("ai.")));
+    }
+
+    #[test]
     fn the_installed_engine_is_found_beside_the_app() {
         let dir = Path::new("/opt/Flight Insights");
         let cmd = EngineCommand::resolve_from(None, dir).unwrap();
