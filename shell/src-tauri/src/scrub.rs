@@ -62,6 +62,24 @@ struct Packet {
     evidence: Option<Vec<Evidence>>,
     parameters: Option<BTreeMap<String, f64>>,
     tool: Option<Tool>,
+    question: Option<String>,
+    conversation: Option<Vec<Turn>>,
+}
+
+/// A chat packet's earlier turns, as typed and as answered.
+#[derive(Deserialize)]
+#[serde(deny_unknown_fields)]
+#[allow(dead_code)]
+struct Turn {
+    role: Role,
+    text: String,
+}
+
+#[derive(Deserialize)]
+#[serde(rename_all = "lowercase")]
+enum Role {
+    User,
+    Assistant,
 }
 
 #[derive(Deserialize)]
@@ -539,6 +557,15 @@ fn shape(text: &str) -> Vec<Violation> {
     if let Some(t) = &p.tool {
         tool(&mut l, t);
     }
+    if let Some(q) = &p.question {
+        l.text("$.question", q, 500);
+    }
+    if let Some(turns) = &p.conversation {
+        l.count("$.conversation", turns.len(), 20);
+        for (i, turn) in turns.iter().enumerate() {
+            l.text(&format!("$.conversation[{i}].text"), &turn.text, 2000);
+        }
+    }
     l.0
 }
 
@@ -852,10 +879,14 @@ pub fn check_tripwire(value: &Value, points: &[Point]) -> Vec<Violation> {
 
 /// The shared corpus (tests/scrubber), built into the app: every clean packet must
 /// pass and every leaky one must be refused before AI calls are allowed.
-const CLEAN: [(&str, &str); 4] = [
+const CLEAN: [(&str, &str); 5] = [
     (
         "analysis",
         include_str!("../../../tests/scrubber/packets/clean/analysis.json"),
+    ),
+    (
+        "chat",
+        include_str!("../../../tests/scrubber/packets/clean/chat.json"),
     ),
     (
         "minimal",
@@ -870,10 +901,22 @@ const CLEAN: [(&str, &str); 4] = [
         include_str!("../../../tests/scrubber/packets/clean/tool_spectrum.json"),
     ),
 ];
-const LEAKY: [(&str, &str); 23] = [
+const LEAKY: [(&str, &str); 26] = [
     (
         "bool_as_number",
         include_str!("../../../tests/scrubber/packets/leaky/bool_as_number.json"),
+    ),
+    (
+        "chat_conversation_tripwire",
+        include_str!("../../../tests/scrubber/packets/leaky/chat_conversation_tripwire.json"),
+    ),
+    (
+        "chat_question_coordinates",
+        include_str!("../../../tests/scrubber/packets/leaky/chat_question_coordinates.json"),
+    ),
+    (
+        "chat_question_too_long",
+        include_str!("../../../tests/scrubber/packets/leaky/chat_question_too_long.json"),
     ),
     (
         "compass_declination",

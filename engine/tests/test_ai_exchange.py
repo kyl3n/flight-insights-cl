@@ -228,3 +228,40 @@ def test_only_a_sent_packet_starts_an_exchange(engine: tuple[Any, Any, Path]) ->
     assert no_tool["error"]["code"] == -32003
     assert rpc(engine, "ai.tool", packet_id="x", name="nope", input={})["error"]["code"] == -32602
     assert rpc(engine, "ai.spend", month="2026")["error"]["code"] == -32602
+
+
+def test_a_chat_turn_carries_the_question_and_the_conversation(
+    engine: tuple[Any, Any, Path],
+) -> None:
+    flight = flown(engine, FIXTURES / "quadplane-hover.bin")
+    assert rpc(engine, "ai.prepare", flight_id=flight, purpose="chat")["error"]["code"] == -32602
+    long = rpc(engine, "ai.prepare", flight_id=flight, purpose="chat", question="x" * 501)
+    assert long["error"]["code"] == -32602
+    first = rpc(
+        engine, "ai.prepare", flight_id=flight, purpose="chat", question="Why the yaw wobble?"
+    )
+    packet = json.loads(first["result"]["packet_json"])
+    assert packet["question"] == "Why the yaw wobble?" and packet["conversation"] == []
+    rpc(engine, "ai.record", packet_id=first["result"]["packet_id"], shell_reasons=[], sent=True)
+    ref = packet["findings"][0]["ref"]
+    answer = {"answer": f"The rate gains are untuned ({ref}).", "refs": [ref]}
+    got = accept(engine, first["result"]["packet_id"], answer)["result"]
+    assert got["outcome"] == "accepted" and got["recommendations"] == []
+    assert (
+        accept(engine, first["result"]["packet_id"], {"answer": "x", "refs": ["F999"]})["result"][
+            "outcome"
+        ]
+        == "invalid"
+    )
+    history = rpc(engine, "ai.chat_history", flight_id=flight)["result"]
+    assert [h["question"] for h in history] == ["Why the yaw wobble?"]
+    assert history[0]["ref_targets"][ref]
+    # The next turn carries the earlier one, and is checked like the rest.
+    second = rpc(engine, "ai.prepare", flight_id=flight, purpose="chat", question="And the fix?")
+    turns = json.loads(second["result"]["packet_json"])["conversation"]
+    assert turns == [{"role": "user", "text": "Why the yaw wobble?"},
+                     {"role": "assistant", "text": answer["answer"]}]  # fmt: skip
+    # A typed position never leaves: the engine refuses the packet.
+    leak = rpc(engine, "ai.prepare", flight_id=flight, purpose="chat",
+               question="Wobble near 47.12345, 8.54321 by the quarry?")["result"]  # fmt: skip
+    assert leak["engine"]["ok"] is False and "packet_json" not in leak

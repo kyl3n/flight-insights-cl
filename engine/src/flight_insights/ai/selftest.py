@@ -105,6 +105,17 @@ PARAMETER_DOC: dict[str, Any] = {
 }  # fmt: skip
 
 
+CHAT: dict[str, Any] = copy.deepcopy(BASE) | {
+    "purpose": "chat",
+    "question": "Why did yaw wobble near the end of the hover, and is ESC 3 the cause?",
+    "conversation": [
+        {"role": "user", "text": "Is the notch set up well for this payload?"},
+        {"role": "assistant", "text": "Mostly: it tracks ESC RPM, but its 40 Hz bandwidth "
+         "leaves the second harmonic at 165 Hz partly through (F2, E2)."},
+    ],
+}  # fmt: skip
+
+
 def _set(*path: str | int, value: Any) -> Callable[[dict[str, Any]], None]:
     def apply(p: dict[str, Any]) -> None:
         node: Any = p
@@ -173,6 +184,14 @@ LEAKY: dict[str, tuple[str, Change] | tuple[str, Change, dict[str, Any]]] = {
                        PARAMETER_DOC),
     "tool_unknown_key": ("A tool result with a key its shape does not name.",
                          _set("tool", "spectrum", "gps", value=1), SPECTRUM),
+    "chat_question_coordinates": ("A typed question that holds a position.",
+                                  _set("question", value=f"Wobble near {LAT:.4f}, {LON:.4f}?"),
+                                  CHAT),
+    "chat_conversation_tripwire": ("An earlier turn holding the flight's latitude.",
+                                   _set("conversation", 0, "text",
+                                        value=f"Hovered at {round(LAT, 4)} for a while"), CHAT),
+    "chat_question_too_long": ("A question longer than the schema allows.",
+                               _set("question", value="why " * 130), CHAT),
 }  # fmt: skip
 
 CLEAN: dict[str, tuple[str, dict[str, Any]]] = {
@@ -183,6 +202,7 @@ CLEAN: dict[str, tuple[str, dict[str, Any]]] = {
                  "aircraft": {"vehicle": "plane", "firmware": "4.7.2"}}),
     "tool_spectrum": ("A spectrum tool result: frequencies and levels, no position.", SPECTRUM),
     "tool_parameter_doc": ("A parameter's documentation, as a tool returns it.", PARAMETER_DOC),
+    "chat": ("A chat turn: the analysis, the conversation so far and a typed question.", CHAT),
 }  # fmt: skip
 
 

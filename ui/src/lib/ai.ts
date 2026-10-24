@@ -164,3 +164,38 @@ export function prettyPacket(text: string): string {
 export function fromAi(rec: { sources: { origin?: string }[] }): boolean {
   return rec.sources[0]?.origin === "ai";
 }
+
+/** One answered chat turn, as `ai.chat_history` returns it. */
+export interface ChatTurn {
+  exchange_id: string;
+  question: string;
+  answer: string;
+  refs: string[];
+  ref_targets: Record<string, string>;
+  created: string;
+}
+
+/** What preparing a chat turn came to: the exact text for review, or a refusal. */
+export type Prepared =
+  | { state: "review"; packet_id: string; packet_json: string }
+  | { state: "refused"; by: string; reasons: { path: string; rule: string }[] }
+  | { state: "blocked" };
+
+export type ChatSent =
+  | { state: "done"; exchange: Exchange }
+  | { state: "refused"; by: string; reasons: { path: string; rule: string }[] }
+  | { state: "capped" | "blocked" };
+
+export async function aiChatPrepare(flightId: string, question: string): Promise<Prepared> {
+  return invoke<Prepared>("ai_chat_prepare", { flightId, question });
+}
+
+export async function aiChatSend(packetId: string): Promise<ChatSent> {
+  return invoke<ChatSent>("ai_chat_send", { packetId });
+}
+
+export async function aiChatCancel(packetId: string): Promise<void> {
+  return invoke("ai_chat_cancel", { packetId });
+}
+
+export const QUESTION_MAX = 500;

@@ -1035,6 +1035,8 @@ Claude is called on every analysis, but it only sees derived measurements and a 
   - every finding with the evidence it cites, under packet-local references (no ids or hashes);
   - the parameters a person tunes or configures, with calibration, learned values, counters, hardware IDs and every removed parameter left out.
 
+  A chat packet also holds `question` (at most 500 characters, as typed) and `conversation` (up to 20 earlier turns, each at most 2000 characters, as asked and as answered). Both are checked like every other text in the packet.
+
   Times are relative to arming. Numbers have six significant figures and at most four decimals in the range of degrees.
 
 **Models and API features** ([models](https://platform.claude.com/docs/en/models/overview), [structured outputs](https://platform.claude.com/docs/en/build-with-claude/structured-outputs), [data retention](https://platform.claude.com/docs/en/manage-claude/api-and-data-retention))
@@ -1103,6 +1105,12 @@ Claude is called on every analysis, but it only sees derived measurements and a 
   - the key field (set, replace, remove; it shows only whether a key is set);
   - the monthly cap and the month's spend;
   - "What left this machine": every packet and tool result, newest first, with its time, purpose, both verdicts with their reasons, sent or not, its SHA-256, and the exact text.
+- **Ask** (the user's decision, 2026-10-24): free-text follow-up questions about one flight, on the chat model.
+  - **A warning by the box:** don't name places, landmarks or addresses, because what you type is sent. Coordinates are refused in any form.
+  - **Review before every send.** The question is built into a chat packet (`purpose: chat`). The packet holds the flight's analysis, the conversation so far and the question. Both checks run on it, and the person sees the exact text that would leave the machine before choosing Send or Don't send.
+  - **A packet either check refuses** is not sent. The view lists where it was refused and the rule, never the value.
+  - **A question the person sent** is not held by the cap, because the person asked.
+  - **Answers** are checked against their own schema (the answer and the references it cites) and kept with the flight. They propose no parameter changes: those come from the analysis pass.
 - **Replies come in the interface's language:** changing the language changes the instruction sent with the next packet.
 
 **Sending** (the shell's `claude.rs`, through `net.rs`):

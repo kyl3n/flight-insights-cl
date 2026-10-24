@@ -16,7 +16,7 @@ from datetime import UTC, datetime
 from typing import Any, Literal, cast
 
 from flight_insights import recommend
-from flight_insights.ai.exchange import REPLY
+from flight_insights.ai.exchange import CHAT_REPLY, REPLY
 from flight_insights.ai.results import AI_CODE
 from flight_insights.ai.schema import validate
 from flight_insights.analyzers.flight import FlightError
@@ -30,6 +30,8 @@ USAGE = ("input_tokens", "output_tokens", "cache_read_tokens", "cache_write_toke
 
 
 def _refs_in(reply: Mapping[str, Any]) -> list[tuple[str, str]]:
+    if "answer" in reply:  # a chat turn
+        return [("$.refs", r) for r in reply["refs"]]
     out: list[tuple[str, str]] = []
     for key in ("root_causes", "recommendations"):
         for i, item in enumerate(reply[key]):
@@ -38,10 +40,10 @@ def _refs_in(reply: Mapping[str, Any]) -> list[tuple[str, str]]:
     return out
 
 
-def check_reply(reply: Any, refs: Mapping[str, str]) -> list[str]:
+def check_reply(reply: Any, refs: Mapping[str, str], chat: bool = False) -> list[str]:
     """Why the reply cannot be shown: where it breaks the schema, or a reference its
     packet does not hold. Empty when it fits."""
-    problems = validate(reply, REPLY)
+    problems = validate(reply, CHAT_REPLY if chat else REPLY)
     if problems:
         return problems
     return [
@@ -126,7 +128,8 @@ def accept(
             reply = json.loads(reply_text)
         except json.JSONDecodeError:
             reply = None
-        reasons = ["$: not JSON"] if reply is None else check_reply(reply, refs)
+        chat = packet["purpose"] == "chat"
+        reasons = ["$: not JSON"] if reply is None else check_reply(reply, refs, chat)
         outcome = "invalid" if reasons else "accepted"
     xid = store.insert(
         "ai_exchange",
@@ -145,7 +148,7 @@ def accept(
             **{k: int((usage or {}).get(k, 0)) for k in USAGE},
         },
     )
-    if outcome == "accepted" and packet["flight_id"]:
+    if outcome == "accepted" and packet["flight_id"] and packet["purpose"] == "analysis":
         verdicts = _verdicts(store, pack, packet["flight_id"], cast(dict[str, Any], reply), refs)
         row = store.get("ai_exchange", xid)
         assert row is not None
@@ -218,3 +221,38 @@ def sent(store: Store, limit: int = 100) -> list[dict[str, Any]]:
         row["sent"] = bool(row["sent"])
         out.append(row)
     return out
+
+
+def chat_history(store: Store, flight_id: str, limit: int = 10) -> list[dict[str, Any]]:
+    """The flight's chat turns that were answered, oldest first: each question as it
+    was sent, and the answer as it was accepted."""
+    rows = store.conn.execute(
+        "SELECT x.id, x.reply_json, x.created_hlc, p.packet_json, p.refs_json "
+        "FROM ai_exchange x JOIN ai_packet p ON p.id = x.packet_id "
+        "WHERE x.flight_id = ? AND x.purpose = 'chat' AND x.outcome = 'accepted' "
+        "ORDER BY x.created_hlc DESC LIMIT ?",
+        (flight_id, int(limit)),
+    ).fetchall()
+    out: list[dict[str, Any]] = []
+    for xid, reply, created, packet, refs in reversed(rows):
+        answer = json.loads(reply)
+        out.append(
+            {
+                "exchange_id": xid,
+                "question": json.loads(packet).get("question", ""),
+                "answer": answer["answer"],
+                "refs": answer["refs"],
+                "ref_targets": json.loads(refs),
+                "created": created,
+            }
+        )
+    return out
+
+
+def conversation(store: Store, flight_id: str) -> list[dict[str, str]]:
+    """The earlier turns as a chat packet holds them."""
+    turns: list[dict[str, str]] = []
+    for h in chat_history(store, flight_id):
+        turns += [{"role": "user", "text": h["question"][:2000]},
+                  {"role": "assistant", "text": h["answer"][:2000]}]  # fmt: skip
+    return turns[-20:]

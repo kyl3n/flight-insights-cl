@@ -15,6 +15,7 @@ The UI may read what came of it (in the shell's UI allowlist; no tripwire, no ke
 | Method | What it does |
 | --- | --- |
 | ai.results | A flight's latest exchange: the checked reply and each change's verdict |
+| ai.chat_history | A flight's answered chat turns: each question as sent, each answer as accepted |
 | ai.sent | What left this machine: every packet as checked, with both verdicts |
 | ai.spend | A month's AI spend, for the cap |
 """
@@ -55,12 +56,16 @@ def add_ai_methods(server: Server, state: EngineState, guarded: Callable[[Any], 
             raise RpcError(INVALID_PARAMS, "flight_id must be a flight's id")
         if purpose not in PURPOSES:
             raise RpcError(INVALID_PARAMS, f"purpose must be one of {', '.join(PURPOSES)}")
+        question = params.get("question")
+        if purpose == "chat" and (not isinstance(question, str) or not 0 < len(question) <= 500):
+            raise RpcError(INVALID_PARAMS, "a chat packet needs a question of 1 to 500 characters")
         row = store.get("flight", flight_id)
         if row is None:
             raise RpcError(BAD_INPUT, f"no flight {flight_id}")
         ctx.progress(0.0, "building the packet")
+        turns = accept.conversation(store, flight_id) if purpose == "chat" else []
         try:
-            built = build(store, cache, state.pack, flight_id, purpose)
+            built = build(store, cache, state.pack, flight_id, purpose, question, turns)
         except analyzers.FlightError as e:
             raise RpcError(BAD_INPUT, str(e)) from None
         packet = built.packet
@@ -211,6 +216,14 @@ def add_ai_methods(server: Server, state: EngineState, guarded: Callable[[Any], 
         if not isinstance(flight_id, str) or not flight_id:
             raise RpcError(INVALID_PARAMS, "flight_id must be a flight's id")
         return accept.results_for(state.require_store(), flight_id)
+
+    @server.method("ai.chat_history")
+    @guarded
+    def ai_chat_history(_ctx: Context, params: dict[str, Any]) -> list[dict[str, Any]]:
+        flight_id = params.get("flight_id")
+        if not isinstance(flight_id, str) or not flight_id:
+            raise RpcError(INVALID_PARAMS, "flight_id must be a flight's id")
+        return accept.chat_history(state.require_store(), flight_id)
 
     @server.method("ai.sent")
     @guarded
