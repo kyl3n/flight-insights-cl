@@ -26,7 +26,7 @@ use serde_json::{Value, json};
 
 use crate::identity::LaptopIdentity;
 use crate::sync::drive::Drive;
-use crate::sync::keyring::{Event, Keyring, Reader, Registry};
+use crate::sync::keyring::{Body, Event, Keyring, Reader, Registry};
 use crate::sync::object::{self, Name};
 use crate::sync::sodium::{self, Sha256};
 
@@ -354,6 +354,27 @@ impl Syncer<'_> {
             .to_string())
     }
 
+    /// A round that looks at the drive only when its change feed says something
+    /// arrived, or when `force` (objects still wait for one another); `cursor` keeps
+    /// the feed's place between rounds.
+    pub fn round_watching(
+        &self,
+        cursor: &mut Option<String>,
+        force: bool,
+    ) -> Result<Round, String> {
+        let mut round = Round::default();
+        self.upload(&mut round)?;
+        let (any, next) = self
+            .drive
+            .changes(cursor.as_deref())
+            .map_err(|e| format!("the drive's change feed: {e}"))?;
+        if any || force || next.is_none() {
+            self.download(&mut round)?;
+        }
+        *cursor = next;
+        Ok(round)
+    }
+
     /// One round: up, then down.
     pub fn round(&self) -> Result<Round, String> {
         let mut round = Round::default();
@@ -383,28 +404,80 @@ pub fn publish(
 }
 
 /// The registry as the drive holds it, checked from its first event.
+/// The registry as the drive holds it, checked from its first event.
+///
+/// Two laptops can write event N at the same moment (Drive keeps both files). At each
+/// number the chain takes the candidate that follows the event before it, and of two
+/// that both do, the one with the smaller hash: every laptop picks the same, and the
+/// other laptop writes its event again at the next number (`publish_next`).
 pub fn read_registry(
     drive: &dyn Drive,
     staging: &Path,
     fingerprint: Option<&[u8; 32]>,
 ) -> Result<Registry, String> {
     fs::create_dir_all(staging).map_err(io_err)?;
-    let mut events = Vec::new();
+    let mut by_number: BTreeMap<u64, Vec<Event>> = BTreeMap::new();
     for entry in drive
         .list("registry/")
         .map_err(|e| format!("the drive could not be listed: {e}"))?
     {
+        let number = entry
+            .path
+            .strip_prefix("registry/")
+            .and_then(|n| n.split('-').next())
+            .and_then(|n| n.parse::<u64>().ok())
+            .ok_or("a file in the registry that is not an event")?;
         let file = staging.join("event.json");
         drive.download(&entry.path, &file).map_err(io_err)?;
         let text = fs::read(&file).map_err(io_err)?;
         let _ = fs::remove_file(&file);
         let event: Event = serde_json::from_slice(&text).map_err(|_| "a damaged registry event")?;
-        if event.path(events.len() as u64) != entry.path {
-            return Err("the registry's files are out of their order".into());
+        if event.path(number) != entry.path {
+            return Err("a registry file whose name does not match its event".into());
         }
-        events.push(event);
+        by_number.entry(number).or_default().push(event);
+    }
+    let mut events: Vec<Event> = Vec::new();
+    for n in 0u64.. {
+        let Some(candidates) = by_number.get(&n) else {
+            break;
+        };
+        let follows = |e: &&Event| -> bool {
+            let Ok(body) = serde_json::from_str::<Body>(&e.body) else {
+                return false;
+            };
+            match events.last() {
+                Some(prev) => body.previous == hex::encode(prev.hash()),
+                None => fingerprint.is_none_or(|f| e.hash() == *f),
+            }
+        };
+        let Some(next) = candidates.iter().filter(follows).min_by_key(|e| e.hash()) else {
+            break;
+        };
+        events.push(next.clone());
     }
     Registry::verify(&events, fingerprint)
+}
+
+/// Writes the event `make` builds on the registry as it stands, and checks that it made
+/// it into the chain; when another laptop's event took that number first, builds it
+/// again on the new registry and writes it at the next number.
+pub fn publish_next(
+    drive: &dyn Drive,
+    staging: &Path,
+    fingerprint: &[u8; 32],
+    make: &dyn Fn(&Registry) -> Result<Event, String>,
+) -> Result<Registry, String> {
+    for _ in 0..5 {
+        let registry = read_registry(drive, staging, Some(fingerprint))?;
+        let event = make(&registry)?;
+        publish(drive, staging, &event, registry.events.len() as u64)?;
+        let after = read_registry(drive, staging, Some(fingerprint))?;
+        if after.events.iter().any(|e| e.hash() == event.hash()) {
+            return Ok(after);
+        }
+    }
+    Err("the registry kept changing under this write: try again".into())
 }
 
 #[cfg(test)]
@@ -607,6 +680,51 @@ mod tests {
             let _ = fs::remove_dir_all(p);
             let _ = fs::remove_file(p);
         }
+    }
+
+    #[test]
+    fn two_laptops_enrolling_at_once_both_get_in() {
+        let root = temp("race");
+        let drive = FolderDrive::new(&root).unwrap();
+        let (a, b) = (laptop(), laptop());
+        let (first, keys_a, _) = create_fleet(&a, "A").unwrap();
+        let staging = temp("race-staging");
+        publish(&drive, &staging, &first, 0).unwrap();
+        let fp = read_registry(&drive, &staging, None).unwrap().fingerprint;
+        // A enrolls B and C at the same moment, from two windows: both write event 1
+        let base = read_registry(&drive, &staging, Some(&fp)).unwrap();
+        let (c, d) = (laptop(), laptop());
+        let to_c = enroll(&base, &keys_a, &a, Device::of(&c, "C")).unwrap();
+        let to_d = enroll(&base, &keys_a, &a, Device::of(&d, "D")).unwrap();
+        publish(&drive, &staging, &to_c, 1).unwrap();
+        publish(&drive, &staging, &to_d, 1).unwrap();
+        let reg = read_registry(&drive, &staging, Some(&fp)).unwrap();
+        assert_eq!(reg.events.len(), 2, "one of the two is in the chain");
+        let won = reg.events[1].hash();
+        assert_eq!(
+            won,
+            to_c.hash().min(to_d.hash()),
+            "the smaller hash, on every laptop"
+        );
+        // the one that lost is written again on top, and both laptops are in
+        let lost = if won == to_c.hash() { &d } else { &c };
+        let reg = publish_next(&drive, &staging, &fp, &|r| {
+            enroll(r, &keys_a, &a, Device::of(lost, "again"))
+        })
+        .unwrap();
+        assert_eq!(reg.events.len(), 3);
+        for x in [&b, &c, &d] {
+            let id = x.laptop_id_hex();
+            assert_eq!(
+                reg.members.contains_key(&id),
+                x.laptop_id_hex() != b.laptop_id_hex(),
+                "{id}"
+            );
+        }
+        // a fleet that is not ours is refused whole
+        assert!(read_registry(&drive, &staging, Some(&[7u8; 32])).is_err());
+        let _ = fs::remove_dir_all(&root);
+        let _ = fs::remove_dir_all(&staging);
     }
 
     #[test]

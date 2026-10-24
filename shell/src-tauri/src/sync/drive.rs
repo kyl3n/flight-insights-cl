@@ -25,6 +25,11 @@ pub trait Drive: Send + Sync {
     /// A path that exists is an error: objects are never replaced.
     fn upload(&self, path: &str, from: &Path) -> io::Result<[u8; 32]>;
     fn download(&self, path: &str, to: &Path) -> io::Result<()>;
+    /// Whether anything changed since `cursor`, and the cursor to ask from next. With
+    /// no cursor, or on a drive with no change feed, the answer is "look at everything".
+    fn changes(&self, _cursor: Option<&str>) -> io::Result<(bool, Option<String>)> {
+        Ok((true, None))
+    }
 }
 
 /// A drive in a local folder.

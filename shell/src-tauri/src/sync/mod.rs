@@ -4,7 +4,11 @@
 //! registry (`keyring`), and moves objects to and from the drive.
 
 pub mod drive;
+#[cfg(test)]
+pub mod fake_google;
+pub mod google;
 pub mod keyring;
+pub mod oauth;
 pub mod object;
 pub mod run;
 pub mod sodium;

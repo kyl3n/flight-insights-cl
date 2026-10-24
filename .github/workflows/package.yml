@@ -26,6 +26,11 @@ permissions:
 
 env:
   VERSION: 0.1.${{ github.run_number }}
+  # The Google OAuth desktop client, built into the app (spec: Shared storage and sync,
+  # "Setup"). Without these secrets the installers build, and sign-in says it is not set
+  # up in this build.
+  FI_GOOGLE_CLIENT_ID: ${{ secrets.FI_GOOGLE_CLIENT_ID }}
+  FI_GOOGLE_CLIENT_SECRET: ${{ secrets.FI_GOOGLE_CLIENT_SECRET }}
   SMOKE_LOG: tests/fixtures/sitl/4.7.0/heli-hover.bin
 
 jobs:

@@ -3,17 +3,22 @@
 //!
 //! Every HTTP client is built here, and every request's address is checked here first:
 //! HTTPS only, to a host on the allowlist, with no redirects. The allowlist grows one
-//! endpoint at a time as features that need one arrive: the Claude API now; the update
-//! server, the Google Drive API and the Open-Meteo API with their own work.
+//! endpoint at a time as features that need one arrive: the Claude API and the Google
+//! Drive API now; the update server and the Open-Meteo API with their own work.
 
 use std::sync::Once;
 use std::time::Duration;
 
-pub use reqwest::blocking::{Client, Response};
+pub use reqwest::blocking::{Client, RequestBuilder, Response};
 pub use reqwest::{StatusCode, Url};
 
 /// Hosts the app may talk to.
-pub const ALLOWED_HOSTS: &[&str] = &["api.anthropic.com"];
+pub const ALLOWED_HOSTS: &[&str] = &[
+    "api.anthropic.com",
+    // the Google Drive API: sign-in tokens, and the Drive API with its uploads
+    "oauth2.googleapis.com",
+    "www.googleapis.com",
+];
 
 static TLS: Once = Once::new();
 
