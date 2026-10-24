@@ -46,9 +46,9 @@ After every round, nothing on the drive was deleted or changed. Once everything 
 - no good object was quarantined, and every bad one was;
 - the removed laptop read nothing written after its removal.
 
-**On a local folder drive:** every PR runs a short soak (seed 1, 10 rounds, 3 laptops). A longer run of 8 seeds × 30 rounds × 4 laptops is running; its result goes here when it ends.
+**On a local folder drive:** every PR runs a short soak (seed 1, 10 rounds, 3 laptops). A longer run of 8 seeds × 30 rounds × 4 laptops found a fourth divergence (seed 1, about 2 runs in 3): twin records merged differently depending on the order the laptops met, and a recommendation's airframe did not follow its flight. Both are fixed in #68, with a regression test over five meeting orders of three laptops. After the fix all 8 seeds are clean, and seed 1 was clean on 4 runs in a row.
 
-The soak found three real divergences while it was built (#62), all fixed:
+The soak found three real divergences while it was built (#62), all fixed, and a fourth since (above):
 - a float lost its last bit in JSON;
 - twin records merged without their children;
 - a decided recommendation was planned again.
