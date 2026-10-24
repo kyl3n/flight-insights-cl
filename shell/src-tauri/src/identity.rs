@@ -19,7 +19,7 @@ use zeroize::{Zeroize, Zeroizing};
 pub const KEYCHAIN_ENTRY: &str = "laptop-identity";
 const FORMAT: u32 = 1;
 
-type Secret32 = Zeroizing<[u8; 32]>;
+pub type Secret32 = Zeroizing<[u8; 32]>;
 
 /// Where secrets are kept: the OS keychain in the app, memory in tests.
 pub trait SecretStore: Send + Sync {
@@ -283,20 +283,27 @@ impl LaptopIdentity {
     /// allocation sized up front, so growing it never leaves a copy behind.
     /// `host` is this computer's host name, which the engine keeps only as a
     /// keyed hash, to recognise the ground station it runs on.
+    /// Once the laptop is in a fleet, `fleet_board` is the fleet's board-ID key: board
+    /// IDs are hashed with it, and this laptop's own goes along as the legacy key, so
+    /// boards hashed before still match.
     pub fn unlock_params(
         &self,
         data_dir: &str,
         host: Option<&str>,
+        fleet_board: Option<&Secret32>,
     ) -> Result<Zeroizing<String>, String> {
         let k = &self.store_keys;
         let dir = serde_json::to_string(data_dir).map_err(|e| e.to_string())?;
         let host = serde_json::to_string(&host).map_err(|e| e.to_string())?;
-        let keys = [
+        let mut keys = vec![
             ("database", &k.database),
             ("cache", &k.cache),
             ("positions", &k.positions),
-            ("board_id", &k.board_id),
         ];
+        match fleet_board {
+            Some(fleet) => keys.extend([("board_id", fleet), ("legacy_board_id", &k.board_id)]),
+            None => keys.push(("board_id", &k.board_id)),
+        }
         // The fixed text and the laptop ID take under 128 bytes; each key under 80.
         let mut out = Zeroizing::new(String::with_capacity(
             128 + dir.len() + host.len() + 80 * keys.len(),
@@ -406,13 +413,13 @@ mod tests {
     fn unlock_params_are_valid_json_with_every_key() {
         let (id, _) = LaptopIdentity::load_or_create(&MemoryStore::default()).unwrap();
         let text = id
-            .unlock_params("C:\\Users\\pilot \"x\"\\data", Some("GCS \"1\""))
+            .unlock_params("C:\\Users\\pilot \"x\"\\data", Some("GCS \"1\""), None)
             .unwrap();
         let v: serde_json::Value = serde_json::from_str(&text).unwrap();
         assert_eq!(v["laptop_id"], id.laptop_id_hex());
         assert_eq!(v["host"], "GCS \"1\"");
         let none: serde_json::Value =
-            serde_json::from_str(&id.unlock_params("d", None).unwrap()).unwrap();
+            serde_json::from_str(&id.unlock_params("d", None, None).unwrap()).unwrap();
         assert!(none["host"].is_null());
         assert_eq!(v["data_dir"], "C:\\Users\\pilot \"x\"\\data");
         for k in ["database", "cache", "positions", "board_id"] {
@@ -423,7 +430,7 @@ mod tests {
         // a long path still fits the buffer sized up front (checked in debug builds)
         let long = "é\"\\".repeat(500);
         let v: serde_json::Value =
-            serde_json::from_str(&id.unlock_params(&long, Some(&long)).unwrap()).unwrap();
+            serde_json::from_str(&id.unlock_params(&long, Some(&long), None).unwrap()).unwrap();
         assert_eq!(v["data_dir"], long.as_str());
     }
 }

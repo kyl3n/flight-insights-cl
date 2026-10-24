@@ -114,6 +114,12 @@ class ColumnCache:
         folder = self.path(flight_key, "x").parent
         return sorted(p.stem for p in folder.glob("*.parquet")) if folder.is_dir() else []
 
+    def rename(self, old_key: str, new_key: str) -> None:
+        """A flight's columns, kept under its new key (its board was hashed again)."""
+        old, new = self.path(old_key, "x").parent, self.path(new_key, "x").parent
+        if old.is_dir() and not new.exists():
+            old.rename(new)
+
     def evict(self, flight_key: str) -> None:
         """Drop a flight's decoded columns; they are rebuilt from the log when needed."""
         shutil.rmtree(self.path(flight_key, "x").parent, ignore_errors=True)

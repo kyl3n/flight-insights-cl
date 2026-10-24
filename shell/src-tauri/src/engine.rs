@@ -18,7 +18,7 @@ use std::time::{Duration, Instant};
 
 use serde_json::{Value, json};
 
-use crate::identity::LaptopIdentity;
+use crate::identity::{LaptopIdentity, Secret32};
 use crate::rpc::{RpcClient, RpcError};
 
 pub const CALL_TIMEOUT: Duration = Duration::from_secs(600);
@@ -139,15 +139,28 @@ impl Engine {
         }
     }
 
-    /// Open the encrypted store with this laptop's keys.
-    pub fn unlock(&self, identity: &LaptopIdentity, data_dir: &Path) -> Result<Value, RpcError> {
+    /// Open the encrypted store with this laptop's keys. When the laptop has just
+    /// joined a fleet, its board-ID hashes are then made again with the fleet's key,
+    /// which reads every log still on disk and so gets the long timeout.
+    pub fn unlock(
+        &self,
+        identity: &LaptopIdentity,
+        data_dir: &Path,
+        fleet_board: Option<&Secret32>,
+    ) -> Result<Value, RpcError> {
         let dir = data_dir.to_string_lossy();
         let host = crate::station::host_name();
         let params = identity
-            .unlock_params(&dir, host.as_deref())
+            .unlock_params(&dir, host.as_deref(), fleet_board)
             .map_err(RpcError::Io)?;
-        self.client
-            .call_raw("engine.unlock", &params, START_TIMEOUT)
+        let unlocked = self
+            .client
+            .call_raw("engine.unlock", &params, START_TIMEOUT)?;
+        if unlocked["rekey_needed"] == json!(true) {
+            self.client
+                .call("board.rekey", json!({ "host": host }), CALL_TIMEOUT)?;
+        }
+        Ok(unlocked)
     }
 
     pub fn is_running(&self) -> bool {
@@ -290,7 +303,13 @@ pub const AI_SHELL_ONLY: &[&str] = &[
 
 /// Sync's engine methods that are the shell's alone: the outbox holds the paths of
 /// this laptop's source files, and only objects the shell has checked are applied.
-pub const SYNC_SHELL_ONLY: &[&str] = &["sync.outbox", "sync.sent", "sync.apply", "sync.quarantine"];
+pub const SYNC_SHELL_ONLY: &[&str] = &[
+    "sync.outbox",
+    "sync.sent",
+    "sync.apply",
+    "sync.quarantine",
+    "board.rekey",
+];
 
 #[cfg(test)]
 mod tests {
@@ -441,6 +460,26 @@ mod tests {
     }
 
     #[test]
+    fn joining_a_fleet_hashes_board_ids_again_once() {
+        let Some(cmd) = real_engine() else {
+            eprintln!("FI_ENGINE_CMD not set: skipped");
+            return;
+        };
+        let knowledge = std::env::var_os("FI_KNOWLEDGE_DIR").map(PathBuf::from);
+        let data = std::env::temp_dir().join(format!("fi-shell-fleet-{}", std::process::id()));
+        let (identity, _) = LaptopIdentity::load_or_create(&MemoryStore::default()).unwrap();
+        let fleet: Secret32 = zeroize::Zeroizing::new([7u8; 32]);
+        for (board, rekey) in [(None, false), (Some(&fleet), true), (Some(&fleet), false)] {
+            let (engine, _) = Engine::start(&cmd, knowledge.as_deref(), |_, _| {}).unwrap();
+            let unlocked = engine.unlock(&identity, &data, board).unwrap();
+            // the re-key ran inside unlock when it was needed
+            assert_eq!(unlocked["rekey_needed"], json!(rekey));
+            engine.stop();
+        }
+        let _ = std::fs::remove_dir_all(&data);
+    }
+
+    #[test]
     fn the_real_engine_starts_unlocks_analyzes_and_stops() {
         let Some(cmd) = real_engine() else {
             eprintln!("FI_ENGINE_CMD not set: skipped");
@@ -459,7 +498,7 @@ mod tests {
 
         let data = std::env::temp_dir().join(format!("fi-shell-test-{}", std::process::id()));
         let (identity, _) = LaptopIdentity::load_or_create(&MemoryStore::default()).unwrap();
-        let unlocked = engine.unlock(&identity, &data).unwrap();
+        let unlocked = engine.unlock(&identity, &data, None).unwrap();
         assert_eq!(unlocked["laptop"], identity.short_code());
 
         let path = fixture().to_string_lossy().into_owned();
@@ -528,7 +567,7 @@ mod tests {
         let (engine, _) = Engine::start(&cmd, knowledge.as_deref(), |_, _| {}).unwrap();
         let data = std::env::temp_dir().join(format!("fi-shell-ai-{}", std::process::id()));
         let (identity, _) = LaptopIdentity::load_or_create(&MemoryStore::default()).unwrap();
-        engine.unlock(&identity, &data).unwrap();
+        engine.unlock(&identity, &data, None).unwrap();
         let call = |method: &str, params: Value| engine.client.call(method, params, CALL_TIMEOUT);
 
         // Both halves of the start-up self-test pass, on the same cases.
@@ -623,7 +662,7 @@ mod tests {
         let (engine, _) = Engine::start(&cmd, knowledge.as_deref(), |_, _| {}).unwrap();
         let data = std::env::temp_dir().join(format!("fi-shell-send-{}", std::process::id()));
         let (identity, _) = LaptopIdentity::load_or_create(&MemoryStore::default()).unwrap();
-        engine.unlock(&identity, &data).unwrap();
+        engine.unlock(&identity, &data, None).unwrap();
         let call = |method: &str, params: Value| engine.client.call(method, params, CALL_TIMEOUT);
         let platform = call(
             "platform.create",
@@ -744,7 +783,7 @@ mod tests {
         let (engine, _) = Engine::start(&cmd, knowledge.as_deref(), |_, _| {}).unwrap();
         let data = std::env::temp_dir().join(format!("fi-shell-live-{}", std::process::id()));
         let (identity, _) = LaptopIdentity::load_or_create(&MemoryStore::default()).unwrap();
-        engine.unlock(&identity, &data).unwrap();
+        engine.unlock(&identity, &data, None).unwrap();
         let call = |method: &str, params: Value| engine.client.call(method, params, CALL_TIMEOUT);
         let (gate, failed) =
             crate::scrub::gate(call("ai.selftest", json!({})).map_err(|e| e.to_string()));

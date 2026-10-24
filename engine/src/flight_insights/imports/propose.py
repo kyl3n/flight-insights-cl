@@ -149,9 +149,11 @@ class Proposer:
         before = from_json(json.loads(last.hardware_json or "{}"))
         if not before.firmware:  # flown before hardware was recorded
             return last.flight_id, []
-        return last.flight_id, compare(
-            before, item.hardware, last.board_id_hash, item.board_id_hash
-        )
+        # a board hashed with this laptop's key from before its fleet is the same board
+        board = item.board_id_hash
+        if item.legacy_board_hash and last.board_id_hash == item.legacy_board_hash:
+            board = item.legacy_board_hash
+        return last.flight_id, compare(before, item.hardware, last.board_id_hash, board)
 
     def dataflash(self, item: Scanned) -> Proposal:
         p = Proposal(item.id, "ready")
@@ -163,9 +165,10 @@ class Proposer:
         assert item.snapshot is not None
         ranked = self.ranked(item.snapshot)
         p.candidates = ranked[:CANDIDATES]
-        by_board = next(
-            (a for a in self.airframes if item.board_id_hash and a[2] == item.board_id_hash), None
-        ) or next((a for a in self.airframes if (a[0], item.board_id_hash) in self.flown), None)
+        boards = {h for h in (item.board_id_hash, item.legacy_board_hash) if h}
+        by_board = next((a for a in self.airframes if a[2] in boards), None) or next(
+            (a for a in self.airframes if any((a[0], h) in self.flown for h in boards)), None
+        )
         best = ranked[0] if ranked and ranked[0].score >= MATCH else None
         if by_board:
             p.airframe_id, p.airframe_name, p.confidence, p.how = (

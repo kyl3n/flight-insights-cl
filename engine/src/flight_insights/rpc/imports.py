@@ -143,7 +143,9 @@ def add_import_methods(server: Server, state: EngineState, guarded: Callable[[An
             raise RpcError(BAD_INPUT, "no such file", {"paths": missing})
         store = state.require_store()
         key = state.board_key or secrets.token_bytes(32)
-        batch = imports.scan(store, state.pack, key, paths, ctx.progress, ctx.check)
+        batch = imports.scan(
+            store, state.pack, key, paths, ctx.progress, ctx.check, state.legacy_board_key
+        )
         proposals = imports.propose(store, state.pack, batch)
         batch_id = uuid.uuid4().hex
         batches[batch_id] = (batch, proposals)
