@@ -19,8 +19,8 @@ import numpy as np
 import pyarrow as pa
 
 from flight_insights.filters.biquad import Biquad, Complex, Floats, lowpass
-from flight_insights.filters.harmonic import HarmonicNotch, NotchParams
-from flight_insights.filters.tracking import Sources, sources
+from flight_insights.filters.harmonic import LOOP_RATE, MULTI_SOURCE, HarmonicNotch, NotchParams
+from flight_insights.filters.tracking import Sources, sources, update_period_us
 from flight_insights.spectral.welch import Spectrum, Windows
 
 SETS = ("INS_HNTCH_", "INS_HNTC2_")
@@ -50,11 +50,21 @@ class FilterChain:
             h = h * self.lowpass.response(freqs, self.sample_hz)
         return h
 
+    @property
+    def inputs(self) -> str:
+        """What the notches followed: "none" without a notch, "exact" when every set's
+        inputs are known exactly, else "rebuilt"."""
+        if self.missing:
+            return "rebuilt"  # a set whose source the log lacks is not modelled at all
+        if not self.sets:
+            return "none"
+        return "exact" if all(s.sources.exact for s in self.sets) else "rebuilt"
+
     def power_gain(self, freqs: Floats, start_us: int, end_us: int) -> Floats:
         """|H(f)|^2 averaged over the notch positions in force between two times."""
         g: Floats = np.ones(len(freqs))
         for s in self.sets:
-            rows = np.round(s.sources.between(start_us, end_us), DECIMALS)
+            rows = np.round(s.sources.sampled(start_us, end_us), DECIMALS)
             unique, counts = np.unique(rows, axis=0, return_counts=True)
             acc = np.zeros(len(freqs))
             for row, count in zip(unique, counts, strict=True):
@@ -75,6 +85,17 @@ class FilterChain:
         ]
 
 
+def follows_as_flown(flown: NotchParams, p: NotchParams) -> bool:
+    """Whether a set, as changed, still follows what it followed in flight: the same
+    mode, reference, frequency, minimum ratio, sources and update rate. Only then are
+    the inputs the firmware logged in flight the candidate's inputs too."""
+    same = ("mode", "ref", "freq", "fm_rat")
+    bits = MULTI_SOURCE | LOOP_RATE
+    return all(getattr(flown, k) == getattr(p, k) for k in same) and (
+        flown.opts & bits == p.opts & bits
+    )
+
+
 def chain(
     params: Mapping[str, float],
     sample_hz: float,
@@ -88,14 +109,16 @@ def chain(
     `overrides` changes a set's parameters, by prefix, for candidate settings."""
     sets: list[NotchSet] = []
     missing: list[str] = []
+    loop_rate = float(params.get("SCHED_LOOP_RATE", 400))
     for index, prefix in enumerate(SETS):
-        p = NotchParams.read(params, prefix)
+        flown = p = NotchParams.read(params, prefix)
         if overrides and prefix in overrides:
             p = p.with_changes(**overrides[prefix])
         if not p.enable or not p.num_harmonics:
             continue
         notch = HarmonicNotch(p, sample_hz, board_family)
-        src = sources(notch, tables, start_us, end_us, index)
+        period = update_period_us(p.opts, loop_rate)
+        src = sources(notch, tables, start_us, end_us, index, period, follows_as_flown(flown, p))
         if src is None:
             missing.append(prefix)
             continue

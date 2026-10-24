@@ -9,27 +9,74 @@
       "unit": "dB",
       "direction": "lower",
       "definition": {
-        "en": "How far the app's model of the gyro filters is from what the autopilot actually did on this flight. Small means the app's predictions for other filter settings can be trusted on this aircraft.",
-        "uk": "Наскільки модель фільтрів гіроскопа в застосунку відрізняється від того, що автопілот насправді зробив у цьому польоті. Мала похибка означає, що прогнозам застосунку для інших налаштувань фільтрів на цьому апараті можна довіряти."
+        "en": "How far the app's model of the gyro filters is from what the autopilot actually did on this flight, when everything the notches followed is known exactly: no harmonic notch, a fixed notch, or notch inputs logged at every update (fast harmonic notch logging). Small means the app's predictions for other filter settings can be trusted on this aircraft.",
+        "uk": "Наскільки модель фільтрів гіроскопа в застосунку відрізняється від того, що автопілот насправді зробив у цьому польоті, коли все, за чим стежили режекторні фільтри, відомо точно: гармонійного фільтра немає, він фіксований або його вхідні дані записано на кожному оновленні (швидкий запис гармонійного фільтра). Мала похибка означає, що прогнозам застосунку для інших налаштувань фільтрів на цьому апараті можна довіряти."
       },
       "method": {
-        "en": "The primary gyro's pre-filter samples (GYR) go through the flight's own notch and low-pass settings, the notches following what the flight's tracking mode followed. The result's spectrum is compared with the post-filter samples the autopilot logged (INS_RAW_LOG_OPT bit 3) in 10 Hz bands up to 45% of the sample rate; the root mean square of the band differences in dB.",
-        "uk": "Вибірки основного гіроскопа до фільтрів (GYR) проходять через власні налаштування режекторних і низькочастотного фільтрів польоту, а режекторні фільтри стежать за тим самим джерелом, що й у польоті. Спектр результату порівнюється з вибірками після фільтрів, які записав автопілот (біт 3 INS_RAW_LOG_OPT), у смугах по 10 Гц до 45% частоти вибірок; середньоквадратичне значення різниць смуг у дБ."
+        "en": "The primary gyro's pre-filter samples (GYR) go through the flight's own notch and low-pass settings, each notch moving at the logged update times to the frequencies the autopilot logged for it (FTN or FTNS). The result's spectrum is compared with the post-filter samples the autopilot logged (INS_RAW_LOG_OPT bit 3) in 10 Hz bands from 10 Hz to 45% of the sample rate; the root mean square of the band differences in dB.",
+        "uk": "Вибірки основного гіроскопа до фільтрів (GYR) проходять через власні налаштування режекторних і низькочастотного фільтрів польоту; кожен режекторний фільтр переміщується в записані моменти оновлення на частоти, які автопілот записав для нього (FTN або FTNS). Спектр результату порівнюється з вибірками після фільтрів, які записав автопілот (біт 3 INS_RAW_LOG_OPT), у смугах по 10 Гц від 10 Гц до 45% частоти вибірок; середньоквадратичне значення різниць смуг у дБ."
       },
       "messages": [
         "GYR",
         "ESC",
         "MOTB",
-        "FCNS",
-        "FCN"
+        "RPM",
+        "FTN",
+        "FTNS",
+        "FCN",
+        "FCNS"
       ],
       "zones": {
         "target": [
           null,
-          1
+          0.1
         ],
         "caution": [
+          0.1,
+          1
+        ],
+        "out": [
           1,
+          null
+        ]
+      },
+      "source": {
+        "kind": "app",
+        "title": "App rule, provisional, set for the Phase 1 gate on 2026-10-24 from 3 simulator logs (0.009 to 0.042 dB) and 2 HL1 logs (0.007 dB with the notch off; 1.142 dB with per-motor ESC notches rebuilt from 100 Hz telemetry), and a simulator flight with fast harmonic notch logging (0.021 dB following the logged inputs, 0.284 dB rebuilt). Revisited as more reference-airframe logs arrive."
+      }
+    },
+    "filter.model_error_rebuilt": {
+      "name": {
+        "en": "Filter model error, notch inputs rebuilt",
+        "uk": "Похибка моделі фільтрів, вхідні дані фільтра відновлено"
+      },
+      "unit": "dB",
+      "direction": "lower",
+      "definition": {
+        "en": "The same comparison when a notch followed something the log holds less often than the autopilot used it: ESC RPM (logged at 100 Hz, while bidirectional DShot arrives at the output rate), throttle (10 Hz), an RPM sensor, or FFT centres (10 Hz). The app rebuilds the notch's movement from those rows, so part of the error is what the log leaves out, not the model.",
+        "uk": "Те саме порівняння, коли режекторний фільтр стежив за даними, які журнал зберігає рідше, ніж їх використовував автопілот: оберти ESC (записуються на 100 Гц, тоді як двонаправлений DShot надходить із частотою виходів), газ (10 Гц), датчик обертів або центри FFT (10 Гц). Застосунок відновлює рух фільтра з цих рядків, тож частина похибки — це те, чого бракує в журналі, а не помилка моделі."
+      },
+      "method": {
+        "en": "As for the filter model error, with each notch following its tracking source rebuilt from the log (each value held until the next) instead of logged inputs. Logging the inputs at every update (Copter LOG_BITMASK bit 21, Plane bit 22) for a filter test flight removes this part of the error.",
+        "uk": "Як для похибки моделі фільтрів, але кожен режекторний фільтр стежить за джерелом, відновленим із журналу (кожне значення тримається до наступного), а не за записаними вхідними даними. Запис вхідних даних на кожному оновленні (біт 21 LOG_BITMASK для Copter, біт 22 для Plane) у тестовому польоті для фільтрів прибирає цю частину похибки."
+      },
+      "messages": [
+        "GYR",
+        "ESC",
+        "MOTB",
+        "RPM",
+        "FTN",
+        "FTNS",
+        "FCN",
+        "FCNS"
+      ],
+      "zones": {
+        "target": [
+          null,
+          1.5
+        ],
+        "caution": [
+          1.5,
           3
         ],
         "out": [
@@ -39,7 +86,51 @@
       },
       "source": {
         "kind": "app",
-        "title": "App rule, uncalibrated: the Phase 1 gate sets the target from the first 50 raw-IMU logs of the reference aircraft; the simulator fixtures agree to within 0.05 dB"
+        "title": "App rule, provisional, set for the Phase 1 gate on 2026-10-24 from 3 simulator logs (0.009 to 0.042 dB) and 2 HL1 logs (0.007 dB with the notch off; 1.142 dB with per-motor ESC notches rebuilt from 100 Hz telemetry), and a simulator flight with fast harmonic notch logging (0.021 dB following the logged inputs, 0.284 dB rebuilt). Revisited as more reference-airframe logs arrive."
+      }
+    },
+    "filter.model_error_control": {
+      "name": {
+        "en": "Filter model error, control band",
+        "uk": "Похибка моделі фільтрів, смуга керування"
+      },
+      "unit": "dB",
+      "direction": "lower",
+      "definition": {
+        "en": "How far the model's gyro power below 40 Hz, where the aircraft is controlled, is from what the autopilot logged after its filters. It decides whether the phase lag and noise the app predicts for the controllers can be trusted, whatever the notches followed.",
+        "uk": "Наскільки потужність гіроскопа моделі нижче 40 Гц, де відбувається керування апаратом, відрізняється від записаної автопілотом після фільтрів. Від неї залежить, чи можна довіряти фазовому запізненню й шуму для регуляторів, які прогнозує застосунок, за чим би не стежили режекторні фільтри."
+      },
+      "method": {
+        "en": "The simulated and logged post-filter gyro power from 0 to 40 Hz, summed over the three axes; the size of their difference in dB.",
+        "uk": "Потужність змодельованого й записаного гіроскопа після фільтрів від 0 до 40 Гц, сумована за трьома осями; величина їхньої різниці в дБ."
+      },
+      "messages": [
+        "GYR",
+        "ESC",
+        "MOTB",
+        "RPM",
+        "FTN",
+        "FTNS",
+        "FCN",
+        "FCNS"
+      ],
+      "zones": {
+        "target": [
+          null,
+          0.1
+        ],
+        "caution": [
+          0.1,
+          0.5
+        ],
+        "out": [
+          0.5,
+          null
+        ]
+      },
+      "source": {
+        "kind": "app",
+        "title": "App rule, provisional, set for the Phase 1 gate on 2026-10-24 from 3 simulator logs (0.009 to 0.042 dB) and 2 HL1 logs (0.007 dB with the notch off; 1.142 dB with per-motor ESC notches rebuilt from 100 Hz telemetry), and a simulator flight with fast harmonic notch logging (0.021 dB following the logged inputs, 0.284 dB rebuilt). Revisited as more reference-airframe logs arrive."
       }
     }
   },
@@ -51,8 +142,8 @@
         "uk": "Модель фільтрів відрізняється на {error} дБ від того, що автопілот зробив у цьому польоті"
       },
       "action": {
-        "en": "Filter recommendations for this aircraft are less certain until this is understood. Common causes: the primary IMU changed in flight, a notch parameter changed during the flight, or the notch followed something the log does not record. Check the evidence for which notch set and which band differ.",
-        "uk": "Доки причину не з'ясовано, рекомендації щодо фільтрів для цього апарата менш певні. Звичайні причини: основний IMU змінився в польоті, параметр режекторного фільтра змінили під час польоту або фільтр стежив за тим, чого немає в журналі. Перевірте в доказах, який набір фільтрів і яка смуга відрізняються."
+        "en": "Filter recommendations for this aircraft are less certain until this is understood. Common causes: the primary IMU changed in flight, a notch parameter changed during the flight, or the notch followed something the log does not record. If the notch inputs were rebuilt, log them at every update for the next test flight (fast harmonic notch logging); then check the evidence for which notch set and which band differ.",
+        "uk": "Доки причину не з'ясовано, рекомендації щодо фільтрів для цього апарата менш певні. Звичайні причини: основний IMU змінився в польоті, параметр режекторного фільтра змінили під час польоту або фільтр стежив за тим, чого немає в журналі. Якщо вхідні дані фільтра відновлено, запишіть їх на кожному оновленні в наступному тестовому польоті (швидкий запис гармонійного фільтра); потім перевірте в доказах, який набір фільтрів і яка смуга відрізняються."
       }
     },
     "filter.no_notch": {

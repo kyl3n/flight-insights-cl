@@ -5,6 +5,11 @@ sample, and compares the result with the post-filter data the firmware logged. A
 close match says the app's predictions for other settings hold on this aircraft;
 the filter analyzer builds its recommendations on the same model. The phase lag the
 filters add at the control frequencies is reported with it.
+
+Which metric the whole-spectrum error goes to depends on what the notches followed:
+known exactly (no notch, a fixed one, or inputs logged at every update) or rebuilt
+from rows the log holds less often than the firmware used them; each has its own
+target. The control band's error is reported on every flight.
 """
 
 from __future__ import annotations
@@ -21,7 +26,7 @@ from flight_insights.analyzers.model import (
 from flight_insights.analyzers.registry import Registry
 from flight_insights.filters import check
 
-TABLES = ("GYR", "ESC", "MOTB", "FCN", "FCNS", "RPM")
+TABLES = ("GYR", "ESC", "MOTB", "FCN", "FCNS", "FTN", "FTNS", "RPM")
 
 
 def _filter_model(flight: FlightData, reg: Registry) -> Result:
@@ -58,16 +63,35 @@ def _filter_model(flight: FlightData, reg: Registry) -> Result:
     out = Result(evidence=[ev])
     if error is None:
         return out
-    zone = reg.metrics["filter.model_error"].zone(error)
-    out.metrics.append(MetricValue("filter.model_error", kind, error, zone, ev.id))
-    if zone in ("caution", "out"):
+    metric = (
+        "filter.model_error_rebuilt" if result.notch_inputs == "rebuilt" else "filter.model_error"
+    )
+    zone = reg.metrics[metric].zone(error)
+    out.metrics.append(MetricValue(metric, kind, error, zone, ev.id))
+    control = result.control_band_error_db()
+    control_zone = None
+    if control is not None:
+        control_zone = reg.metrics["filter.model_error_control"].zone(abs(control))
+        out.metrics.append(
+            MetricValue("filter.model_error_control", kind, abs(control), control_zone, ev.id)
+        )
+    off = [
+        (value, which)
+        for value, z, which in (
+            (error, zone, "whole spectrum"),
+            (abs(control) if control is not None else 0.0, control_zone, "control band"),
+        )
+        if z in ("caution", "out")
+    ]
+    if off:
+        value, which = max(off)
         out.findings.append(
             Finding(
                 code="filter.model_mismatch",
                 severity="caution",  # the model, not the aircraft, is in question
                 confidence="medium",
                 evidence=(ev,),
-                params={"error": round(error, 1)},
+                params={"error": round(value, 2), "which": which, "inputs": result.notch_inputs},
             )
         )
     return out
@@ -75,8 +99,8 @@ def _filter_model(flight: FlightData, reg: Registry) -> Result:
 
 FILTER_MODEL = Analyzer(
     name="filter_model",
-    version=1,
+    version=2,
     run=_filter_model,
-    metrics=("filter.model_error",),
+    metrics=("filter.model_error", "filter.model_error_rebuilt", "filter.model_error_control"),
     findings=("filter.model_mismatch",),
 )

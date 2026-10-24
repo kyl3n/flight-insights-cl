@@ -6,6 +6,10 @@ e3d23e3710853835a7aa2d53d7a0011004d29a14c579ebbc43db46fb064c4bc1  sitl/4.7.0/cop
 d194e34c7c3dc607141f18e78abfc8756ee38b3ce036e112f325a17d844cbb60  sitl/4.7.0/copter-heavylift-loaded.param
 d8d59de013940a5ab11cbffb54a0d311dd7775f601b0053060d4fbbc74dd27b1  sitl/4.7.0/copter-heavylift-loaded.params
 d53376baf0db3d8de6558e3c2448cd161d983cd74db5ac3243c4418a90ec7799  sitl/4.7.0/copter-heavylift-loaded.tlog
+9bcb2144174d1653f382793a8c2a69704de13e09b518fb956ab415c11cfaebf7  sitl/4.7.0/copter-quad-fastnotch.bin
+5fdd5389171445980778e3f58d5a458619ce34aaeb97426fc5099c71ba080e8b  sitl/4.7.0/copter-quad-fastnotch.param
+384581db95ef7dfea1ee559e0a4141b552e1f2ac5250b41184688d811b52522e  sitl/4.7.0/copter-quad-fastnotch.params
+73bd3083e9eccc4d07b2950895ae15296509b802f02eb3b247200b48724a8f6d  sitl/4.7.0/copter-quad-fastnotch.tlog
 a21750997fa0acd80bca9fbd667bf63a932938cc9cbfa531dd399141a1b55f92  sitl/4.7.0/copter-quad-hover.bin
 d18ae307d14a3a5ea229e838c1ef2de29e5d0bc6f4ad9f8d5316e93b57fc0a01  sitl/4.7.0/copter-quad-hover.param
 435387d443e1a7e3e87cb6aa7ed0cc28651159e6fc58d133e5684388a172a19c  sitl/4.7.0/copter-quad-hover.params

@@ -168,7 +168,9 @@ def _post_filter(flight: FlightData, m: MotorPicture) -> Spectrum | None:
     if m.spectrum is None:
         return None
     tables = {
-        n: t for n in ("ESC", "MOTB", "RPM", "FCN", "FCNS") if (t := flight.table(n)) is not None
+        n: t
+        for n in ("ESC", "MOTB", "RPM", "FCN", "FCNS", "FTN", "FTNS")
+        if (t := flight.table(n)) is not None
     }
     first, last = m.spans[0][0], m.spans[-1][1]
     c = chain(flight.params, m.spectrum.rate_hz, _family(flight), tables, first, last)
@@ -414,7 +416,9 @@ def _with_search(
     else:
         return out
     tables = {
-        n: t for n in ("ESC", "MOTB", "RPM", "FCN", "FCNS") if (t := flight.table(n)) is not None
+        n: t
+        for n in ("ESC", "MOTB", "RPM", "FCN", "FCNS", "FTN", "FTNS")
+        if (t := flight.table(n)) is not None
     }
     imus = int(flight.fingerprint.get("imu_count", {}).get("value") or 1)
     screen = Screen(

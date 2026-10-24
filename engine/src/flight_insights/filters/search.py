@@ -74,7 +74,7 @@ def notch_count(p: NotchParams, n_sources: int, imus: int) -> int:
 
 
 def _rows(src: Sources, start_us: int, end_us: int, limit: int) -> Floats:
-    rows = src.between(start_us, end_us)
+    rows = src.sampled(start_us, end_us)
     if len(rows) > limit:
         rows = rows[np.linspace(0, len(rows) - 1, limit).astype(int)]
     return rows
