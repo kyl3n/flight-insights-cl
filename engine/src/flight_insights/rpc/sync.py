@@ -10,6 +10,7 @@ sync panel reads:
 | sync.apply | Applies another laptop's object the shell checked: records, or a source file |
 | sync.quarantine | Keeps an object the shell's own checks refused, with the reason |
 | sync.unknown | Which of these object keys were never applied or quarantined here |
+| sync.digest | A hash of everything that syncs, to check that laptops agree |
 
 The UI may read (in the shell's UI allowlist):
 
@@ -109,6 +110,14 @@ def add_sync_methods(server: Server, state: EngineState, guarded: Callable[[Any]
         ):
             raise RpcError(INVALID_PARAMS, "object_keys must be lower-case hex keys")
         return sync.unknown(state.require_store(), cast(list[str], keys))
+
+    @server.method("sync.digest")
+    @guarded
+    def sync_digest(_ctx: Context, params: dict[str, Any]) -> dict[str, Any]:
+        show = params.get("show", [])
+        if not isinstance(show, list) or not all(isinstance(t, str) for t in cast(list[Any], show)):
+            raise RpcError(INVALID_PARAMS, "show must list table names")
+        return sync.digest(state.require_store(), frozenset(cast(list[str], show)))
 
     @server.method("sync.status")
     @guarded

@@ -1769,6 +1769,26 @@ A tuning tool earns trust only by being right on real aircraft, so validation is
 
 **Sync soak test.** Simulated laptops on a test drive import the same logs, edit the same airframes, lose their connections and crash mid-transfer, for days at a time, while some objects are deliberately altered. The release gate is zero duplicates, zero lost objects, every altered object quarantined, and identical databases on every laptop.
 
+- **The harness** (`shell/src-tauri/tests/soak.rs`) runs simulated laptops, each a real engine with its own store, against one folder drive. Each run is a seeded, random mix of:
+  - imports, including the same log on several laptops;
+  - edits to the same field at the same time;
+  - recommendation decisions and AI results;
+  - crashes and offline rounds;
+  - flipped, cut and renamed objects;
+  - a laptop enrolling mid-run, and another revoked with a key rotation.
+- **What it checks after every round:** nothing on the drive was deleted or changed.
+- **What it checks once everything has synced:**
+  - the engines' digests of their synced records are equal on every laptop still in the fleet;
+  - every conflict kept both values;
+  - no good object was quarantined, and every bad one was;
+  - the revoked laptop read nothing written after its revocation, and nothing it wrote after that was applied.
+- **Runs:**
+  - every change runs a short soak in CI;
+  - the "Sync soak" workflow runs long ones by hand, across many seeds;
+  - the multi-day run on the real test shared drive comes with the Drive client.
+
+  A failure prints the seed that reproduces it.
+
 **Configuration review.** SITL logs and parameter files with planted errors and type mismatches, for example a throttle-based notch on a variable-payload heavy-lift, check that every planted problem is found and explained, and that correct files produce no false findings. Each catalog entry of Better options has a case where it applies (available now, needs hardware, or unknown) and a case where the aircraft already uses the better choice, which must produce no finding.
 
 ## Security and deployment

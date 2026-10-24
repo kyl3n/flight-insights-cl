@@ -97,6 +97,18 @@ def record_plan(store: Store, plan: dict[str, Any]) -> dict[str, Any]:
                 r["id"], r["record_status"] = same[0]["id"], same[0]["status"]
                 r["record_version"] = same[0]["version"]
                 continue
+            # The same change for this same flight, already decided: it stays decided, and
+            # one record, which is also how every other laptop knows it (natural_key).
+            cur = store.conn.execute(
+                "SELECT * FROM recommendation WHERE flight_id = ? AND finding_code IS ? "
+                "AND param IS ? AND proposed_value IS ?",
+                (plan["flight"], code, param, proposed),
+            )
+            if (found := cur.fetchone()) is not None:
+                decided = _row(cur, found)
+                r["id"], r["record_status"] = decided["id"], decided["status"]
+                r["record_version"] = decided["version"]
+                continue
             for old in existing:  # an earlier proposal for this parameter, never acted on
                 if param is not None and old["param"] == param and old["status"] == "proposed":
                     old["detail"]["superseded_by_flight"] = plan["flight"]
