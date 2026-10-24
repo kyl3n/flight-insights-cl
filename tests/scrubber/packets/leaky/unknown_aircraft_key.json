@@ -33,7 +33,7 @@
     },
     {
      "mode": "LAND",
-     "s": 42.0
+     "s": 42
     }
    ]
   },
@@ -59,7 +59,7 @@
    {
     "metric": "esc.peak_temperature",
     "segment": "flight",
-    "value": 66.0,
+    "value": 66,
     "zone": null
    }
   ],
@@ -107,12 +107,12 @@
     ],
     "segment": {
      "kind": "flight",
-     "start_s": 0.0,
+     "start_s": 0,
      "end_s": 1084.2
     },
     "values": {
-     "motor3": 66.0,
-     "motor1": 52.0
+     "motor3": 66,
+     "motor1": 52
     }
    },
    {
@@ -136,13 +136,13 @@
   ],
   "parameters": {
    "ATC_RAT_PIT_P": 0.135,
-   "INS_HNTCH_FREQ": 80.0,
-   "INS_HNTCH_BW": 40.0,
+   "INS_HNTCH_FREQ": 80,
+   "INS_HNTCH_BW": 40,
    "MOT_SPIN_MAX": 0.95,
-   "BATT_CAPACITY": 22000.0,
-   "ARM_FENCE": 1.0,
-   "SERIAL2_BAUD": 57.0,
-   "LOG_BITMASK": 655358.0
+   "BATT_CAPACITY": 22000,
+   "ARM_FENCE": 1,
+   "SERIAL2_BAUD": 57,
+   "LOG_BITMASK": 655358
   }
  }
 }

@@ -32,6 +32,7 @@
 | flight.system | Loop load, timing, logging drops and errors, for display: see rpc/analysis.py |
 | review.file | A parameter file's configuration review, with no flight: see rpc/analysis.py |
 | filter.workbench | Spectra and candidate filter predictions: see rpc/analysis.py |
+| ai.prepare / .record / .selftest | The AI path, shell only (never the UI): see rpc/ai.py |
 
 Position columns are never written to an IPC file in Phase 0. Keys arrive over
 stdin, live in memory only, and are never logged or echoed in an error.
@@ -54,6 +55,7 @@ from flight_insights.analysis import analyze_log, summary
 from flight_insights.dataflash import read_dataflash
 from flight_insights.fingerprint.board import system_id_rows
 from flight_insights.knowledge import Pack, load_pack
+from flight_insights.rpc.ai import add_ai_methods
 from flight_insights.rpc.analysis import add_analysis_methods
 from flight_insights.rpc.imports import add_import_methods
 from flight_insights.rpc.server import (
@@ -479,4 +481,5 @@ def build_server(out: IO[str], pack: Pack | None = None) -> Server:
 
     add_import_methods(server, state, guarded)
     add_analysis_methods(server, state, guarded)
+    add_ai_methods(server, state, guarded)
     return server

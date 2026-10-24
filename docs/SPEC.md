@@ -1022,6 +1022,17 @@ Claude is called on every analysis, but it only sees derived measurements and a 
   - **Shared corpus:** clean and leaky packets in `tests/scrubber/`, read by both the engine's and the shell's tests, which must give the same verdict on each.
   - **Its own CI check:** the **Scrubber gate**, zero tolerance.
 - **Visible to the user.** Every packet sent is stored locally and viewable as "what left this machine".
+  - **What is kept:** every packet, exactly as checked and sent: one canonical JSON text, with its SHA-256 and both verdicts (the engine's and the shell's). A packet either check refused is kept too, with its reasons (where and which rule, never the value), and can never be marked sent. The tripwire is never kept.
+  - **Who can reach the AI path:** its engine methods (`ai.prepare`, `ai.record`, `ai.selftest`) are the shell's alone. The UI cannot call them, so it can never fetch a flight's positions.
+- **What a packet holds (Phase 1).** Feature objects only:
+  - the aircraft from the fingerprint;
+  - the platform's answers that are choices, numbers or yes/no (never free text);
+  - flight duration, hover time and time in each mode;
+  - every metric;
+  - every finding with the evidence it cites, under packet-local references (no ids or hashes);
+  - the parameters a person tunes or configures, with calibration, learned values, counters, hardware IDs and every removed parameter left out.
+
+  Times are relative to arming. Numbers have six significant figures and at most four decimals in the range of degrees.
 
 **Models and API features** ([models](https://platform.claude.com/docs/en/models/overview), [structured outputs](https://platform.claude.com/docs/en/build-with-claude/structured-outputs), [data retention](https://platform.claude.com/docs/en/manage-claude/api-and-data-retention))
 
