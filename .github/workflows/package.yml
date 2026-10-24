@@ -16,6 +16,9 @@ on:
       - .github/workflows/package.yml
       - shell/src-tauri/tauri.conf.json
       - shell/src-tauri/tauri.bundle.conf.json
+      # a new native dependency (libsodium) must build into every installer
+      - shell/src-tauri/Cargo.toml
+      - shell/src-tauri/Cargo.lock
       - engine/packaging/**
 
 permissions:

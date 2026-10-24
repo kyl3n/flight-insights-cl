@@ -266,6 +266,13 @@ impl LaptopIdentity {
         PublicKey::from(&self.encryption).to_bytes()
     }
 
+    /// Opens a sealed box addressed to this laptop's encryption key (a fleet key
+    /// granted to it in the device registry).
+    pub fn open_sealed(&self, sealed: &[u8]) -> Result<Zeroizing<Vec<u8>>, String> {
+        let secret = Zeroizing::new(self.encryption.to_bytes());
+        crate::sync::sodium::seal_open(&self.encryption_public(), &secret, sealed)
+    }
+
     pub fn sign(&self, message: &[u8]) -> [u8; 64] {
         use ed25519_dalek::Signer;
         self.signing.sign(message).to_bytes()

@@ -68,9 +68,26 @@ mod tests {
     #[test]
     fn no_other_module_builds_a_client() {
         // reqwest is named only here, so no request can skip the checks above.
-        let src = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("src");
-        for entry in std::fs::read_dir(src).unwrap().flatten() {
-            let path = entry.path();
+        fn walk(dir: &std::path::Path, files: &mut Vec<std::path::PathBuf>) {
+            for entry in std::fs::read_dir(dir).unwrap().flatten() {
+                let path = entry.path();
+                if path.is_dir() {
+                    walk(&path, files);
+                } else if path.extension().is_some_and(|e| e == "rs") {
+                    files.push(path);
+                }
+            }
+        }
+        let mut files = Vec::new();
+        walk(
+            &std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("src"),
+            &mut files,
+        );
+        assert!(
+            files.iter().any(|p| p.ends_with("sync/object.rs")),
+            "the walk reaches sub-folders"
+        );
+        for path in files {
             let name = path.file_name().unwrap().to_string_lossy().into_owned();
             let text = std::fs::read_to_string(&path).unwrap();
             if name != "net.rs" {

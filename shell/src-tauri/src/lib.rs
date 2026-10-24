@@ -17,6 +17,7 @@ pub mod net;
 pub mod rpc;
 pub mod scrub;
 pub mod station;
+pub mod sync;
 pub mod watch;
 
 use std::path::PathBuf;
