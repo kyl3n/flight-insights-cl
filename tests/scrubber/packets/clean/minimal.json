@@ -1,0 +1,11 @@
+{
+ "why": "The smallest packet the schema allows.",
+ "packet": {
+  "schema": "fi.ai.packet/1",
+  "purpose": "chat",
+  "aircraft": {
+   "vehicle": "plane",
+   "firmware": "4.7.2"
+  }
+ }
+}
