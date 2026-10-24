@@ -21,6 +21,8 @@ Versioned data the engine reads, updatable without an app release (spec: System 
 | `rules/trends.json` | Performance trends: how many good flights make an airframe's baseline, its percentile band, how many flights outside it count as drift, and the sparkline length; starting values, uncalibrated | Curated |
 | `metrics/*.json` | The metric registry: every metric and finding the analyzers produce, with its definition, method, unit, direction, zones and their sources, and its wording in English and Ukrainian. The engine refuses an entry with any of that missing | Curated |
 | `enums/<version>.json` | Flight-mode names per vehicle, log-event names, error subsystems and codes, and internal-error bits, by the numbers logs record (MODE.ModeNum, EV.Id, ERR.Subsys and ERR.ECode, PM.InE) | `tools/build_enums.py`, from the release's `mode.h`, `AP_Logger.h` and `AP_InternalError.h` |
+| `logs/<version>.json.gz` | Every DataFlash log message a release can write, with each field's units and type: ArduPilot 4.7 writes a message's FMT only when it logs it, so no log shows them all. The location scrubber's rules are checked against these | `tools/build_log_messages.py`, which runs the release's `Tools/autotest/logger_metadata/parse.py` for Copter and Plane |
+| `rules/scrubber.json` | The location scrubber's rules for the AI path: messages that hold a position and the few fields of each that may be read, messages blocked whole, location-revealing fields and units, ambient pressure and temperature to round, and the parameters removed from every packet, each with its reason | Curated |
 
 ## Adding a release
 
@@ -28,6 +30,7 @@ Versioned data the engine reads, updatable without an app release (spec: System 
 python3 knowledge/tools/build_param_metadata.py ~/ardupilot-4.7.3 4.7.3
 python3 knowledge/tools/find_renames.py ~/ardupilot-4.7.2 ~/ardupilot-4.7.3 4.7.2 4.7.3
 python3 knowledge/tools/build_enums.py ~/ardupilot-4.7.3 4.7.3
+python3 knowledge/tools/build_log_messages.py ~/ardupilot-4.7.3 4.7.3
 python3 knowledge/tools/build_boards.py ~/ardupilot-4.7.3 4.7.3
 ```
 

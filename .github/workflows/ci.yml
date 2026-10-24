@@ -75,6 +75,21 @@ jobs:
       - name: Phase 0 gate on the committed fixtures
         run: uv run fi-engine gate --corpus ../tests/fixtures --jobs 2
 
+  scrubber:
+    # The location scrubber's gate (spec: Testing, "Scrubber"): zero tolerance, so it
+    # stands as its own check rather than one test among hundreds.
+    name: Scrubber gate (no planted coordinate leaves)
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: engine
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@d0cc045d04ccac9d8b7881df0226f9e82c39688e # v6
+      - run: uv sync --locked
+      - name: Rules against every message each release can log, and the packet corpus
+        run: uv run pytest -q tests/test_scrubber_rules.py tests/test_scrubber.py
+
   frozen-engine:
     name: Frozen engine (${{ matrix.os }})
     strategy:

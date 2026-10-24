@@ -1009,8 +1009,18 @@ Claude is called on every analysis, but it only sees derived measurements and a 
 - **Location-revealing parameters removed:** AHRS origin, fence and rally settings, magnetic declination, system IDs, serial numbers and board unique IDs.
 - **Side channels coarsened:** altitudes made relative to take-off, timestamps relative to arming with GPS week and time dropped, magnetic field strength and inclination dropped, ambient temperature and pressure rounded. Position-controller data goes out as error statistics, never as trajectories.
 - **Location work stays on the laptop.** Everything that needs a position is computed locally: weather interpolation, distance and bearing to the ground station, GNSS event positions, wind envelope and drift measurements. Only results without coordinates can leave, such as distance bands, rounded wind values, and event class and timing.
-- **Checked twice.** The Rust shell repeats the location check with a separate implementation just before a packet is sent, so one bug cannot let coordinates through.
+- **Checked twice.** The Rust shell repeats the location check with a separate implementation just before a packet is sent, so one bug cannot let coordinates through. The shell's check has three layers, written independently of the engine's:
+  1. **Its own copy of the packet's shape:** any key or text field it does not expect is refused.
+  2. **Coordinate detectors:** decimal-degree pairs, degrees-minutes-seconds, hemisphere letters, UTM, MGRS, geohash, plus codes, "lat"/"lon" labels, integers in the form of a coordinate ×1e7, and degrees given to more decimals than a packet needs.
+  3. **A tripwire:** this flight's own positions (home, origin and track), read on the laptop by the engine and passed to the shell over stdio. A packet is refused when any value lies within about 5 m of one of them (in degrees, ×1e7, ×1e5 or radians), or when a latitude and longitude of the same point both appear to 0.01°. The tripwire is held in memory only: never logged, stored or sent, and never visible to the UI.
+- **How the rules are kept:**
+  - **The packet's shape is code, not data.** It lives in the engine, so a knowledge-pack update can never widen what leaves.
+  - **The field rules are knowledge-pack data** (`knowledge/rules/scrubber.json`): messages that hold a position and the few fields of each that may be read, messages blocked whole, location-revealing fields and units, the ambient readings to round, and the removed parameters.
+  - **Every message is covered.** A test checks the rules against every message each release can log (`knowledge/logs`, generated from ArduPilot's own log metadata, because 4.7 writes a message's definition only when it logs that message). A release that adds a message holding a position fails the build until the message is classified.
+  - **On the AI path, every field is read through one gate** that denies anything the release does not define.
 - **Proof, not promise.** A test corpus plants known coordinates in every message type; the build fails if any outgoing packet holds a value matching them, including scaled-integer forms. A self-test runs at start-up, and AI calls stay blocked until it passes.
+  - **Shared corpus:** clean and leaky packets in `tests/scrubber/`, read by both the engine's and the shell's tests, which must give the same verdict on each.
+  - **Its own CI check:** the **Scrubber gate**, zero tolerance.
 - **Visible to the user.** Every packet sent is stored locally and viewable as "what left this machine".
 
 **Models and API features** ([models](https://platform.claude.com/docs/en/models/overview), [structured outputs](https://platform.claude.com/docs/en/build-with-claude/structured-outputs), [data retention](https://platform.claude.com/docs/en/manage-claude/api-and-data-retention))

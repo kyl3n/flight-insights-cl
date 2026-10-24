@@ -88,6 +88,14 @@ class Pack:
     def generated_metadata(self, version: str, vehicle: Vehicle) -> dict[str, dict[str, Any]]:
         return _generated(self.root, version, vehicle)
 
+    def log_messages(self, version: str) -> dict[str, dict[str, Any]]:
+        """Every log message a release can write: name -> {vehicles, fields: {name:
+        {units, type}}}, from the release's own source (knowledge/logs)."""
+        entries: dict[str, Any] = self.manifest.get("logs", {})
+        if version not in entries:
+            raise KnowledgeError(f"no log message definitions for {version}")
+        return _log_messages(self.root, entries[version]["file"])
+
     def json(self, rel: str) -> Any:
         return json.loads((self.root / rel).read_text(encoding="utf-8"))
 
@@ -108,6 +116,12 @@ def _metadata(root: Path, version: str, vehicle: Vehicle) -> dict[str, dict[str,
             if vehicle in p["vehicles"] and version_key(version) >= version_key(p["from_version"]):
                 merged.setdefault(p["name"], p["vehicles"][vehicle] | {"supplement": True})
     return merged
+
+
+@cache
+def _log_messages(root: Path, rel: str) -> dict[str, dict[str, Any]]:
+    with gzip.open(root / rel) as f:
+        return json.load(f)["messages"]
 
 
 @cache

@@ -6,6 +6,7 @@
       "../../knowledge/manifest.json": "knowledge/manifest.json",
       "../../knowledge/params/": "knowledge/params/",
       "../../knowledge/enums/": "knowledge/enums/",
+      "../../knowledge/logs/": "knowledge/logs/",
       "../../knowledge/boards/": "knowledge/boards/",
       "../../knowledge/rules/": "knowledge/rules/",
       "../../knowledge/metrics/": "knowledge/metrics/",
