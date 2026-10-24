@@ -27,6 +27,7 @@ from flight_insights.sync import (
     apply_records,
     apply_source,
     conflicts,
+    digest,
     export,
     mark_sent,
     outbox,
@@ -104,7 +105,8 @@ def sync(pack: Pack, *laptops: Laptop) -> None:
 
 
 def state(lt: Laptop) -> dict[str, Any]:
-    """Everything that syncs, by table and key, without each laptop's bookkeeping."""
+    """Everything that syncs, by table and key, without each laptop's bookkeeping.
+    The engine's own digest must agree with it, laptop to laptop."""
     out: dict[str, Any] = {}
     conn = lt.store.conn
     for table in [
@@ -208,6 +210,7 @@ def test_an_import_reaches_the_other_laptop_whole(
     assert all("path" not in json.dumps(o["payload"]) for _, o in sent if o["kind"] == "records")
     assert set(b.receive(pack, sent)) == {"applied"}
     assert state(a) == state(b)
+    assert digest(a.store) == digest(b.store)
     key = b.store.conn.execute("SELECT flight_key FROM flight WHERE id = ?", (flight,)).fetchone()
     assert b.cache.names(key[0]) == a.cache.names(key[0]) != []
     # B recomputes the analysis from the log and finds the same things
@@ -291,7 +294,9 @@ def test_concurrent_changes_keep_both_values_and_agree_on_one(
     sync(pack, a, b)
     _rename(a, "airframe", airframe, name="from A")
     _rename(b, "airframe", airframe, name="from B")  # later: B's clock is ahead
+    assert digest(a.store) != digest(b.store)
     sync(pack, a, b)
+    assert digest(a.store) == digest(b.store)
     assert state(a) == state(b)
     assert a.store.get("airframe", airframe)["name"] == "from B"  # type: ignore[index]
     for lt in (a, b):
@@ -551,3 +556,24 @@ def test_sync_methods_over_rpc(tmp_path: Path, pack: Pack) -> None:
 def test_export_with_nothing_pending_makes_no_object(laptops: tuple[Laptop, Laptop]) -> None:
     a, _ = laptops
     assert export(a.store) == []
+
+
+def test_planning_a_flight_again_keeps_a_decided_recommendation(
+    laptops: tuple[Laptop, Laptop], pack: Pack
+) -> None:
+    """Found by the soak: a rejected recommendation was proposed afresh when its flight
+    was planned again, and the two records merged on other laptops but not on this one."""
+    a, b = laptops
+    airframe = quad_airframe(a, pack)
+    (flight,) = import_quad(a, pack, airframe)
+    plan = plan_and_record(a.store, a.cache, pack, flight)
+    first = next(r for r in plan["recommendations"] if r.get("id"))
+    set_status(a.store, first["id"], "rejected", first["record_version"])
+    again = plan_and_record(a.store, a.cache, pack, flight)
+    same = [r for r in again["recommendations"] if r.get("id") == first["id"]]
+    assert same and same[0]["record_status"] == "rejected"
+    count = "SELECT count(*) FROM recommendation"
+    before = a.store.conn.execute(count).fetchone()[0]
+    sync(pack, a, b)
+    assert b.store.conn.execute(count).fetchone()[0] == before
+    assert digest(a.store) == digest(b.store)

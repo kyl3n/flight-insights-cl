@@ -21,6 +21,7 @@ deleted. Applying an object twice changes nothing.
 
 from __future__ import annotations
 
+import hashlib
 import json
 import sqlite3
 from dataclasses import dataclass
@@ -251,6 +252,68 @@ class _Apply:
             assert hlc is not None
             self.merge_field(table, rid, field, value, hlc, base, changed=field in clocks)
 
+    def _clocks_of(self, table: str, rid: str) -> dict[str, list[str | None]]:
+        return {
+            f: [h, b]
+            for f, h, b in self.conn.execute(
+                "SELECT field, hlc, base_hlc FROM field_clock WHERE tbl = ? AND rid = ?",
+                (table, rid),
+            )
+        }
+
+    def _alias_to(self, table: str, gone: str, keep: str) -> None:
+        self.conn.execute("INSERT OR REPLACE INTO sync_alias VALUES (?, ?, ?)", (table, gone, keep))
+        self.conn.execute(  # one hop, always: what pointed at `gone` points at `keep`
+            "UPDATE sync_alias SET new_id = ? WHERE tbl = ? AND new_id = ?", (keep, table, gone)
+        )
+
+    def _repoint(self, table: str, gone: str, keep: str) -> None:
+        """Every reference to `gone` moves to `keep`. Records that become the same thing
+        by it (two recommendations, now for one flight) merge too, so the laptops agree
+        whatever order the objects arrived in."""
+        for t, c in self.refs.get(table, []):
+            self.conn.execute(f"UPDATE OR IGNORE {t} SET {c} = ? WHERE {c} = ?", (keep, gone))
+            if t in synced.LINKS or any(t in kids for kids in synced.CHILDREN.values()):
+                # A link or child row both records had is already there under the kept id.
+                self.conn.execute(f"DELETE FROM {t} WHERE {c} = ?", (gone,))
+            if t in synced.SYNCED and c in synced.NATURAL_KEYS.get(t, ()):
+                self._merge_local_twins(t, c, keep)
+
+    def _merge_local_twins(self, table: str, column: str, value: str) -> None:
+        groups: dict[str, list[str]] = {}
+        cur = self.conn.execute(f"SELECT * FROM {table} WHERE {column} = ?", (value,))
+        names = [d[0] for d in cur.description]
+        for r in cur.fetchall():
+            rec = dict(zip(names, r, strict=True))
+            key = synced.natural_key(table, rec)
+            if key is not None:
+                groups.setdefault(json.dumps(encode(list(key.values()))), []).append(str(rec["id"]))
+        for ids in groups.values():
+            keep, *others = sorted(ids)
+            for gone in others:
+                self._fold(table, gone, keep)
+
+    def _fold(self, table: str, gone: str, keep: str) -> None:
+        """Two records on this laptop that are the same thing: `gone` merges into `keep`."""
+        other = row(self.store, table, {"id": gone})
+        if other is None:
+            return
+        clocks = self._clocks_of(table, gone)
+        self._alias_to(table, gone, keep)
+        self.conn.execute("DELETE FROM field_clock WHERE tbl = ? AND rid = ?", (table, gone))
+        self.conn.execute(f"DELETE FROM {table} WHERE id = ?", (gone,))
+        self._repoint(table, gone, keep)
+        self._merge_row(table, keep, other | {"id": keep}, clocks)
+        self._move_pending(table, gone, keep)
+
+    def _move_pending(self, table: str, gone: str, keep: str) -> None:
+        # changes not yet sent go out under the kept id
+        self.conn.execute(
+            "UPDATE OR IGNORE sync_pending SET rid = ? WHERE tbl = ? AND rid = ?",
+            (keep, table, gone),
+        )
+        self.conn.execute("DELETE FROM sync_pending WHERE tbl = ? AND rid = ?", (table, gone))
+
     def _merge_twins(
         self,
         table: str,
@@ -263,36 +326,21 @@ class _Apply:
         on every laptop, with the other's references moved to it."""
         incoming_id = str(incoming["id"])
         keep, gone = sorted((local_id, incoming_id))
-        self.conn.execute("INSERT OR REPLACE INTO sync_alias VALUES (?, ?, ?)", (table, gone, keep))
+        self._alias_to(table, gone, keep)
         if keep == local_id:
             self._merge_row(table, local_id, incoming | {"id": local_id}, clocks)
             return
-        # The incoming id wins: this laptop's record moves under it.
+        # The incoming id wins: this laptop's record moves under it, and its values merge
+        # into the kept record as changes with their own clocks.
         local = row(self.store, table, {"id": local_id})
         assert local is not None
-        local_clocks = {
-            f: [h, b]
-            for f, h, b in self.conn.execute(
-                "SELECT field, hlc, base_hlc FROM field_clock WHERE tbl = ? AND rid = ?",
-                (table, local_id),
-            )
-        }
+        local_clocks = self._clocks_of(table, local_id)
         self.conn.execute(f"DELETE FROM {table} WHERE id = ?", (local_id,))
-        self._insert(table, incoming, clocks, e)
-        for t, c in self.refs.get(table, []):
-            self.conn.execute(f"UPDATE OR IGNORE {t} SET {c} = ? WHERE {c} = ?", (keep, local_id))
-            if t in synced.LINKS or any(t in kids for kids in synced.CHILDREN.values()):
-                # A link or child row both records had is already there under the kept id.
-                self.conn.execute(f"DELETE FROM {t} WHERE {c} = ?", (local_id,))
-        # This laptop's values merge into the kept record as changes with their own
-        # clocks, which the merge writes; changes not yet sent go out under the kept id.
         self.conn.execute("DELETE FROM field_clock WHERE tbl = ? AND rid = ?", (table, local_id))
+        self._insert(table, incoming, clocks, e)
+        self._repoint(table, local_id, keep)
         self._merge_row(table, keep, local | {"id": keep}, local_clocks)
-        self.conn.execute(
-            "UPDATE OR IGNORE sync_pending SET rid = ? WHERE tbl = ? AND rid = ?",
-            (keep, table, local_id),
-        )
-        self.conn.execute("DELETE FROM sync_pending WHERE tbl = ? AND rid = ?", (table, local_id))
+        self._move_pending(table, local_id, keep)
 
     def set(self, e: dict[str, Any]) -> None:
         table = str(e["t"])
@@ -438,6 +486,33 @@ def unknown(store: Store, object_keys: list[str]) -> list[str]:
                 )
             }  # fmt: skip
     return [k for k in object_keys if k not in seen]
+
+
+BOOKKEEPING = frozenset({"version", "updated_hlc", "laptop_id"})  # each laptop's own count
+
+
+def digest(store: Store, show: frozenset[str] = frozenset()) -> dict[str, Any]:
+    """A hash of everything that syncs, per table, without each laptop's bookkeeping
+    or its laptop-only fields: two laptops that hold the same records agree on it.
+    The tables in `show` come with their rows, to find where two laptops differ."""
+    tables = [*synced.RECORDS, *synced.LINKS, *(c for k in synced.CHILDREN.values() for c in k)]
+    out: dict[str, Any] = {}
+    every = hashlib.sha256()
+    for table in tables:
+        cur = store.conn.execute(f"SELECT * FROM {table}")
+        names = [d[0] for d in cur.description]
+        drop = BOOKKEEPING | synced.LOCAL_FIELDS.get(table, frozenset())
+        rows = sorted(
+            json.dumps({n: encode(v) for n, v in zip(names, r, strict=True) if n not in drop},
+                       sort_keys=True)
+            for r in cur.fetchall()
+        )  # fmt: skip
+        h = hashlib.sha256("\n".join(rows).encode()).hexdigest()
+        out[table] = {"rows": len(rows), "sha256": h}
+        if table in show:
+            out[table]["data"] = rows
+        every.update(f"{table}:{h};".encode())
+    return {"sha256": every.hexdigest(), "tables": out}
 
 
 def conflicts(store: Store, include_resolved: bool = False) -> list[dict[str, Any]]:

@@ -1,0 +1,75 @@
+# The long sync soak, run by hand (spec: Roadmap, Phase 1 gate "sync soak test clean").
+# Every pull request already runs a short one in the Shell job (cargo test, the
+# defaults in shell/src-tauri/tests/soak.rs). This runs as many rounds, laptops and
+# seeds as asked. A failure prints the seed and settings that reproduce it.
+
+name: Sync soak
+
+on:
+  workflow_dispatch:
+    inputs:
+      seeds:
+        description: "Seeds to run, separated by spaces"
+        default: "1 2 3 4 5 6 7 8"
+      rounds:
+        description: "Rounds per seed"
+        default: "60"
+      laptops:
+        description: "Laptops at the start (one more enrolls mid-run)"
+        default: "4"
+
+permissions:
+  contents: read
+
+jobs:
+  soak:
+    name: Sync soak
+    runs-on: ubuntu-latest
+    timeout-minutes: 360
+    defaults:
+      run:
+        working-directory: shell/src-tauri
+    steps:
+      - uses: actions/checkout@v4
+      - name: Cache Linux build dependency packages
+        uses: actions/cache@v4
+        with:
+          path: ~/apt-debs
+          key: apt-debs-${{ runner.os }}-webkit2gtk-4.1-${{ hashFiles('.github/workflows/ci.yml') }}
+          restore-keys: apt-debs-${{ runner.os }}-webkit2gtk-4.1-
+      - name: Linux build dependencies
+        timeout-minutes: 40
+        run: |
+          mkdir -p ~/apt-debs
+          sudo cp ~/apt-debs/*.deb /var/cache/apt/archives/ 2>/dev/null || true
+          apt_opts="-o Acquire::Retries=5 -o Acquire::http::Timeout=60 -o DPkg::Lock::Timeout=300"
+          packages="libwebkit2gtk-4.1-dev libayatana-appindicator3-dev librsvg2-dev"
+          for attempt in 1 2 3; do
+            if sudo apt-get $apt_opts update && sudo apt-get $apt_opts install -y $packages; then
+              exit 0
+            fi
+            echo "apt attempt $attempt failed; retrying"
+            sleep 15
+          done
+          exit 1
+      - uses: dtolnay/rust-toolchain@b725eda525362e7cf34af9a7243cac1e3f01a7ec # stable
+      - uses: Swatinem/rust-cache@d1527c8f67ef9af357290475d4af4b0fab8f12e0 # v2
+        with:
+          workspaces: shell/src-tauri
+      - uses: astral-sh/setup-uv@d0cc045d04ccac9d8b7881df0226f9e82c39688e # v6
+      - name: Engine
+        working-directory: engine
+        run: uv sync --locked
+      - name: Soak
+        env:
+          FI_ENGINE_CMD: '["uv", "run", "--project", "../../engine", "python", "-m", "flight_insights", "rpc"]'
+          FI_KNOWLEDGE_DIR: ../../knowledge
+          SEEDS: ${{ inputs.seeds }}
+          SOAK_ROUNDS: ${{ inputs.rounds }}
+          SOAK_LAPTOPS: ${{ inputs.laptops }}
+        run: |
+          cargo build --locked --tests
+          for seed in $SEEDS; do
+            case "$seed" in *[!0-9]*|"") echo "not a seed: $seed"; exit 1;; esac
+            SOAK_SEED="$seed" cargo test --locked --test soak -- --nocapture
+          done
