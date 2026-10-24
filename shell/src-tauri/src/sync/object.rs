@@ -41,8 +41,13 @@ pub struct Name {
 
 impl Name {
     pub fn path(&self) -> String {
+        self.path_in("devices")
+    }
+
+    /// The same name in another top-level folder (the service keys' `keys/`).
+    pub fn path_in(&self, folder: &str) -> String {
         format!(
-            "devices/{}/{:012}-{}.fio",
+            "{folder}/{}/{:012}-{}.fio",
             hex::encode(self.laptop),
             self.sequence,
             hex::encode(self.object_key)
@@ -51,9 +56,14 @@ impl Name {
 
     /// The name from a drive path; None for anything not shaped like one.
     pub fn parse(path: &str) -> Option<Name> {
+        Name::parse_in("devices", path)
+    }
+
+    /// A name under another top-level folder.
+    pub fn parse_in(folder: &str, path: &str) -> Option<Name> {
         let mut parts = path.split('/');
-        let (devices, laptop, file) = (parts.next()?, parts.next()?, parts.next()?);
-        if devices != "devices" || parts.next().is_some() {
+        let (top, laptop, file) = (parts.next()?, parts.next()?, parts.next()?);
+        if top != folder || parts.next().is_some() {
             return None;
         }
         let (sequence, key) = file.strip_suffix(".fio")?.split_once('-')?;

@@ -285,6 +285,10 @@ pub struct Worker {
     cursor: Mutex<Option<String>>,
     woken: Mutex<bool>,
     wake: Condvar,
+    /// The service keys set already applied here, by its path on the drive.
+    pub keys_seen: Mutex<Option<String>>,
+    /// A Claude key entered (Some) or removed (None) here, waiting to go to the fleet.
+    pub keys_out: Mutex<Option<Option<Zeroizing<String>>>>,
 }
 
 fn now_ms() -> u64 {
@@ -307,6 +311,13 @@ impl Worker {
             .wait_timeout_while(woken, ROUND_EVERY, |w| !*w)
             .expect("wake");
         *woken = false;
+    }
+
+    /// Shares the Claude key entered here (None: removed) with the fleet at the next
+    /// round.
+    pub fn share_claude_key(&self, key: Option<Zeroizing<String>>) {
+        *self.keys_out.lock().expect("keys out") = Some(key);
+        self.wake();
     }
 
     pub fn set(&self, state: &str, why: Option<String>) {

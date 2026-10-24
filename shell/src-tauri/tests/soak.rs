@@ -24,6 +24,11 @@
 //! long ones by hand. `SOAK_SEED`, `SOAK_ROUNDS` and `SOAK_LAPTOPS` set the run, and a
 //! failure prints the seed that reproduces it. It needs FI_ENGINE_CMD, as the shell's
 //! other real-engine tests do, and is skipped without it.
+//!
+//! `SOAK_DRIVE=google` runs it on a real Google shared drive instead of a local folder:
+//! the "Sync soak on the drive" workflow does so nightly on the test drive, with
+//! `FI_GOOGLE_TEST_REFRESH_TOKEN`, `FI_GOOGLE_TEST_DRIVE_ID` and the OAuth client. Each
+//! run writes under its own top-level folder, `soak-<run>-<seed>`, and deletes nothing.
 
 use std::collections::{BTreeMap, BTreeSet};
 use std::fs;
@@ -32,9 +37,11 @@ use std::path::{Path, PathBuf};
 use flight_insights_shell::engine::{CALL_TIMEOUT, Engine, EngineCommand};
 use flight_insights_shell::identity::{LaptopIdentity, MemoryStore};
 use flight_insights_shell::sync::drive::{Drive, FolderDrive};
+use flight_insights_shell::sync::google::GoogleDrive;
 use flight_insights_shell::sync::keyring::{
     Device, Keyring, Registry, create_fleet, enroll, revoke,
 };
+use flight_insights_shell::sync::oauth::{self, Endpoints};
 use flight_insights_shell::sync::object::Name;
 use flight_insights_shell::sync::run::{Round, Syncer, publish, read_registry};
 use flight_insights_shell::sync::sodium::{self, Sha256};
@@ -92,7 +99,11 @@ struct Soak {
     cmd: EngineCommand,
     knowledge: Option<PathBuf>,
     root: PathBuf,
-    drive: FolderDrive,
+    drive: Box<dyn Drive>,
+    /// The folder a local drive lies in; None on Google, where files are fetched.
+    local: Option<PathBuf>,
+    /// Each file's size and SHA-256 when first seen, to show nothing ever changes.
+    sums: BTreeMap<String, (u64, [u8; 32])>,
     fingerprint: [u8; 32],
     laptops: Vec<Laptop>,
     bad: BTreeSet<String>, // keys of objects that must be refused
@@ -120,7 +131,7 @@ impl Soak {
 
     fn registry(&self) -> Registry {
         read_registry(
-            &self.drive,
+            self.drive.as_ref(),
             &self.root.join("registry"),
             Some(&self.fingerprint),
         )
@@ -148,7 +159,7 @@ impl Soak {
         let lt = &self.laptops[n];
         Syncer {
             engine: lt.engine(),
-            drive: &self.drive,
+            drive: self.drive.as_ref(),
             identity: &lt.id,
             registry,
             keyring: &lt.keys,
@@ -158,17 +169,42 @@ impl Soak {
         .unwrap_or_else(|e| panic!("{}: a sync round failed: {e}", lt.name))
     }
 
-    fn snapshot(&self) -> BTreeMap<String, [u8; 32]> {
-        let base = self.root.join("drive");
-        self.drive
-            .list("")
-            .unwrap()
-            .into_iter()
-            .map(|e| {
-                let sum = Sha256::of_file(&base.join(&e.path)).unwrap();
-                (e.path, sum)
-            })
-            .collect()
+    fn fetch(&self, path: &str) -> PathBuf {
+        match &self.local {
+            Some(base) => base.join(path),
+            None => {
+                let to = self.root.join("fetched.fio");
+                self.drive.download(path, &to).unwrap();
+                to
+            }
+        }
+    }
+
+    /// Every file on the drive with its SHA-256. A local drive is hashed whole each
+    /// time; on Google a file is fetched once and its size watched after, and
+    /// `verify_all` fetches everything again at the end.
+    fn snapshot(&mut self) -> BTreeMap<String, [u8; 32]> {
+        let mut out = BTreeMap::new();
+        for e in self.drive.list("").unwrap() {
+            let sum = match (self.local.is_some(), self.sums.get(&e.path)) {
+                (false, Some((size, sum))) if *size == e.size => *sum,
+                (false, Some(_)) => [0; 32], // its size changed
+                _ => {
+                    let sum = Sha256::of_file(&self.fetch(&e.path)).unwrap();
+                    self.sums.entry(e.path.clone()).or_insert((e.size, sum));
+                    sum
+                }
+            };
+            out.insert(e.path, sum);
+        }
+        out
+    }
+
+    fn verify_all(&self) {
+        for (path, (_, sum)) in &self.sums {
+            let now = Sha256::of_file(&self.fetch(path)).unwrap();
+            assert_eq!(&now, sum, "{path} changed on the drive");
+        }
     }
 
     // --- the work ---------------------------------------------------------------------
@@ -300,7 +336,7 @@ impl Soak {
             return;
         }
         let victim = &objects[rng.below(objects.len())];
-        let mut bytes = fs::read(self.root.join("drive").join(&victim.path)).unwrap();
+        let mut bytes = fs::read(self.fetch(&victim.path)).unwrap();
         let how = rng.below(3);
         match how {
             0 => {
@@ -340,6 +376,36 @@ impl Soak {
     }
 }
 
+/// A local folder, or the test shared drive with `SOAK_DRIVE=google`.
+fn the_drive(root: &Path, seed: u64) -> (Box<dyn Drive>, Option<PathBuf>) {
+    if std::env::var("SOAK_DRIVE").as_deref() != Ok("google") {
+        let local = root.join("drive");
+        return (Box::new(FolderDrive::new(&local).unwrap()), Some(local));
+    }
+    let need = |name: &str| {
+        std::env::var(name)
+            .ok()
+            .filter(|v| !v.is_empty())
+            .unwrap_or_else(|| panic!("SOAK_DRIVE=google needs {name}"))
+    };
+    let client = oauth::built_in_client().unwrap_or_else(|| oauth::Client {
+        id: need("FI_GOOGLE_CLIENT_ID"),
+        secret: std::env::var("FI_GOOGLE_CLIENT_SECRET").unwrap_or_default(),
+    });
+    let run = std::env::var("SOAK_RUN").unwrap_or_else(|_| std::process::id().to_string());
+    let folder = format!("soak-{run}-{seed}");
+    eprintln!("sync soak: on the test shared drive, under {folder}/");
+    let drive = GoogleDrive::new(
+        Endpoints::default(),
+        client,
+        &need("FI_GOOGLE_TEST_DRIVE_ID"),
+        zeroize::Zeroizing::new(need("FI_GOOGLE_TEST_REFRESH_TOKEN")),
+    )
+    .and_then(|d| d.under(&folder))
+    .unwrap();
+    (Box::new(drive), None)
+}
+
 #[test]
 fn soak() {
     if std::env::var("FI_ENGINE_CMD").is_err() {
@@ -362,20 +428,22 @@ fn soak() {
                 .0
         })
         .collect();
-    let drive = FolderDrive::new(root.join("drive")).unwrap();
+    let (drive, local) = the_drive(&root, seed);
     let (first, keys0, _recovery) = create_fleet(&ids[0], "L0").unwrap();
-    publish(&drive, &root.join("registry"), &first, 0).unwrap();
-    let mut registry = read_registry(&drive, &root.join("registry"), None).unwrap();
+    publish(drive.as_ref(), &root.join("registry"), &first, 0).unwrap();
+    let mut registry = read_registry(drive.as_ref(), &root.join("registry"), None).unwrap();
     for (n, id) in ids.iter().enumerate().skip(1) {
         let e = enroll(&registry, &keys0, &ids[0], Device::of(id, &format!("L{n}"))).unwrap();
-        publish(&drive, &root.join("registry"), &e, n as u64).unwrap();
-        registry = read_registry(&drive, &root.join("registry"), None).unwrap();
+        publish(drive.as_ref(), &root.join("registry"), &e, n as u64).unwrap();
+        registry = read_registry(drive.as_ref(), &root.join("registry"), None).unwrap();
     }
     let mut soak = Soak {
         cmd: EngineCommand::resolve(Path::new(".")).unwrap(),
         knowledge: std::env::var_os("FI_KNOWLEDGE_DIR").map(PathBuf::from),
         root: root.clone(),
         drive,
+        local,
+        sums: BTreeMap::new(),
         fingerprint: registry.fingerprint,
         laptops: Vec::new(),
         bad: BTreeSet::new(),
@@ -408,7 +476,7 @@ fn soak() {
                 )
                 .unwrap();
                 publish(
-                    &soak.drive,
+                    soak.drive.as_ref(),
                     &root.join("registry"),
                     &e,
                     registry.events.len() as u64,
@@ -438,7 +506,7 @@ fn soak() {
                 )
                 .unwrap();
                 publish(
-                    &soak.drive,
+                    soak.drive.as_ref(),
                     &root.join("registry"),
                     &e,
                     registry.events.len() as u64,
@@ -472,6 +540,7 @@ fn soak() {
 
         registry = soak.registry();
         soak.settle(&registry);
+        soak.verify_all();
         // what the revoked laptop wrote after its revocation must be refused
         let mut late = BTreeSet::new();
         if let Some((gone, last)) = &revoked_after {

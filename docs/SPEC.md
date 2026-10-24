@@ -1488,7 +1488,8 @@ Every laptop keeps a full working copy of all data and shares it through one com
   - **Network:** the Drive API is reached at two hosts on the shell's allowlist: `oauth2.googleapis.com` for tokens, and `www.googleapis.com` for the Drive API and its uploads. The consent page opens in the browser, not in the app.
 - **Layout on the drive.** Everything lives under one folder, "Flight Insights", in the shared drive:
   - `devices/<laptop-id>/` for each laptop's objects;
-  - `registry/` for the device registry's events.
+  - `registry/` for the device registry's events;
+  - `keys/<laptop-id>/` for the fleet's service keys (see Security, "Service keys").
 
   Folders are created the first time they are needed. If two laptops create the same folder at the same moment, Drive keeps both: a path then stands for all folders of that name, every listing reads them all, and new files go into the one with the smallest id.
 - **Transfers.** Uploads are resumable, in 8 MiB chunks, and carry on from what Drive holds after a dropped connection. The SHA-256 Drive reports is compared with the app's own before an object counts as sent. A name already present is never written again. A refused access token is renewed once; Google's "slow down" (429) and server errors are retried with growing waits. A revoked refresh token asks the person to sign in again.
@@ -1787,7 +1788,7 @@ A tuning tool earns trust only by being right on real aircraft, so validation is
 
 **Sync soak test.** Simulated laptops on a test drive import the same logs, edit the same airframes, lose their connections and crash mid-transfer, for days at a time, while some objects are deliberately altered. The release gate is zero duplicates, zero lost objects, every altered object quarantined, and identical databases on every laptop.
 
-- **The harness** (`shell/src-tauri/tests/soak.rs`) runs simulated laptops, each a real engine with its own store, against one folder drive. Each run is a seeded, random mix of:
+- **The harness** (`shell/src-tauri/tests/soak.rs`) runs simulated laptops, each a real engine with its own store, against one drive: a local folder, or the real test shared drive (`SOAK_DRIVE=google`). Each run is a seeded, random mix of:
   - imports, including the same log on several laptops;
   - edits to the same field at the same time;
   - recommendation decisions and AI results;
@@ -1803,7 +1804,8 @@ A tuning tool earns trust only by being right on real aircraft, so validation is
 - **Runs:**
   - every change runs a short soak in CI;
   - the "Sync soak" workflow runs long ones by hand, across many seeds;
-  - the multi-day run on the real test shared drive comes with the Drive client.
+  - the "Sync soak on the drive" workflow runs every night on the real test shared drive, each run under its own top-level folder (`soak-<run>-<seed>`), deleting nothing. Its runs on successive nights are the multi-day soak of the Phase 1 gate. It needs the test account's refresh token and the test drive's ID as CI secrets (`FI_GOOGLE_TEST_REFRESH_TOKEN`, `FI_GOOGLE_TEST_DRIVE_ID`, taken once with `cargo run --example google_sign_in`) and is skipped without them. The by-hand workflow can use the test drive too.
+  - On the real drive, each file is hashed when first seen, its size is checked every round, and every file is fetched and hashed again at the end.
 
   A failure prints the seed that reproduces it.
 
@@ -1829,6 +1831,11 @@ The app handles logs that reveal where and how aircraft fly, so it is built to l
 **Network behaviour.** The desktop app connects to exactly four endpoints, all configurable and proxy-aware: the update server, the Google Drive API for encrypted sync, the Claude API for scrubbed AI requests, and the Open-Meteo API for regional weather. No analytics, no third-party crash reporting; crash dumps stay local until a user exports one.
 
 **Service keys, with no server to run.** The Claude API key and the Open-Meteo key live in the shared drive, encrypted with the fleet key like every other object, so Google sees only ciphertext. An admin enters each key once in the app; every enrolled laptop receives it through sync and stores it in its OS keychain. Requests go from the Rust shell straight to each service. Spend is visible in the Claude Console, where a spending limit can be set, and the app adds up each laptop's usage from the token counts in replies. Every AI packet sent is kept as a record and synced, so anyone can audit what left any laptop. When a laptop is revoked, the app asks the admin for new keys and has the old ones deleted, because the lost laptop held copies.
+
+- **How they travel.** A set of service keys is one object under `keys/<laptop-id>/`, in the same `.fio` format as every other object: encrypted with the current fleet key and signed by the laptop that wrote it. Its sequence number is the writer's clock in seconds, always past the newest set already there, so the newest set wins on every laptop.
+- **Which set counts.** A set counts only when it is written with the current fleet key by a laptop still in the fleet. A set that fails any check is passed over, never applied. A revocation rotates the fleet key, so every earlier set stops counting: the laptops keep the key they hold until an admin enters a new one, which the app asks for.
+- **Entering and removing.** In a fleet, a key saved in Settings on any laptop goes out at the next sync round, and removing it there removes it from every laptop. The sync worker carries the sets: a set never reaches the engine or the interface.
+- **What a set holds** (format `fi.keys/1`): the Claude API key. The Open-Meteo key joins it when weather lands.
 
 **Distribution.** Signed Windows installer and signed Linux packages from an internal update channel; machine-wide installs supported for managed fleets.
 

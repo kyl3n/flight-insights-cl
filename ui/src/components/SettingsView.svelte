@@ -75,6 +75,7 @@
       <p>
         {#if app.ai.key_rejected}{t("settings.key.rejected")}{:else if app.ai.key_set}{t("settings.key.set")}{:else}{t("settings.key.none")}{/if}
       </p>
+      <p class="faint">{t("settings.key.fleet")}</p>
       <form class="row" onsubmit={(e) => { e.preventDefault(); saveKey(); }}>
         <label>
           <span>{t("settings.key")}</span>

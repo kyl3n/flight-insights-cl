@@ -1,7 +1,8 @@
 //! Sync and the fleet, as the interface reaches them (spec: Shared storage and sync):
 //! signing in to Google, choosing the shared drive, setting up or joining a fleet,
 //! approving and removing laptops, recovering with the recovery words, and the
-//! worker's round every minute. The interface never sees a token or a key: only
+//! worker's round every minute, which also carries the fleet's service keys. The
+//! interface never sees a token or a key: only
 //! whether there is one, fingerprints to compare, and the recovery words once.
 
 use std::path::PathBuf;
@@ -11,12 +12,14 @@ use serde_json::{Value, json};
 use tauri::{AppHandle, Emitter, Manager};
 
 use crate::Shell;
+use crate::ai;
 use crate::identity::{LaptopIdentity, SecretStore};
 use crate::sync::app::{self, Settings, Worker, refresh_token, show_fingerprint};
 use crate::sync::google::{GoogleDrive, shared_drives};
 use crate::sync::keyring::{Keyring, Registry};
 use crate::sync::oauth::{self, Endpoints};
 use crate::sync::run::read_registry;
+use crate::sync::service_keys;
 
 const SIGN_IN_WAIT: std::time::Duration = std::time::Duration::from_secs(300);
 
@@ -169,6 +172,7 @@ pub fn round(app: &AppHandle) {
                 &staging(&p.data_dir),
             )
             .map_err(failed)?;
+        service_keys(&shell, &p, drive.as_ref(), &registry, &keys).map_err(failed)?;
         Ok(())
     })();
     if let Err((state, why)) = outcome {
@@ -178,6 +182,57 @@ pub fn round(app: &AppHandle) {
         "sync-status",
         shell.sync.state.lock().expect("sync state").clone(),
     );
+}
+
+/// The fleet's service keys: a key entered here goes out first, then the newest set
+/// on the drive comes into the keychain. Neither reaches the engine or the interface.
+fn service_keys(
+    shell: &Shell,
+    p: &Parts,
+    drive: &dyn crate::sync::drive::Drive,
+    registry: &Registry,
+    keys: &Keyring,
+) -> Result<(), String> {
+    let staging = staging(&p.data_dir);
+    let out = shell.sync.keys_out.lock().expect("keys out").take();
+    if let Some(claude) = out {
+        match service_keys::publish(
+            drive,
+            &staging,
+            &p.identity,
+            keys,
+            claude.as_deref().map(|s| s.as_str()),
+        ) {
+            Ok(path) => *shell.sync.keys_seen.lock().expect("keys seen") = Some(path),
+            Err(e) => {
+                // still to go: kept for the next round
+                shell
+                    .sync
+                    .keys_out
+                    .lock()
+                    .expect("keys out")
+                    .get_or_insert(claude);
+                return Err(e);
+            }
+        }
+    }
+    let seen = shell.sync.keys_seen.lock().expect("keys seen").clone();
+    if let Some(set) = service_keys::latest(drive, &staging, registry, keys, seen.as_deref())? {
+        match &set.claude {
+            Some(k) => ai::set_key(p.keychain.as_ref(), k)?,
+            None => p.keychain.delete(ai::KEY_NAME)?,
+        }
+        shell
+            .key_rejected
+            .store(false, std::sync::atomic::Ordering::SeqCst);
+        *shell.sync.keys_seen.lock().expect("keys seen") = Some(set.path);
+    }
+    Ok(())
+}
+
+/// Whether this laptop is in a fleet, so a key entered here is shared with it.
+pub fn in_fleet(shell: &Shell) -> bool {
+    app::load_settings(&shell.data_dir).fleet.is_some()
 }
 
 // --- commands ---------------------------------------------------------------------------

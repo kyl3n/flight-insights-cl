@@ -12,4 +12,5 @@ pub mod keyring;
 pub mod oauth;
 pub mod object;
 pub mod run;
+pub mod service_keys;
 pub mod sodium;

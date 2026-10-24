@@ -42,6 +42,8 @@ pub struct GoogleDrive {
     folders: Mutex<HashMap<String, (Vec<String>, Instant)>>,
     http: net::Client,
     backoff: Duration,
+    /// The one folder in the shared drive everything lives under ("Flight Insights").
+    root: String,
 }
 
 fn other(e: impl std::fmt::Display) -> io::Error {
@@ -68,7 +70,18 @@ impl GoogleDrive {
             folders: Mutex::new(HashMap::new()),
             http: net::client(Duration::from_secs(300)).map_err(other)?,
             backoff: Duration::from_secs(1),
+            root: ROOT.into(),
         })
+    }
+
+    /// Everything under another top-level folder of the shared drive: the nightly soak
+    /// gives each run its own. One folder name, no slashes.
+    pub fn under(mut self, root: &str) -> io::Result<Self> {
+        if root.is_empty() || root.contains('/') {
+            return Err(other("the root is one folder name"));
+        }
+        self.root = root.into();
+        Ok(self)
     }
 
     #[cfg(test)]
@@ -191,7 +204,7 @@ impl GoogleDrive {
             None if path.is_empty() => return Ok(vec![self.drive_id.clone()]),
             None => ("", path),
         };
-        let parents = if path == ROOT {
+        let parents = if path == self.root {
             vec![self.drive_id.clone()]
         } else {
             self.folder(parent_path, create, fresh)?
@@ -230,17 +243,17 @@ impl GoogleDrive {
         Ok(ids)
     }
 
-    fn dir_of(path: &str) -> (String, &str) {
+    fn dir_of<'p>(&self, path: &'p str) -> (String, &'p str) {
         match path.rsplit_once('/') {
-            Some((d, n)) => (format!("{ROOT}/{d}"), n),
-            None => (ROOT.into(), path),
+            Some((d, n)) => (format!("{}/{d}", self.root), n),
+            None => (self.root.clone(), path),
         }
     }
 
     /// A file's id; a miss looks again past the cached folder ids, in case the file
     /// sits in a twin folder another laptop made since they were read.
     fn file_id(&self, path: &str) -> io::Result<Option<String>> {
-        let (dir, name) = Self::dir_of(path);
+        let (dir, name) = self.dir_of(path);
         for fresh in [false, true] {
             for folder in self.folder(&dir, false, fresh)? {
                 if let Some(f) = self
@@ -415,9 +428,9 @@ impl Drive for GoogleDrive {
         // start from the deepest folder the prefix names
         let dir = prefix.rsplit_once('/').map_or("", |(d, _)| d);
         let start = if dir.is_empty() {
-            ROOT.to_string()
+            self.root.clone()
         } else {
-            format!("{ROOT}/{dir}")
+            format!("{}/{dir}", self.root)
         };
         let mut out = Vec::new();
         for folder in self.folder(&start, false, true)? {
@@ -430,7 +443,7 @@ impl Drive for GoogleDrive {
     }
 
     fn upload(&self, path: &str, from: &Path) -> io::Result<[u8; 32]> {
-        let (dir, name) = Self::dir_of(path);
+        let (dir, name) = self.dir_of(path);
         if name.is_empty() || name.starts_with('.') {
             return Err(io::Error::new(
                 io::ErrorKind::InvalidInput,
