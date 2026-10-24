@@ -4,12 +4,14 @@
 //! At start-up the shell reads (or on first start creates) this laptop's
 //! identity in the OS keychain, starts the engine, and unlocks the engine's
 //! encrypted store with the keys. The UI talks to the engine only through
-//! `engine_call`, limited to `engine::UI_METHODS`. The shell makes no network
-//! requests yet.
+//! `engine_call`, limited to `engine::UI_METHODS`. Each engine started runs the
+//! location checks' self-test (`scrub::gate`); AI calls stay blocked unless it passes.
+//! The shell makes no network requests yet.
 
 pub mod engine;
 pub mod identity;
 pub mod rpc;
+pub mod scrub;
 pub mod station;
 pub mod watch;
 
@@ -42,6 +44,11 @@ pub struct Status {
     pub engine: EngineState,
     pub engine_version: Option<String>,
     pub error: Option<String>,
+    /// AI calls are allowed only when `ready`: the start-up self-test of both location
+    /// checks, the engine's and the shell's, passed.
+    pub ai: scrub::AiGate,
+    /// The self-test cases that failed, by name.
+    pub ai_failed: Vec<String>,
 }
 
 struct Shell {
@@ -63,6 +70,9 @@ impl Shell {
         let mut s = self.status.lock().expect("status");
         s.engine = EngineState::Failed;
         s.error = Some(error);
+        // No engine has been checked: AI calls wait for one that is.
+        s.ai = scrub::AiGate::Pending;
+        s.ai_failed.clear();
     }
 
     /// Start the engine and unlock it; replaces a stopped one.
@@ -88,12 +98,24 @@ impl Shell {
         engine
             .unlock(&identity, &self.data_dir)
             .map_err(|e| format!("the engine could not open the local store: {e}"))?;
+        // Checked again with every engine started, so a restarted one is checked too.
+        let (ai, ai_failed) = scrub::gate(
+            engine
+                .client
+                .call("ai.selftest", serde_json::json!({}), CALL_TIMEOUT)
+                .map_err(|e| e.to_string()),
+        );
+        for f in &ai_failed {
+            eprintln!("location check self-test: {f}");
+        }
         let engine = Arc::new(engine);
         *self.engine.lock().expect("engine") = Some(engine.clone());
         let mut s = self.status.lock().expect("status");
         s.engine = EngineState::Ready;
         s.engine_version = hello["engine"].as_str().map(str::to_owned);
         s.error = None;
+        s.ai = ai;
+        s.ai_failed = ai_failed;
         Ok(engine)
     }
 

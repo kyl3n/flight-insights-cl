@@ -472,4 +472,73 @@ mod tests {
         engine.stop();
         let _ = std::fs::remove_dir_all(data);
     }
+
+    #[test]
+    fn the_shells_check_agrees_with_the_engine_on_a_real_packet() {
+        let Some(cmd) = real_engine() else {
+            eprintln!("FI_ENGINE_CMD not set: skipped");
+            return;
+        };
+        let knowledge = std::env::var_os("FI_KNOWLEDGE_DIR").map(PathBuf::from);
+        let (engine, _) = Engine::start(&cmd, knowledge.as_deref(), |_, _| {}).unwrap();
+        let data = std::env::temp_dir().join(format!("fi-shell-ai-{}", std::process::id()));
+        let (identity, _) = LaptopIdentity::load_or_create(&MemoryStore::default()).unwrap();
+        engine.unlock(&identity, &data).unwrap();
+        let call = |method: &str, params: Value| engine.client.call(method, params, CALL_TIMEOUT);
+
+        // Both halves of the start-up self-test pass, on the same cases.
+        let (gate, failed) =
+            crate::scrub::gate(call("ai.selftest", json!({})).map_err(|e| e.to_string()));
+        assert_eq!((gate, failed), (crate::scrub::AiGate::Ready, vec![]));
+
+        let platform = call(
+            "platform.create",
+            json!({ "name": "Heli", "vehicle": "copter" }),
+        )
+        .unwrap();
+        let airframe = call(
+            "airframe.create",
+            json!({ "platform_id": platform["id"], "name": "Heli 1" }),
+        )
+        .unwrap();
+        let path = fixture().to_string_lossy().into_owned();
+        let scanned = call("import.scan", json!({ "paths": [path] })).unwrap();
+        let committed = call(
+            "import.commit",
+            json!({
+                "batch": scanned["batch"],
+                "decisions": [{ "log": "f1", "airframe_id": airframe["id"] }],
+            }),
+        )
+        .unwrap();
+        let flight = committed[0]["flights"][0].clone();
+        let prepared = call("ai.prepare", json!({ "flight_id": flight })).unwrap();
+        assert_eq!(prepared["engine"]["ok"], true, "{}", prepared["engine"]);
+        let text = prepared["packet_json"].as_str().unwrap();
+        let points: Vec<crate::scrub::Point> =
+            serde_json::from_value(prepared["tripwire"].clone()).unwrap();
+        assert!(!points.is_empty());
+        assert_eq!(crate::scrub::check_packet(text, &points), vec![]);
+
+        // The same packet with this flight's latitude planted in it is refused by the
+        // shell alone, by path and rule, never by value.
+        let mut planted: Value = serde_json::from_str(text).unwrap();
+        planted["metrics"][0]["value"] = json!((points[0].0 * 1e4).round() / 1e4);
+        let refused = crate::scrub::check_packet(&planted.to_string(), &points);
+        assert!(!refused.is_empty());
+        assert!(
+            refused
+                .iter()
+                .all(|v| !v.rule.contains(&format!("{:.3}", points[0].0)))
+        );
+
+        let kept = call(
+            "ai.record",
+            json!({ "packet_id": prepared["packet_id"], "shell_reasons": [], "sent": false }),
+        )
+        .unwrap();
+        assert_eq!(kept["shell_verdict"], "pass");
+        engine.stop();
+        let _ = std::fs::remove_dir_all(data);
+    }
 }

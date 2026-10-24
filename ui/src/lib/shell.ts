@@ -7,6 +7,10 @@ import { listen, type UnlistenFn } from "@tauri-apps/api/event";
 
 export type EngineState = "starting" | "ready" | "failed" | "browser";
 
+/** AI calls are allowed only when "ready": the start-up self-test of both location
+ * checks, the engine's and the shell's, passed. */
+export type AiGate = "pending" | "ready" | "blocked";
+
 export interface ShellStatus {
   laptop: string | null;
   signing_public: string | null;
@@ -15,6 +19,9 @@ export interface ShellStatus {
   engine: EngineState;
   engine_version: string | null;
   error: string | null;
+  ai: AiGate;
+  /** The self-test cases that failed, by name. */
+  ai_failed: string[];
 }
 
 export interface Progress {
@@ -36,6 +43,8 @@ export const BROWSER_STATUS: ShellStatus = {
   engine: "browser",
   engine_version: null,
   error: null,
+  ai: "pending",
+  ai_failed: [],
 };
 
 export async function shellStatus(): Promise<ShellStatus> {

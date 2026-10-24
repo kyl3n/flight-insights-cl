@@ -1152,6 +1152,7 @@ dependencies = [
  "hex",
  "keyring-core",
  "libc",
+ "regex",
  "serde",
  "serde_json",
  "sysinfo",
