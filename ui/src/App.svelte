@@ -8,6 +8,8 @@
   import Header from "./components/Header.svelte";
   import PlanView from "./components/PlanView.svelte";
   import Rail from "./components/Rail.svelte";
+  import SettingsView from "./components/SettingsView.svelte";
+  import { aiSettingsSet, aiStatus, onAiProgress } from "./lib/ai";
   import SetupView from "./components/SetupView.svelte";
   import StationsView from "./components/StationsView.svelte";
   import TrendsView from "./components/TrendsView.svelte";
@@ -42,13 +44,33 @@
     // The shell starts the engine in the background: ask now, and listen for the result.
     shellStatus().then((s) => (app.shell = s));
     onShellStatus((s) => (app.shell = s)).then((unlisten) => (stop = unlisten));
+    let stopAi = () => {};
+    onAiProgress(() => refreshAi()).then((unlisten) => (stopAi = unlisten));
     let stopPending = () => {};
     pendingImports().then((p) => (app.pending = p));
     onPendingImports((p) => (app.pending = p)).then((unlisten) => (stopPending = unlisten));
     return () => {
       stop();
+      stopAi();
       stopPending();
     };
+  });
+
+  // The AI layer's status, once the engine is up: for the header pill and the report.
+  function refreshAi() {
+    aiStatus()
+      .then((s) => (app.ai = s))
+      .catch(() => (app.ai = null));
+  }
+  $effect(() => {
+    if (app.shell.engine === "ready") refreshAi();
+  });
+  // Replies are written in the interface's language.
+  $effect(() => {
+    const ai = app.ai;
+    if (ai && ai.language !== app.locale) {
+      aiSettingsSet(ai.monthly_cap_usd, app.locale).then(refreshAi, () => {});
+    }
   });
 
   // The setup wizard needs the schema and the platform; both come from the engine.
@@ -102,6 +124,8 @@
       <ConfigReview />
     {:else if app.view === "stations"}
       <StationsView />
+    {:else if app.view === "settings"}
+      <SettingsView />
     {:else}
       <main class="later">
         <p>{t("view.later", { view: t(viewNames[app.view]) })}</p>

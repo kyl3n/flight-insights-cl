@@ -23,6 +23,7 @@ export interface RecSource {
   code: string;
   severity: Severity;
   why: Text;
+  origin?: "measured" | "ai";
 }
 
 export interface PlanRec {

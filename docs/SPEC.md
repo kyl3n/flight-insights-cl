@@ -1078,6 +1078,33 @@ Claude is called on every analysis, but it only sees derived measurements and a 
 
 **When the API is unreachable**, the deterministic results show immediately, the AI section is marked pending, and the call retries in the background. The app never blocks on the network.
 
+**Where it shows** (mock-ups FlightReport, Plan, Main):
+
+- **The flight report's Summary** sits above the measured values. It is tinted violet, labelled "AI" and "Written by Claude from the findings below", and shows:
+  - the summary, likely causes, disagreements, questions and test flights;
+  - each cited reference as a chip that opens its finding in the inspector;
+  - how the proposed changes fared: how many passed the validator and are in the plan, how many were refused, how many are already flown;
+  - the model and the exchange's cost.
+- **When there is no accepted reply,** the section says why:
+  - no key, a refused key, or the gate still pending or blocked;
+  - waiting for Claude;
+  - held by the cap;
+  - declined, invalid or failed.
+
+  Where a person can do something about it, it offers "Send now". The measured report never waits for it.
+- **In the plan,** a change whose lead source is the AI layer is labelled "Claude · passed the validator", as in the mock-up.
+- **The header's "Claude API" pill:**
+  - ● when the gate is ready and a key is set;
+  - ▲ when there is no key or the gate is still pending;
+  - ■ when the gate is blocked or the key was refused.
+
+  It opens Settings.
+- **Settings:**
+  - the key field (set, replace, remove; it shows only whether a key is set);
+  - the monthly cap and the month's spend;
+  - "What left this machine": every packet and tool result, newest first, with its time, purpose, both verdicts with their reasons, sent or not, its SHA-256, and the exact text.
+- **Replies come in the interface's language:** changing the language changes the instruction sent with the next packet.
+
 **Sending** (the shell's `claude.rs`, through `net.rs`):
 
 - **One way out.** Every HTTP client is built in the shell's `net.rs`, and every request goes through its checks: HTTPS only, no redirects, and only to a host on its allowlist. Today the allowlist holds just the Claude API. The update server, the Google Drive API and the Open-Meteo API join it with their own work. TLS is rustls with the ring provider, and certificates are checked against the operating system's trust store.

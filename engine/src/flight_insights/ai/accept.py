@@ -186,7 +186,11 @@ def results_for(store: Store, flight_id: str) -> dict[str, Any] | None:
     got = store.get("ai_exchange", row[0])
     assert got is not None
     packet = store.get("ai_packet", got["packet_id"])
-    return _view(got) | {"run_id": packet["run_id"] if packet else None}
+    return _view(got) | {
+        "run_id": packet["run_id"] if packet else None,
+        # what each F1/E1 the reply cites stands for, so the report can open it
+        "refs": json.loads(packet["refs_json"]) if packet else {},
+    }
 
 
 def spend(store: Store, month: str) -> dict[str, Any]:
