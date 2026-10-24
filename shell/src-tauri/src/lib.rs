@@ -6,10 +6,14 @@
 //! encrypted store with the keys. The UI talks to the engine only through
 //! `engine_call`, limited to `engine::UI_METHODS`. Each engine started runs the
 //! location checks' self-test (`scrub::gate`); AI calls stay blocked unless it passes.
-//! The shell makes no network requests yet.
+//! Its only network endpoint so far is the Claude API (`net`, `claude`), reached from
+//! the AI worker, which sends each analysed flight's packet once both checks pass.
 
+pub mod ai;
+pub mod claude;
 pub mod engine;
 pub mod identity;
+pub mod net;
 pub mod rpc;
 pub mod scrub;
 pub mod station;
@@ -18,13 +22,14 @@ pub mod watch;
 use std::path::PathBuf;
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::{Arc, Mutex};
+use std::time::Duration;
 
 use serde::Serialize;
 use serde_json::Value;
 use tauri::{AppHandle, Emitter, Manager, RunEvent};
 
 use engine::{CALL_TIMEOUT, Engine, EngineCommand, UI_METHODS};
-use identity::{LaptopIdentity, OsKeychain};
+use identity::{LaptopIdentity, OsKeychain, SecretStore};
 
 #[derive(Clone, Serialize, Default)]
 #[serde(rename_all = "snake_case")]
@@ -53,6 +58,10 @@ pub struct Status {
 
 struct Shell {
     watch: Mutex<watch::Watcher>,
+    keychain: Mutex<Option<Arc<dyn SecretStore>>>,
+    queue: ai::Queue,
+    /// Set when the API refused the key; cleared when a new key is set.
+    key_rejected: AtomicBool,
     identity: Mutex<Option<Arc<LaptopIdentity>>>,
     engine: Mutex<Option<Arc<Engine>>>,
     /// Held while the engine is started, so only one is ever started at a time.
@@ -175,10 +184,17 @@ async fn engine_call(
         let shell = app.state::<Shell>();
         let engine = shell.running_engine(&app)?;
         let params = params.unwrap_or_else(|| Value::Object(Default::default()));
-        engine
+        let flight = params["flight_id"].as_str().map(str::to_owned);
+        let reply = engine
             .client
             .call(&method, params, CALL_TIMEOUT)
-            .map_err(|e| e.to_string())
+            .map_err(|e| e.to_string())?;
+        // Every analysis gets its AI pass, in the background (spec: AI layer).
+        if let (true, Some(flight)) = (method == "analysis.run", flight) {
+            let run = reply["run"].as_str().map(str::to_owned);
+            shell.queue.push(&flight, run, false);
+        }
+        Ok(reply)
     })
     .await
     .map_err(|e| e.to_string())?
@@ -294,11 +310,180 @@ async fn pending_imports(app: AppHandle, refresh: bool) -> Result<Vec<watch::Pen
     .map_err(|e| e.to_string())?
 }
 
+/// One flight's AI pass, from the queue. What it came to is sent to the interface as
+/// `ai-progress`; nothing here blocks anything else.
+fn ai_pass(app: &AppHandle, item: ai::Item) {
+    let shell = app.state::<Shell>();
+    let emit = |state: &str, detail: Value| {
+        let _ = app.emit(
+            "ai-progress",
+            serde_json::json!({ "flight_id": item.flight_id, "state": state, "detail": detail }),
+        );
+    };
+    if shell.status.lock().expect("status").ai != scrub::AiGate::Ready {
+        return emit("gate", Value::Null);
+    }
+    let Some(engine) = shell.current_engine() else {
+        shell.queue.retry(item.clone());
+        return;
+    };
+    let keychain = shell.keychain.lock().expect("keychain").clone();
+    let key = match keychain.map(|k| ai::key(k.as_ref())) {
+        Some(Ok(Some(key))) => key,
+        _ => return emit("no_key", Value::Null),
+    };
+    if !item.forced {
+        // Answered already for this analysis: not sent again unless a person asks.
+        let done = claude::Engine::call(
+            engine.as_ref(),
+            "ai.results",
+            serde_json::json!({ "flight_id": item.flight_id }),
+        );
+        if let Ok(last) = done
+            && !last.is_null()
+            && last["outcome"] != "failed"
+            && (item.run_id.is_none() || last["run_id"].as_str() == item.run_id.as_deref())
+        {
+            return;
+        }
+    }
+    let settings = ai::load_settings(&shell.data_dir);
+    let budget = if item.forced {
+        None
+    } else {
+        let spent = claude::Engine::call(engine.as_ref(), "ai.spend", serde_json::json!({}))
+            .ok()
+            .and_then(|s| s["cost_usd"].as_f64());
+        match spent {
+            Some(spent) => Some((spent, settings.monthly_cap_usd)),
+            None => {
+                return emit(
+                    "failed",
+                    serde_json::json!("the month's spend could not be read"),
+                );
+            }
+        }
+    };
+    let api = match claude::Api::new(claude::API, key) {
+        Ok(a) => a,
+        Err(e) => return emit("failed", serde_json::json!(e)),
+    };
+    let job = claude::Job {
+        engine: engine.as_ref(),
+        api: &api,
+        model: claude::ANALYSIS,
+        language: &settings.language,
+        budget,
+    };
+    emit("sending", Value::Null);
+    match claude::analyse(&job, &item.flight_id) {
+        Ok(claude::Outcome::Done { exchange }) => {
+            let reasons = exchange["reasons"].to_string();
+            if reasons.contains(&claude::ApiError::Key.to_string()) {
+                shell.key_rejected.store(true, Ordering::SeqCst);
+            } else if exchange["outcome"] == "failed"
+                && reasons.contains("could not be reached")
+                && shell.queue.retry(item.clone())
+            {
+                return emit("waiting", exchange);
+            }
+            emit("done", exchange);
+        }
+        Ok(other) => emit("held", serde_json::to_value(other).unwrap_or_default()),
+        Err(e) => emit("failed", serde_json::json!(e)),
+    }
+}
+
+/// What the interface may know of the AI layer: whether a key is set (never the key),
+/// the cap, this month's spend, the gate and the queue.
+#[tauri::command]
+async fn ai_status(app: AppHandle) -> Result<Value, String> {
+    tauri::async_runtime::spawn_blocking(move || {
+        let shell = app.state::<Shell>();
+        let keychain = shell.keychain.lock().expect("keychain").clone();
+        let key_set = keychain
+            .map(|k| ai::key(k.as_ref()).map(|k| k.is_some()))
+            .transpose()?
+            .unwrap_or(false);
+        let settings = ai::load_settings(&shell.data_dir);
+        let spend = shell
+            .current_engine()
+            .and_then(|e| claude::Engine::call(e.as_ref(), "ai.spend", serde_json::json!({})).ok());
+        Ok(serde_json::json!({
+            "key_set": key_set,
+            "key_rejected": shell.key_rejected.load(Ordering::SeqCst),
+            "monthly_cap_usd": settings.monthly_cap_usd,
+            "language": settings.language,
+            "month": spend,
+            "queued": shell.queue.len(),
+            "gate": shell.status.lock().expect("status").ai,
+        }))
+    })
+    .await
+    .map_err(|e| e.to_string())?
+}
+
+/// Keeps a Claude API key in the OS keychain. The interface can set or remove it,
+/// never read it back.
+#[tauri::command]
+async fn ai_key_set(app: AppHandle, key: String) -> Result<(), String> {
+    let key = zeroize::Zeroizing::new(key);
+    tauri::async_runtime::spawn_blocking(move || {
+        let shell = app.state::<Shell>();
+        let keychain = shell.keychain.lock().expect("keychain").clone();
+        let keychain = keychain.ok_or("the OS keychain is not available")?;
+        ai::set_key(keychain.as_ref(), &key)?;
+        shell.key_rejected.store(false, Ordering::SeqCst);
+        Ok(())
+    })
+    .await
+    .map_err(|e| e.to_string())?
+}
+
+#[tauri::command]
+async fn ai_key_clear(app: AppHandle) -> Result<(), String> {
+    tauri::async_runtime::spawn_blocking(move || {
+        let shell = app.state::<Shell>();
+        let keychain = shell.keychain.lock().expect("keychain").clone();
+        keychain
+            .ok_or("the OS keychain is not available")?
+            .delete(ai::KEY_NAME)
+    })
+    .await
+    .map_err(|e| e.to_string())?
+}
+
+#[tauri::command]
+fn ai_settings_set(
+    shell: tauri::State<'_, Shell>,
+    monthly_cap_usd: f64,
+    language: String,
+) -> Result<(), String> {
+    ai::save_settings(
+        &shell.data_dir,
+        &ai::Settings {
+            monthly_cap_usd,
+            language,
+        },
+    )
+}
+
+/// A person asks for a flight's AI pass now: sent even if answered before, and past
+/// the monthly cap.
+#[tauri::command]
+fn ai_send_now(shell: tauri::State<'_, Shell>, flight_id: String) {
+    shell.queue.push(&flight_id, None, true);
+}
+
 fn start_up(app: &AppHandle) {
     let shell = app.state::<Shell>();
     let identifier = app.config().identifier.clone();
-    let loaded =
-        OsKeychain::new(&identifier).and_then(|keychain| LaptopIdentity::load_or_create(&keychain));
+    let keychain: Arc<dyn SecretStore> = match OsKeychain::new(&identifier) {
+        Ok(k) => Arc::new(k),
+        Err(e) => return shell.set_failed(format!("the OS keychain is not available: {e}")),
+    };
+    *shell.keychain.lock().expect("keychain") = Some(keychain.clone());
+    let loaded = LaptopIdentity::load_or_create(keychain.as_ref());
     let (identity, created) = match loaded {
         Ok(v) => v,
         Err(e) => return shell.set_failed(format!("the OS keychain is not available: {e}")),
@@ -329,6 +514,16 @@ fn start_up(app: &AppHandle) {
     }
     drop(starting);
     let _ = app.emit("shell-status", shell.status.lock().expect("status").clone());
+    let worker = app.clone();
+    let _ = std::thread::Builder::new()
+        .name("ai-worker".into())
+        .spawn(move || {
+            loop {
+                if let Some(item) = worker.state::<Shell>().queue.next(Duration::from_secs(60)) {
+                    ai_pass(&worker, item);
+                }
+            }
+        });
     let watcher = app.clone();
     let _ = std::thread::Builder::new()
         .name("folder-watch".into())
@@ -353,6 +548,9 @@ pub fn run() {
                 .or_else(|| app.path().resource_dir().ok().map(|d| d.join("knowledge")));
             app.manage(Shell {
                 watch: Mutex::new(watch::Watcher::default()),
+                keychain: Mutex::new(None),
+                queue: ai::Queue::default(),
+                key_rejected: AtomicBool::new(false),
                 identity: Mutex::new(None),
                 engine: Mutex::new(None),
                 starting: Mutex::new(()),
@@ -371,7 +569,12 @@ pub fn run() {
             shell_status,
             engine_call,
             detect_this_computer,
-            pending_imports
+            pending_imports,
+            ai_status,
+            ai_key_set,
+            ai_key_clear,
+            ai_settings_set,
+            ai_send_now
         ])
         .build(tauri::generate_context!())
         .expect("error while building Flight Insights");

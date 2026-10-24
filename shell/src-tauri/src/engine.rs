@@ -211,6 +211,14 @@ impl Drop for Engine {
 
 /// Methods the UI may call through the shell. Unlocking and stopping are the
 /// shell's own business, so the UI can never pass keys or stop the engine.
+impl crate::claude::Engine for Engine {
+    fn call(&self, method: &str, params: Value) -> Result<Value, String> {
+        self.client
+            .call(method, params, CALL_TIMEOUT)
+            .map_err(|e| e.to_string())
+    }
+}
+
 pub const UI_METHODS: &[&str] = &[
     "engine.hello",
     "log.summary",
@@ -582,6 +590,122 @@ mod tests {
         let spec = call("ai.exchange_spec", json!({})).unwrap();
         assert!(spec["system"].as_str().unwrap().len() > 200);
         assert_eq!(spec["tools"].as_array().unwrap().len(), 5);
+        engine.stop();
+        let _ = std::fs::remove_dir_all(data);
+    }
+
+    #[test]
+    fn a_real_packet_goes_out_through_both_checks_and_comes_back_checked() {
+        use crate::claude::tests::{fake_api, message};
+        let Some(cmd) = real_engine() else {
+            eprintln!("FI_ENGINE_CMD not set: skipped");
+            return;
+        };
+        let knowledge = std::env::var_os("FI_KNOWLEDGE_DIR").map(PathBuf::from);
+        let (engine, _) = Engine::start(&cmd, knowledge.as_deref(), |_, _| {}).unwrap();
+        let data = std::env::temp_dir().join(format!("fi-shell-send-{}", std::process::id()));
+        let (identity, _) = LaptopIdentity::load_or_create(&MemoryStore::default()).unwrap();
+        engine.unlock(&identity, &data).unwrap();
+        let call = |method: &str, params: Value| engine.client.call(method, params, CALL_TIMEOUT);
+        let platform = call(
+            "platform.create",
+            json!({ "name": "Heli", "vehicle": "copter" }),
+        )
+        .unwrap();
+        let airframe = call(
+            "airframe.create",
+            json!({ "platform_id": platform["id"], "name": "Heli 1" }),
+        )
+        .unwrap();
+        let path = fixture().to_string_lossy().into_owned();
+        let scanned = call("import.scan", json!({ "paths": [path] })).unwrap();
+        let committed = call(
+            "import.commit",
+            json!({ "batch": scanned["batch"],
+                    "decisions": [{ "log": "f1", "airframe_id": airframe["id"] }] }),
+        )
+        .unwrap();
+        let flight = committed[0]["flights"][0].as_str().unwrap().to_owned();
+        let reply = json!({
+            "summary": "The hover is clean.", "root_causes": [], "recommendations": [],
+            "disagreements": [], "questions": [], "tests_to_fly": [],
+        })
+        .to_string();
+        let fake = fake_api(vec![
+            (
+                200,
+                vec![],
+                message(
+                    "tool_use",
+                    json!([{"type": "tool_use", "id": "tu1",
+                "name": "parameter_doc", "input": {"name": "INS_HNTCH_MODE"}}]),
+                ),
+            ),
+            (
+                200,
+                vec![],
+                message("end_turn", json!([{"type": "text", "text": reply}])),
+            ),
+        ]);
+        let mut api =
+            crate::claude::Api::new(&fake.url, zeroize::Zeroizing::new("sk-ant-test".into()))
+                .unwrap();
+        api.backoff = vec![Duration::from_millis(5)];
+        let job = crate::claude::Job {
+            engine: &engine,
+            api: &api,
+            model: crate::claude::ANALYSIS,
+            language: "uk",
+            budget: Some((0.0, 20.0)),
+        };
+        let out = crate::claude::analyse(&job, &flight).unwrap();
+        let crate::claude::Outcome::Done { exchange } = out else {
+            panic!("{out:?}")
+        };
+        assert_eq!(exchange["outcome"], "accepted", "{exchange}");
+        let sent = call("ai.sent", json!({ "limit": 10 })).unwrap();
+        let rows = sent.as_array().unwrap();
+        assert_eq!(rows.len(), 2);
+        assert!(
+            rows.iter()
+                .all(|r| r["sent"] == true && r["shell_verdict"] == "pass")
+        );
+        // Exactly the recorded texts went out, beside the static parts; no position did.
+        let seen = fake.seen.lock().unwrap();
+        let first: Value = serde_json::from_str(&seen[0].1).unwrap();
+        let packet = rows.iter().find(|r| r["purpose"] == "analysis").unwrap();
+        assert_eq!(
+            first["messages"][0]["content"][1]["text"],
+            packet["packet_json"]
+        );
+        assert!(
+            first["messages"][0]["content"][0]["text"]
+                .as_str()
+                .unwrap()
+                .contains("українською")
+        );
+        let second: Value = serde_json::from_str(&seen[1].1).unwrap();
+        let tool = rows.iter().find(|r| r["purpose"] == "tool").unwrap();
+        assert_eq!(
+            second["messages"][2]["content"][0]["content"],
+            tool["packet_json"]
+        );
+        let prepared_again = call("ai.prepare", json!({ "flight_id": flight })).unwrap();
+        for (lat, lon) in
+            serde_json::from_value::<Vec<(f64, f64)>>(prepared_again["tripwire"].clone()).unwrap()
+        {
+            for (_, body) in seen.iter() {
+                assert!(
+                    !body.contains(&format!("{lat:.4}")) && !body.contains(&format!("{lon:.4}"))
+                );
+            }
+        }
+        assert!(
+            (call("ai.spend", json!({})).unwrap()["cost_usd"]
+                .as_f64()
+                .unwrap())
+                > 0.0
+        );
         engine.stop();
         let _ = std::fs::remove_dir_all(data);
     }

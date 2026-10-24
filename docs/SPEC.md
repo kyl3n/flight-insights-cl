@@ -1078,6 +1078,25 @@ Claude is called on every analysis, but it only sees derived measurements and a 
 
 **When the API is unreachable**, the deterministic results show immediately, the AI section is marked pending, and the call retries in the background. The app never blocks on the network.
 
+**Sending** (the shell's `claude.rs`, through `net.rs`):
+
+- **One way out.** Every HTTP client is built in the shell's `net.rs`, and every request goes through its checks: HTTPS only, no redirects, and only to a host on its allowlist. Today the allowlist holds just the Claude API. The update server, the Google Drive API and the Open-Meteo API join it with their own work. TLS is rustls with the ring provider, and certificates are checked against the operating system's trust store.
+- **Every analysis queues its flight.** A worker sends one flight at a time, in the background.
+  - It sends only when the start-up gate is `ready` and a key is set.
+  - A flight whose current analysis already has an answer is not sent again unless a person asks ("Send now").
+  - When the API can't be reached, the flight is tried again after 1, 5, 15 and 60 minutes, then waits for a person.
+- **Marked sent before it goes.** A packet is marked sent once both checks have passed, just before the request leaves. The record therefore errs towards "may have left".
+- **The fallback is named.** If the analysis model declines, the request is retried on the previous Opus model, named in the request. Anthropic's default routing is never used, and no model in the Fable or Mythos lines is ever named, as primary or fallback. Chat has no fallback: a declined question is shown as declined.
+- **Monthly spend cap**, set in settings (default 20 US dollars).
+  - Before each request, its worst case is estimated: every byte counted as an uncached input token, plus a full reply.
+  - A request that could pass the cap is not sent. The flight is held, and its AI section says so, until a person asks.
+  - Each exchange's cost is worked out from the tokens it used, at the serving model's prices.
+- **The key lives in the OS keychain.**
+  - It is pasted once into settings.
+  - The interface can set or remove it, never read it back.
+  - It is never written to a file or a log, and never handed to the engine.
+  - A key the API refuses is marked as refused, and nothing is retried with it until a new one is set.
+
 ## User interface
 
 The default path goes from dropping a log to a loadable `.param` file in four screens; every deeper view is one click from the finding that needs it.

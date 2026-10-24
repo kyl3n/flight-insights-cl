@@ -25,6 +25,8 @@ type Secret32 = Zeroizing<[u8; 32]>;
 pub trait SecretStore: Send + Sync {
     fn get(&self, name: &str) -> Result<Option<Zeroizing<Vec<u8>>>, String>;
     fn set(&self, name: &str, secret: &[u8]) -> Result<(), String>;
+    /// Removes the secret; removing one that is not there is not an error.
+    fn delete(&self, name: &str) -> Result<(), String>;
 }
 
 /// The OS keychain: Windows Credential Manager, or the Secret Service on Linux
@@ -65,6 +67,14 @@ impl SecretStore for OsKeychain {
             .and_then(|e| e.set_secret(secret))
             .map_err(|e| e.to_string())
     }
+
+    fn delete(&self, name: &str) -> Result<(), String> {
+        let entry = keyring_core::Entry::new(&self.service, name).map_err(|e| e.to_string())?;
+        match entry.delete_credential() {
+            Ok(()) | Err(keyring_core::Error::NoEntry) => Ok(()),
+            Err(e) => Err(e.to_string()),
+        }
+    }
 }
 
 /// Secrets in memory, for tests.
@@ -87,6 +97,11 @@ impl SecretStore for MemoryStore {
             .lock()
             .unwrap()
             .insert(name.to_owned(), secret.to_vec());
+        Ok(())
+    }
+
+    fn delete(&self, name: &str) -> Result<(), String> {
+        self.0.lock().unwrap().remove(name);
         Ok(())
     }
 }

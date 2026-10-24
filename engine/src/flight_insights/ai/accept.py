@@ -185,7 +185,8 @@ def results_for(store: Store, flight_id: str) -> dict[str, Any] | None:
         return None
     got = store.get("ai_exchange", row[0])
     assert got is not None
-    return _view(got)
+    packet = store.get("ai_packet", got["packet_id"])
+    return _view(got) | {"run_id": packet["run_id"] if packet else None}
 
 
 def spend(store: Store, month: str) -> dict[str, Any]:
