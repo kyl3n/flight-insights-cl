@@ -1,7 +1,8 @@
 """The scrubber's start-up self-test (spec: AI layer, "Proof, not promise": a self-test
 runs at start-up, and AI calls stay blocked until it passes).
 
-One clean packet and one leaky packet per rule, around an imagined flight in open sea
+Clean packets of each kind (analysis, the smallest, tool results) and one leaky packet
+per rule, around an imagined flight in open sea
 (no real flight). Every clean packet must pass and every leaky one must be refused. The
 same cases are the shared corpus in tests/scrubber, which the shell's own check reads
 too; `python -m flight_insights.ai.selftest DIR` writes them there, and a test keeps the
@@ -73,6 +74,37 @@ BASE: dict[str, Any] = {
 }  # fmt: skip
 
 
+SPECTRUM: dict[str, Any] = {
+    "schema": SCHEMA_ID,
+    "purpose": "tool",
+    "aircraft": {"vehicle": "copter", "firmware": "4.7.0"},
+    "tool": {
+        "name": "spectrum", "ok": True,
+        "spectrum": {
+            "axis": "x", "stage": "before", "segment": "hover", "seconds": 312.5,
+            "rate_hz": 1000, "hz": [0.5, 41.5, 82.5, 123.5, 164.5], "db": [-31.2, -12.4, -20.1,
+            -35.6, -41], "peaks": [{"hz": 82.5, "db": -12.4, "prominence_db": 18.3}],
+        },
+    },
+}  # fmt: skip
+PARAMETER_DOC: dict[str, Any] = {
+    "schema": SCHEMA_ID,
+    "purpose": "tool",
+    "aircraft": {"vehicle": "copter", "firmware": "4.7.0"},
+    "tool": {
+        "name": "parameter_doc", "ok": True,
+        "parameter_doc": {
+            "name": "INS_HNTCH_MODE", "display": "Harmonic Notch Filter dynamic frequency "
+            "tracking mode", "description": "Dynamic updates can be throttle, RPM sensor, ESC "
+            "telemetry or dynamic FFT based.", "units": None, "range": [0, 5],
+            "increment": None, "values": [{"value": 1, "label": "Throttle"},
+            {"value": 3, "label": "ESC Telemetry"}], "bits": [], "reboot": False,
+            "current": 1, "default": 1,
+        },
+    },
+}  # fmt: skip
+
+
 def _set(*path: str | int, value: Any) -> Callable[[dict[str, Any]], None]:
     def apply(p: dict[str, Any]) -> None:
         node: Any = p
@@ -91,7 +123,9 @@ def _both(*changes: Callable[[dict[str, Any]], None]) -> Callable[[dict[str, Any
     return apply
 
 
-LEAKY: dict[str, tuple[str, Callable[[dict[str, Any]], None]]] = {
+Change = Callable[[dict[str, Any]], None]
+# why, the change that makes the leak, and the clean packet it starts from (the analysis one)
+LEAKY: dict[str, tuple[str, Change] | tuple[str, Change, dict[str, Any]]] = {
     "unknown_key": ("A key the schema does not name.", _set("gps", value={"fix": 3})),
     "unknown_aircraft_key": ("A key inside aircraft the schema does not name.",
                              _set("aircraft", "home", value="x")),
@@ -127,6 +161,18 @@ LEAKY: dict[str, tuple[str, Callable[[dict[str, Any]], None]]] = {
                   _set("evidence", 0, "summary", value="x" * 300)),
     "bool_as_number": ("A boolean where a number belongs.",
                        _set("metrics", 0, "value", value=True)),
+    "tool_spectrum_tripwire": ("A tool result with the flight's latitude among its numbers.",
+                               _set("tool", "spectrum", "hz", 2, value=round(LAT, 4)), SPECTRUM),
+    "tool_removed_parameter": ("A simulated candidate that names the estimator origin.",
+                               _set("tool", value={"name": "filter_simulation", "ok": True,
+                                    "filter_simulation": {"params": {"AHRS_ORIG_LAT": 12.3},
+                                    "current": {"available": True}, "candidate": {
+                                    "available": True}}}), SPECTRUM),
+    "tool_doc_label": ("A coordinate labelled inside parameter documentation.",
+                       _set("tool", "parameter_doc", "description", value="origin lat 12.3"),
+                       PARAMETER_DOC),
+    "tool_unknown_key": ("A tool result with a key its shape does not name.",
+                         _set("tool", "spectrum", "gps", value=1), SPECTRUM),
 }  # fmt: skip
 
 CLEAN: dict[str, tuple[str, dict[str, Any]]] = {
@@ -135,14 +181,16 @@ CLEAN: dict[str, tuple[str, dict[str, Any]]] = {
     "minimal": ("The smallest packet the schema allows.",
                 {"schema": SCHEMA_ID, "purpose": "chat",
                  "aircraft": {"vehicle": "plane", "firmware": "4.7.2"}}),
+    "tool_spectrum": ("A spectrum tool result: frequencies and levels, no position.", SPECTRUM),
+    "tool_parameter_doc": ("A parameter's documentation, as a tool returns it.", PARAMETER_DOC),
 }  # fmt: skip
 
 
 def cases() -> dict[str, dict[str, tuple[str, dict[str, Any]]]]:
     """kind ("clean", "leaky") -> name -> (why, packet)."""
     leaky: dict[str, tuple[str, dict[str, Any]]] = {}
-    for name, (why, change) in LEAKY.items():
-        packet = copy.deepcopy(BASE)
+    for name, (why, change, *base) in LEAKY.items():
+        packet = copy.deepcopy(base[0] if base else BASE)
         change(packet)
         leaky[name] = (why, packet)
     return {"clean": {k: (w, copy.deepcopy(p)) for k, (w, p) in CLEAN.items()}, "leaky": leaky}

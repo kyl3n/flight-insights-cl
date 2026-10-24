@@ -1,0 +1,40 @@
+{
+ "why": "A coordinate labelled inside parameter documentation.",
+ "packet": {
+  "schema": "fi.ai.packet/1",
+  "purpose": "tool",
+  "aircraft": {
+   "vehicle": "copter",
+   "firmware": "4.7.0"
+  },
+  "tool": {
+   "name": "parameter_doc",
+   "ok": true,
+   "parameter_doc": {
+    "name": "INS_HNTCH_MODE",
+    "display": "Harmonic Notch Filter dynamic frequency tracking mode",
+    "description": "origin lat 12.3",
+    "units": null,
+    "range": [
+     0,
+     5
+    ],
+    "increment": null,
+    "values": [
+     {
+      "value": 1,
+      "label": "Throttle"
+     },
+     {
+      "value": 3,
+      "label": "ESC Telemetry"
+     }
+    ],
+    "bits": [],
+    "reboot": false,
+    "current": 1,
+    "default": 1
+   }
+  }
+ }
+}

@@ -1,0 +1,43 @@
+{
+ "why": "A tool result with the flight's latitude among its numbers.",
+ "packet": {
+  "schema": "fi.ai.packet/1",
+  "purpose": "tool",
+  "aircraft": {
+   "vehicle": "copter",
+   "firmware": "4.7.0"
+  },
+  "tool": {
+   "name": "spectrum",
+   "ok": true,
+   "spectrum": {
+    "axis": "x",
+    "stage": "before",
+    "segment": "hover",
+    "seconds": 312.5,
+    "rate_hz": 1000,
+    "hz": [
+     0.5,
+     41.5,
+     12.3457,
+     123.5,
+     164.5
+    ],
+    "db": [
+     -31.2,
+     -12.4,
+     -20.1,
+     -35.6,
+     -41
+    ],
+    "peaks": [
+     {
+      "hz": 82.5,
+      "db": -12.4,
+      "prominence_db": 18.3
+     }
+    ]
+   }
+  }
+ }
+}

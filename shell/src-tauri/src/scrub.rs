@@ -61,6 +61,7 @@ struct Packet {
     findings: Option<Vec<Finding>>,
     evidence: Option<Vec<Evidence>>,
     parameters: Option<BTreeMap<String, f64>>,
+    tool: Option<Tool>,
 }
 
 #[derive(Deserialize)]
@@ -69,6 +70,7 @@ enum Purpose {
     Analysis,
     Chat,
     Explain,
+    Tool,
 }
 
 #[derive(Deserialize)]
@@ -216,6 +218,174 @@ struct Evidence {
     fields: Option<Vec<String>>,
     segment: Option<Segment>,
     values: Option<BTreeMap<String, Keyed>>,
+}
+
+// What a local tool hands back: a packet of its own, purpose "tool".
+
+#[derive(Deserialize)]
+#[serde(rename_all = "snake_case")]
+enum ToolName {
+    Spectrum,
+    FilterSimulation,
+    ParameterDoc,
+    MetricHistory,
+    SegmentStats,
+}
+
+#[derive(Deserialize)]
+#[serde(deny_unknown_fields)]
+#[allow(dead_code)]
+struct Tool {
+    name: ToolName,
+    ok: bool,
+    error: Option<String>,
+    spectrum: Option<Spectrum>,
+    filter_simulation: Option<Simulation>,
+    parameter_doc: Option<ParameterDoc>,
+    metric_history: Option<History>,
+    segment_stats: Option<Stats>,
+}
+
+#[derive(Deserialize)]
+#[serde(rename_all = "lowercase")]
+enum Axis {
+    X,
+    Y,
+    Z,
+}
+
+#[derive(Deserialize)]
+#[serde(rename_all = "lowercase")]
+enum Stage {
+    Before,
+    Flown,
+}
+
+#[derive(Deserialize)]
+#[serde(deny_unknown_fields)]
+#[allow(dead_code)]
+struct Spectrum {
+    axis: Axis,
+    stage: Stage,
+    segment: Option<String>,
+    seconds: Option<f64>,
+    rate_hz: Option<f64>,
+    hz: Vec<f64>,
+    db: Vec<f64>,
+    peaks: Option<Vec<Peak>>,
+}
+
+#[derive(Deserialize)]
+#[serde(deny_unknown_fields)]
+#[allow(dead_code)]
+struct Peak {
+    hz: f64,
+    db: f64,
+    prominence_db: Option<f64>,
+}
+
+#[derive(Deserialize)]
+#[serde(deny_unknown_fields)]
+struct Simulation {
+    params: BTreeMap<String, f64>,
+    current: Simulated,
+    candidate: Simulated,
+}
+
+#[derive(Deserialize)]
+#[serde(deny_unknown_fields)]
+#[allow(dead_code)]
+struct Simulated {
+    available: bool,
+    reason: Option<String>,
+    noise_db: Option<f64>,
+    lag_deg: Option<f64>,
+    notches: Option<i64>,
+    within_budget: Option<bool>,
+    centres_hz: Option<Vec<f64>>,
+    bandwidth_hz: Option<f64>,
+    lowpass_hz: Option<f64>,
+}
+
+#[derive(Deserialize)]
+#[serde(deny_unknown_fields)]
+#[allow(dead_code)]
+struct ParameterDoc {
+    name: String,
+    display: Option<String>,
+    description: Option<String>,
+    units: Option<String>,
+    range: Option<Vec<f64>>,
+    increment: Option<f64>,
+    values: Option<Vec<Labelled>>,
+    bits: Option<Vec<Bit>>,
+    reboot: Option<bool>,
+    current: Option<f64>,
+    default: Option<f64>,
+}
+
+#[derive(Deserialize)]
+#[serde(deny_unknown_fields)]
+#[allow(dead_code)]
+struct Labelled {
+    value: f64,
+    label: String,
+}
+
+#[derive(Deserialize)]
+#[serde(deny_unknown_fields)]
+#[allow(dead_code)]
+struct Bit {
+    bit: i64,
+    label: String,
+}
+
+#[derive(Deserialize)]
+#[serde(deny_unknown_fields)]
+#[allow(dead_code)]
+struct History {
+    metric: String,
+    segment: String,
+    unit: Option<String>,
+    points: Vec<HistoryPoint>,
+    baseline: Option<Band>,
+}
+
+#[derive(Deserialize)]
+#[serde(deny_unknown_fields)]
+#[allow(dead_code)]
+struct HistoryPoint {
+    flight: i64,
+    value: f64,
+    zone: Option<Zone>,
+    good: Option<bool>,
+}
+
+#[derive(Deserialize)]
+#[serde(deny_unknown_fields)]
+#[allow(dead_code)]
+struct Band {
+    low: f64,
+    high: f64,
+}
+
+#[derive(Deserialize)]
+#[serde(deny_unknown_fields)]
+#[allow(dead_code)]
+struct Stats {
+    message: String,
+    field: String,
+    start_s: f64,
+    end_s: f64,
+    unit: Option<String>,
+    seconds: Option<f64>,
+    rate_hz: Option<f64>,
+    min: Option<f64>,
+    p05: Option<f64>,
+    p50: Option<f64>,
+    mean: Option<f64>,
+    p95: Option<f64>,
+    max: Option<f64>,
 }
 
 static FIRMWARE: LazyLock<Regex> = LazyLock::new(|| Regex::new(r"^\d+\.\d+\.\d+$").unwrap());
@@ -366,7 +536,80 @@ fn shape(text: &str) -> Vec<Violation> {
             }
         }
     }
+    if let Some(t) = &p.tool {
+        tool(&mut l, t);
+    }
     l.0
+}
+
+fn tool(l: &mut Limits, t: &Tool) {
+    let texts = |l: &mut Limits, path: &str, v: &Option<String>, max: usize| {
+        if let Some(v) = v {
+            l.text(path, v, max);
+        }
+    };
+    texts(l, "$.tool.error", &t.error, 200);
+    if let Some(s) = &t.spectrum {
+        l.count("$.tool.spectrum.hz", s.hz.len(), 256);
+        l.count("$.tool.spectrum.db", s.db.len(), 256);
+        if let Some(seg) = &s.segment {
+            l.form("$.tool.spectrum.segment", seg, &NAME);
+        }
+        if let Some(peaks) = &s.peaks {
+            l.count("$.tool.spectrum.peaks", peaks.len(), 16);
+        }
+    }
+    if let Some(s) = &t.filter_simulation {
+        let path = "$.tool.filter_simulation.params";
+        l.count(path, s.params.len(), 16);
+        for name in s.params.keys() {
+            l.form(path, name, &PARAMETER);
+            if removed_parameter(name) {
+                l.0.push(violation(path, "a location-revealing parameter"));
+            }
+        }
+        for (part, sim) in [("current", &s.current), ("candidate", &s.candidate)] {
+            let path = format!("$.tool.filter_simulation.{part}");
+            texts(l, &path, &sim.reason, 200);
+            if let Some(c) = &sim.centres_hz {
+                l.count(&path, c.len(), 16);
+            }
+        }
+    }
+    if let Some(d) = &t.parameter_doc {
+        let path = "$.tool.parameter_doc";
+        l.form(path, &d.name, &PARAMETER);
+        if removed_parameter(&d.name) {
+            l.0.push(violation(path, "a location-revealing parameter"));
+        }
+        texts(l, path, &d.display, 200);
+        texts(l, path, &d.description, 600);
+        texts(l, path, &d.units, 24);
+        if let Some(r) = &d.range {
+            l.count(path, r.len(), 2);
+        }
+        if let Some(values) = &d.values {
+            l.count(path, values.len(), 64);
+            values.iter().for_each(|v| l.text(path, &v.label, 200));
+        }
+        if let Some(bits) = &d.bits {
+            l.count(path, bits.len(), 32);
+            bits.iter().for_each(|b| l.text(path, &b.label, 200));
+        }
+    }
+    if let Some(h) = &t.metric_history {
+        let path = "$.tool.metric_history";
+        l.form(path, &h.metric, &NAME);
+        l.form(path, &h.segment, &NAME);
+        texts(l, path, &h.unit, 24);
+        l.count(path, h.points.len(), 50);
+    }
+    if let Some(s) = &t.segment_stats {
+        let path = "$.tool.segment_stats";
+        l.form(path, &s.message, &MESSAGE);
+        l.form(path, &s.field, &FIELD);
+        texts(l, path, &s.unit, 24);
+    }
 }
 
 /// Parameters that reveal where the aircraft is or which aircraft it is: origins and
@@ -594,7 +837,7 @@ pub fn check_packet(text: &str, points: &[Point]) -> Vec<Violation> {
 
 /// The shared corpus (tests/scrubber), built into the app: every clean packet must
 /// pass and every leaky one must be refused before AI calls are allowed.
-const CLEAN: [(&str, &str); 2] = [
+const CLEAN: [(&str, &str); 4] = [
     (
         "analysis",
         include_str!("../../../tests/scrubber/packets/clean/analysis.json"),
@@ -603,8 +846,16 @@ const CLEAN: [(&str, &str); 2] = [
         "minimal",
         include_str!("../../../tests/scrubber/packets/clean/minimal.json"),
     ),
+    (
+        "tool_parameter_doc",
+        include_str!("../../../tests/scrubber/packets/clean/tool_parameter_doc.json"),
+    ),
+    (
+        "tool_spectrum",
+        include_str!("../../../tests/scrubber/packets/clean/tool_spectrum.json"),
+    ),
 ];
-const LEAKY: [(&str, &str); 19] = [
+const LEAKY: [(&str, &str); 23] = [
     (
         "bool_as_number",
         include_str!("../../../tests/scrubber/packets/leaky/bool_as_number.json"),
@@ -660,6 +911,22 @@ const LEAKY: [(&str, &str); 19] = [
     (
         "text_utm",
         include_str!("../../../tests/scrubber/packets/leaky/text_utm.json"),
+    ),
+    (
+        "tool_doc_label",
+        include_str!("../../../tests/scrubber/packets/leaky/tool_doc_label.json"),
+    ),
+    (
+        "tool_removed_parameter",
+        include_str!("../../../tests/scrubber/packets/leaky/tool_removed_parameter.json"),
+    ),
+    (
+        "tool_spectrum_tripwire",
+        include_str!("../../../tests/scrubber/packets/leaky/tool_spectrum_tripwire.json"),
+    ),
+    (
+        "tool_unknown_key",
+        include_str!("../../../tests/scrubber/packets/leaky/tool_unknown_key.json"),
     ),
     (
         "tripwire_fine",
@@ -833,7 +1100,7 @@ mod tests {
     #[test]
     fn the_tripwire_is_what_catches_the_tripwire_packets() {
         for (name, file) in files("leaky") {
-            if name.starts_with("tripwire_") {
+            if name.contains("tripwire") {
                 let text = corpus_packet(&file).unwrap();
                 assert!(!check_packet(&text, &points()).is_empty());
                 assert_eq!(check_packet(&text, &[]), vec![], "{name}");
@@ -888,10 +1155,11 @@ mod tests {
 
     #[test]
     fn the_gate_opens_only_when_both_halves_pass() {
-        let passed = serde_json::json!({ "ok": true, "cases": 21, "failed": [] });
+        let n = CLEAN.len() + LEAKY.len();
+        let passed = serde_json::json!({ "ok": true, "cases": n, "failed": [] });
         assert_eq!(gate(Ok(passed)), (AiGate::Ready, vec![]));
         let leaky = serde_json::json!({
-            "ok": false, "cases": 21, "failed": ["leaky packet text_utm was let through"]
+            "ok": false, "cases": n, "failed": ["leaky packet text_utm was let through"]
         });
         assert_eq!(
             gate(Ok(leaky)),
@@ -902,7 +1170,7 @@ mod tests {
         );
         let fewer = serde_json::json!({ "ok": true, "cases": 3, "failed": [] });
         assert_eq!(gate(Ok(fewer)).0, AiGate::Blocked);
-        let silent = serde_json::json!({ "ok": false, "cases": 21 });
+        let silent = serde_json::json!({ "ok": false, "cases": n });
         assert_eq!(gate(Ok(silent)).0, AiGate::Blocked);
         assert_eq!(gate(Err("timed out".into())).0, AiGate::Blocked);
     }

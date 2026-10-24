@@ -498,6 +498,8 @@ def texts(rules: Mapping[str, Any], key: str, params: Mapping[str, Any]) -> dict
 
 
 def why(reg: Registry, source: Source) -> dict[str, str]:
+    if source.origin == "ai":  # the reply's own reason, in the reader's language
+        return {lang: str(source.params.get("reason", "")) for lang in LANGUAGES}
     text = reg.findings.get(source.code)
     if text is None:
         return {lang: source.code for lang in LANGUAGES}

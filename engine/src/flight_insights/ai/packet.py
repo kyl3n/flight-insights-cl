@@ -23,6 +23,7 @@ import json
 import math
 import re
 from collections.abc import Mapping, Sequence
+from dataclasses import dataclass
 from typing import Any, cast
 
 from flight_insights.ai.policy import Policy
@@ -168,8 +169,10 @@ def _evidence(e: Mapping[str, Any], ref: str, arm_us: int, policy: Policy) -> di
 
 
 def _analysis(
-    analysis: Mapping[str, Any], arm_us: int, policy: Policy
+    analysis: Mapping[str, Any], arm_us: int, policy: Policy, keys: dict[str, str]
 ) -> tuple[list[dict[str, Any]], list[dict[str, Any]], list[dict[str, Any]]]:
+    """Metrics, findings and the evidence they cite; `keys` gets which finding or
+    evidence each packet-local reference stands for."""
     metrics = [
         {"metric": m["metric"], "segment": m["segment"], "value": number(float(m["value"])),
          "zone": m["zone"]}
@@ -190,11 +193,13 @@ def _analysis(
                 refs[eid] = f"E{len(refs) + 1}"
                 evidence.append(_evidence(e, refs[eid], arm_us, policy))
             cited.append(refs[eid])
+        keys[f"F{i + 1}"] = str(f["id"])
         findings.append(
             {"ref": f"F{i + 1}", "code": f["code"], "severity": f["severity"],
              "confidence": f["confidence"], "params": _keyed(f["params"], policy),
              "evidence": cited}
         )  # fmt: skip
+    keys |= {ref: eid for eid, ref in refs.items()}
     return metrics, findings, evidence[:512]
 
 
@@ -216,10 +221,24 @@ def _parameters(
     return dict(sorted(policy.parameters(kept).items())[:2000])
 
 
+@dataclass(frozen=True)
+class Built:
+    packet: dict[str, Any]
+    run_id: str  # the analysis run it was built from
+    refs: dict[str, str]  # "F1" -> finding id, "E1" -> evidence id
+
+
 def build_packet(
     store: Store, cache: ColumnCache, pack: Pack, flight_id: str, purpose: str = "analysis"
 ) -> dict[str, Any]:
     """The packet for one flight's current analysis, before the scrubber's check."""
+    return build(store, cache, pack, flight_id, purpose).packet
+
+
+def build(
+    store: Store, cache: ColumnCache, pack: Pack, flight_id: str, purpose: str = "analysis"
+) -> Built:
+    """The packet, with what its references stand for."""
     if purpose not in PURPOSES:
         raise ValueError(f"purpose must be one of {', '.join(PURPOSES)}")
     row = store.get("flight", flight_id)
@@ -228,7 +247,8 @@ def build_packet(
     fp: dict[str, Any] = json.loads(row["fingerprint_json"])
     policy = Policy.load(pack, str(row["firmware"] or fp.get("firmware") or pack.versions[-1]))
     analysis = run_analysis(store, cache, pack, flight_id)
-    metrics, findings, evidence = _analysis(analysis, int(row["arm_us"] or 0), policy)
+    keys: dict[str, str] = {}
+    metrics, findings, evidence = _analysis(analysis, int(row["arm_us"] or 0), policy, keys)
     packet: dict[str, Any] = {
         "schema": SCHEMA_ID,
         "purpose": purpose,
@@ -240,4 +260,4 @@ def build_packet(
         "evidence": evidence,
         "parameters": _parameters(store, pack, row, policy),
     }
-    return packet
+    return Built(packet, str(analysis["run"]), keys)

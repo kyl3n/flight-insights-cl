@@ -37,12 +37,173 @@ SEGMENT = {
     "additionalProperties": False,
 }
 REF = {"type": "string", "pattern": r"^[EF][0-9]{1,4}$"}  # packet-local references
+PARAMETER = r"^[A-Z][A-Z0-9_]{0,16}$"
+MAYBE_NUMBER = {"type": ["number", "null"]}
+UNIT = {"type": ["string", "null"], "maxLength": 24}
+
+
+def numbers(n: int) -> dict[str, Any]:
+    return {"type": "array", "maxItems": n, "items": {"type": "number"}}
+
+
+def strict(properties: dict[str, Any], *required: str) -> dict[str, Any]:
+    return {
+        "type": "object",
+        "properties": properties,
+        "required": list(required),
+        "additionalProperties": False,
+    }
+
+
+# What a local tool hands back to Claude (spec: AI layer, "Tools Claude can call": all
+# executed locally, all scrubbed). Each result is a packet of its own, purpose "tool",
+# checked and recorded like any other. Times are seconds from arming.
+TOOL_NAMES = ("spectrum", "filter_simulation", "parameter_doc", "metric_history", "segment_stats")
+SIMULATED = strict(
+    {
+        "available": {"type": "boolean"},
+        "reason": {"type": ["string", "null"], "maxLength": 200},
+        "noise_db": MAYBE_NUMBER,
+        "lag_deg": MAYBE_NUMBER,
+        "notches": {"type": ["integer", "null"]},
+        "within_budget": {"type": ["boolean", "null"]},
+        "centres_hz": numbers(16),
+        "bandwidth_hz": MAYBE_NUMBER,
+        "lowpass_hz": MAYBE_NUMBER,
+    },
+    "available",
+)
+TOOL_RESULTS: dict[str, Any] = {
+    "spectrum": strict(
+        {
+            "axis": {"enum": ["x", "y", "z"]},
+            "stage": {"enum": ["before", "flown"]},
+            "segment": NAME,
+            "seconds": {"type": "number"},
+            "rate_hz": {"type": "number"},
+            "hz": numbers(256),
+            "db": numbers(256),
+            "peaks": {
+                "type": "array",
+                "maxItems": 16,
+                "items": strict(
+                    {
+                        "hz": {"type": "number"},
+                        "db": {"type": "number"},
+                        "prominence_db": {"type": "number"},
+                    },
+                    "hz",
+                    "db",
+                ),
+            },
+        },
+        "axis",
+        "stage",
+        "hz",
+        "db",
+    ),
+    "filter_simulation": strict(
+        {
+            "params": {
+                "type": "object",
+                "patternProperties": {PARAMETER: {"type": "number"}},
+                "additionalProperties": False,
+                "maxProperties": 16,
+            },
+            "current": SIMULATED,
+            "candidate": SIMULATED,
+        },
+        "params",
+        "current",
+        "candidate",
+    ),
+    "parameter_doc": strict(
+        {
+            "name": {"type": "string", "pattern": PARAMETER},
+            "display": {"type": ["string", "null"], "maxLength": 200},
+            "description": {"type": ["string", "null"], "maxLength": 600},
+            "units": UNIT,
+            "range": {"anyOf": [numbers(2), {"type": "null"}]},
+            "increment": MAYBE_NUMBER,
+            "values": {
+                "type": "array",
+                "maxItems": 64,
+                "items": strict({"value": {"type": "number"}, "label": TEXT}, "value", "label"),
+            },
+            "bits": {
+                "type": "array",
+                "maxItems": 32,
+                "items": strict({"bit": {"type": "integer"}, "label": TEXT}, "bit", "label"),
+            },
+            "reboot": {"type": "boolean"},
+            "current": MAYBE_NUMBER,
+            "default": MAYBE_NUMBER,
+        },
+        "name",
+    ),
+    "metric_history": strict(
+        {
+            "metric": NAME,
+            "segment": NAME,
+            "unit": UNIT,
+            "points": {
+                "type": "array",
+                "maxItems": 50,
+                "items": strict(
+                    {
+                        "flight": {"type": "integer"},
+                        "value": {"type": "number"},
+                        "zone": {"enum": ["target", "caution", "out", None]},
+                        "good": {"type": "boolean"},
+                    },
+                    "flight",
+                    "value",
+                ),
+            },
+            "baseline": {
+                "anyOf": [
+                    strict({"low": {"type": "number"}, "high": {"type": "number"}}, "low", "high"),
+                    {"type": "null"},
+                ]
+            },
+        },
+        "metric",
+        "segment",
+        "points",
+    ),
+    "segment_stats": strict(
+        {
+            "message": {"type": "string", "pattern": r"^[A-Z0-9]{2,4}$"},
+            "field": {"type": "string", "pattern": r"^[A-Za-z0-9_]{1,16}$"},
+            "start_s": {"type": "number"},
+            "end_s": {"type": "number"},
+            "unit": UNIT,
+            "seconds": {"type": "number"},
+            "rate_hz": MAYBE_NUMBER,
+            **{k: MAYBE_NUMBER for k in ("min", "p05", "p50", "mean", "p95", "max")},
+        },
+        "message",
+        "field",
+        "start_s",
+        "end_s",
+    ),
+}
+TOOL = strict(
+    {
+        "name": {"enum": list(TOOL_NAMES)},
+        "ok": {"type": "boolean"},
+        "error": {"type": ["string", "null"], "maxLength": 200},
+        **TOOL_RESULTS,
+    },
+    "name",
+    "ok",
+)
 
 PACKET: dict[str, Any] = {
     "type": "object",
     "properties": {
         "schema": {"enum": [SCHEMA_ID]},
-        "purpose": {"enum": ["analysis", "chat", "explain"]},
+        "purpose": {"enum": ["analysis", "chat", "explain", "tool"]},
         "aircraft": {
             "type": "object",
             "properties": {
@@ -158,6 +319,7 @@ PACKET: dict[str, Any] = {
             "additionalProperties": False,
             "maxProperties": 2000,
         },
+        "tool": TOOL,
     },
     "required": ["schema", "purpose", "aircraft"],
     "additionalProperties": False,
