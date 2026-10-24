@@ -1492,7 +1492,7 @@ Every laptop keeps a full working copy of all data and shares it through one com
 
   Folders are created the first time they are needed. If two laptops create the same folder at the same moment, Drive keeps both: a path then stands for all folders of that name, every listing reads them all, and new files go into the one with the smallest id.
 - **Transfers.** Uploads are resumable, in 8 MiB chunks, and carry on from what Drive holds after a dropped connection. The SHA-256 Drive reports is compared with the app's own before an object counts as sent. A name already present is never written again. A refused access token is renewed once; Google's "slow down" (429) and server errors are retried with growing waits. A revoked refresh token asks the person to sign in again.
-- **The engine stays offline.** Sync, encryption and keys live in the Rust shell; the analysis engine still has no network access. The engine turns this laptop's changes into plaintext objects and applies other laptops' objects after the shell has checked them (engine methods `sync.outbox`, `sync.sent`, `sync.apply` and `sync.quarantine`, which only the shell may call; the sync panel reads `sync.status` and `sync.conflicts`).
+- **The engine stays offline.** Sync, encryption and keys live in the Rust shell; the analysis engine still has no network access. The engine turns this laptop's changes into plaintext objects and applies other laptops' objects after the shell has checked them (engine methods `sync.outbox`, `sync.sent`, `sync.apply` and `sync.quarantine`, which only the shell may call; the sync panel reads `sync.status` and `sync.conflicts`, and settles a conflict with `sync.resolve`).
 
 **No Google Drive app needed.** Nothing from Google is installed on the laptops; the app itself signs in and talks to the Drive API. One-time admin setup:
 
@@ -1511,6 +1511,8 @@ On first start the app generates a random 128-bit laptop ID (shown as a short co
 2. The code is typed or pasted into an enrolled laptop, and the two people compare the fingerprint on both screens before approving.
 3. The enrolled laptop then writes the registry event that adds the new one, with every key sealed to the new laptop's encryption key.
 4. The new laptop checks the registry from its first event, whose hash is the fleet's fingerprint, and takes its keys from that event.
+
+In the app (the Sync view): the new laptop shows its code and fingerprint. The person approving pastes the code, reads the name and fingerprint it holds, and ticks that the fingerprint matches the new laptop's screen before Approve is enabled. The new laptop's person then types the fleet fingerprint shown on the enrolled laptop; the shell joins only if it is the fleet the drive's registry names. Joining restarts the engine with the fleet's board-ID key, so existing board-ID hashes are made again.
 
 **The device registry** is an append-only chain of signed events on the drive (`registry/<number>-<hash>.json`): the fleet's creation, each enrollment, each revocation and each recovery. Each event names the hash of the one before it. Each is signed by a laptop that was enrolled, and not revoked, at that point; a recovery event is signed by the recovery key instead. A chain that breaks any of these rules is refused whole.
 - **Two events at once.** Two laptops can write event N at the same moment, and Drive keeps both files. At each number the chain takes the candidate that follows the event before it, and of two that both do, the one with the smaller hash, so every laptop reads the same chain. The laptop whose event lost writes it again, on top, at the next number.
@@ -1595,6 +1597,7 @@ Flights, logs and results never conflict, because they are never edited. Records
 - **Field clocks.** Each changed field keeps its own clock and the clock of the value it replaced. A change made on top of the other laptop's value is not a conflict. A change made without having seen the other is concurrent.
 - **Changed beats unchanged.** A value someone set wins over a value no one has changed since the record was made, whatever the clocks say. This matters when two copies of one record merge: one laptop's "accepted" must not lose to the other copy's starting "proposed".
 - **Conflicts.** Concurrent changes with different values are kept with both values and both clocks for a person to look at. The same value set on both laptops is no conflict. Both laptops apply the same rules, so they agree on the value that wins.
+- **Settling a conflict.** The Sync view lists open conflicts with the value now in place and the other laptop's value. "Keep" marks it settled on this laptop. "Use this" sets the other value as an ordinary edit, so it syncs like any change; when it arrives on another laptop it is a change made on top of the value there, not a new conflict, and it settles that laptop's copy of the same conflict. Any later change to the field that saw both values settles it the same way.
 
 ### Encryption
 
@@ -1627,7 +1630,7 @@ Flights, logs and results never conflict, because they are never edited. Records
 
 - The app only ever adds objects. Corrections are new objects, so every earlier state can be rebuilt. Contributor access stops a laptop's account from moving files to the Trash, and Drive's version history is a second layer.
 - **Recovery key.** End-to-end encryption means that if every copy of the fleet key were lost, nobody could read the data. Setup therefore creates a recovery key, which an admin keeps offline in a secure place. A second copy in a separate secure location protects against losing the first.
-  - **Form.** 32 random bytes, shown once at setup as 24 words from the BIP-39 English list. The words include a checksum, so a wrong or swapped word is caught. The key is never stored on any laptop.
+  - **Form.** 32 random bytes, shown once at setup as 24 words from the BIP-39 English list. The words include a checksum, so a wrong or swapped word is caught. The key is never stored on any laptop. The setup screen keeps the words up until the person types three of them back, chosen at random, to show they were written down; then the interface drops them.
   - **What it unlocks.** Two key pairs are derived from it. The first is an encryption pair: the registry holds a copy of every key sealed to its public half, refreshed at each rotation, which any laptop can write and only the words can open. The second is a signing pair, whose public half is in the registry's first event.
   - **Recovering.** On a fresh laptop, "Recover with the recovery key" opens the latest copy and signs a registry event that adds the new laptop to the fleet. That laptop can then read everything and enroll others.
 - **Rebuilding a laptop.** A new or repaired laptop is enrolled, downloads everything and rebuilds its database. To save disk space, raw logs can be dropped from a laptop and fetched again when opened.
@@ -1636,7 +1639,10 @@ Flights, logs and results never conflict, because they are never edited. Records
 ### Network and status
 
 - Drive and weather traffic can be routed through the company VPN, so the network addresses of field laptops do not reveal their locations to Google or the weather provider. A setting limits sync to chosen networks.
-- The header shows sync status: last sync, items waiting to upload and anything quarantined. The sync panel lists each laptop, its latest object and any gaps.
+- **The worker.** The shell runs a sync round at start-up, every minute, and straight after each import. Each round reads the registry, takes up a new fleet key after a rotation, and uploads and applies objects. Offline is a state, not an error: changes wait and go later.
+- **The header** shows sync status as a pill in the one status language: up to date, syncing, offline, signed out of Google, removed from the fleet, or an error, with a caution when objects are quarantined or missing. Its tooltip gives the last sync, items waiting to upload and anything quarantined; it opens the Sync view.
+- **The Sync view** (rail entry "Sync") holds the Google account and the shared drive, the fleet (its fingerprint, each laptop with a Remove action, approving a new laptop, setting up, joining, and recovering with the recovery words), each laptop's latest object and any gaps, the quarantine with its reasons, and the open conflicts.
+- **After removing a laptop**, the view asks for a new Claude API key and links to Settings, since the removed laptop held a copy. Its Google account's drive access is revoked by an admin.
 
 ## Parameter history and change attribution
 

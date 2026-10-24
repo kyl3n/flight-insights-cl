@@ -287,6 +287,7 @@ pub const UI_METHODS: &[&str] = &[
     "ai.spend",
     "sync.status",
     "sync.conflicts",
+    "sync.resolve",
 ];
 
 /// The AI path's engine methods that are the shell's alone: `ai.prepare` and `ai.tool`
@@ -354,7 +355,10 @@ mod tests {
     #[test]
     fn the_ui_reads_sync_state_but_never_moves_objects() {
         for m in UI_METHODS.iter().filter(|m| m.starts_with("sync.")) {
-            assert!(["sync.status", "sync.conflicts"].contains(m), "{m}");
+            assert!(
+                ["sync.status", "sync.conflicts", "sync.resolve"].contains(m),
+                "{m}"
+            );
         }
         assert!(SYNC_SHELL_ONLY.iter().all(|m| !UI_METHODS.contains(m)));
     }

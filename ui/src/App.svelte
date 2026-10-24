@@ -13,6 +13,8 @@
   import { aiSettingsSet, aiStatus, onAiProgress } from "./lib/ai";
   import SetupView from "./components/SetupView.svelte";
   import StationsView from "./components/StationsView.svelte";
+  import SyncView from "./components/SyncView.svelte";
+  import { EMPTY_WORKER, onSyncStatus, syncStatus } from "./lib/sync";
   import TrendsView from "./components/TrendsView.svelte";
   import type { PlatformView, SetupSchema } from "./lib/setup";
   import { app, t, type View } from "./lib/app.svelte";
@@ -50,10 +52,16 @@
     let stopPending = () => {};
     pendingImports().then((p) => (app.pending = p));
     onPendingImports((p) => (app.pending = p)).then((unlisten) => (stopPending = unlisten));
+    let stopSync = () => {};
+    syncStatus()
+      .then((s) => (app.sync = s?.worker ?? null))
+      .catch(() => (app.sync = EMPTY_WORKER));
+    onSyncStatus((w) => (app.sync = w)).then((unlisten) => (stopSync = unlisten));
     return () => {
       stop();
       stopAi();
       stopPending();
+      stopSync();
     };
   });
 
@@ -96,6 +104,7 @@
     plan: "nav.plan",
     ask: "nav.ask",
     stations: "nav.stations",
+    sync: "nav.sync",
     imports: "nav.imports",
     settings: "nav.settings",
   };
@@ -125,6 +134,8 @@
       <ConfigReview />
     {:else if app.view === "stations"}
       <StationsView />
+    {:else if app.view === "sync"}
+      <SyncView />
     {:else if app.view === "settings"}
       <SettingsView />
     {:else if app.view === "ask"}

@@ -18,6 +18,7 @@ The UI may read (in the shell's UI allowlist):
 | --- | --- |
 | sync.status | Waiting to send, applied per laptop with any gaps, the quarantine, conflicts |
 | sync.conflicts | Fields two laptops changed before syncing, with both values |
+| sync.resolve | A person's choice on a conflict: keep the value, or set the other one |
 """
 
 from __future__ import annotations
@@ -123,6 +124,18 @@ def add_sync_methods(server: Server, state: EngineState, guarded: Callable[[Any]
     @guarded
     def sync_status(_ctx: Context, _params: dict[str, Any]) -> dict[str, Any]:
         return sync.status(state.require_store())
+
+    @server.method("sync.resolve")
+    @guarded
+    def sync_resolve(_ctx: Context, params: dict[str, Any]) -> dict[str, Any]:
+        cid, keep = params.get("id"), params.get("keep")
+        if isinstance(cid, bool) or not isinstance(cid, int) or not isinstance(keep, str):
+            raise RpcError(INVALID_PARAMS, "id must be a conflict's id and keep kept or other")
+        try:
+            sync.resolve(state.require_store(), cid, keep)
+        except ValueError as e:
+            raise RpcError(BAD_INPUT, str(e)) from None
+        return {}
 
     @server.method("sync.conflicts")
     @guarded

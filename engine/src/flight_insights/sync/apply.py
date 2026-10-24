@@ -187,6 +187,14 @@ class _Apply:
                 "DO UPDATE SET hlc = excluded.hlc, base_hlc = excluded.base_hlc",
                 (table, rid, field, hlc, base),
             )
+            if not concurrent:
+                # A later change made on top of both settles any conflict held here,
+                # such as another laptop's "keep the other".
+                self.conn.execute(
+                    "UPDATE sync_conflict SET resolved = 1 WHERE tbl = ? AND rid = ? "
+                    "AND field = ? AND resolved = 0 AND kept_hlc < ? AND other_hlc < ?",
+                    (table, rid, field, hlc, hlc),
+                )
 
     # --- entries --------------------------------------------------------------------
 
@@ -513,6 +521,28 @@ def digest(store: Store, show: frozenset[str] = frozenset()) -> dict[str, Any]:
             out[table]["data"] = rows
         every.update(f"{table}:{h};".encode())
     return {"sha256": every.hexdigest(), "tables": out}
+
+
+def resolve(store: Store, conflict_id: int, keep: str) -> None:
+    """A person's choice on a conflict: the value kept stays ("kept"), or the other one
+    is set as an ordinary edit ("other"), which syncs like any change and settles the
+    same conflict on the other laptops."""
+    if keep not in ("kept", "other"):
+        raise ValueError("keep must be kept or other")
+    with store.transaction() as conn:
+        row = conn.execute(
+            "SELECT tbl, rid, field, other_json FROM sync_conflict WHERE id = ? AND resolved = 0",
+            (conflict_id,),
+        ).fetchone()
+        if row is None:
+            raise ValueError("no open conflict with that id")
+        table, rid, field, other = row
+        if keep == "other":
+            current = store.get(table, rid)
+            if current is None:
+                raise ValueError("the record is gone")
+            store.update(table, rid, current["version"], {field: decode(json.loads(other))})
+        conn.execute("UPDATE sync_conflict SET resolved = 1 WHERE id = ?", (conflict_id,))
 
 
 def conflicts(store: Store, include_resolved: bool = False) -> list[dict[str, Any]]:
