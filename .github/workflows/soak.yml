@@ -1,7 +1,9 @@
 # The long sync soak, run by hand (spec: Roadmap, Phase 1 gate "sync soak test clean").
 # Every pull request already runs a short one in the Shell job (cargo test, the
 # defaults in shell/src-tauri/tests/soak.rs). This runs as many rounds, laptops and
-# seeds as asked. A failure prints the seed and settings that reproduce it.
+# seeds as asked, on a local folder or (drive: google) on the test shared drive, as
+# the nightly "Sync soak on the drive" does. A failure prints the seed and settings
+# that reproduce it.
 
 name: Sync soak
 
@@ -17,6 +19,11 @@ on:
       laptops:
         description: "Laptops at the start (one more enrolls mid-run)"
         default: "4"
+      drive:
+        description: "Where the laptops share: a local folder, or the test shared drive"
+        type: choice
+        options: [folder, google]
+        default: folder
 
 permissions:
   contents: read
@@ -67,6 +74,12 @@ jobs:
           SEEDS: ${{ inputs.seeds }}
           SOAK_ROUNDS: ${{ inputs.rounds }}
           SOAK_LAPTOPS: ${{ inputs.laptops }}
+          SOAK_DRIVE: ${{ inputs.drive }}
+          SOAK_RUN: ${{ github.run_id }}
+          FI_GOOGLE_CLIENT_ID: ${{ inputs.drive == 'google' && secrets.FI_GOOGLE_CLIENT_ID || '' }}
+          FI_GOOGLE_CLIENT_SECRET: ${{ inputs.drive == 'google' && secrets.FI_GOOGLE_CLIENT_SECRET || '' }}
+          FI_GOOGLE_TEST_REFRESH_TOKEN: ${{ inputs.drive == 'google' && secrets.FI_GOOGLE_TEST_REFRESH_TOKEN || '' }}
+          FI_GOOGLE_TEST_DRIVE_ID: ${{ inputs.drive == 'google' && secrets.FI_GOOGLE_TEST_DRIVE_ID || '' }}
         run: |
           cargo build --locked --tests
           for seed in $SEEDS; do

@@ -457,6 +457,13 @@ async fn ai_key_set(app: AppHandle, key: String) -> Result<(), String> {
         let keychain = keychain.ok_or("the OS keychain is not available")?;
         ai::set_key(keychain.as_ref(), &key)?;
         shell.key_rejected.store(false, Ordering::SeqCst);
+        // In a fleet, the key is entered once and reaches every laptop (spec: Security,
+        // "Service keys").
+        if fleet::in_fleet(&shell) {
+            shell
+                .sync
+                .share_claude_key(Some(zeroize::Zeroizing::new(key.trim().to_owned())));
+        }
         Ok(())
     })
     .await
@@ -470,7 +477,11 @@ async fn ai_key_clear(app: AppHandle) -> Result<(), String> {
         let keychain = shell.keychain.lock().expect("keychain").clone();
         keychain
             .ok_or("the OS keychain is not available")?
-            .delete(ai::KEY_NAME)
+            .delete(ai::KEY_NAME)?;
+        if fleet::in_fleet(&shell) {
+            shell.sync.share_claude_key(None);
+        }
+        Ok(())
     })
     .await
     .map_err(|e| e.to_string())?

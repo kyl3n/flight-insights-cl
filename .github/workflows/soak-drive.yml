@@ -1,0 +1,96 @@
+name: Sync soak on the drive
+
+# The sync soak on the real test shared drive, every night (spec: Roadmap, Phase 1 gate
+# "sync soak test clean"; shell/src-tauri/tests/soak.rs with SOAK_DRIVE=google). Each
+# run writes under its own folder, soak-<run>-<seed>, in the test drive and deletes
+# nothing. It runs only when the repository has the test account's secrets
+# (FI_GOOGLE_TEST_REFRESH_TOKEN, FI_GOOGLE_TEST_DRIVE_ID, from
+# `cargo run --example google_sign_in`) and the OAuth client (FI_GOOGLE_CLIENT_ID,
+# FI_GOOGLE_CLIENT_SECRET); without them it says so and passes. A failure prints the
+# seed and settings that reproduce it.
+
+on:
+  workflow_dispatch:
+    inputs:
+      seeds:
+        description: "Seeds to run, separated by spaces"
+        default: "1 2 3"
+      rounds:
+        description: "Rounds per seed"
+        default: "30"
+      laptops:
+        description: "Laptops at the start (one more enrolls mid-run)"
+        default: "3"
+  schedule:
+    - cron: "41 1 * * *"
+
+permissions:
+  contents: read
+
+concurrency:
+  group: soak-drive
+  cancel-in-progress: false
+
+jobs:
+  soak:
+    name: Sync soak on the test shared drive
+    runs-on: ubuntu-latest
+    timeout-minutes: 360
+    defaults:
+      run:
+        working-directory: shell/src-tauri
+    env:
+      HAS_DRIVE: ${{ secrets.FI_GOOGLE_TEST_REFRESH_TOKEN != '' && secrets.FI_GOOGLE_TEST_DRIVE_ID != '' && secrets.FI_GOOGLE_CLIENT_ID != '' }}
+    steps:
+      - name: No test drive, nothing to soak
+        if: env.HAS_DRIVE != 'true'
+        working-directory: .
+        run: echo "The test drive's secrets are not set; the real-drive soak is skipped."
+      - uses: actions/checkout@v4
+        if: env.HAS_DRIVE == 'true'
+      - name: Linux build dependencies
+        if: env.HAS_DRIVE == 'true'
+        timeout-minutes: 40
+        run: |
+          apt_opts="-o Acquire::Retries=5 -o Acquire::http::Timeout=60 -o DPkg::Lock::Timeout=300"
+          packages="libwebkit2gtk-4.1-dev libayatana-appindicator3-dev librsvg2-dev"
+          for attempt in 1 2 3; do
+            if sudo apt-get $apt_opts update && sudo apt-get $apt_opts install -y $packages; then
+              exit 0
+            fi
+            echo "apt attempt $attempt failed; retrying"
+            sleep 15
+          done
+          exit 1
+      - uses: dtolnay/rust-toolchain@b725eda525362e7cf34af9a7243cac1e3f01a7ec # stable
+        if: env.HAS_DRIVE == 'true'
+      - uses: Swatinem/rust-cache@d1527c8f67ef9af357290475d4af4b0fab8f12e0 # v2
+        if: env.HAS_DRIVE == 'true'
+        with:
+          workspaces: shell/src-tauri
+      - uses: astral-sh/setup-uv@d0cc045d04ccac9d8b7881df0226f9e82c39688e # v6
+        if: env.HAS_DRIVE == 'true'
+      - name: Engine
+        if: env.HAS_DRIVE == 'true'
+        working-directory: engine
+        run: uv sync --locked
+      - name: Soak
+        if: env.HAS_DRIVE == 'true'
+        env:
+          FI_ENGINE_CMD: '["uv", "run", "--project", "../../engine", "python", "-m", "flight_insights", "rpc"]'
+          FI_KNOWLEDGE_DIR: ../../knowledge
+          FI_GOOGLE_CLIENT_ID: ${{ secrets.FI_GOOGLE_CLIENT_ID }}
+          FI_GOOGLE_CLIENT_SECRET: ${{ secrets.FI_GOOGLE_CLIENT_SECRET }}
+          FI_GOOGLE_TEST_REFRESH_TOKEN: ${{ secrets.FI_GOOGLE_TEST_REFRESH_TOKEN }}
+          FI_GOOGLE_TEST_DRIVE_ID: ${{ secrets.FI_GOOGLE_TEST_DRIVE_ID }}
+          SOAK_DRIVE: google
+          SOAK_RUN: ${{ github.run_id }}
+          SEEDS: ${{ inputs.seeds || '1 2 3' }}
+          SOAK_ROUNDS: ${{ inputs.rounds || '30' }}
+          SOAK_LAPTOPS: ${{ inputs.laptops || '3' }}
+        run: |
+          cargo build --locked --tests
+          for seed in $SEEDS; do
+            case "$seed" in *[!0-9]*|"") echo "not a seed: $seed"; exit 1;; esac
+            SOAK_SEED="$seed" cargo test --locked --test soak -- --nocapture
+          done
