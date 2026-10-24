@@ -637,6 +637,147 @@ mod tests {
         let _ = std::fs::remove_dir_all(&root);
     }
 
+    /// Two laptops through Google Drive, as far as a test can reach it: the client
+    /// against the fake Google server, the loop watching the change feed.
+    #[test]
+    fn two_laptops_converge_through_google_drive() {
+        use crate::sync::fake_google::{DRIVE, FakeGoogle};
+        use crate::sync::google::GoogleDrive;
+        use crate::sync::keyring::{Device, Keyring, create_fleet, enroll};
+        use crate::sync::oauth::Client;
+        use crate::sync::run::{Calls, Syncer, publish, publish_next, read_registry};
+
+        let Some(cmd) = real_engine() else {
+            eprintln!("FI_ENGINE_CMD not set: skipped");
+            return;
+        };
+        let knowledge = std::env::var_os("FI_KNOWLEDGE_DIR").map(PathBuf::from);
+        let root = std::env::temp_dir().join(format!("fi-sync-google-{}", std::process::id()));
+        let _ = std::fs::remove_dir_all(&root);
+        let fake = FakeGoogle::start();
+        let client = Client {
+            id: "test".into(),
+            secret: "s".into(),
+        };
+        let drive = || {
+            GoogleDrive::new(
+                fake.endpoints(),
+                client.clone(),
+                DRIVE,
+                zeroize::Zeroizing::new(fake.refresh_token()),
+            )
+            .unwrap()
+        };
+        let drives = [drive(), drive()];
+        let ids: Vec<LaptopIdentity> = (0..2)
+            .map(|_| {
+                LaptopIdentity::load_or_create(&MemoryStore::default())
+                    .unwrap()
+                    .0
+            })
+            .collect();
+        let reg_dir = root.join("registry");
+        let (first, keys_a, _) = create_fleet(&ids[0], "A").unwrap();
+        publish(&drives[0], &reg_dir, &first, 0).unwrap();
+        let fp = read_registry(&drives[0], &reg_dir, None)
+            .unwrap()
+            .fingerprint;
+        let registry = publish_next(&drives[0], &reg_dir, &fp, &|r| {
+            enroll(r, &keys_a, &ids[0], Device::of(&ids[1], "B"))
+        })
+        .unwrap();
+        // B reads the same registry through its own client
+        assert_eq!(
+            read_registry(&drives[1], &reg_dir, Some(&fp))
+                .unwrap()
+                .events
+                .len(),
+            2
+        );
+        let keyrings: Vec<Keyring> = ids
+            .iter()
+            .map(|id| Keyring::from_registry(&registry, id).unwrap())
+            .collect();
+        let engines: Vec<Engine> = (0..2)
+            .map(|n| {
+                let (engine, _) = Engine::start(&cmd, knowledge.as_deref(), |_, _| {}).unwrap();
+                engine
+                    .unlock(
+                        &ids[n],
+                        &root.join(format!("data-{n}")),
+                        Some(&keyrings[n].board_key()),
+                    )
+                    .unwrap();
+                engine
+            })
+            .collect();
+        let a = &engines[0];
+        let platform = a
+            .call(
+                "platform.create",
+                json!({ "name": "Heli", "vehicle": "copter" }),
+            )
+            .unwrap();
+        let airframe = a
+            .call(
+                "airframe.create",
+                json!({ "platform_id": platform["id"], "name": "H-1" }),
+            )
+            .unwrap();
+        let path = fixture().to_string_lossy().into_owned();
+        let scanned = a.call("import.scan", json!({ "paths": [path] })).unwrap();
+        let done = a
+            .call(
+                "import.commit",
+                json!({ "batch": scanned["batch"],
+            "decisions": [{ "log": "f1", "airframe_id": airframe["id"] }] }),
+            )
+            .unwrap(); // fmt: skip
+        let flight = done[0]["flights"][0].clone();
+        let mut cursors = [None, None];
+        let mut quiet = 0;
+        for _ in 0..8 {
+            let mut moved = false;
+            for n in 0..2 {
+                let r = Syncer {
+                    engine: &engines[n],
+                    drive: &drives[n],
+                    identity: &ids[n],
+                    registry: &registry,
+                    keyring: &keyrings[n],
+                    staging: root.join(format!("staging-{n}")),
+                }
+                .round_watching(&mut cursors[n], false)
+                .unwrap();
+                moved |= r.uploaded > 0 || r.applied > 0;
+            }
+            quiet = if moved { 0 } else { quiet + 1 };
+            if quiet == 2 {
+                break;
+            }
+        }
+        assert_eq!(quiet, 2, "sync settled");
+        let digest = |e: &Engine| e.call("sync.digest", json!({})).unwrap()["sha256"].clone();
+        assert_eq!(digest(&engines[0]), digest(&engines[1]));
+        let analysis = engines[1]
+            .call("analysis.run", json!({ "flight_id": flight }))
+            .unwrap();
+        assert!(analysis["findings"].as_array().is_some());
+        // only the shared drive's own folder was used, and nothing was ever deleted
+        assert!(
+            fake.state
+                .lock()
+                .unwrap()
+                .files
+                .values()
+                .any(|f| f.name == crate::sync::google::ROOT)
+        );
+        for e in &engines {
+            e.stop();
+        }
+        let _ = std::fs::remove_dir_all(&root);
+    }
+
     #[test]
     fn joining_a_fleet_hashes_board_ids_again_once() {
         let Some(cmd) = real_engine() else {

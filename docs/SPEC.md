@@ -1481,6 +1481,17 @@ Every laptop keeps a full working copy of all data and shares it through one com
 - **A shared drive, not a personal folder.** Files in a Google Workspace shared drive belong to the organization, so they survive staff and account changes. Laptops join as Contributors, who can add and edit files but cannot move them to the Trash ([access levels](https://support.google.com/a/users/answer/12380484?hl=en)).
 - **Direct API access.** The Rust shell talks to the Google Drive API itself. Google Drive for desktop does not run on Linux ([system requirements](https://support.google.com/drive/answer/2375082?hl=en)), and folder-mirroring clients cannot guarantee that a file is complete and conflict-free when the app reads it.
 - **Sign-in.** An OAuth app of type Internal in the company's Google Cloud project: only company accounts can sign in, and Google verification is not required ([OAuth app types](https://developers.google.com/identity/protocols/oauth2/production-readiness/overview)). Tokens live in the OS keychain.
+  - **The flow:** the installed-app flow. The system browser shows Google's consent page, and Google sends it back to a one-off listener on `127.0.0.1` at a random port, with PKCE (S256) and a checked `state`. The app never sees the password.
+  - **Tokens:** the refresh token is kept in the keychain; the access token only in memory. Neither is ever logged.
+  - **Scope:** `https://www.googleapis.com/auth/drive`. Objects other laptops wrote must be readable, which the narrower `drive.file` scope would hide, and an Internal app needs no verification for it.
+  - **The OAuth client:** its ID and Google's desktop "secret" (not confidential for installed apps) are built into the installers from the CI secrets `FI_GOOGLE_CLIENT_ID` and `FI_GOOGLE_CLIENT_SECRET`, never committed. A build without them says sign-in is not set up.
+  - **Network:** the Drive API is reached at two hosts on the shell's allowlist: `oauth2.googleapis.com` for tokens, and `www.googleapis.com` for the Drive API and its uploads. The consent page opens in the browser, not in the app.
+- **Layout on the drive.** Everything lives under one folder, "Flight Insights", in the shared drive:
+  - `devices/<laptop-id>/` for each laptop's objects;
+  - `registry/` for the device registry's events.
+
+  Folders are created the first time they are needed. If two laptops create the same folder at the same moment, Drive keeps both: a path then stands for all folders of that name, every listing reads them all, and new files go into the one with the smallest id.
+- **Transfers.** Uploads are resumable, in 8 MiB chunks, and carry on from what Drive holds after a dropped connection. The SHA-256 Drive reports is compared with the app's own before an object counts as sent. A name already present is never written again. A refused access token is renewed once; Google's "slow down" (429) and server errors are retried with growing waits. A revoked refresh token asks the person to sign in again.
 - **The engine stays offline.** Sync, encryption and keys live in the Rust shell; the analysis engine still has no network access. The engine turns this laptop's changes into plaintext objects and applies other laptops' objects after the shell has checked them (engine methods `sync.outbox`, `sync.sent`, `sync.apply` and `sync.quarantine`, which only the shell may call; the sync panel reads `sync.status` and `sync.conflicts`).
 
 **No Google Drive app needed.** Nothing from Google is installed on the laptops; the app itself signs in and talks to the Drive API. One-time admin setup:
@@ -1502,6 +1513,7 @@ On first start the app generates a random 128-bit laptop ID (shown as a short co
 4. The new laptop checks the registry from its first event, whose hash is the fleet's fingerprint, and takes its keys from that event.
 
 **The device registry** is an append-only chain of signed events on the drive (`registry/<number>-<hash>.json`): the fleet's creation, each enrollment, each revocation and each recovery. Each event names the hash of the one before it. Each is signed by a laptop that was enrolled, and not revoked, at that point; a recovery event is signed by the recovery key instead. A chain that breaks any of these rules is refused whole.
+- **Two events at once.** Two laptops can write event N at the same moment, and Drive keeps both files. At each number the chain takes the candidate that follows the event before it, and of two that both do, the one with the smaller hash, so every laptop reads the same chain. The laptop whose event lost writes it again, on top, at the next number.
 
 ### What is shared: immutable objects
 
@@ -1560,7 +1572,7 @@ Three independent checks keep every item in the app exactly once:
 
 ### Checking incoming data
 
-While a laptop is online, the app reads the shared drive's change feed every minute and at start-up, so only new files are listed ([changes on shared drives](https://developers.google.com/drive/api/guides/enable-shareddrives)). Each new object then goes through these steps:
+While a laptop is online, the app reads the shared drive's change feed every minute and at start-up, and looks at the folders only when the feed shows something arrived (or objects still wait for one another), so only new files are listed ([changes on shared drives](https://developers.google.com/drive/api/guides/enable-shareddrives)). Each new object then goes through these steps:
 
 1. **Skip known objects.** Object keys already in the ledger are ignored.
 2. **Download to staging,** never straight into the database.
