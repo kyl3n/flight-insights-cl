@@ -424,6 +424,22 @@ def apply_source(
     return Applied("applied")
 
 
+def unknown(store: Store, object_keys: list[str]) -> list[str]:
+    """The keys among these that were never applied or quarantined here: the objects
+    worth downloading."""
+    seen: set[str] = set()
+    for start in range(0, len(object_keys), 500):
+        part = object_keys[start : start + 500]
+        marks = ", ".join("?" for _ in part)
+        for table in ("sync_ledger", "sync_quarantine"):
+            seen |= {
+                k for (k,) in store.conn.execute(
+                    f"SELECT object_key FROM {table} WHERE object_key IN ({marks})", part
+                )
+            }  # fmt: skip
+    return [k for k in object_keys if k not in seen]
+
+
 def conflicts(store: Store, include_resolved: bool = False) -> list[dict[str, Any]]:
     cur = store.conn.execute(
         "SELECT id, tbl, rid, field, kept_json, kept_hlc, other_json, other_hlc, at_hlc, resolved "

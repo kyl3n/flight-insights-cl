@@ -308,6 +308,7 @@ pub const SYNC_SHELL_ONLY: &[&str] = &[
     "sync.sent",
     "sync.apply",
     "sync.quarantine",
+    "sync.unknown",
     "board.rekey",
 ];
 
@@ -457,6 +458,183 @@ mod tests {
             thread::sleep(Duration::from_millis(10));
         }
         assert!(gone(&pid), "the engine's child outlived it");
+    }
+
+    /// Three laptops, three real engines, one folder drive: an import on one reaches
+    /// the others whole and is analysed there; an object held back leaves a gap that
+    /// fills when it arrives; a killed engine picks up where it stopped.
+    #[test]
+    fn three_laptops_converge_through_a_folder_drive() {
+        use crate::sync::drive::{Drive, FolderDrive};
+        use crate::sync::keyring::{Device, Keyring, create_fleet, enroll};
+        use crate::sync::run::{Calls, Syncer, publish, read_registry};
+
+        let Some(cmd) = real_engine() else {
+            eprintln!("FI_ENGINE_CMD not set: skipped");
+            return;
+        };
+        let knowledge = std::env::var_os("FI_KNOWLEDGE_DIR").map(PathBuf::from);
+        let root = std::env::temp_dir().join(format!("fi-sync-3-{}", std::process::id()));
+        let _ = std::fs::remove_dir_all(&root);
+        let drive = FolderDrive::new(root.join("drive")).unwrap();
+        let ids: Vec<LaptopIdentity> = (0..3)
+            .map(|_| {
+                LaptopIdentity::load_or_create(&MemoryStore::default())
+                    .unwrap()
+                    .0
+            })
+            .collect();
+        let (first, keys_a, _) = create_fleet(&ids[0], "A").unwrap();
+        let reg_dir = root.join("registry");
+        publish(&drive, &reg_dir, &first, 0).unwrap();
+        for (n, id) in ids.iter().enumerate().skip(1) {
+            let registry = read_registry(&drive, &reg_dir, None).unwrap();
+            let event = enroll(&registry, &keys_a, &ids[0], Device::of(id, "x")).unwrap();
+            publish(&drive, &reg_dir, &event, n as u64).unwrap();
+        }
+        let registry = read_registry(&drive, &reg_dir, None).unwrap();
+        let keyrings: Vec<Keyring> = ids
+            .iter()
+            .map(|id| Keyring::from_registry(&registry, id).unwrap())
+            .collect();
+        let start = |n: usize| {
+            let (engine, _) = Engine::start(&cmd, knowledge.as_deref(), |_, _| {}).unwrap();
+            let board = keyrings[n].board_key();
+            engine
+                .unlock(&ids[n], &root.join(format!("data-{n}")), Some(&board))
+                .unwrap();
+            engine
+        };
+        let mut engines: Vec<Engine> = (0..3).map(start).collect();
+        let round = |engines: &[Engine], n: usize| {
+            Syncer {
+                engine: &engines[n],
+                drive: &drive,
+                identity: &ids[n],
+                registry: &registry,
+                keyring: &keyrings[n],
+                staging: root.join(format!("staging-{n}")),
+            }
+            .round()
+            .unwrap()
+        };
+        let settle = |engines: &[Engine]| {
+            for _ in 0..3 {
+                for n in 0..3 {
+                    round(engines, n);
+                }
+            }
+        };
+        let view = |e: &Engine| {
+            let mut airframes: Vec<String> = e
+                .call("airframe.list", json!({}))
+                .unwrap()
+                .as_array()
+                .unwrap()
+                .iter()
+                .map(|a| format!("{}={}", a["id"], a["name"]))
+                .collect();
+            let mut flights: Vec<String> = e
+                .call("flight.list", json!({}))
+                .unwrap()
+                .as_array()
+                .unwrap()
+                .iter()
+                .map(|f| f["id"].to_string())
+                .collect();
+            airframes.sort();
+            flights.sort();
+            (airframes, flights)
+        }; // fmt: skip
+
+        // A imports a log; B and C get its records and the log, and analyse it
+        let a = &engines[0];
+        let platform = a
+            .call(
+                "platform.create",
+                json!({ "name": "Heli", "vehicle": "copter" }),
+            )
+            .unwrap();
+        let airframe = a
+            .call(
+                "airframe.create",
+                json!({ "platform_id": platform["id"], "name": "H-1" }),
+            )
+            .unwrap();
+        let path = fixture().to_string_lossy().into_owned();
+        let scanned = a.call("import.scan", json!({ "paths": [path] })).unwrap();
+        let done = a
+            .call(
+                "import.commit",
+                json!({ "batch": scanned["batch"],
+            "decisions": [{ "log": "f1", "airframe_id": airframe["id"] }] }),
+            )
+            .unwrap(); // fmt: skip
+        let flight = done[0]["flights"][0].clone();
+        settle(&engines);
+        let want = view(&engines[0]);
+        assert_eq!(want.1.len(), 1);
+        for e in &engines[1..] {
+            assert_eq!(view(e), want);
+            let status = e.call("sync.status", json!({})).unwrap();
+            assert_eq!(status["quarantine"], json!([]), "{status}");
+            assert_eq!(status["conflicts"], 0);
+            let analysis = e
+                .call("analysis.run", json!({ "flight_id": flight }))
+                .unwrap();
+            assert!(analysis["findings"].as_array().is_some());
+        }
+
+        // an object held back leaves a gap on C, and the object after it waits
+        let p2 = engines[0]
+            .call(
+                "platform.create",
+                json!({ "name": "Quad", "vehicle": "copter" }),
+            )
+            .unwrap();
+        round(&engines, 0);
+        let a_folder = format!("devices/{}/", ids[0].laptop_id_hex());
+        let held = drive.list(&a_folder).unwrap().into_iter().last().unwrap(); // A's newest
+        let aside = root.join("held.fio");
+        std::fs::rename(root.join("drive").join(&held.path), &aside).unwrap();
+        engines[0]
+            .call(
+                "airframe.create",
+                json!({ "platform_id": p2["id"], "name": "Q-1" }),
+            )
+            .unwrap();
+        round(&engines, 0);
+        let r = round(&engines, 2);
+        assert_eq!(r.waiting, 1, "{r:?}");
+        let seq = crate::sync::object::Name::parse(&held.path)
+            .unwrap()
+            .sequence;
+        assert_eq!(r.gaps, vec![(ids[0].laptop_id_hex(), seq)]);
+        std::fs::rename(&aside, root.join("drive").join(&held.path)).unwrap();
+
+        // B's engine dies; a new one carries on from the same store
+        engines[1].kill();
+        engines[1] = start(1);
+        settle(&engines);
+        let want = view(&engines[0]);
+        assert_eq!(want.0.len(), 2);
+        for e in &engines[1..] {
+            assert_eq!(view(e), want);
+        }
+        assert_eq!(round(&engines, 2).gaps, vec![]);
+        let status = engines[2].call("sync.status", json!({})).unwrap();
+        assert!(
+            status["laptops"]
+                .as_array()
+                .unwrap()
+                .iter()
+                .all(|l| l["gaps"] == json!([])),
+            "{status}"
+        );
+        for e in &engines {
+            e.stop();
+        }
+        let _ = std::fs::remove_dir_all(&root);
     }
 
     #[test]

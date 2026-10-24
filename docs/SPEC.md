@@ -1550,6 +1550,7 @@ The object type and dates are kept inside the encrypted object rather than in th
 Three independent checks keep every item in the app exactly once:
 
 1. **Content key.** Before uploading a source file, the app checks whether its object key already exists locally or on the drive, and uploads nothing if it does. When downloading, an object whose key is already in the ledger is skipped without being fetched.
+   - When the content is already there, a small empty records object takes the sequence number in its place, naming the object it matches. Every laptop's numbers then stay without gaps, and the bytes go up once.
 2. **Natural identity.** A flight is identified by its airframe, its boot and log start time and its firmware, not only by its file. If two different files describe the same flight, for example a complete log and a truncated copy, the app keeps the complete one and links the other to it. When two laptops each create a record for the same thing before syncing, the two records merge into one, keeping the smaller id on every laptop alike, and the local alias makes later references to the other id land on it. This covers:
    - a flight, by its flight key;
    - a source file, by its SHA-256;
@@ -1566,14 +1567,14 @@ While a laptop is online, the app reads the shared drive's change feed every min
 3. **Verify the sender.** The signature must come from a laptop that was enrolled, and not revoked, when the object was written.
 4. **Decrypt.** Authenticated encryption fails on any changed, truncated or reordered byte.
 5. **Check the content.** The plaintext must hash to the key in the file name, match the expected schema and make sense: a log must decode, and a record must refer to things that exist.
-6. **Apply in order.** Each laptop's objects apply in sequence, and an object that depends on another waits for it.
+6. **Apply in order.** Each laptop's objects apply in sequence, and an object that depends on another waits for it. A sequence number missing from a laptop's folder on the drive is shown as a gap until it arrives.
 7. **Commit atomically.** The object and its ledger entry are written in one database transaction, so a crash leaves all of it or none of it.
 
 Anything that fails goes to quarantine with the reason. It is never applied and never deleted, and it is listed in the sync panel. A reason names the check that failed and never holds a value from the object.
 
 An object written by a newer version of the app waits until this laptop is updated; it is not quarantined.
 
-**Uploading** works the same way in reverse. Every change to a synced record is captured in the same transaction that makes it: which record and fields changed, and each field's clock. Pending changes are then bundled into outgoing objects, each with the laptop's next sequence number (at most 2,000 records an object), and sent by resumable upload, so a file appears on the drive only once it is complete. The app compares the checksum Drive reports with its own before marking the object sent. With no connection, objects wait in the outbox and the app works normally.
+**Uploading** works the same way in reverse. Every change to a synced record is captured in the same transaction that makes it: which record and fields changed, and each field's clock. Pending changes are then bundled into outgoing objects, each with the laptop's next sequence number (at most 2,000 records an object), and sent by resumable upload. Each object is sealed once and kept in staging until it is marked sent, so a retry uploads the same bytes, and a source file must still have its SHA-256 where it was imported or it waits. A resumable upload means a file appears on the drive only once it is complete. The app compares the checksum Drive reports with its own before marking the object sent. With no connection, objects wait in the outbox and the app works normally.
 
 ### Two laptops editing the same thing
 
