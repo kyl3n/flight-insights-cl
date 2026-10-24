@@ -6,6 +6,18 @@
 
   let { onTheme }: { onTheme: () => void } = $props();
 
+  // The Claude API pill (mock-up Main): ready when the location check passed and a key is
+  // set; it opens the settings, where the key and the cap live.
+  const claude = $derived.by((): { status: Status; title: string } | null => {
+    const ai = app.ai;
+    if (!ai) return null;
+    if (ai.gate === "blocked") return { status: "out", title: t("ai.off.blocked") };
+    if (ai.key_rejected) return { status: "out", title: t("ai.off.key_rejected") };
+    if (!ai.key_set) return { status: "caution", title: t("ai.off.no_key") };
+    if (ai.gate !== "ready") return { status: "caution", title: t("ai.off.gate") };
+    return { status: "ok", title: t("settings.key.set") };
+  });
+
   const engine = $derived.by((): { status: Status; text: string } => {
     switch (app.shell.engine) {
       case "ready":
@@ -34,6 +46,12 @@
     <span class="pill" title={app.shell.error ?? undefined} style:--tone="var({STATUS[engine.status].tone})">
       <span aria-hidden="true">{STATUS[engine.status].glyph}</span>{engine.text}
     </span>
+    {#if claude}
+      <button type="button" class="pill" title={claude.title} style:--tone="var({STATUS[claude.status].tone})"
+        onclick={() => (app.view = "settings")}>
+        <span aria-hidden="true">{STATUS[claude.status].glyph}</span>{t("header.claude")}
+      </button>
+    {/if}
     {#if app.shell.laptop}
       <span class="pill mono">{app.shell.laptop}</span>
     {/if}
@@ -115,6 +133,10 @@
     border: 1px solid var(--border-soft);
     font-size: 12px;
     color: var(--text-muted);
+  }
+  button.pill {
+    font: inherit;
+    cursor: pointer;
   }
   .pill > span[aria-hidden] {
     color: var(--tone);

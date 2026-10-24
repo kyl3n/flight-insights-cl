@@ -1,6 +1,7 @@
 // Application state shared by every view: language, theme, the scope switcher
 // and the shell's status.
 
+import type { AiStatus } from "./ai";
 import { translate, type Locale, type MessageKey } from "./i18n";
 import { BROWSER_STATUS, type PendingFile, type ShellStatus } from "./shell";
 import type { Theme } from "./theme";
@@ -32,6 +33,7 @@ export const app = $state({
   importOpen: false, // the import dialog
   pending: [] as PendingFile[], // new files found in watched folders
   trendCard: null as string | null, // the metric@segment the Trends view opens on
+  ai: null as AiStatus | null, // the AI layer's status; null outside the desktop app
 });
 
 export function t(key: MessageKey, vars?: Record<string, string | number>): string {

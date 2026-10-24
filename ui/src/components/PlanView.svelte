@@ -6,6 +6,7 @@
   // here. Earlier recommendations show how the next flights graded them.
   import { save } from "@tauri-apps/plugin-dialog";
   import { app, t } from "../lib/app.svelte";
+  import { fromAi } from "../lib/ai";
   import { latestFlight } from "../lib/data";
   import type { MessageKey } from "../lib/i18n";
   import {
@@ -139,7 +140,7 @@
             {#each parts.waiting as r (r.id ?? `${r.param}|${r.finding}`)}
               <li>
                 <span>{r.why[app.locale]}</span>
-                <span class="faint">{r.param ? `${r.param} · ` : ""}{t(stageKey(r.stage))}</span>
+                <span class="faint">{r.param ? `${r.param} · ` : ""}{t(stageKey(r.stage))}{fromAi(r) ? ` · ${t("ai.planSource")}` : ""}</span>
               </li>
             {/each}
           </ul>
@@ -223,7 +224,11 @@
         status={r.kind === "safety" ? "out" : r.kind === "stability" ? "caution" : "info"}
         label={t(`plan.kind.${r.kind}` as MessageKey)}
       />
-      <span class="faint">{t(stageKey(r.stage))} · {r.source.replace("finding:", "")}</span>
+      {#if fromAi(r)}
+        <span class="ai-source">{t(stageKey(r.stage))} · {t("ai.planSource")}</span>
+      {:else}
+        <span class="faint">{t(stageKey(r.stage))} · {r.source.replace("finding:", "")}</span>
+      {/if}
     </header>
     <h3>{r.why[app.locale]}</h3>
     {#if r.param === null}
@@ -280,6 +285,13 @@
 {/snippet}
 
 <style>
+  .ai-source {
+    font-size: 12px;
+    padding: 1px 8px;
+    border-radius: 999px;
+    color: var(--ai);
+    background: color-mix(in srgb, var(--ai) 12%, transparent);
+  }
   main {
     padding: 16px 24px 32px;
     display: flex;

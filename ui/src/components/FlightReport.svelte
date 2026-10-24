@@ -2,7 +2,7 @@
   // One flight's report (spec: User interface, "Flight report"; mock-up FlightReport):
   // what it measured against each value's range, and every finding by severity with
   // the evidence it rests on. Selecting a finding opens the inspector beside the list.
-  // The written summary arrives with the AI layer; this view stands without it.
+  // The written summary (AiSummary) comes from the AI layer; this view stands without it.
   import { app, t } from "../lib/app.svelte";
   import { getRegistry } from "../lib/data";
   import type { MessageKey } from "../lib/i18n";
@@ -26,6 +26,7 @@
   } from "../lib/report";
   import { engineCall } from "../lib/shell";
   import { STATUS } from "../lib/status";
+  import AiSummary from "./AiSummary.svelte";
   import StatusBadge from "./StatusBadge.svelte";
   import Value from "./Value.svelte";
   import PropulsionView from "./PropulsionView.svelte";
@@ -95,6 +96,12 @@
 
   const subsystemName = (key: string) => subsystemLabel(key, app.locale);
 
+  // A reference in the AI summary opens the finding it cites, in view.
+  function openFinding(id: string) {
+    selected = id;
+    queueMicrotask(() => document.querySelector(".inspector")?.scrollIntoView({ block: "nearest" }));
+  }
+
   function shown(v: unknown): string {
     if (typeof v === "number") return formatNumber(v, app.locale);
     if (typeof v === "string") return v;
@@ -142,6 +149,7 @@
   {#if error}<p class="error">{t("report.error", { error })}</p>{/if}
   {#if analysis && !analysis.current}<p class="notice">{t("report.stale")}</p>{/if}
   {#if skipped.length}<p class="notice">{t("report.partial", { names: skipped.join(", ") })}</p>{/if}
+  {#if analysis}<AiSummary {flightId} onSelect={openFinding} />{/if}
 
   {#if analysis && reg}
     {@const registry = reg}
