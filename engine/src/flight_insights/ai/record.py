@@ -5,7 +5,7 @@ from __future__ import annotations
 
 import hashlib
 import json
-from collections.abc import Sequence
+from collections.abc import Mapping, Sequence
 from dataclasses import asdict
 from typing import Any
 
@@ -25,7 +25,14 @@ def record_packet(
     purpose: str,
     text: str,
     engine_violations: Sequence[Violation],
+    *,
+    parent_id: str | None = None,
+    run_id: str | None = None,
+    refs: Mapping[str, str] | None = None,
 ) -> dict[str, Any]:
+    """Keeps a packet as built, with the engine's verdict. A tool result names the
+    packet whose exchange asked for it; an analysis packet, the run it came from and
+    what its references stand for."""
     packet_id = store.insert(
         "ai_packet",
         {
@@ -36,6 +43,9 @@ def record_packet(
             "packet_json": text,
             "engine_verdict": "refused" if engine_violations else "pass",
             "engine_reasons_json": json.dumps([asdict(v) for v in engine_violations]),
+            "parent_id": parent_id,
+            "run_id": run_id,
+            "refs_json": json.dumps(dict(refs or {}), sort_keys=True),
         },
     )
     row = store.get("ai_packet", packet_id)

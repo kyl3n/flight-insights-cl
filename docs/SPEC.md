@@ -1025,7 +1025,8 @@ Claude is called on every analysis, but it only sees derived measurements and a 
   - **Visible on the laptop card:** "Location check" shows passed or blocked, and names any case that failed.
 - **Visible to the user.** Every packet sent is stored locally and viewable as "what left this machine".
   - **What is kept:** every packet, exactly as checked and sent: one canonical JSON text, with its SHA-256 and both verdicts (the engine's and the shell's). A packet either check refused is kept too, with its reasons (where and which rule, never the value), and can never be marked sent. The tripwire is never kept.
-  - **Who can reach the AI path:** its engine methods (`ai.prepare`, `ai.record`, `ai.selftest`) are the shell's alone. The UI cannot call them, so it can never fetch a flight's positions.
+  - **Tool results too:** each tool result is a packet of its own (purpose `tool`), checked by both checks and kept under the packet whose exchange asked for it. A result either check refuses is kept as refused and never sent; Claude is told only that it was withheld.
+  - **Who can reach the AI path:** the engine methods that build, check, record and send (`ai.prepare`, `ai.record`, `ai.selftest`, `ai.exchange_spec`, `ai.tool`, `ai.accept`) are the shell's alone. The UI cannot call them, so it can never fetch a flight's positions. The UI may read only what came of an exchange (`ai.results`, `ai.sent`, `ai.spend`), which holds no tripwire.
 - **What a packet holds (Phase 1).** Feature objects only:
   - the aircraft from the fingerprint;
   - the platform's answers that are choices, numbers or yes/no (never free text);
@@ -1056,7 +1057,24 @@ Claude is called on every analysis, but it only sees derived measurements and a 
 - **Ready for ZDR from the start.** The design uses only ZDR-eligible features: the Messages API, prompt caching and structured outputs. Structured outputs keep the JSON schema for up to 24 hours, so schemas carry no operational content. Batch processing, the Files API and server-side code execution are not ZDR-eligible and are not used; all tools run client-side in the engine.
 - **Models.** Avoid Claude Fable 5.1 and Mythos-class models for this workload: they require 30-day retention and are unavailable under ZDR.
 
-**Tools Claude can call** (all executed locally, all scrubbed): spectrum for an axis and window; filter simulation for candidate parameters; step response for an axis and window; parameter documentation for this firmware version; metric comparison across flights of the same airframe; statistics for a flight segment.
+**Tools Claude can call** (all executed locally, all scrubbed): spectrum for an axis and window; filter simulation for candidate parameters; step response for an axis and window (added with the Tune analyzer); parameter documentation for this firmware version; metric comparison across flights of the same airframe; statistics for a flight segment.
+
+- **Full-rate, reduced only for transport.** Each tool answers from what the analyzers compute at full rate. A spectrum goes back as at most 256 bins (the maximum within each bin, so peaks survive), with its peaks found on the full-resolution spectrum.
+- **Times are seconds from arming,** in what a tool takes and what it returns.
+- **Fields through the policy.** Segment statistics read a field only if the scrubber policy clears it; a position or location-revealing field is refused, and the tool says so without a value.
+- **Strict inputs.** Every tool is defined as a strict tool: Claude's input must fit its schema, and the engine checks it again.
+
+**The exchange contract** (`fi.ai.exchange/1`, in the engine's `ai/exchange.py`; the system prompt is `knowledge/ai/system.md`):
+
+- **Static parts:** the system prompt, the tool definitions, the reply schema and one instruction per interface language. They are the same for every flight, so they cache, and they hold nothing about any aircraft.
+- **The reply schema:** summary, root causes, recommendations (`param`, `value`, `confidence` low or medium, `reason`, `refs`), disagreements with findings, questions for the user, and tests to fly with what the next log should show.
+- **Two copies of the schema.** It is kept with limits (lengths, list sizes, reference forms) for the local check, and without them for the API, whose structured outputs take no string, array or numeric limits.
+- **A reply is shown only if** it fits the schema with its limits and cites only references its packet holds. Otherwise it is kept as invalid, with where it broke.
+- **Every proposed change goes through the recommendation engine** like an analyzer's: the firmware's metadata, step limits, the changes never made automatically, enable parameters, and conflicts.
+  - An AI change must cite a measured finding. It takes that finding's tuning stage and evidence.
+  - It ranks below a measured change for the same parameter, and a measured finding against it disputes it.
+  - It is never graded on later flights by itself.
+  - Each change's verdict is kept beside the reply, which is kept exactly as received.
 
 **When the API is unreachable**, the deterministic results show immediately, the AI section is marked pending, and the call retries in the background. The app never blocks on the network.
 

@@ -88,7 +88,7 @@ jobs:
       - uses: astral-sh/setup-uv@d0cc045d04ccac9d8b7881df0226f9e82c39688e # v6
       - run: uv sync --locked
       - name: Rules against every message, the packet corpus, and coordinates planted in every message type
-        run: uv run pytest -q tests/test_scrubber_rules.py tests/test_scrubber.py tests/test_ai_packet.py
+        run: uv run pytest -q tests/test_scrubber_rules.py tests/test_scrubber.py tests/test_ai_packet.py tests/test_ai_exchange.py
 
   frozen-engine:
     name: Frozen engine (${{ matrix.os }})

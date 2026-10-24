@@ -260,6 +260,21 @@ pub const UI_METHODS: &[&str] = &[
     "flight.system",
     "review.file",
     "filter.workbench",
+    "ai.results",
+    "ai.sent",
+    "ai.spend",
+];
+
+/// The AI path's engine methods that are the shell's alone: `ai.prepare` and `ai.tool`
+/// return the flight's own positions (the tripwire) for the shell's check, and the rest
+/// record what the shell checked and sent.
+pub const AI_SHELL_ONLY: &[&str] = &[
+    "ai.prepare",
+    "ai.record",
+    "ai.selftest",
+    "ai.exchange_spec",
+    "ai.tool",
+    "ai.accept",
 ];
 
 #[cfg(test)]
@@ -289,9 +304,13 @@ mod tests {
 
     #[test]
     fn the_ui_never_reaches_the_ai_path() {
-        // ai.prepare returns the flight's own positions (the tripwire) for the shell's
-        // check: the interface must never be able to ask for them.
-        assert!(!UI_METHODS.iter().any(|m| m.starts_with("ai.")));
+        // ai.prepare and ai.tool return the flight's own positions (the tripwire) for the
+        // shell's check: the interface must never be able to ask for them. It may only
+        // read what came of an exchange, which holds no tripwire.
+        for m in UI_METHODS.iter().filter(|m| m.starts_with("ai.")) {
+            assert!(["ai.results", "ai.sent", "ai.spend"].contains(m), "{m}");
+        }
+        assert!(AI_SHELL_ONLY.iter().all(|m| !UI_METHODS.contains(m)));
     }
 
     #[test]
@@ -534,10 +553,35 @@ mod tests {
 
         let kept = call(
             "ai.record",
-            json!({ "packet_id": prepared["packet_id"], "shell_reasons": [], "sent": false }),
+            json!({ "packet_id": prepared["packet_id"], "shell_reasons": [], "sent": true }),
         )
         .unwrap();
         assert_eq!(kept["shell_verdict"], "pass");
+
+        // Every tool result is a packet the shell checks the same way.
+        for (name, input) in [
+            ("spectrum", json!({ "axis": "x", "stage": "before" })),
+            ("parameter_doc", json!({ "name": "INS_HNTCH_MODE" })),
+            (
+                "segment_stats",
+                json!({ "message": "BAT", "field": "Volt", "start_s": null, "end_s": null }),
+            ),
+        ] {
+            let got = call(
+                "ai.tool",
+                json!({ "packet_id": prepared["packet_id"], "name": name, "input": input }),
+            )
+            .unwrap();
+            assert_eq!(got["engine"]["ok"], true, "{name}: {}", got["engine"]);
+            let points: Vec<crate::scrub::Point> =
+                serde_json::from_value(got["tripwire"].clone()).unwrap();
+            let text = got["packet_json"].as_str().unwrap();
+            assert_eq!(crate::scrub::check_packet(text, &points), vec![], "{name}");
+        }
+        // The exchange's static parts are text the shell sends too.
+        let spec = call("ai.exchange_spec", json!({})).unwrap();
+        assert!(spec["system"].as_str().unwrap().len() > 200);
+        assert_eq!(spec["tools"].as_array().unwrap().len(), 5);
         engine.stop();
         let _ = std::fs::remove_dir_all(data);
     }

@@ -1,0 +1,26 @@
+{
+ "why": "A simulated candidate that names the estimator origin.",
+ "packet": {
+  "schema": "fi.ai.packet/1",
+  "purpose": "tool",
+  "aircraft": {
+   "vehicle": "copter",
+   "firmware": "4.7.0"
+  },
+  "tool": {
+   "name": "filter_simulation",
+   "ok": true,
+   "filter_simulation": {
+    "params": {
+     "AHRS_ORIG_LAT": 12.3
+    },
+    "current": {
+     "available": true
+    },
+    "candidate": {
+     "available": true
+    }
+   }
+  }
+ }
+}

@@ -6,11 +6,13 @@ from __future__ import annotations
 from collections.abc import Mapping
 from typing import Any
 
+from flight_insights.ai import results
 from flight_insights.analyzers.flight import FlightError
 from flight_insights.analyzers.registry import Registry
 from flight_insights.analyzers.run import run_analysis
 from flight_insights.history.persist import load_snapshot
 from flight_insights.knowledge import Pack
+from flight_insights.params.dialect import Dialect
 from flight_insights.recommend.export import ExportError, export_step
 from flight_insights.recommend.plan import Plan, Recommendation, Source, build_plan, to_json
 from flight_insights.recommend.records import (
@@ -44,7 +46,27 @@ def flight_plan(
     snapshot = load_snapshot(store, row["param_snapshot_id"])
     dialect = snapshot.dialect(pack)
     params = dialect.to_canonical(snapshot.values).values
-    return build_plan(flight_id, analysis["findings"], params, dialect, Registry.load(pack))
+    findings = [*analysis["findings"], *_ai(store, dialect, flight_id, analysis)]
+    return build_plan(flight_id, findings, params, dialect, Registry.load(pack))
+
+
+def _ai(
+    store: Store, dialect: Dialect, flight_id: str, analysis: Mapping[str, Any]
+) -> list[dict[str, Any]]:
+    """The changes the flight's accepted AI reply proposes, for this same analysis, as
+    findings in canonical names: validated and merged like every other."""
+    exchange = results.latest(store, flight_id)
+    if exchange is None or exchange["run_id"] != analysis.get("run"):
+        return []
+    out: list[dict[str, Any]] = []
+    for f in results.ai_findings(exchange, analysis["findings"]):
+        changes: list[dict[str, Any]] = []
+        for native, value in f.pop("native_changes"):
+            name, converted = dialect.canonical(native, value)
+            proposed = value if converted is None else converted
+            changes.append({"param": name, "proposed": proposed, "stage": f["stage"]})
+        out.append(f | {"changes": changes})
+    return out
 
 
 def plan_and_record(store: Store, cache: ColumnCache, pack: Pack, flight_id: str) -> dict[str, Any]:

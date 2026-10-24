@@ -4,7 +4,7 @@ A packet leaves only if all of these hold:
 
 1. **Shape.** It fits the packet schema exactly (`ai/schema.py`): no key or text the
    schema does not name.
-2. **Parameters.** None of its parameters is one the rules remove.
+2. **Parameters.** None of the parameters it holds or names is one the rules remove.
 3. **Detectors.** No string holds a coordinate in any common notation (decimal-degree
    pairs, degrees-minutes-seconds, hemisphere letters, UTM, MGRS, geohash, plus codes,
    "lat"/"lon" labels), and no number has the form of one: an integer as large as a
@@ -166,16 +166,33 @@ def _tripwire(numbers: list[tuple[str, float, int]], points: Sequence[Point]) ->
     return out
 
 
+def _parameter_names(packet: Any) -> Iterator[tuple[str, str]]:
+    """Every parameter name the packet holds: its parameters, a simulated candidate's,
+    and a parameter's documentation."""
+
+    def get(node: Any, *keys: str) -> Any:
+        for k in keys:
+            node = cast(dict[str, Any], node).get(k) if isinstance(node, dict) else None
+        return node
+
+    for path, names in (
+        ("$.parameters", get(packet, "parameters")),
+        ("$.tool.filter_simulation.params", get(packet, "tool", "filter_simulation", "params")),
+    ):
+        if isinstance(names, dict):
+            for name in cast(dict[str, Any], names):
+                yield path, name
+    doc = get(packet, "tool", "parameter_doc", "name")
+    if isinstance(doc, str):
+        yield "$.tool.parameter_doc.name", doc
+
+
 def check(packet: Any, tripwire: Sequence[Point], policy: Policy) -> list[Violation]:
     """Every reason the packet may not leave; empty when it may."""
     out = [Violation(e.split(":", 1)[0], "shape: " + e.split(": ", 1)[1]) for e in validate(packet)]
-    params: Any = (
-        cast(dict[str, Any], packet).get("parameters") if isinstance(packet, dict) else None
-    )
-    if isinstance(params, dict):
-        for name in cast(dict[str, Any], params):
-            if policy.parameter_removed(name):
-                out.append(Violation("$.parameters", "a location-revealing parameter"))
+    for path, name in _parameter_names(packet):
+        if policy.parameter_removed(name):
+            out.append(Violation(path, "a location-revealing parameter"))
     for path, value in _walk(packet):
         if isinstance(value, str) and (rule := _string_rules(value)):
             out.append(Violation(path, rule))

@@ -109,10 +109,13 @@ def record_plan(store: Store, plan: dict[str, Any]) -> dict[str, Any]:
                 k: v for k, v in r.items() if k not in ("id", "record_status", "record_version")
             }
             detail["code"] = code
+            finding_id = r["finding"]
+            if r["sources"] and r["sources"][0]["origin"] == "ai":  # kept under what it answers
+                finding_id = r["sources"][0]["params"]["cited"][0]
             r["id"] = store.insert(
                 "recommendation",
                 {
-                    "finding_id": r["finding"],
+                    "finding_id": finding_id,
                     "airframe_id": airframe_id,
                     "flight_id": plan["flight"],
                     "param": param,
