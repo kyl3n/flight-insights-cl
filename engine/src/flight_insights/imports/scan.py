@@ -75,6 +75,7 @@ class Scanned:
     firmware: str | None = None
     sysid: int | None = None
     board_id_hash: str | None = None
+    legacy_board_hash: str | None = None  # with this laptop's key from before its fleet
     board_name: str | None = None
     snapshot: Snapshot | None = None
     hardware: Hardware | None = None
@@ -98,7 +99,14 @@ def _sysid(snapshot: Snapshot) -> int | None:
     return None
 
 
-def _dataflash(item: Scanned, df: DataflashLog, pack: Pack, board_key: bytes, store: Store) -> None:
+def _dataflash(
+    item: Scanned,
+    df: DataflashLog,
+    pack: Pack,
+    board_key: bytes,
+    store: Store,
+    legacy_key: bytes | None = None,
+) -> None:
     snapshot = from_log(df)
     boots = find_boots(timeline(df))
     flown = flights(df, boots, pack, snapshot.vehicle, snapshot.firmware)
@@ -107,6 +115,8 @@ def _dataflash(item: Scanned, df: DataflashLog, pack: Pack, board_key: bytes, st
     item.vehicle, item.firmware = snapshot.vehicle, snapshot.firmware
     item.sysid = _sysid(snapshot)
     item.board_id_hash, item.board_name = board.id_hash, board.name
+    if legacy_key is not None:
+        item.legacy_board_hash = read_board(df, pack, snapshot.firmware, legacy_key).id_hash
     item.snapshot, item.hardware = snapshot, hardware(df, snapshot)
     for f in flown:
         key = flight_key(ids[f.boot], f, board.id_hash)
@@ -153,8 +163,10 @@ def scan(
     paths: Sequence[Path],
     progress: Callable[[float, str], None] = lambda _f, _m: None,
     check: Callable[[], None] = lambda: None,
+    legacy_key: bytes | None = None,
 ) -> list[Scanned]:
-    """What each file is and holds. A file that cannot be read is reported, not raised."""
+    """What each file is and holds. A file that cannot be read is reported, not raised.
+    `legacy_key` is this laptop's board-ID key from before it joined a fleet."""
     out: list[Scanned] = []
     for n, path in enumerate(paths, 1):
         check()
@@ -170,7 +182,7 @@ def scan(
             match item.kind:
                 case "dataflash":
                     with read_dataflash(path) as df:
-                        _dataflash(item, df, pack, board_key, store)
+                        _dataflash(item, df, pack, board_key, store, legacy_key)
                 case "tlog":
                     log = read_tlog(path)
                     item.boots = tlog_boots(log)

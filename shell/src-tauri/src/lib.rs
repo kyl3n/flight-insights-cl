@@ -107,8 +107,16 @@ impl Shell {
                 let _ = events.emit("engine-progress", p.clone());
             }
         })?;
+        // In a fleet, board IDs are hashed with the fleet's key. Damaged fleet keys stop
+        // the start: hashing with this laptop's own key would undo the fleet's hashes.
+        let keychain = self.keychain.lock().expect("keychain").clone();
+        let fleet = match keychain {
+            Some(k) => sync::keyring::Keyring::load(k.as_ref())?,
+            None => None,
+        };
+        let board = fleet.as_ref().map(sync::keyring::Keyring::board_key);
         engine
-            .unlock(&identity, &self.data_dir)
+            .unlock(&identity, &self.data_dir, board.as_ref())
             .map_err(|e| format!("the engine could not open the local store: {e}"))?;
         // Checked again with every engine started, so a restarted one is checked too.
         let (ai, ai_failed) = scrub::gate(

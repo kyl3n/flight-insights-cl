@@ -274,7 +274,7 @@ Link and MAVLink performance depend as much on the ground side as on the aircraf
 
 **Versions and flights.** Any change, such as a new antenna, radio firmware, an operating system update or a different laptop, creates a new ground station version. Each flight records the ground station version it was flown with, so link changes are attributed the same way as parameter and build changes. A version can be edited freely while it is being set up, until a flight or file refers to it. Values that change from minute to minute, such as free disk space, clock speed, battery or mains power, and clock synchronisation, are refreshed on the current version and never create one on their own.
 
-**Recognising the computer.** The app recognises the computer it runs on from its host name, which is stored only as a keyed hash, never as the name itself. The software detected there is filled in from the computer's own install records. A person's own choice of ground station program stands over what is detected.
+**Recognising the computer.** The app recognises the computer it runs on from its host name, which is stored only as a keyed hash, never as the name itself. The hash uses the same key as board IDs, so it is made again when the laptop joins a fleet. The software detected there is filled in from the computer's own install records. A person's own choice of ground station program stands over what is detected.
 
 **Session monitor.** While the app is open on the ground station computer during a flight, it records, once a second and locally, processor load, memory in use, disk activity, serial and USB errors, and network status. Tlog gaps can then be told apart: computer-side stalls (a busy processor, a USB port put to sleep, the laptop suspending) versus link losses that the radio's own statistics confirm.
 
@@ -1453,6 +1453,10 @@ The airframe, not the log, is the unit the app reasons about: every flight, para
 | Sync object | Object key, type, laptop, sequence, size, status (sent, applied, skipped as duplicate, quarantined) |
 
 **Airframe identity.** A hash of the board's unique ID proposes a match; the user names and confirms airframes and can merge or split them when a flight controller moves between frames. The raw unique ID is never stored or sent. The hash is keyed (HMAC-SHA-256 with a key derived from the fleet key), so every laptop gets the same hash for the same board, but nobody holding only the hash can test it against a known board's ID. The engine hashes the ID the moment it reads it from the log's system-ID message.
+
+- **Before a laptop joins a fleet,** the key is the laptop's own.
+- **When it joins,** its hashes are made again with the fleet's key, derived from the fleet's root key. Raw IDs are never stored, so each flight's hash is remade by reading its log again from where it was imported. The flight key, the cached columns, the airframe's board and this computer's ground-station hash follow it.
+- **A flight whose log is no longer on disk** keeps its old hash. Imports on that laptop also hash a board with its old key, so the airframe is still recognised there.
 
 **Storage.** SQLite for entities, Parquet per flight for decoded columns. The shared Google Drive folder is the permanent record (see Shared storage and sync); each laptop's database is a complete working copy that can be rebuilt from it. Decoded columns can be evicted and rebuilt from the original log; findings and snapshots are kept.
 

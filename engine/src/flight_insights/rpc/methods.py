@@ -54,6 +54,7 @@ from flight_insights import __version__, platforms, stations
 from flight_insights.analysis import analyze_log, summary
 from flight_insights.dataflash import read_dataflash
 from flight_insights.fingerprint.board import system_id_rows
+from flight_insights.imports.rekey import needs_rekey, rekey
 from flight_insights.knowledge import Pack, load_pack
 from flight_insights.rpc.ai import add_ai_methods
 from flight_insights.rpc.analysis import add_analysis_methods
@@ -84,6 +85,7 @@ class EngineState:
     store: Store | None = None
     cache: ColumnCache | None = None
     board_key: bytes | None = None
+    legacy_board_key: bytes | None = None  # this laptop's own, from before its fleet
     host_hash: str | None = None  # this computer's host name, keyed-hashed at unlock
     data_dir: Path | None = None
     lock: threading.Lock = field(default_factory=threading.Lock)
@@ -169,6 +171,7 @@ def build_server(out: IO[str], pack: Pack | None = None) -> Server:
         except ValueError as e:
             raise RpcError(INVALID_PARAMS, str(e)) from None
         board_key = _key(k, "board_id")
+        legacy_key = _key(k, "legacy_board_id") if "legacy_board_id" in k else None
         host = params.get("host")  # the shell's reading of the host name, never stored raw
         if host is not None and not isinstance(host, str):
             raise RpcError(INVALID_PARAMS, "host must be text")
@@ -181,9 +184,15 @@ def build_server(out: IO[str], pack: Pack | None = None) -> Server:
                 data_dir / "fleet.db", store_keys, laptop_id, params.get("laptop_name")
             )
             state.store, state.board_key, state.data_dir = store, board_key, data_dir
+            state.legacy_board_key = legacy_key
             state.host_hash = stations.hash_host(board_key, host) if host else None
             state.cache = ColumnCache(data_dir / "cache" / "columns", store_keys)
-        return {"laptop": short_code(laptop_id), "migrations_applied": store.applied_migrations}
+        return {
+            "laptop": short_code(laptop_id),
+            "migrations_applied": store.applied_migrations,
+            # the laptop has just joined a fleet: the shell calls board.rekey next
+            "rekey_needed": needs_rekey(store, board_key),
+        }
 
     @server.method("engine.shutdown", barrier=True)
     def shutdown(_ctx: Context, _params: dict[str, Any]) -> dict[str, Any]:
@@ -479,6 +488,19 @@ def build_server(out: IO[str], pack: Pack | None = None) -> Server:
     def station_remove_folder(_ctx: Context, params: dict[str, Any]) -> dict[str, Any]:
         stations.remove_folder(state.require_store(), _str(params, "folder_id"))
         return {}
+
+    @server.method("board.rekey", barrier=True)
+    @guarded
+    def board_rekey(ctx: Context, params: dict[str, Any]) -> dict[str, Any]:
+        """Board-ID hashes made again with the key given at unlock (shell-only)."""
+        host = params.get("host")
+        if host is not None and not isinstance(host, str):
+            raise RpcError(INVALID_PARAMS, "host must be text")
+        store, cache = state.require_store(), state.cache
+        assert cache is not None and state.board_key is not None
+        done = rekey(store, cache, state.pack, state.board_key, state.legacy_board_key, host,
+                     ctx.progress)  # fmt: skip
+        return {"flights": done.flights, "kept": done.kept, "stations": done.stations}
 
     add_import_methods(server, state, guarded)
     add_analysis_methods(server, state, guarded)
