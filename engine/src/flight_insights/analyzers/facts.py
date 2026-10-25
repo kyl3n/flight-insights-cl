@@ -24,6 +24,7 @@ BDSHOT_FIRMWARE = ("BLHeli_32", "AM32", "Bluejay")  # ESC firmware with bidirect
 DSHOT_FIRMWARE = (*BDSHOT_FIRMWARE, "BLHeli_S")
 # Full and empty cell voltages by chemistry, for MOT_BAT_VOLT_MAX and _MIN (ArduPilot's
 # motor thrust scaling guidance: 4.2 V and 3.3 V a cell for LiPo).
+BUSY_CPU_PCT = 70.0  # rules/filters.json busy_cpu_pct: the processor counts as busy from here
 CELL_VOLTS = {"LiPo": (4.2, 3.3), "LiHV": (4.35, 3.3), "Li-ion": (4.2, 3.0), "LiFePO4": (3.6, 2.8)}
 
 
@@ -64,6 +65,7 @@ def facts(flight: FlightData, m: MotorPicture) -> dict[str, Fact]:
     chemistry = _known(answers, "battery_chemistry")
     cells = _attr(fp, "cells")
     cpu = None if flight.simulated else _cpu_load_p95(flight)  # SITL load is the host's
+    loop = float(p.get("SCHED_LOOP_RATE", 400)) or 400.0
     volts = CELL_VOLTS.get(str(chemistry)) if chemistry else None
     out: dict[str, Fact] = {
         "copter": flight.vehicle == "copter",
@@ -73,6 +75,8 @@ def facts(flight: FlightData, m: MotorPicture) -> dict[str, Fact]:
         "simulated": flight.simulated,
         "imu_count": float(_attr(fp, "imu_count") or 0) or None,
         "cpu_headroom": None if cpu is None else cpu < 50.0,
+        # room for Copter's 400 Hz loop, were the whole load to grow with the loop rate
+        "loop_rate_room": None if cpu is None else cpu * 400.0 / loop < BUSY_CPU_PCT,
         "esc_telemetry": bool(m.escs) and any(q.reports_rpm for q in m.escs),
         "esc_rpm_reliable": m.rpm_reliable,
         "dshot_output": pwm_type in DSHOT_TYPES,

@@ -141,6 +141,19 @@ def test_notches_on_every_imu_need_processor_time(reg: Registry) -> None:
     )
 
 
+def test_a_slow_main_loop_goes_back_to_400_hz_when_the_processor_has_room(reg: Registry) -> None:
+    fp = {"board": {"hal": "ChibiOS", "family": "F7"}}
+    free = run(reg, {}, fp, {"PM": pm(30)}, SCHED_LOOP_RATE=300)[
+        "option.loop_rate_default.available"
+    ]
+    assert changes(free) == {"SCHED_LOOP_RATE": (300.0, 400.0)}
+    # 60% at 300 Hz could be 80% at 400 Hz: no room
+    assert "option.loop_rate_default.available" not in run(
+        reg, {}, fp, {"PM": pm(60)}, SCHED_LOOP_RATE=300
+    )
+    assert "option.loop_rate_default.available" not in run(reg, {}, fp, {"PM": pm(30)})
+
+
 def test_options_rank_by_the_platforms_priority(reg: Registry) -> None:
     fp = {"board": {"hal": "ChibiOS", "family": "H7"}}
     answers = {"payload": "variable", "esc_firmware": "AM32", "priority": "agility"}

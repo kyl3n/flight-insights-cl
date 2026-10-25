@@ -248,6 +248,8 @@ def _test_flight_changes(
         current = params.get(add["param"])
         if "set_bits" in add:
             value = float(int(current or 0) | sum(1 << int(b) for b in add["set_bits"]))
+        elif current is None:
+            continue  # a value the flight does not show: nothing to set, nothing to go back to
         else:
             value = float(add["value"])
         stage = f.get("stage") or "evidence"
@@ -350,6 +352,7 @@ def build_plan(
     """The staged plan for one flight's findings. `params` are the flight's own,
     canonical; `findings` as analysis results hold them (with "changes")."""
     rules: Mapping[str, Any] = reg.rules["recommend"]
+    boot_only: Mapping[str, str] = rules["boot_only"]["params"]  # read at start-up only
     firmware = dialect.firmware
 
     def native(param: str, value: float | None) -> tuple[str, float | None]:
@@ -492,7 +495,9 @@ def build_plan(
         rec.native_current = _native_value(dialect, rec.param, rec.current)
         rec.native_target = _native_value(dialect, rec.param, rec.target)
         rec.native_revert = _native_value(dialect, rec.param, rec.revert)
-        rec.reboot = bool((dialect.meta.get(rec.native) or {}).get("reboot_required"))
+        rec.reboot = bool((dialect.meta.get(rec.native) or {}).get("reboot_required")) or (
+            rec.param in boot_only
+        )
 
     # Findings that need a person and leave nothing to load become actions, and so does
     # any finding with steps of its own (new ESC firmware for a better option).

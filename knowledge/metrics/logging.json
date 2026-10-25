@@ -95,8 +95,19 @@
         "uk": "Журнал відкинув {count} повідомлень під час польоту"
       },
       "action": {
-        "en": "Use a faster SD card, or log less: a lower LOG_BLK_RATEMAX, or raw IMU data only for test flights.",
-        "uk": "Використайте швидшу SD-картку або записуйте менше: нижчий LOG_BLK_RATEMAX або сирі дані IMU лише для тестових польотів."
+        "en": "The SD card could not keep up. Use a fast, genuine card, freshly formatted, and log raw IMU data only on test flights. Where the board has memory to spare, a bigger write buffer (LOG_FILE_BUFSIZE, read at start-up) rides out the card's slow moments. A logging rate cap (LOG_FILE_RATEMAX) would also cut the load, but it thins the very data the analysis needs.",
+        "uk": "SD-картка не встигала. Використайте швидку оригінальну картку, щойно відформатовану, і записуйте сирі дані IMU лише в тестових польотах. Якщо на платі є вільна пам'ять, більший буфер запису (LOG_FILE_BUFSIZE, читається під час запуску) згладжує повільні моменти картки. Обмеження частоти запису (LOG_FILE_RATEMAX) теж зменшило б навантаження, але проріджує саме ті дані, що потрібні для аналізу."
+      }
+    },
+    "logging.rate_limited": {
+      "stage": "evidence",
+      "title": {
+        "en": "Logging is capped at {cap} messages a second, below the {needed} a second the analysis needs",
+        "uk": "Запис журналу обмежено {cap} повідомленнями на секунду, нижче за {needed} на секунду, потрібні для аналізу"
+      },
+      "action": {
+        "en": "{params} caps every streaming message, which thins the rate, attitude and PID messages logged every loop and the raw gyro data: filter, vibration and tuning checks then see a fraction of the flight. Set it to 0 (no cap). If the logs grow too large, a bigger SD card is the cure; a cap trades away the data.",
+        "uk": "{params} обмежує кожне потокове повідомлення, тож проріджує повідомлення швидкості, положення й PID, що записуються щоциклу, і сирі дані гіроскопа: перевірки фільтрів, вібрації й налаштування бачать лише частину польоту. Встановіть 0 (без обмеження). Якщо журнали надто великі, рішення — більша SD-картка; обмеження жертвує даними."
       }
     },
     "logging.gap": {
@@ -113,8 +124,8 @@
     "logging.missing_messages": {
       "stage": "evidence",
       "title": {
-        "en": "The log has no {messages}, so these checks cannot run: {needed_for}",
-        "uk": "У журналі немає {messages}, тож ці перевірки не виконуються: {needed_for}"
+        "en": "LOG_BITMASK leaves out {messages}, so these checks cannot run: {needed_for}",
+        "uk": "LOG_BITMASK не записує {messages}, тож ці перевірки не виконуються: {needed_for}"
       },
       "action": {
         "en": "Set LOG_BITMASK to {proposed}, which adds {bits}.",
