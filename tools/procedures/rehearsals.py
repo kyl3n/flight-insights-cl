@@ -121,6 +121,7 @@ QUAD_SETTINGS = Scenario(
     expected=["the failsafes the firmware ships on, found off"],
     fly=copter_hover(10, altitude=4),
     params={"FS_VIBE_ENABLE": 0, "FS_DR_ENABLE": 0},
+    speedup=RAW_SPEEDUP,  # its plan logs raw IMU for the test flight
     **COPTER,  # type: ignore[arg-type]
 )
 
