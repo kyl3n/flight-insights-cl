@@ -163,7 +163,7 @@ class Vehicle:
             held, end = 0, time.monotonic() + 30
             while held < 3 and time.monotonic() < end:
                 m = self.conn.recv_match(type="HEARTBEAT", blocking=True, timeout=1)
-                if m is None or m.get_srcComponent() != self.comp:
+                if m is None or m.get_srcSystem() != self.sys:
                     continue
                 if m.custom_mode != mapping[name]:
                     break
