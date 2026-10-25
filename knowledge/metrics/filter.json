@@ -244,6 +244,28 @@
         "en": "The proposed notch and low-pass settings were screened on this flight's own hover spectrum: they let no more motor noise through than now and delay the gyro less, so the aircraft can respond faster ({notches_new} notches instead of {notches_now}). Load them, fly the same hover, and the next analysis confirms the result.",
         "uk": "Запропоновані налаштування режекторних і низькочастотного фільтрів перевірено на спектрі зависання цього польоту: вони пропускають не більше шуму моторів, ніж зараз, і менше затримують гіроскоп, тож апарат реагує швидше ({notches_new} фільтрів замість {notches_now}). Завантажте їх, повторіть те саме зависання, і наступний аналіз підтвердить результат."
       }
+    },
+    "filter.peak_unnotched": {
+      "stage": "filters",
+      "title": {
+        "en": "A vibration at {hz} Hz that is not from the motors still shows after the filters",
+        "uk": "Вібрація на {hz} Гц, що не походить від моторів, лишається після фільтрів"
+      },
+      "action": {
+        "en": "A peak this far from every motor harmonic is usually a frame, arm, landing gear or payload resonance. Find and fix its source if you can: a stiffer or tighter part beats any filter. Otherwise a static notch on a free harmonic notch set ({set}) removes it: fixed at this frequency, a quarter of it wide. Each notch costs some processor time and phase lag.",
+        "uk": "Пік, такий далекий від усіх гармонік моторів, зазвичай є резонансом рами, променя, шасі або вантажу. Знайдіть і усуньте його джерело, якщо можете: жорсткіша або краще затягнута деталь краща за будь-який фільтр. Інакше його прибере статичний режекторний фільтр на вільному наборі ({set}): фіксований на цій частоті, шириною в чверть її. Кожен режекторний фільтр коштує трохи часу процесора й фазового запізнення."
+      }
+    },
+    "filter.harmonics_above_nyquist": {
+      "stage": "filters",
+      "title": {
+        "en": "Harmonics {harmonics} of the notch, near {hz} Hz in hover, are past what a {gyro_hz} Hz gyro can filter",
+        "uk": "Гармоніки {harmonics} режекторного фільтра, близько {hz} Гц у зависанні, вищі за те, що може фільтрувати гіроскоп на {gyro_hz} Гц"
+      },
+      "action": {
+        "en": "ArduPilot turns off any notch at or above {limit_hz} Hz, 0.48 of the gyro rate, so these harmonics are not filtered. On an F7 or H7 board with processor time to spare, a faster gyro rate (INS_GYRO_RATE, with fast sampling on in INS_FAST_SAMPLE) brings them back; ArduPilot advises more than 2 kHz only with careful tuning. Elsewhere, take them out of INS_HNTCH_HMNCS so the setting says what the notch really does; the low-pass filter is what reduces noise that high.",
+        "uk": "ArduPilot вимикає будь-який режекторний фільтр на {limit_hz} Гц і вище, 0.48 частоти гіроскопа, тож ці гармоніки не фільтруються. На платі F7 або H7 із запасом часу процесора вищу частоту гіроскопа (INS_GYRO_RATE, з увімкненою швидкою вибіркою в INS_FAST_SAMPLE) їх повертає; ArduPilot радить понад 2 кГц лише з ретельним налаштуванням. В інших випадках приберіть їх з INS_HNTCH_HMNCS, щоб параметр показував, що фільтр справді робить; шум на таких частотах зменшує фільтр низьких частот."
+      }
     }
   }
 }

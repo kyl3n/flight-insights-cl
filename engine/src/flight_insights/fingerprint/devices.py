@@ -16,6 +16,7 @@ device type in bits 16-23.
 from __future__ import annotations
 
 import re
+from collections.abc import Mapping
 from dataclasses import dataclass
 from typing import cast
 
@@ -34,6 +35,31 @@ BUS_TYPES = {
     7: "WSPI",
 }
 SENSOR_ID = re.compile(r"^(?:INS\d?_(?:ACC|GYR)\d?_ID|COMPASS_DEV_ID\d?)$")
+# IMU device types whose 4.7.0 drivers sample fast on an SPI bus (enable_fast_sampling in
+# AP_InertialSensor_Invensense, _Invensensev2, _Invensensev3, _LSM6DSV, _SCHA63T and _SITL;
+# the types are AP_InertialSensor_Backend.h DevTypes). Others run at 1 kHz whatever
+# INS_GYRO_RATE says.
+FAST_SAMPLING_DEVTYPES = frozenset(
+    {
+        0x13, 0x16, 0x21, 0x24, 0x27, 0x28, 0x2F, 0x30,  # MPU6000/9250, ICM20789/689/602/601
+        0x2C, 0x2D, 0x2E,  # ICM20948, ICM20648, ICM20649
+        0x33, 0x34, 0x35, 0x36, 0x37, 0x3A, 0x3B, 0x3D,  # ICM4xxxx, IIM4265x, ICM45686
+        0x3E, 0x3C, 0x2A,  # LSM6DSV, SCHA63T, SITL
+    }
+)  # fmt: skip
+
+
+def gyro_id_param(instance: int) -> str:
+    return "INS_GYR_ID" if instance == 0 else f"INS_GYR{instance + 1}_ID"
+
+
+def fast_sampling_capable(params: Mapping[str, float], instance: int) -> bool | None:
+    """Whether a gyro can sample fast, from its device ID; None when it has none."""
+    raw = params.get(gyro_id_param(instance))
+    if not raw:
+        return None
+    dev = decode_device_id(int(raw) & 0xFFFFFFFF)
+    return dev.bus_type in ("SPI", "SITL") and dev.devtype in FAST_SAMPLING_DEVTYPES
 
 
 @dataclass(frozen=True)
