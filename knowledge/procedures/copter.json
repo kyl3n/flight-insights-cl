@@ -864,6 +864,75 @@
           }
         }
       ]
+    },
+    "bus.serial_drops": {
+      "steps": [
+        {
+          "kind": "hardware",
+          "text": {
+            "en": "Check what is connected to SERIAL{port}: its own baud rate must match SERIAL{port}_BAUD, and if the device can go faster, raise both together. For a telemetry radio wired with RTS and CTS, turn on flow control (BRD_SER{port}_RTSCTS). For a GPS, let ArduPilot set its rate and baud (GPS_AUTO_CONFIG 1).",
+            "uk": "Перевірте, що під'єднано до SERIAL{port}: власна швидкість пристрою має збігатися з SERIAL{port}_BAUD, а якщо пристрій може швидше, підвищте обидві разом. Для радіомодема телеметрії з під'єднаними RTS і CTS увімкніть керування потоком (BRD_SER{port}_RTSCTS). Для GPS дозвольте ArduPilot самому задати частоту й швидкість (GPS_AUTO_CONFIG 1)."
+          }
+        },
+        {
+          "kind": "verify",
+          "checks": [
+            {
+              "check": "finding_clears"
+            }
+          ],
+          "text": {
+            "en": "In the next log SERIAL{port} drops no incoming data.",
+            "uk": "У наступному журналі SERIAL{port} не відкидає вхідних даних."
+          }
+        }
+      ]
+    },
+    "bus.errors": {
+      "steps": [
+        {
+          "kind": "hardware",
+          "text": {
+            "en": "With the battery out, reseat and inspect the connectors of the bus that reported errors, and route its cable away from motor and ESC power wires. On CAN, check there is one terminator at each end: with the power off, CAN_H to CAN_L reads about 60 ohms.",
+            "uk": "З від'єднаною батареєю перепідключіть і огляньте роз'єми шини, що повідомляла про помилки, і прокладіть її кабель подалі від силових проводів моторів і ESC. На CAN перевірте, що на кожному кінці є по одному термінатору: при вимкненому живленні між CAN_H і CAN_L близько 60 Ом."
+          }
+        },
+        {
+          "kind": "verify",
+          "checks": [
+            {
+              "check": "finding_clears"
+            }
+          ],
+          "text": {
+            "en": "The next log shows no new bus or sensor errors in flight.",
+            "uk": "Наступний журнал не показує нових помилок шин чи датчиків у польоті."
+          }
+        }
+      ]
+    },
+    "bus.gps_gaps": {
+      "steps": [
+        {
+          "kind": "hardware",
+          "text": {
+            "en": "Check the GPS cable and connector, and that the GPS's serial port drops no data; let ArduPilot configure the receiver (GPS_AUTO_CONFIG 1) unless it was set up by hand on purpose.",
+            "uk": "Перевірте кабель і роз'єм GPS і те, що його послідовний порт не відкидає даних; дозвольте ArduPilot налаштувати приймач (GPS_AUTO_CONFIG 1), якщо його не налаштовували вручну навмисно."
+          }
+        },
+        {
+          "kind": "verify",
+          "checks": [
+            {
+              "check": "finding_clears"
+            }
+          ],
+          "text": {
+            "en": "In the next log GPS updates arrive without gaps.",
+            "uk": "У наступному журналі оновлення GPS надходять без пропусків."
+          }
+        }
+      ]
     }
   }
 }

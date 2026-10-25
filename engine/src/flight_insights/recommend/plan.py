@@ -522,6 +522,8 @@ def build_plan(
             rec.status = "waiting"
             rec.notes.append(Note("waiting", {"stage": gate}))
 
+    _one_heavy_finding(recs, rules["processor"]["changes"])
+
     # Test-flight settings serve a finding's lasting changes: with none of them on offer
     # (blocked, disputed or set already), there is nothing to test.
     live = {
@@ -575,6 +577,40 @@ def build_plan(
         steps=steps,
         params=dict(params),
     )
+
+
+def _costs_processor(rec: Recommendation, rule: Mapping[str, Any]) -> bool:
+    current, proposed = rec.current or 0.0, rec.proposed or 0.0
+    if rule.get("up"):
+        return proposed > current
+    added = int(proposed) & ~int(current)
+    bits = rule.get("bits")
+    return bool(added) if bits == "any" else any(added >> int(b) & 1 for b in bits or ())
+
+
+def _one_heavy_finding(recs: list[Recommendation], rules: Mapping[str, Any]) -> None:
+    """Changes that cost processor time come one finding at a time: the next log's load
+    says whether there is room for the next. The others wait, with every change of
+    theirs, since a finding's changes go together."""
+    heavy = [
+        r
+        for r in recs
+        if r.status == "next"
+        and (rule := rules.get(r.param or "")) is not None
+        and _costs_processor(r, rule)
+    ]
+    if len({r.lead.finding for r in heavy}) < 2:
+        return
+
+    def rank(r: Recommendation) -> tuple[Any, ...]:
+        return (*r.lead.priority(), -int(r.lead.params.get("rank", 0)), r.param or "")
+
+    first = min(heavy, key=rank).lead.finding
+    waiting = {r.lead.finding: r.native or r.param for r in heavy if r.lead.finding != first}
+    for rec in recs:
+        if rec.status == "next" and rec.lead.finding in waiting:
+            rec.status = "waiting"
+            rec.notes.append(Note("processor", {"param": waiting[rec.lead.finding]}))
 
 
 def _native_value(dialect: Dialect, param: str, value: float | None) -> float | None:

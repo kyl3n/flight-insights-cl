@@ -122,6 +122,18 @@
         "logging.notch_inputs_not_logged"
       ]
     },
+    "buses": {
+      "title": {
+        "en": "Buses and serial ports",
+        "uk": "Шини й послідовні порти"
+      },
+      "options": [],
+      "also": [
+        "bus.serial_drops",
+        "bus.errors",
+        "bus.gps_gaps"
+      ]
+    },
     "gyro_sampling": {
       "title": {
         "en": "Gyro sampling",
