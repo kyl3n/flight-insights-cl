@@ -13,9 +13,11 @@ reviews before the next test flight:
    higher confidence wins, and a tie between different values is disputed, never
    silently resolved. Measured evidence against an AI suggestion is disputed too.
 3. Gain changes beyond the per-flight step limit are split across flights.
-4. A parameter whose feature is switched off gets its enable parameter first; when the
-   parameter only appears once the feature is on, it moves to a later step, after a
-   reboot and parameter refresh.
+4. A parameter whose feature is switched off gets the parameter that switches it on
+   first, from the gates table the knowledge pack reads from the firmware's source; when
+   the parameter only appears once the feature is on, it moves to a later step, after a
+   parameter refresh, or a reboot and refresh where the firmware creates it at boot. A
+   switch that names a device type is left to a person, who knows what is fitted.
 5. Stages follow ArduPilot's tuning order: only the earliest stage with work left is
    offered, plus anything safety-related; later stages wait.
 
@@ -39,7 +41,7 @@ from flight_insights.params.validate import metadata_problem
 
 Kind = Literal["safety", "stability", "performance"]
 Status = Literal["next", "waiting", "blocked", "disputed"]
-After = Literal["refresh", "reboot", "fly"]
+After = Literal["refresh", "reboot_refresh", "reboot", "fly"]
 
 KINDS: tuple[Kind, ...] = ("safety", "stability", "performance")
 CONFIDENCES = ("high", "medium", "low")
@@ -114,6 +116,8 @@ class Recommendation:
     reboot: bool = False
     step: int = 1
     requires: list[str] = field(default_factory=list[str])
+    after_gate: str | None = None  # appears only once this (canonical) parameter is set
+    appears: Literal["refresh", "reboot"] | None = None  # ...and then after this
     alternatives: list[Alternative] = field(default_factory=list[Alternative])
 
     @property
@@ -197,15 +201,11 @@ def _step_limit(rules: Mapping[str, Any], param: str) -> float | None:
     return None
 
 
-def _enable_for(param: str, names: Iterable[str]) -> str | None:
-    """The parameter that switches `param`'s feature on: the longest `<group>_ENABLE`
-    whose group prefixes it (INS_HNTCH_ENABLE for INS_HNTCH_FREQ)."""
-    groups = [
-        name
-        for name in names
-        if name != param and name.endswith("_ENABLE") and param.startswith(name[: -len("ENABLE")])
-    ]
-    return max(groups, key=len, default=None)
+def _switch_on(meta: Mapping[str, Any] | None) -> float | None:
+    """The value that switches a gate on when there is only one choice (an off/on
+    parameter); None when the value names a device or function a person must choose."""
+    values: Mapping[str, Any] = (meta or {}).get("values") or {}
+    return 1.0 if set(values) == {"0", "1"} else None
 
 
 # --- building the plan ------------------------------------------------------------------
@@ -292,7 +292,6 @@ def build_plan(
     canonical; `findings` as analysis results hold them (with "changes")."""
     rules: Mapping[str, Any] = reg.rules["recommend"]
     firmware = dialect.firmware
-    canonical_names = dialect.pack.metadata(dialect.canonical_version, dialect.vehicle)
 
     def native(param: str, value: float | None) -> tuple[str, float | None]:
         return dialect.native(param, value)
@@ -363,30 +362,50 @@ def build_plan(
             )
         )
 
-    # Enable parameters first; parameters that only appear once enabled come a step later.
-    for param in list(by_param):
+    # The parameter that switches a feature on comes first; parameters the feature hides
+    # until then come a step later. A gate added here may sit behind a gate of its own.
+    work = list(by_param)
+    while work:
+        param = work.pop(0)
         rec = by_param[param]
-        enable = _enable_for(param, canonical_names)
-        if enable is None or rec.status != "next":
+        gated = dialect.gate(param)
+        if gated is None or rec.status != "next":
             continue
-        if not params.get(enable):  # off now: this plan switches it on first
-            if enable not in by_param:
-                note = check(enable, 1.0)
-                if note is not None:
-                    rec.status = "blocked"
-                    rec.notes.append(note)
-                    continue
-                by_param[enable] = Recommendation(
-                    enable, None, params.get(enable), 1.0, rec.stage, list(rec.sources)
+        gate, appears = gated
+        gate_name = native(gate, None)[0]
+        if not params.get(gate):  # off now: this plan switches it on first
+            if gate not in by_param:
+                value = _switch_on(dialect.meta.get(gate_name))
+                note = (
+                    Note("needs_choice", {"gate": gate_name, "param": native(param, None)[0]})
+                    if value is None
+                    else check(gate, value)
                 )
+                if value is None or note is not None:
+                    rec.status = "blocked"
+                    rec.notes.append(note or Note("needs_choice", {}))
+                    continue
+                by_param[gate] = Recommendation(
+                    gate, None, params.get(gate), value, rec.stage, list(rec.sources)
+                )
+                work.append(gate)
             rec.notes.append(
-                Note("needs_enable", {"enable": native(enable, None)[0], "param": param})
+                Note("needs_enable", {"enable": gate_name, "param": native(param, None)[0]})
             )
-            if rec.current is None:
-                rec.step = by_param[enable].step + 1
-        if enable in by_param:
-            value = format_value(by_param[enable].proposed or 1)
-            rec.requires.append(f"{native(enable, None)[0]}={value}")
+            if rec.current is None:  # hidden in this flight: it appears once the gate is set
+                rec.after_gate, rec.appears = gate, appears
+        if gate in by_param:
+            value = format_value(by_param[gate].proposed or 1)
+            rec.requires.append(f"{gate_name}={value}")
+
+    def step_of(rec: Recommendation, depth: int = 0) -> int:
+        gate = by_param.get(rec.after_gate or "")
+        if gate is None or depth > len(by_param):
+            return rec.step
+        return step_of(gate, depth + 1) + 1
+
+    for rec in by_param.values():
+        rec.step = step_of(rec)
 
     recs = [*by_param.values(), *blocked.values()]
     for rec in recs:
@@ -460,16 +479,24 @@ def _native_value(dialect: Dialect, param: str, value: float | None) -> float | 
 
 
 def _steps(offered: list[Recommendation]) -> list[Step]:
+    """Steps in load order. Between steps, a refresh brings the next step's parameters
+    into view, with a reboot first when the firmware creates any of them at boot; the
+    last step ends with a reboot when any parameter of the plan needs one, else the test
+    flight."""
     numbers = sorted({r.step for r in offered})
+    groups = [
+        sorted((r for r in offered if r.step == n), key=lambda r: r.native or "") for n in numbers
+    ]
     out: list[Step] = []
-    for i, n in enumerate(numbers, start=1):
-        mine = sorted((r for r in offered if r.step == n), key=lambda r: r.native or "")
+    for i, mine in enumerate(groups, start=1):
         for r in mine:
             r.step = i
-        last = i == len(numbers)
-        after: After = "fly" if last else "refresh"
-        if last and any(r.reboot for r in mine):
-            after = "reboot"
+    for i, mine in enumerate(groups, start=1):
+        after: After
+        if i < len(groups):
+            after = "reboot_refresh" if any(r.appears == "reboot" for r in groups[i]) else "refresh"
+        else:
+            after = "reboot" if any(r.reboot for r in offered) else "fly"
         out.append(Step(i, tuple(r.native or "" for r in mine), after))
     return out
 

@@ -88,6 +88,13 @@ class Pack:
     def generated_metadata(self, version: str, vehicle: Vehicle) -> dict[str, dict[str, Any]]:
         return _generated(self.root, version, vehicle)
 
+    def gates(self, version: str, vehicle: Vehicle) -> dict[str, dict[str, str]]:
+        """Parameter -> {"gate", "after"} for a release, read from its source by
+        knowledge/tools/build_param_gates.py: the parameter that switches it into view,
+        and whether it then appears on a parameter refresh or only after a reboot. Empty
+        when the pack has no table for the release."""
+        return _gates(self.root, version, vehicle)
+
     def log_messages(self, version: str) -> dict[str, dict[str, Any]]:
         """Every log message a release can write: name -> {vehicles, fields: {name:
         {units, type}}}, from the release's own source (knowledge/logs)."""
@@ -116,6 +123,16 @@ def _metadata(root: Path, version: str, vehicle: Vehicle) -> dict[str, dict[str,
             if vehicle in p["vehicles"] and version_key(version) >= version_key(p["from_version"]):
                 merged.setdefault(p["name"], p["vehicles"][vehicle] | {"supplement": True})
     return merged
+
+
+@cache
+def _gates(root: Path, version: str, vehicle: Vehicle) -> dict[str, dict[str, str]]:
+    manifest = json.loads((root / "manifest.json").read_text(encoding="utf-8"))
+    entry = manifest.get("gates", {}).get(version)
+    if entry is None:
+        return {}
+    with gzip.open(root / entry["file"]) as f:
+        return json.load(f).get(vehicle, {})
 
 
 @cache

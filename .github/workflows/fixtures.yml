@@ -17,6 +17,9 @@ on:
   pull_request:
     paths:
       - tools/fixtures/**
+      - knowledge/tools/build_param_gates.py
+      - knowledge/tools/check_param_gates_sitl.py
+      - knowledge/params/*/gates.json.gz
       - .github/workflows/fixtures.yml
 
 permissions:
@@ -54,6 +57,17 @@ jobs:
           cd "$ARDUPILOT"
           ./waf configure --board sitl
           ./waf copter heli plane
+
+      # The parameter gates table (which parameter switches others into view, and
+      # whether they then appear on a refresh or after a reboot) must be exactly what
+      # the generator reads from this release's source, and SITL must agree with it.
+      - name: Regenerate the parameter gates and compare
+        run: |
+          python3 knowledge/tools/build_param_gates.py "$ARDUPILOT" "$VERSION"
+          git diff --exit-code -- "knowledge/params/$VERSION/gates.json.gz"
+
+      - name: Check the parameter gates in SITL
+        run: uv run knowledge/tools/check_param_gates_sitl.py --ardupilot "$ARDUPILOT" --version "$VERSION"
 
       - name: Fly, scrub and label
         run: tools/fixtures/sitl/make_fixtures.sh "$ARDUPILOT" "$VERSION" tests/fixtures $SCENARIOS

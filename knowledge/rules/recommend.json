@@ -121,6 +121,10 @@
       "en": "Step {step} of {steps} towards {target}: larger gain changes are split across flights.",
       "uk": "Крок {step} з {steps} до {target}: великі зміни коефіцієнтів розподіляються на кілька польотів."
     },
+    "needs_choice": {
+      "en": "{param} appears only once {gate} names the hardware it belongs to. Set {gate} for the device fitted, reboot and refresh, then {param} can be set.",
+      "uk": "{param} з'являється лише тоді, коли {gate} вказує обладнання, до якого він належить. Встановіть {gate} для встановленого пристрою, перезавантажте й оновіть параметри, після чого можна задати {param}."
+    },
     "needs_enable": {
       "en": "{enable} must be on for {param} to take effect.",
       "uk": "{enable} має бути увімкнено, щоб {param} діяв."
@@ -138,6 +142,10 @@
       "uk": "перезавантажте польотний контролер"
     },
     "after_refresh": {
+      "en": "refresh the parameter list in the ground station, so the next step's parameters appear",
+      "uk": "оновіть список параметрів у наземній станції, щоб з'явилися параметри наступного кроку"
+    },
+    "after_reboot_refresh": {
       "en": "reboot the flight controller and refresh the parameters, so the next step's parameters appear",
       "uk": "перезавантажте польотний контролер і оновіть параметри, щоб з'явилися параметри наступного кроку"
     },
