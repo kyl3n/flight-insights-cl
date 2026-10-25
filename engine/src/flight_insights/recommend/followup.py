@@ -72,14 +72,20 @@ def revert_findings(
 
 
 def _served(rec: Mapping[str, Any], rows: Sequence[Mapping[str, Any]]) -> bool:
-    """Whether the change a test-flight setting served is confirmed: its finding's
-    lasting changes from the same plan, or, for a diagnostic with none, itself."""
+    """Whether the change a test-flight setting served is confirmed: its findings' lasting
+    changes that were on offer with it, or, for a diagnostic with none, itself.
+
+    A later plan proposing the same test-flight setting keeps its first record, while
+    its lasting changes may be new ones (other values, after another flight's data). So
+    those graded by the same flight count too, and ones replaced or rejected do not."""
     codes = {s["code"] for s in rec["detail"].get("sources", ())}
+    graded = rec.get("graded_flight_id")
     lasting = [
         r
         for r in rows
-        if r["flight_id"] == rec["flight_id"]
+        if (r["flight_id"] == rec["flight_id"] or (graded and r.get("graded_flight_id") == graded))
         and r["id"] != rec["id"]
+        and r["status"] not in ("superseded", "rejected")
         and r["detail"].get("revert") is None
         and codes & {s["code"] for s in r["detail"].get("sources", ())}
     ]
