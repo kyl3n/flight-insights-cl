@@ -142,7 +142,7 @@ def _audit(flight: FlightData, reg: Registry) -> Result:
 
     contradicted: set[str] = set(problems)
     if vehicle == "copter":
-        contradicted |= _failsafes(flight, rules, out)
+        contradicted |= _failsafes(flight, rules, dialect.meta, out)
         contradicted |= _battery(flight, rules, out)
         contradicted |= _other_monitors(flight, out)
         contradicted |= _power_setup(flight, rules, out)
@@ -195,11 +195,16 @@ def _audit(flight: FlightData, reg: Registry) -> Result:
     return out
 
 
-def _failsafes(flight: FlightData, rules: Mapping[str, Any], out: Result) -> set[str]:
+def _failsafes(
+    flight: FlightData, rules: Mapping[str, Any], meta: Mapping[str, Any], out: Result
+) -> set[str]:
     p = flight.params
     flagged: set[str] = set()
 
-    def add(code: str, severity: Any, names: list[str], params: Mapping[str, Any]) -> None:
+    def add(
+        code: str, severity: Any, names: list[str], params: Mapping[str, Any],
+        changes: tuple[CandidateChange, ...] = (),
+    ) -> None:  # fmt: skip
         values = {n: p.get(n) for n in names}
         out.findings.append(
             Finding(
@@ -208,9 +213,14 @@ def _failsafes(flight: FlightData, rules: Mapping[str, Any], out: Result) -> set
                 confidence="high",
                 evidence=(ev(f"params:{code}", "the failsafe parameters", values),),
                 params=dict(params),
+                changes=changes,
             )
         )
         flagged.update(names)
+
+    def back_to_default(name: str) -> tuple[CandidateChange, ...]:
+        default = flight.defaults.get(name)
+        return (CandidateChange(name, p.get(name), default, "operations"),) if default else ()
 
     if p.get("FS_THR_ENABLE") == 0:
         add("params.rc_failsafe_off", "safety", ["FS_THR_ENABLE"], {})
@@ -231,7 +241,52 @@ def _failsafes(flight: FlightData, rules: Mapping[str, Any], out: Result) -> set
         add("params.ekf_failsafe_report_only", "caution", ["FS_EKF_ACTION"], {})
     if p.get("FS_CRASH_CHECK") == 0:
         add("params.crash_check_off", "caution", ["FS_CRASH_CHECK"], {})
+    # Failsafes the firmware ships switched on, switched off: back to the firmware's own
+    # value (from the log's defaults; none proposed where the defaults are unknown).
+    for name, code in (
+        ("FS_VIBE_ENABLE", "params.vibe_failsafe_off"),
+        ("FS_DR_ENABLE", "params.dead_reckoning_failsafe_off"),
+        ("FS_EKF_THRESH", "params.ekf_failsafe_off"),
+    ):
+        if p.get(name) == 0:
+            add(code, "caution", [name], {}, back_to_default(name))
+    # Flown from the ground station alone (RC_OPTIONS bit 0 ignores the receiver), the
+    # GCS link is the only one, and losing it must do something.
+    if int(p.get("RC_OPTIONS", 0)) & 1 and p.get("FS_GCS_ENABLE") == 0:
+        add("params.gcs_failsafe_off", "safety", ["FS_GCS_ENABLE", "RC_OPTIONS"], {})
+    skipped = int(p.get("ARMING_SKIPCHK", 0))
+    if skipped:
+        entry: Mapping[str, Any] = meta.get("ARMING_SKIPCHK") or {}
+        names: Mapping[str, str] = entry.get("bitmask") or {}
+        checks = [str(names.get(str(b), f"bit {b}")) for b in range(32) if skipped >> b & 1]
+        add(
+            "params.arming_checks_skipped", "caution", ["ARMING_SKIPCHK"],
+            {"checks": ", ".join(checks)},
+            (CandidateChange("ARMING_SKIPCHK", float(skipped), 0.0, "operations"),),
+        )  # fmt: skip
     return flagged
+
+
+def _starting_volts(flight: FlightData, rules: Mapping[str, Any]) -> dict[str, float]:
+    """Low, critical and arming voltages for the pack from Mission Planner's initial
+    parameters; empty without the cell count and the chemistry."""
+    cells = _cells(flight)
+    volts = CELL_VOLTS.get(str(flight.answers.get("battery_chemistry") or ""))
+    if not cells or volts is None:
+        return {}
+    r: Mapping[str, float] = rules["starting_volts"]
+    cell_min = volts[1]
+    return {
+        "low": round((cell_min + r["low_above_min"]) * cells, 2),
+        "critical": round((cell_min + r["critical_above_min"]) * cells, 2),
+        "arm": round(
+            (cells - 1) * r["arm_per_extra_cell"] + (cell_min + r["arm_above_min"]) * cells, 2
+        ),
+    }
+
+
+def _set(name: str, p: Mapping[str, float], value: float | None) -> tuple[CandidateChange, ...]:
+    return () if value is None else (CandidateChange(name, p.get(name), value, "operations"),)
 
 
 def _other_monitors(flight: FlightData, out: Result) -> set[str]:
@@ -306,6 +361,7 @@ def _power_setup(flight: FlightData, rules: Mapping[str, Any], out: Result) -> s
                         {"BATT_ARM_VOLT": 0.0, "BATT_ARM_MAH": 0.0},
                     ),
                 ),
+                changes=_set("BATT_ARM_VOLT", p, _starting_volts(flight, rules).get("arm")),
             )
         )
     analog = int(p.get("BATT_MONITOR", 0)) in (3, 4)  # the analog monitors have scales
@@ -355,10 +411,19 @@ def _battery(flight: FlightData, rules: Mapping[str, Any], out: Result) -> set[s
 
     low_set = bool(p.get("BATT_LOW_VOLT") or p.get("BATT_LOW_MAH"))
     crit_set = bool(p.get("BATT_CRT_VOLT") or p.get("BATT_CRT_MAH"))
-    if low_set and p.get("BATT_FS_LOW_ACT") == 0:
+    starting = _starting_volts(flight, rules)
+    if not low_set:
+        add(
+            "params.battery_no_low", "caution", ["BATT_LOW_VOLT", "BATT_LOW_MAH"], {},
+            _set("BATT_LOW_VOLT", p, starting.get("low")),
+        )  # fmt: skip
+    elif p.get("BATT_FS_LOW_ACT") == 0:
         add("params.battery_warn_only", "caution", ["BATT_FS_LOW_ACT"], {})
     if not crit_set:
-        add("params.battery_no_critical", "caution", ["BATT_CRT_VOLT", "BATT_CRT_MAH"], {})
+        add(
+            "params.battery_no_critical", "caution", ["BATT_CRT_VOLT", "BATT_CRT_MAH"], {},
+            _set("BATT_CRT_VOLT", p, starting.get("critical")),
+        )  # fmt: skip
     elif p.get("BATT_FS_CRT_ACT") == 0:
         add("params.battery_critical_warn_only", "out", ["BATT_FS_CRT_ACT"], {})
 
@@ -417,7 +482,7 @@ def _never_tuned(flight: FlightData, rules: Mapping[str, Any], out: Result) -> N
 
 PARAMS_AUDIT = Analyzer(
     name="params",
-    version=2,
+    version=3,
     run=_audit,
     metrics=(),
     findings=(
@@ -429,5 +494,8 @@ PARAMS_AUDIT = Analyzer(
         "params.crash_check_off", "params.never_tuned", "params.unexplained",
         "params.other_battery_warn_only", "params.battery_capacity",
         "params.battery_arm_unchecked", "params.power_module_uncalibrated",
+        "params.battery_no_low", "params.vibe_failsafe_off",
+        "params.dead_reckoning_failsafe_off", "params.ekf_failsafe_off",
+        "params.gcs_failsafe_off", "params.arming_checks_skipped",
     ),
 )  # fmt: skip

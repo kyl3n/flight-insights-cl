@@ -236,3 +236,54 @@ def test_an_analog_power_module_never_calibrated(reg: Registry) -> None:
     assert "params.power_module_uncalibrated" not in smart
     done, _ = audit(reg, {}, answers={"power_module_calibrated": True})
     assert "params.power_module_uncalibrated" not in done
+
+
+# --- failsafes switched off, arming checks skipped, thresholds from the pack --------------
+
+LIPO = {"battery_chemistry": "LiPo"}
+
+
+@pytest.mark.parametrize(
+    ("name", "code", "default"),
+    [("FS_VIBE_ENABLE", "params.vibe_failsafe_off", 1.0),
+     ("FS_DR_ENABLE", "params.dead_reckoning_failsafe_off", 2.0),
+     ("FS_EKF_THRESH", "params.ekf_failsafe_off", 0.8)],
+)  # fmt: skip
+def test_a_failsafe_switched_off_goes_back_to_the_firmwares_value(
+    reg: Registry, name: str, code: str, default: float
+) -> None:
+    found, ev = audit(reg, {name: 0.0}, {name: default})
+    assert [(c.param, c.current, c.proposed) for c in found[code].changes] == [(name, 0.0, default)]
+    assert name in ev["inconsistent"]
+    unknown, _ = audit(reg, {name: 0.0})  # no recorded default: nothing to propose
+    assert unknown[code].changes == ()
+
+
+def test_flown_from_the_ground_station_alone_needs_a_gcs_failsafe(reg: Registry) -> None:
+    found, _ = audit(reg, {"RC_OPTIONS": 1.0, "FS_GCS_ENABLE": 0.0})
+    assert found["params.gcs_failsafe_off"].severity == "safety"
+    with_rc, _ = audit(reg, {"RC_OPTIONS": 0.0, "FS_GCS_ENABLE": 0.0})
+    assert "params.gcs_failsafe_off" not in with_rc
+
+
+def test_skipped_arming_checks_are_named_and_cleared(reg: Registry) -> None:
+    found, _ = audit(reg, {"ARMING_SKIPCHK": float(1 << 2 | 1 << 11)})
+    f = found["params.arming_checks_skipped"]
+    assert f.params == {"checks": "Compass, Hardware safety switch"}
+    assert [(c.param, c.proposed) for c in f.changes] == [("ARMING_SKIPCHK", 0.0)]
+
+
+def test_battery_thresholds_come_from_the_pack(reg: Registry) -> None:
+    # Mission Planner's starting values for a 4-cell LiPo (empty at 3.3 V a cell)
+    params = {"BATT_LOW_VOLT": 0.0, "BATT_LOW_MAH": 0.0, "BATT_CRT_VOLT": 0.0,
+              "BATT_CRT_MAH": 0.0, "BATT_ARM_VOLT": 0.0, "BATT_ARM_MAH": 0.0}  # fmt: skip
+    found, _ = audit(reg, params, answers=LIPO)
+    proposed = {
+        c.param: c.proposed
+        for code in ("params.battery_no_low", "params.battery_no_critical",
+                     "params.battery_arm_unchecked")
+        for c in found[code].changes
+    }  # fmt: skip
+    assert proposed == {"BATT_LOW_VOLT": 14.4, "BATT_CRT_VOLT": 14.0, "BATT_ARM_VOLT": 14.7}
+    unknown, _ = audit(reg, params)  # chemistry not answered: the findings, no values
+    assert unknown["params.battery_no_low"].changes == ()

@@ -187,6 +187,72 @@
         "en": "Calibrate it against a multimeter and the charger: every battery failsafe, the remaining capacity and the power analysis rely on these readings.",
         "uk": "Відкалібруйте його за мультиметром і зарядним пристроєм: на цих вимірюваннях ґрунтуються всі аварійні режими батареї, залишок ємності та аналіз живлення."
       }
+    },
+    "params.battery_no_low": {
+      "stage": "operations",
+      "title": {
+        "en": "There is no low-battery failsafe: BATT_LOW_VOLT and BATT_LOW_MAH are both 0",
+        "uk": "Немає аварійного режиму низького заряду: BATT_LOW_VOLT і BATT_LOW_MAH обидва 0"
+      },
+      "action": {
+        "en": "Set a low threshold with an action such as RTL, so the aircraft comes home while it still has the energy to. The proposed voltage is Mission Planner's starting value for this pack (0.3 V a cell above empty); check it leaves enough for the trip home at the heaviest payload.",
+        "uk": "Встановіть низький поріг із дією на кшталт RTL, щоб апарат повертався, поки ще має на це енергію. Запропонована напруга — стартове значення Mission Planner для цієї батареї (0.3 В на елемент вище за розряджену); перевірте, що її вистачає на повернення з найважчим вантажем."
+      }
+    },
+    "params.vibe_failsafe_off": {
+      "stage": "operations",
+      "title": {
+        "en": "The vibration failsafe is off (FS_VIBE_ENABLE 0)",
+        "uk": "Аварійний режим вібрації вимкнено (FS_VIBE_ENABLE 0)"
+      },
+      "action": {
+        "en": "Turn it back on: under heavy vibration it switches to an altitude estimate and control that cope with clipping accelerometers, instead of climbing away.",
+        "uk": "Увімкніть його знову: за сильної вібрації він перемикає на оцінку й керування висотою, що витримують обмеження акселерометрів, замість некерованого набору висоти."
+      }
+    },
+    "params.dead_reckoning_failsafe_off": {
+      "stage": "operations",
+      "title": {
+        "en": "Losing the position source does nothing (FS_DR_ENABLE 0)",
+        "uk": "Втрата джерела позиції нічого не викликає (FS_DR_ENABLE 0)"
+      },
+      "action": {
+        "en": "Choose an action for dead reckoning, such as RTL: when the estimator loses its position and velocity source it flies on wind estimates alone for a short time, and the aircraft should head home or land while it still can.",
+        "uk": "Оберіть дію для навігації за рахунком, наприклад RTL: коли оцінювач втрачає джерело позиції й швидкості, він недовго летить лише на оцінках вітру, і апарат має повертатися чи сідати, поки може."
+      }
+    },
+    "params.ekf_failsafe_off": {
+      "stage": "operations",
+      "title": {
+        "en": "The EKF failsafe and its arming check are off (FS_EKF_THRESH 0)",
+        "uk": "Аварійний режим EKF і його перевірку перед зведенням вимкнено (FS_EKF_THRESH 0)"
+      },
+      "action": {
+        "en": "Set the variance threshold back to its default (0.8): with it at 0 a failing position estimate neither stops arming nor triggers the failsafe.",
+        "uk": "Поверніть поріг дисперсії до типового (0.8): при 0 неправильна оцінка позиції не заважає зведенню й не запускає аварійний режим."
+      }
+    },
+    "params.gcs_failsafe_off": {
+      "stage": "operations",
+      "title": {
+        "en": "The aircraft is flown from the ground station alone, but losing that link does nothing (FS_GCS_ENABLE 0)",
+        "uk": "Апарат керується лише з наземної станції, але втрата цього зв'язку нічого не викликає (FS_GCS_ENABLE 0)"
+      },
+      "action": {
+        "en": "RC_OPTIONS ignores the receiver, so the telemetry link is the only control link. Set FS_GCS_ENABLE to an action such as RTL, and check FS_GCS_TIMEOUT suits the link.",
+        "uk": "RC_OPTIONS ігнорує приймач, тож канал телеметрії — єдиний канал керування. Встановіть FS_GCS_ENABLE на дію на кшталт RTL і перевірте, що FS_GCS_TIMEOUT підходить для цього зв'язку."
+      }
+    },
+    "params.arming_checks_skipped": {
+      "stage": "operations",
+      "title": {
+        "en": "Arming skips these checks: {checks}",
+        "uk": "Перед зведенням пропускаються ці перевірки: {checks}"
+      },
+      "action": {
+        "en": "Each skipped check hides a problem it would have caught. Clear ARMING_SKIPCHK and fix whatever made a check fail at its cause instead (for example, no safety switch fitted: BRD_SAFETY_DEFLT 0).",
+        "uk": "Кожна пропущена перевірка приховує проблему, яку вона виявила б. Очистьте ARMING_SKIPCHK і усуньте причину, через яку перевірка не проходила (наприклад, немає перемикача безпеки: BRD_SAFETY_DEFLT 0)."
+      }
     }
   }
 }
