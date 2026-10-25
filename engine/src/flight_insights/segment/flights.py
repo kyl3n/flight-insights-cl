@@ -6,6 +6,13 @@ power cycle, so it is split at every arm and disarm. Arming comes from ARM
 the default without LOG_DISARMED, holds no arming record, so the vehicle counts
 as armed from the start of the boot. Mode names come from the release's own
 enums in the knowledge pack.
+
+Without LOG_DISARMED, a log left open after a disarm can miss the next arming
+record too: once LOG_FILE_DSRMROT is switched on, the logger writes nothing while
+disarmed, the arming record included (AP_Logger_Backend::ShouldLog). Two disarms
+with no arming between them then mean a flight whose arming was not recorded; it
+starts where logging resumed, the first message after a pause that streaming
+logging follows (a parameter set while disarmed is a lone record, not a stream).
 """
 
 from __future__ import annotations
@@ -17,9 +24,11 @@ import numpy as np
 
 from flight_insights.dataflash.log import DataflashLog
 from flight_insights.knowledge import Pack, Vehicle
-from flight_insights.segment.validate import Boot, boot_index
+from flight_insights.segment.validate import GAP_US, Boot, Timeline, boot_index, timeline
 
 ARMED_EVENT, DISARMED_EVENT = 10, 11
+STREAMING = 10  # messages in the second after a pause: logging resumed for a flight
+SAME_CHANGE_US = 1_000_000  # one change, reported twice (ARM and EV, or a repeat)
 
 
 @dataclass(frozen=True)
@@ -46,7 +55,7 @@ class Flight:
     number: int  # 1-based, in the order flown
     arm_us: int
     disarm_us: int
-    start: Literal["armed", "log started armed"]
+    start: Literal["armed", "log started armed", "logging resumed"]
     end: Literal["disarmed", "log ended armed"]
     modes: tuple[ModeSpan, ...] = field(default=())
 
@@ -55,8 +64,12 @@ class Flight:
         return (self.disarm_us - self.arm_us) / 1e6
 
 
-def arm_changes(df: DataflashLog, boots: list[Boot]) -> list[ArmChange]:
-    """Every arm and disarm record. ARM and EV both report a change; one is kept."""
+def arm_changes(
+    df: DataflashLog, boots: list[Boot], logs_only_armed: bool = False
+) -> list[ArmChange]:
+    """Every arm and disarm record. ARM and EV both report a change; one is kept. With
+    `logs_only_armed` (LOG_DISARMED 0), a disarm that follows a disarm adds the arming
+    the log did not record, where logging resumed."""
     found: list[ArmChange] = []
     for name, column in (("ARM", "ArmState"), ("EV", "Id")):
         for fid in df.formats_named(name):
@@ -72,11 +85,33 @@ def arm_changes(df: DataflashLog, boots: list[Boot]) -> list[ArmChange]:
                     found.append(ArmChange(int(b), int(t), v == ARMED_EVENT, name))
     found.sort(key=lambda c: (c.boot, c.time_us, c.source))
     out: list[ArmChange] = []
+    tl: Timeline | None = None
     for c in found:
         if out and out[-1].boot == c.boot and out[-1].armed == c.armed:
-            continue  # the same change from the other message, or a repeat
+            last = out[-1]
+            if not logs_only_armed or c.armed or c.time_us - last.time_us <= SAME_CHANGE_US:
+                continue  # the same change from the other message, or a repeat
+            tl = tl or timeline(df)
+            resumed = _resumed(tl, boots[c.boot], last.time_us, c.time_us)
+            if resumed is None:
+                continue
+            out.append(ArmChange(c.boot, resumed, True, "resumed"))
         out.append(c)
     return out
+
+
+def _resumed(tl: Timeline, boot: Boot, after_us: int, before_us: int) -> int | None:
+    """Where logging resumed for a flight between a disarm at `after_us` and the next at
+    `before_us`: the first message after a pause that streaming logging follows."""
+    sel = (tl.offsets >= boot.start_offset) & (tl.offsets <= boot.end_offset)
+    t = np.sort(tl.times[sel])
+    t = t[(t > after_us) & (t < before_us)]
+    seq = np.concatenate(([after_us], t))
+    for k in np.flatnonzero(np.diff(seq) > GAP_US):
+        start = int(seq[k + 1])
+        if np.searchsorted(t, start + 1_000_000) - np.searchsorted(t, start) > STREAMING:
+            return start
+    return None
 
 
 def armed_spans(
@@ -89,12 +124,12 @@ def armed_spans(
     for boot in boots:
         mine = [c for c in changes if c.boot == boot.number]
         start: int | None = None
-        started: Literal["armed", "log started armed"] = "armed"
+        started: Literal["armed", "log started armed", "logging resumed"] = "armed"
         if (mine and not mine[0].armed) or (not mine and logs_only_armed):
             start, started = boot.first_us, "log started armed"
         for c in mine:
             if c.armed and start is None:
-                start, started = c.time_us, "armed"
+                start, started = c.time_us, "logging resumed" if c.source == "resumed" else "armed"
             elif not c.armed and start is not None:
                 flights.append(Flight(boot.number, 0, start, c.time_us, started, "disarmed"))
                 start = None
@@ -152,7 +187,7 @@ def flights(
     modes = mode_spans(df, boots, pack, vehicle, firmware)
     out: list[Flight] = []
     only_armed = _first_param(df, "LOG_DISARMED") == 0
-    for f in armed_spans(arm_changes(df, boots), boots, only_armed):
+    for f in armed_spans(arm_changes(df, boots, only_armed), boots, only_armed):
         flown = tuple(
             m
             for m in modes

@@ -34,6 +34,7 @@ from flight_insights.fingerprint.board import system_id_rows
 from flight_insights.fingerprint.devices import to_json
 from flight_insights.history.changes import LoadedFile, diff_snapshots, label_changes
 from flight_insights.history.persist import load_snapshot, save_change_sets, save_snapshot
+from flight_insights.history.snapshot import Snapshot, from_log
 from flight_insights.imports.propose import Proposal, file_snapshot, last_flight
 from flight_insights.imports.scan import SAME_BOOT_US, Scanned, ScannedFlight
 from flight_insights.knowledge import Pack
@@ -177,7 +178,7 @@ def attach(
     ).fetchall()
     if len(rows) != len(flight_ids):
         raise SetupError("some of these flights do not exist")
-    first_id, snapshot_id, board, armed_utc = rows[0]
+    first_id, _, board, armed_utc = rows[0]
     previous = last_flight(store, airframe_id, armed_utc)
     latest = last_flight(store, airframe_id)
     newest = latest is None or (previous is not None and previous.flight_id == latest.flight_id)
@@ -213,15 +214,19 @@ def attach(
             )
         if newest and board and board != airframe["board_id_hash"]:
             store.update("airframe", airframe_id, airframe["version"], {"board_id_hash": board})
-        if previous and previous.snapshot_id and snapshot_id:
-            before, after = (
-                load_snapshot(store, previous.snapshot_id),
-                load_snapshot(store, snapshot_id),
-            )
-            diffs = diff_snapshots(before, after, pack)
-            labelled = label_changes(diffs, after.dialect(pack), before.changes, (), files)
-            if labelled:
-                save_change_sets(store, airframe_id, previous.flight_id, first_id, labelled)
+        # What changed since each flight's predecessor: the airframe's flight before
+        # these for the first, then each of these for the next.
+        before_id, before_snapshot = (
+            (previous.flight_id, previous.snapshot_id) if previous else (None, None)
+        )
+        for fid, sid, *_ in rows:
+            if before_id and before_snapshot and sid:
+                before, after = load_snapshot(store, before_snapshot), load_snapshot(store, sid)
+                diffs = diff_snapshots(before, after, pack)
+                labelled = label_changes(diffs, after.dialect(pack), before.changes, (), files)
+                if labelled:
+                    save_change_sets(store, airframe_id, before_id, fid, labelled)
+            before_id, before_snapshot = fid, sid
 
 
 def held(store: Store) -> list[dict[str, Any]]:
@@ -271,6 +276,23 @@ def _source(
         assert row is not None
         store.update("source_file", reg.id, row["version"], {"meta_json": json.dumps(meta)})
     return reg.id
+
+
+def flight_snapshots(df: DataflashLog, flown: Sequence[ScannedFlight]) -> dict[str, Snapshot]:
+    """For a file that holds several flights (a power cycle without LOG_FILE_DSRMROT),
+    each flight's parameters as they stood when it armed, by flight key: what was
+    changed between two flights is the later one's set. Each keeps as its own the
+    changes logged until the next flight of its boot arms."""
+    boots = find_boots(timeline(df))
+    ordered = sorted(flown, key=lambda f: (f.boot, f.arm_us))
+    out: dict[str, Snapshot] = {}
+    for k, f in enumerate(ordered):
+        after = ordered[k + 1] if k + 1 < len(ordered) else None
+        until = after.arm_us if after is not None and after.boot == f.boot else None
+        b = boots[f.boot]
+        span = (b.start_offset, b.end_offset) if len(boots) > 1 else None
+        out[f.key] = from_log(df, f.arm_us, until, span)
+    return out
 
 
 def _stored(store: Store, key: str) -> str | None:
@@ -330,6 +352,7 @@ def _dataflash(
     new = [f for f in item.flights if _stored(store, f.key) is None]
     with read_dataflash(item.path) as df:
         skipped = cache_flights(df, cache, new)
+        snapshots = flight_snapshots(df, item.flights) if len(item.flights) > 1 else {}
         # Worked out once, while the log is open: analyzers read the cache and these.
         # The board's hash is the flight's own column, so a throwaway key does here.
         fp = fingerprint(df, pack, secrets.token_bytes(32)) if new else None
@@ -346,12 +369,15 @@ def _dataflash(
         if decision.new_airframe is not None:
             airframe_id = create_airframe(store, *decision.new_airframe)
         source = _source(store, item, "dataflash", station)
-        row = store.conn.execute(
-            "SELECT id FROM param_snapshot WHERE source_file_id = ? AND origin = 'log start'",
-            (source,),
-        ).fetchone()
-        snapshot_id = row[0] if row else save_snapshot(store, item.snapshot, pack, source)
-        if airframe_id and not item.flights:  # a bench log: kept as the airframe's, as a file is
+        # One set for a file of one flight (or none); otherwise each new flight's own below.
+        snapshot_id = None
+        if not snapshots:
+            row = store.conn.execute(
+                "SELECT id FROM param_snapshot WHERE source_file_id = ? AND origin = 'log start'",
+                (source,),
+            ).fetchone()
+            snapshot_id = row[0] if row else save_snapshot(store, item.snapshot, pack, source)
+        if airframe_id and snapshot_id and not item.flights:  # a bench log, kept as a file is
             snap = store.get("param_snapshot", snapshot_id)
             assert snap is not None
             if snap["airframe_id"] is None:
@@ -388,7 +414,11 @@ def _dataflash(
                     "boot_count": f.boot_count,
                     "firmware": item.firmware,
                     "duration_s": f.duration_s,
-                    "param_snapshot_id": snapshot_id,
+                    "param_snapshot_id": (
+                        save_snapshot(store, snapshots[f.key], pack, source)
+                        if f.key in snapshots
+                        else snapshot_id
+                    ),
                     "ground_station_version_id": station,
                     "hardware_json": json.dumps(to_json(item.hardware)),
                     "hold_json": hold,
