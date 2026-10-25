@@ -92,6 +92,15 @@ def test_planted_faults_are_found_in_either_format(
         assert "ATC_RAT_YAW_P" in found["params.gain_out_of_range"]["params"]["names"]
 
 
+def test_a_logging_cap_in_a_file_is_found_before_it_flies(
+    engine: tuple[Any, Any, str], tmp_path: Path
+) -> None:
+    found = codes(review(engine, planted(tmp_path, {"LOG_FILE_RATEMAX": "25"}))["result"])
+    f = found["logging.rate_limited"]
+    assert f["analyzer"] == "logging" and f["params"]["cap"] == 25.0
+    assert [(c["param"], c["proposed"]) for c in f["changes"]] == [("LOG_FILE_RATEMAX", 0.0)]
+
+
 def test_without_an_airframe_the_newest_firmware_is_assumed(
     engine: tuple[Any, Any, str],
 ) -> None:

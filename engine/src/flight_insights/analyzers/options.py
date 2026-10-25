@@ -55,6 +55,8 @@ def _condition(
         return bool(int(value) >> int(c["bit_set"]) & 1)
     if "gt" in c:
         return float(value) > float(c["gt"])
+    if "lt" in c:
+        return float(value) < float(c["lt"])
     raise ValueError(f"unknown parameter condition {c}")
 
 
@@ -163,7 +165,7 @@ def _options(flight: FlightData, reg: Registry) -> Result:
 
 OPTIONS = Analyzer(
     name="options",
-    version=1,
+    version=2,
     run=_options,
     metrics=(),
     findings=("option.*",),  # one code per catalog entry and question, from the pack

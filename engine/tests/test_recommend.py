@@ -310,6 +310,30 @@ def test_a_reboot_parameter_says_so(reg: Registry) -> None:
     assert rec.reboot and "reboot" in rec.requires and p.steps[-1].after == "reboot"
 
 
+def test_a_parameter_read_only_at_start_up_gets_a_reboot(reg: Registry) -> None:
+    # LOG_FILE_BUFSIZE carries no reboot flag in the metadata, but the logger sizes its
+    # buffer once, at start-up (rules/recommend.json boot_only)
+    p = plan(reg, finding("logging.dropouts", ("LOG_FILE_BUFSIZE", 80.0)))
+    rec = one(p, "LOG_FILE_BUFSIZE")
+    assert rec.reboot and p.steps[-1].after == "reboot"
+
+
+def test_every_boot_only_parameter_is_real_and_sourced(reg: Registry) -> None:
+    meta = reg.pack.metadata("4.7.0", "copter")
+    for name, source in reg.rules["recommend"]["boot_only"]["params"].items():
+        assert name in meta and not meta[name].get("reboot_required") and source
+
+
+def test_a_filter_test_flight_lifts_the_logging_cap(reg: Registry) -> None:
+    p = plan(
+        reg,
+        finding("filter.better_source", ("INS_HNTCH_MODE", 3.0)),
+        LOG_FILE_RATEMAX=50.0,
+    )
+    rec = one(p, "LOG_FILE_RATEMAX")
+    assert rec.proposed == 0.0 and rec.temporary and rec.revert == 50.0
+
+
 def test_changes_from_one_finding_require_each_other(reg: Registry) -> None:
     p = plan(
         reg, finding("filter.better_source", ("INS_HNTCH_MODE", 3.0), ("INS_HNTCH_FREQ", 60.0))

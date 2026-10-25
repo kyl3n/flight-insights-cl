@@ -37,7 +37,7 @@
   },
   "shared": {
     "filter_test": {
-      "about": "A filter test flight: raw gyro data of the primary gyro before and after the filters, and the notch's inputs at every update, for this flight only (LOG_BITMASK bit 19 Raw IMU and bit 21 fast harmonic notch logging; INS_RAW_LOG_OPT bits 0 primary gyro only and 3 pre and post filter, which the logging analyzer also recommends).",
+      "about": "A filter test flight: raw gyro data of the primary gyro before and after the filters, and the notch's inputs at every update, for this flight only (LOG_BITMASK bit 19 Raw IMU and bit 21 fast harmonic notch logging; INS_RAW_LOG_OPT bits 0 primary gyro only and 3 pre and post filter, which the logging analyzer also recommends), with no logging rate cap (LOG_FILE_RATEMAX 0), which would thin both.",
       "add_temporary": [
         {
           "param": "LOG_BITMASK",
@@ -52,6 +52,10 @@
             0,
             3
           ]
+        },
+        {
+          "param": "LOG_FILE_RATEMAX",
+          "value": 0
         }
       ],
       "steps": [
@@ -647,6 +651,80 @@
           "text": {
             "en": "The next log shows every harmonic in the notch's mask below the gyro's limit, and the processor still keeping up: no rise in slow loops or CPU load.",
             "uk": "Наступний журнал показує, що всі гармоніки в масці режекторного фільтра нижчі за межу гіроскопа, а процесор усе ще встигає: без зростання запізнілих циклів чи завантаження процесора."
+          }
+        }
+      ]
+    },
+    "logging.rate_limited": {
+      "steps": [
+        {
+          "kind": "verify",
+          "checks": [
+            {
+              "check": "finding_clears"
+            }
+          ],
+          "text": {
+            "en": "The next log holds the rate and attitude messages at the loop rate, and raw gyro data without holes, so every check sees the whole flight.",
+            "uk": "Наступний журнал містить повідомлення швидкості й положення з частотою циклу та сирі дані гіроскопа без пропусків, тож кожна перевірка бачить увесь політ."
+          }
+        }
+      ]
+    },
+    "logging.dropouts": {
+      "steps": [
+        {
+          "kind": "hardware",
+          "text": {
+            "en": "Fit a fast, genuine SD card, freshly formatted, with plenty of free space; a worn or counterfeit card stalls on writes.",
+            "uk": "Встановіть швидку оригінальну SD-картку, щойно відформатовану, з великим запасом вільного місця; зношена чи підроблена картка зависає під час запису."
+          }
+        },
+        {
+          "kind": "verify",
+          "checks": [
+            {
+              "check": "finding_clears"
+            }
+          ],
+          "text": {
+            "en": "The next log shows no dropped messages (DSF), with the same logging as this flight.",
+            "uk": "Наступний журнал не показує відкинутих повідомлень (DSF) за того самого запису, що й у цьому польоті."
+          }
+        }
+      ]
+    },
+    "system.slow_loops": {
+      "steps": [
+        {
+          "kind": "verify",
+          "checks": [
+            {
+              "check": "finding_clears"
+            }
+          ],
+          "text": {
+            "en": "The next log shows few late loops and the processor with time to spare (PM: long loops and load).",
+            "uk": "Наступний журнал показує мало запізнілих циклів і процесор із запасом часу (PM: довгі цикли й завантаження)."
+          }
+        }
+      ]
+    },
+    "option.loop_rate_default.available": {
+      "use": [
+        "filter_test"
+      ],
+      "steps": [
+        {
+          "kind": "verify",
+          "checks": [
+            {
+              "check": "finding_clears"
+            }
+          ],
+          "text": {
+            "en": "The next log shows the main loop at 400 Hz with few late loops and the processor still keeping up. The filters and rate gains were set at the old rate: the app checks both on this flight.",
+            "uk": "Наступний журнал показує головний цикл на 400 Гц з малою кількістю запізнілих циклів, а процесор усе ще встигає. Фільтри й коефіцієнти швидкості налаштовано на старій частоті: застосунок перевірить обидва в цьому польоті."
           }
         }
       ]

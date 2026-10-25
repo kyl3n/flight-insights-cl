@@ -23,6 +23,13 @@
       "why": "No analyzer yet measures what the airframe can do beyond what it has flown, so a limit is never raised automatically."
     }
   },
+  "boot_only": {
+    "about": "Parameters the firmware reads only at start-up although its metadata does not say a reboot is needed: a change to one ends its step with a reboot, like a parameter flagged RebootRequired. Each names where the 4.7.0 source reads it.",
+    "params": {
+      "LOG_FILE_BUFSIZE": "libraries/AP_Logger/AP_Logger_File.cpp AP_Logger_File::Init(), called once from AP_Logger::init(): the write buffer is sized there",
+      "INS_FAST_SAMPLE": "libraries/AP_InertialSensor backends' start() (AP_InertialSensor_Invensense.cpp _set_filter_register(), and the v2, v3, LSM6DSV and SCHA63T drivers): enable_fast_sampling() is read when the sensor starts"
+    }
+  },
   "risk": {
     "mechanical": "low", "evidence": "low", "setup": "medium", "filters": "medium",
     "rate tune": "medium", "autotune": "medium", "feel": "low", "navigation": "medium",

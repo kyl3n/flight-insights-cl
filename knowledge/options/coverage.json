@@ -61,7 +61,12 @@
         "uk": "Таймінг контуру керування"
       },
       "options": [
-        "fast_rate_loop"
+        "fast_rate_loop",
+        "loop_rate_default"
+      ],
+      "also": [
+        "system.slow_loops",
+        "system.long_loop"
       ]
     },
     "logging": {
@@ -74,7 +79,10 @@
       ],
       "also": [
         "logging.no_prefilter_gyro",
-        "logging.missing_messages"
+        "logging.missing_messages",
+        "logging.rate_limited",
+        "logging.dropouts",
+        "logging.notch_inputs_not_logged"
       ]
     },
     "gyro_sampling": {
