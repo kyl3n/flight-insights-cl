@@ -28,42 +28,118 @@
     "rate tune": "medium", "autotune": "medium", "feel": "low", "navigation": "medium",
     "operations": "high"
   },
-  "verify": {
+  "fly": {
     "mechanical": {
-      "en": "Fix the hardware, then fly the same test again: a 60 s hover and a short stretch of normal flight.",
-      "uk": "Усуньте апаратну проблему й повторіть той самий тест: 60 с зависання і коротка ділянка звичайного польоту."
+      "en": "After the fix, fly a 60 s hover at a normal height, then a short stretch of normal flight.",
+      "uk": "Після усунення виконайте 60 с зависання на звичайній висоті, потім коротку ділянку звичайного польоту."
     },
     "evidence": {
-      "en": "Load the change, reboot if asked, and fly the same test again so the next analysis has the data it needs.",
-      "uk": "Завантажте зміну, перезавантажте контролер, якщо потрібно, і повторіть той самий тест, щоб наступний аналіз мав потрібні дані."
+      "en": "Fly the same test as before: a 60 s steady hover, then 30 s of normal flight with moderate stick inputs.",
+      "uk": "Виконайте той самий тест, що й раніше: 60 с стабільного зависання, потім 30 с звичайного польоту з помірними рухами стіків."
     },
     "setup": {
-      "en": "Fly a 60 s hover and a short stretch of normal flight; the next analysis checks the setting took effect.",
-      "uk": "Виконайте 60 с зависання і коротку ділянку звичайного польоту; наступний аналіз перевірить, що налаштування спрацювало."
+      "en": "Fly a 60 s hover and a short stretch of normal flight.",
+      "uk": "Виконайте 60 с зависання і коротку ділянку звичайного польоту."
     },
     "filters": {
-      "en": "Hover 60 s, then fly normally; the next analysis checks the notch follows the motor peak and the noise and lag match the prediction.",
-      "uk": "Зависніть на 60 с, потім летіть як звичайно; наступний аналіз перевірить, що режекторний фільтр стежить за піком моторів, а шум і затримка відповідають прогнозу."
+      "en": "Hover 60 s at a normal height, then fly normally for 30 s with moderate stick inputs on every axis.",
+      "uk": "Зависніть на 60 с на звичайній висоті, потім 30 с летіть як звичайно з помірними рухами стіків по всіх осях."
     },
     "rate tune": {
-      "en": "Fly gentle, then sharper stick inputs on each axis; land at once if the aircraft oscillates.",
-      "uk": "Дайте плавні, потім різкіші рухи стіками по кожній осі; негайно сідайте, якщо апарат розгойдується."
+      "en": "Hover, then give gentle and then sharper stick inputs on each axis in turn.",
+      "uk": "Зависніть, потім дайте плавні, а далі різкіші рухи стіками по кожній осі по черзі."
     },
     "autotune": {
-      "en": "Run AutoTune one axis at a time in calm air, then check the result in a normal flight.",
-      "uk": "Запускайте AutoTune по одній осі в безвітряну погоду, потім перевірте результат у звичайному польоті."
+      "en": "Run AutoTune one axis at a time in calm air, then fly a normal flight with the new gains.",
+      "uk": "Запускайте AutoTune по одній осі в безвітряну погоду, потім виконайте звичайний політ з новими коефіцієнтами."
     },
     "feel": {
-      "en": "Fly the usual manoeuvres and compare the handling with the last flight.",
-      "uk": "Виконайте звичні маневри й порівняйте керованість з попереднім польотом."
+      "en": "Fly the usual manoeuvres.",
+      "uk": "Виконайте звичні маневри."
     },
     "navigation": {
-      "en": "Fly a short mission or a position-hold test and compare the tracking with the last flight.",
-      "uk": "Виконайте коротку місію або тест утримання позиції й порівняйте точність з попереднім польотом."
+      "en": "Fly a short mission or a position-hold test.",
+      "uk": "Виконайте коротку місію або тест утримання позиції."
     },
     "operations": {
-      "en": "Test the failsafe or limit on the ground, or in a controlled test, before relying on it.",
-      "uk": "Перевірте аварійний режим або обмеження на землі чи в контрольованому тесті, перш ніж на нього покладатися."
+      "en": "Test the failsafe or limit on the ground first, then in a controlled test at a safe height.",
+      "uk": "Спершу перевірте аварійний режим або обмеження на землі, потім у контрольованому тесті на безпечній висоті."
+    }
+  },
+  "abort": {
+    "mechanical": {
+      "en": "Land at once if vibration, noise or handling is worse than before.",
+      "uk": "Негайно сідайте, якщо вібрація, шум або керованість гірші, ніж раніше."
+    },
+    "evidence": {
+      "en": "Land if anything behaves differently from the last flight: a logging change alone should change nothing in the air.",
+      "uk": "Сідайте, якщо щось поводиться інакше, ніж у попередньому польоті: сама зміна запису журналу нічого не повинна змінювати в повітрі."
+    },
+    "setup": {
+      "en": "Land at once if the aircraft behaves differently from the last flight, then load the undo file.",
+      "uk": "Негайно сідайте, якщо апарат поводиться інакше, ніж у попередньому польоті, потім завантажте файл скасування."
+    },
+    "filters": {
+      "en": "Land at once if the aircraft oscillates or wobbles, the motors sound rough, or a motor is hot after landing; then load the undo file.",
+      "uk": "Негайно сідайте, якщо апарат розгойдується чи хитається, мотори звучать нерівно або мотор гарячий після посадки; потім завантажте файл скасування."
+    },
+    "rate tune": {
+      "en": "Land at once on any oscillation or wobble, then load the undo file.",
+      "uk": "Негайно сідайте при будь-якому розгойдуванні чи хитанні, потім завантажте файл скасування."
+    },
+    "autotune": {
+      "en": "To stop, switch out of AutoTune (to AltHold or Loiter): the original gains come back. Land and disarm in AutoTune only to keep the new gains.",
+      "uk": "Щоб зупинитися, вийдіть з AutoTune (в AltHold або Loiter): повернуться попередні коефіцієнти. Сідайте й вимикайте мотори в AutoTune лише тоді, коли хочете зберегти нові коефіцієнти."
+    },
+    "feel": {
+      "en": "Land if the aircraft feels less predictable than before, then load the undo file.",
+      "uk": "Сідайте, якщо апарат здається менш передбачуваним, ніж раніше, потім завантажте файл скасування."
+    },
+    "navigation": {
+      "en": "Take manual control (AltHold or Loiter) and land if the tracking is worse than before.",
+      "uk": "Візьміть керування вручну (AltHold або Loiter) і сідайте, якщо точність гірша, ніж раніше."
+    },
+    "operations": {
+      "en": "Stop the test and recover by hand if the failsafe or limit does not act as expected.",
+      "uk": "Зупиніть тест і відновіть керування вручну, якщо аварійний режим або обмеження діє не так, як очікувалося."
+    }
+  },
+  "verify": {
+    "mechanical": {
+      "en": "The next log shows the vibration or fault the fix should remove is gone or lower.",
+      "uk": "Наступний журнал показує, що вібрація чи несправність, яку мало усунути виправлення, зникла або зменшилася."
+    },
+    "evidence": {
+      "en": "The next log holds the data the analysis needs, and this finding clears.",
+      "uk": "Наступний журнал містить дані, потрібні для аналізу, і ця знахідка зникає."
+    },
+    "setup": {
+      "en": "The next log shows the setting took effect, and this finding clears.",
+      "uk": "Наступний журнал показує, що налаштування набуло чинності, і ця знахідка зникає."
+    },
+    "filters": {
+      "en": "The next log shows the notch following the motor peak, with noise and phase lag as predicted.",
+      "uk": "Наступний журнал показує, що режекторний фільтр стежить за піком моторів, а шум і фазова затримка відповідають прогнозу."
+    },
+    "rate tune": {
+      "en": "The next log shows the aircraft tracking its rate targets more closely, with no oscillation.",
+      "uk": "Наступний журнал показує, що апарат точніше відстежує задані кутові швидкості без розгойдування."
+    },
+    "autotune": {
+      "en": "The next log shows the new gains in use and tracking at least as good as before.",
+      "uk": "Наступний журнал показує нові коефіцієнти в роботі й точність не гіршу, ніж раніше."
+    },
+    "feel": {
+      "en": "The handling compares well with the last flight.",
+      "uk": "Керованість не гірша, ніж у попередньому польоті."
+    },
+    "navigation": {
+      "en": "The tracking in the next log is at least as good as on the last flight.",
+      "uk": "Точність у наступному журналі не гірша, ніж у попередньому польоті."
+    },
+    "operations": {
+      "en": "The failsafe or limit acted as set, at the expected moment.",
+      "uk": "Аварійний режим або обмеження спрацювали як налаштовано і в очікуваний момент."
     }
   },
   "effects": {
@@ -154,8 +230,32 @@
       "uk": "виконайте тестовий політ"
     },
     "verify_header": {
-      "en": "Verify:",
-      "uk": "Перевірка:"
+      "en": "The next log should show:",
+      "uk": "Наступний журнал має показати:"
+    },
+    "before_header": {
+      "en": "Before flying:",
+      "uk": "Перед польотом:"
+    },
+    "fly_header": {
+      "en": "Fly:",
+      "uk": "Політ:"
+    },
+    "abort_header": {
+      "en": "Stop and land if:",
+      "uk": "Зупиніться й сідайте, якщо:"
+    },
+    "temporary_note": {
+      "en": "for the test flight only; the revert file takes it out again",
+      "uk": "лише для тестового польоту; файл повернення прибере його"
+    },
+    "revert_header": {
+      "en": "Revert file: load it once the next log has confirmed the change. It takes out the settings that were only for the test flight.",
+      "uk": "Файл повернення: завантажте його, щойно наступний журнал підтвердить зміну. Він прибирає налаштування, що були лише для тестового польоту."
+    },
+    "undo_header": {
+      "en": "Undo file: load it if the test goes wrong. It puts back every value the plan changed; parameters the plan made appear are hidden again once their switch is back off.",
+      "uk": "Файл скасування: завантажте його, якщо тест піде не так. Він повертає кожне значення, змінене планом; параметри, що з'явилися через план, знову сховаються, щойно їхній перемикач вимкнено."
     }
   }
 }

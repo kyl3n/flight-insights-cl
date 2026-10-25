@@ -974,12 +974,40 @@ The numbers above are illustrative. `expected_effect` comes from simulation wher
 
 - A `.param` file of changed values only, with a comment per line giving the reason, loadable in Mission Planner or QGroundControl.
   - The file is written per step, in the firmware's own names and units, in English or Ukrainian.
-  - It holds only the changes a person accepted in the plan. The changes one finding proposes are shown, accepted and rejected together. The engine writes the file to the path the person picks in a save dialog, and only as a `.param` or `.params` file.
-  - Its header says what to do after loading: fly the test, reboot, refresh the parameters for the next step, or reboot and refresh for it. It also gives the stage's verification.
+  - It holds only the changes a person accepted in the plan. The changes one finding proposes are shown, accepted and rejected together. The engine writes the file to the path the person picks in a save dialog, and only as a `.param` or `.params` file; the test card as a `.txt` file.
+  - Its header says what to do after loading: fly the test, reboot, refresh the parameters for the next step, or reboot and refresh for it. The file loaded last also carries the test card: the checks before flying, what to fly, when to stop and land, and what the next log should show.
+  - A setting for the test flight only says so on its line.
   - Mission Planner `.param` files carry the reason after each value (`NAME,VALUE  # why`), as Methodic Configurator writes them.
   - QGroundControl `.params` files carry the reasons as header comments, since its rows have five fixed fields.
+- A revert file: the settings that were for the test flight only, back as they were. A person loads it once the next log has confirmed the change.
+- An undo file: every value the plan changed, back as the flight had it. A person loads it if the test goes wrong. A parameter the plan made appear has no earlier value; it hides again once its switch is back off.
+- The test card on its own, as text to print.
 - A full parameter snapshot for the airframe's history.
 - A flight report (HTML or PDF) for people who will not open the app.
+
+**Procedures.** Every recommendation, action and better option comes with the steps to carry it out, in order, so nobody has to guess what to do or in what order. The plan gives each recommendation its own procedure. It also merges everything on offer into one session: one set of files, one test flight for the stage on offer, and the strictest abort criteria.
+
+| # | Step | Where it comes from |
+| --- | --- | --- |
+| 1 | Work for a person: what an action's finding says to do, hardware (balance the propellers, fit ESCs with bidirectional DShot) and firmware (flash Bluejay or AM32, the board's `-bdshot` build) | the finding's procedure template; an action with none follows its finding's own wording |
+| 2 | Each parameter file, then a refresh, or a reboot and a refresh, before the next | the plan's steps and the gates table |
+| 3 | A reboot when any value needs one | the firmware's metadata |
+| 4 | Settings for the test flight only, such as raw IMU logging (`LOG_BITMASK` bit 19, `INS_RAW_LOG_OPT` bits 0 and 3) and fast harmonic notch logging (bit 21) for a filter change | the template: a finding's own changes it keeps for the test flight, and settings it adds |
+| 5 | Checks on the bench, propellers off: the motor test showing RPM for every motor before a notch follows ESC RPM | the template, kept only where it applies (a step can depend on a parameter's value after the plan) |
+| 6 | What to fly | the leading finding's template, else the stage's default |
+| 7 | When to stop and land | the stage's criteria, plus any a template adds |
+| 8 | What the next log should show, with the checks the app runs on it | the stage's, plus each template's |
+| 9 | The revert file, once the next log has confirmed the change | the plan |
+| 10 | The undo file, if the test goes wrong | the plan |
+
+- **Templates** live in the knowledge pack (`knowledge/procedures/*.json`) in English and Ukrainian. Each is keyed by finding code and checked at load: a known finding, step kinds a template may give, checks the app can run. Shared parts, such as a filter test flight, are written once.
+- **Stage defaults** (what to fly, when to stop, what the next log should show) are in the rule pack (`rules/recommend.json`) for every stage, so every test card has abort criteria.
+- **Test-flight settings** are changes like any other: validated against the metadata, never on the never-propose lists, and merged by bits with lasting changes. Only the bits nothing lasting asked for are taken out again.
+  - They go in the file loaded last.
+  - They are offered only while the finding has a lasting change on offer: a blocked or disputed change has nothing to test.
+- **Better options that need new hardware or firmware** are actions with their steps, never parameter changes.
+- **Parameter lists** name the bits a bitmask gains or loses, from the metadata.
+- **The checks** the app can run on the next flight: the finding clears, a message is logged, a metric is within a limit, a parameter holds a value.
 
 **Closing the loop.** When the next log from the same airframe arrives, each applied recommendation is graded: confirmed, no measurable effect, or regressed, against its own `expected_effect`. Those grades calibrate the rule pack thresholds and feed the AI layer's evaluation set.
 
@@ -1198,7 +1226,7 @@ Rules that keep decisions easy:
 | Flying without GNSS | Readiness by area, measured drift and dead-reckoning range, outages and drills, the recovery card | Open an outage or drill; print the recovery card |
 | Links and ground station | Telemetry and RC loss, outages, fade margin, predicted against measured signal, latency, link quality against distance and heading, command results | Pick a ground station or link |
 | Parameter history | Snapshots per flight, change sets with origin, measured effect of each change | Diff any two flights, tag, export a past snapshot |
-| Plan | Staged recommendations with evidence and expected effects | Accept, reject, export `.param` or `.params`, print the test card |
+| Plan | Staged recommendations with evidence and expected effects, each with its procedure, and the session's test card | Accept, reject, export `.param` or `.params` (each step, revert, undo), print the test card |
 | Sync | Each laptop, last sync, items waiting to upload, quarantined items with reasons | Retry; open a quarantined item's details |
 | Ask | Chat about this flight, airframe or platform | Answers cite evidence and open the matching plot |
 | Compare | Two flights, airframes or platforms side by side | Pick metrics |

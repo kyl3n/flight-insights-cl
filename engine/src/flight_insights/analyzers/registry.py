@@ -96,6 +96,16 @@ OPTION_STAGES = {
     "power": "setup",
 }
 OPTION_COSTS = ("parameter", "reboot", "firmware", "hardware")
+# Steps a procedure template may give; the plan adds its own parameter files, refreshes,
+# reboots, temporary settings, revert and undo (spec: Recommendation engine, "Procedures").
+PROCEDURE_KINDS = ("hardware", "firmware", "ground_check", "fly", "abort", "verify")
+# What the app can test on the next flight, and the fields each test needs.
+CHECKS: Mapping[str, tuple[str, ...]] = {
+    "finding_clears": (),
+    "has_message": ("message",),
+    "metric": ("metric",),
+    "param_is": ("param", "value"),
+}
 
 
 @dataclass(frozen=True)
@@ -112,6 +122,11 @@ class Registry:
     options: Mapping[str, Option] = dataclasses.field(default_factory=dict[str, Option])
     questions: Mapping[str, Mapping[str, Any]] = dataclasses.field(default_factory=dict[str, Any])
     coverage: Mapping[str, Mapping[str, Any]] = dataclasses.field(default_factory=dict[str, Any])
+    # finding code -> {"temporary", "add_temporary", "steps"}, shared parts merged in
+    procedures: Mapping[str, Mapping[str, Any]] = dataclasses.field(default_factory=dict[str, Any])
+    procedure_texts: Mapping[str, Mapping[str, str]] = dataclasses.field(
+        default_factory=dict[str, Any]
+    )
 
     def names(self, firmware: str | None) -> Mapping[str, Any]:
         """Mode, event and error names of the flight's release, or the nearest earlier
@@ -137,16 +152,18 @@ class Registry:
             for path in sorted((pack.root / "rules").glob("*.json"))
         }
         options, questions, coverage = _options(pack, findings)
+        procedures, procedure_texts = _procedures(pack, findings, metrics)
         return Registry(
-            metrics, findings, knowledge_version(pack), rules, pack, options, questions, coverage
-        )
+            metrics, findings, knowledge_version(pack), rules, pack, options, questions,
+            coverage, procedures, procedure_texts,
+        )  # fmt: skip
 
 
 def knowledge_version(pack: Pack) -> str:
     """A short hash of every file an analysis reads from the pack: the registry, the
     rules and the names. A result made with another version is recomputed, not reused."""
     h = hashlib.sha256()
-    for folder in ("metrics", "rules", "enums", "options"):
+    for folder in ("metrics", "rules", "enums", "options", "procedures"):
         for path in sorted((pack.root / folder).glob("*.json")):
             h.update(f"{folder}/{path.name}\0".encode())
             h.update(path.read_bytes())
@@ -280,3 +297,67 @@ def _options(
                 f"option {oid}: its subsystem {option.subsystem} must list it in coverage.json"
             )
     return options, questions, coverage
+
+
+def _procedures(
+    pack: Pack, findings: Mapping[str, FindingText], metrics: Mapping[str, Metric]
+) -> tuple[dict[str, Mapping[str, Any]], dict[str, Mapping[str, str]]]:
+    """The procedure templates (knowledge/procedures/*.json), each checked: a finding the
+    registry knows, steps of the kinds a template may give with text in every language,
+    checks the app can run, and test-flight settings that name a value or bits."""
+    folder = pack.root / "procedures"
+    procedures: dict[str, Mapping[str, Any]] = {}
+    texts: dict[str, Mapping[str, str]] = {}
+    if not folder.is_dir():
+        return procedures, texts
+    for path in sorted(folder.glob("*.json")):
+        doc = json.loads(path.read_text(encoding="utf-8"))
+        for key in doc.get("texts", {}):
+            texts[key] = _text(f"{path.name}: text {key}", doc["texts"], key)
+        shared: Mapping[str, Any] = doc.get("shared", {})
+        for code, raw in doc.get("procedures", {}).items():
+            where = f"{path.name}: procedure {code}"
+            if code not in findings:
+                raise KnowledgeError(f"{where}: no such finding")
+            if code in procedures:
+                raise KnowledgeError(f"{where}: defined twice")
+            parts: list[Mapping[str, Any]] = []
+            for name in raw.get("use", ()):
+                if name not in shared:
+                    raise KnowledgeError(f"{where}: no shared part {name}")
+                parts.append(shared[name])
+            parts.append(raw)
+            temporary = [str(n) for part in parts for n in part.get("temporary", ())]
+            add: list[dict[str, Any]] = [
+                dict(a) for part in parts for a in part.get("add_temporary", ())
+            ]
+            steps = [
+                _procedure_step(where, s, metrics) for part in parts for s in part.get("steps", ())
+            ]
+            for a in add:
+                if not isinstance(a.get("param"), str) or (("set_bits" in a) == ("value" in a)):
+                    raise KnowledgeError(
+                        f"{where}: add_temporary needs a param and set_bits or a value"
+                    )
+            procedures[code] = {"temporary": temporary, "add_temporary": add, "steps": steps}
+    return procedures, texts
+
+
+def _procedure_step(
+    where: str, s: Mapping[str, Any], metrics: Mapping[str, Metric]
+) -> Mapping[str, Any]:
+    if s.get("kind") not in PROCEDURE_KINDS:
+        raise KnowledgeError(f"{where}: a step's kind must be one of {', '.join(PROCEDURE_KINDS)}")
+    text = _text(where, s, "text")
+    if len({frozenset(PLACEHOLDER.findall(text[lang])) for lang in LANGUAGES}) != 1:
+        raise KnowledgeError(f"{where}: every language must use the same placeholders")
+    for check in s.get("checks", ()):
+        needs = CHECKS.get(check.get("check"))
+        if needs is None or any(k not in check for k in needs):
+            raise KnowledgeError(f"{where}: unknown or incomplete check {check}")
+        if check["check"] == "metric" and check["metric"] not in metrics:
+            raise KnowledgeError(f"{where}: no metric {check['metric']}")
+    when = s.get("when")
+    if when is not None and not (isinstance(when.get("param"), str) and when.get("in")):
+        raise KnowledgeError(f"{where}: 'when' needs a param and the values it keeps the step for")
+    return dict(s)

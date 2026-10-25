@@ -13,7 +13,13 @@ from flight_insights.analyzers.run import run_analysis
 from flight_insights.history.persist import load_snapshot
 from flight_insights.knowledge import Pack
 from flight_insights.params.dialect import Dialect
-from flight_insights.recommend.export import ExportError, export_step
+from flight_insights.recommend.export import (
+    ExportError,
+    export_card,
+    export_revert,
+    export_step,
+    export_undo,
+)
 from flight_insights.recommend.plan import Plan, Recommendation, Source, build_plan, to_json
 from flight_insights.recommend.records import (
     RecommendationConflict,
@@ -86,7 +92,10 @@ __all__ = [
     "RecommendationError",
     "Source",
     "build_plan",
+    "export_card",
+    "export_revert",
     "export_step",
+    "export_undo",
     "flight_plan",
     "grade_flight",
     "history",
