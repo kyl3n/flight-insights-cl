@@ -77,6 +77,34 @@ def test_a_firmware_default_outside_its_own_range_is_not_an_error(reg: Registry)
     assert "params.out_of_range" not in found and "ATC_RAT_PIT_FF" not in ev["inconsistent"]
 
 
+def test_a_range_the_firmware_ships_outside_is_no_bound(reg: Registry) -> None:
+    # 4.7's yaw error filter defaults to 2.5 Hz against a documented 5-50 Hz; the tuning
+    # guide's 2 Hz is no error either
+    found, _ = audit(reg, {"ATC_RAT_YAW_FLTE": 2.0}, {"ATC_RAT_YAW_FLTE": 2.5})
+    assert "params.gain_out_of_range" not in found
+
+
+def test_calibration_slots_without_a_sensor_are_not_judged(reg: Registry) -> None:
+    empty = {"INS4_ACC_ID": 0.0, "INS4_ACCSCAL_X": 0.0, "COMPASS_DEV_ID3": 0.0,
+             "COMPASS_SCALE3": 0.0}  # fmt: skip
+    found, _ = audit(reg, empty, {"INS4_ACCSCAL_X": 1.0, "COMPASS_SCALE3": 1.0})
+    assert "params.out_of_range" not in found
+    fitted = empty | {"INS4_ACC_ID": 3867658.0}  # a sensor there: its scale of 0 is wrong
+    found, _ = audit(reg, fitted, {"INS4_ACCSCAL_X": 1.0})
+    assert found["params.out_of_range"].params["names"] == ["INS4_ACCSCAL_X"]
+
+
+def test_undefined_bitmask_bits_are_cleared_without_holding_anything_back(
+    reg: Registry,
+) -> None:
+    # LOG_BITMASK with every bit from 0 to 15 set: bit 14 is not defined in 4.7
+    found, ev = audit(reg, {"LOG_BITMASK": 196607.0}, {"LOG_BITMASK": 180222.0})
+    f = found["params.undefined_bits"]
+    assert f.severity == "info" and "params.out_of_range" not in found
+    assert [(c.param, c.proposed) for c in f.changes] == [("LOG_BITMASK", 196607.0 - (1 << 14))]
+    assert "LOG_BITMASK" in ev["inconsistent"]
+
+
 def test_a_chosen_value_outside_its_range_is_inconsistent(reg: Registry) -> None:
     params = {"ATC_RAT_RLL_P": 0.45, "INS_GYRO_FILTER": 300.0}  # ranges 0-0.35 and 0-256
     found, ev = audit(reg, params, {"ATC_RAT_RLL_P": 0.135, "INS_GYRO_FILTER": 20.0})
@@ -294,7 +322,7 @@ def test_battery_thresholds_come_from_the_pack(reg: Registry) -> None:
 FIRMWARE = {  # 4.7.0 defaults of what the starting values touch
     "INS_GYRO_FILTER": 20.0, "INS_ACCEL_FILTER": 20.0, "MOT_THST_EXPO": 0.65,
     "ATC_RAT_RLL_FLTD": 20.0, "ATC_RAT_RLL_FLTT": 20.0, "ATC_RAT_PIT_FLTD": 20.0,
-    "ATC_RAT_PIT_FLTT": 20.0, "ATC_RAT_YAW_FLTT": 20.0, "ATC_RAT_YAW_FLTE": 2.0,
+    "ATC_RAT_PIT_FLTT": 20.0, "ATC_RAT_YAW_FLTT": 20.0, "ATC_RAT_YAW_FLTE": 2.5,
     "ATC_ACC_P_MAX": 1100.0, "ATC_ACC_R_MAX": 1100.0, "ATC_ACC_Y_MAX": 270.0,
 }  # fmt: skip
 
