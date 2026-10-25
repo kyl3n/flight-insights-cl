@@ -227,6 +227,33 @@ def test_a_confirmed_filter_test_brings_the_revert_of_its_logging(fleet: Fleet) 
     assert revert.proposed == 180222.0  # only the test flight's bits come out
 
 
+def test_the_revert_follows_when_a_later_plan_replaced_the_lasting_changes(
+    fleet: Fleet,
+) -> None:
+    # A plan waits on an earlier stage; the next plan, after another flight, proposes the
+    # same test-flight logging (it keeps its first record) but other notch values (new
+    # records, the old ones superseded). The test flight confirms the new ones.
+    earlier = plan_and_record(fleet.store, fleet.cache, fleet.pack, fleet.earlier)
+    again: dict[str, Any] = copy.deepcopy(earlier)
+    for r in again["recommendations"]:
+        if r["canonical"] in NOTCH and r["canonical"] != "INS_HNTCH_MODE":
+            r["proposed_canonical"] = float(r["proposed_canonical"]) + 5.0
+    record_plan(fleet.store, again)
+    replaced = {
+        h["param"]: h["proposed_value"]
+        for h in history(fleet.store, fleet.airframe)
+        if h["param"] in NOTCH and h["status"] == "proposed"
+    }
+    assert set(replaced) == set(NOTCH)
+    fly_with(fleet, fleet.later, **replaced, LOG_BITMASK=float(TEST_LOGGING))
+    analysis = without(fleet, "filter.better_source", "logging.notch_inputs_not_logged")
+    grade_flight(fleet.store, fleet.pack, fleet.later, analysis, messages(fleet))
+    assert statuses(fleet)["LOG_BITMASK"] == "confirmed"
+    plan = flight_plan(fleet.store, fleet.cache, fleet.pack, fleet.later, analysis)
+    [revert] = [r for r in plan.recommendations if r.param == "LOG_BITMASK"]
+    assert revert.lead.code == "followup.revert_test_settings"
+
+
 def test_a_check_that_fails_makes_a_cleared_finding_no_effect(fleet: Fleet) -> None:
     plan_and_record(fleet.store, fleet.cache, fleet.pack, fleet.earlier)
     fly_with(fleet, fleet.later, **NOTCH, LOG_BITMASK=float(TEST_LOGGING))
