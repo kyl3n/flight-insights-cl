@@ -47,6 +47,11 @@ class Check:
     def control_band_error_db(self) -> float | None:
         return self.prediction.band_error_db(*CONTROL_BAND)
 
+    @property
+    def notch_inputs(self) -> str:
+        """ "exact", "rebuilt" or "none" (no harmonic notch): which target applies."""
+        return self.filters.inputs
+
     def summary(self) -> dict[str, Any]:
         """The numbers worth keeping: no samples, no positions."""
         p = self.prediction
@@ -58,6 +63,7 @@ class Check:
             "windows": p.windows,
             "spectrum_error_db": _round(self.spectrum_error_db()),
             "control_band_error_db": _round(self.control_band_error_db()),
+            "notch_inputs": self.notch_inputs,
             "bands": [
                 {
                     "from_hz": float(a),

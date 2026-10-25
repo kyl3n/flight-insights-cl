@@ -2,9 +2,12 @@
 prediction check (`fi-engine filter-check`).
 
 Each log is decoded, its steady hover found, and the filter model run on its own
-settings against the post-filter gyro data it logged. The report names logs by a
-hash of their content and holds only errors in dB and the filter setup, never
-samples, positions or file names, so it can be shared.
+settings against the post-filter gyro data it logged. Each checked log is held to the
+target of its class, from the knowledge pack's metric zones: the control band always,
+and the whole spectrum by whether the notches' inputs are known exactly (no notch, a
+fixed notch, or inputs logged at every update) or rebuilt from the log. The report
+names logs by a hash of their content and holds only errors in dB and the filter
+setup, never samples, positions or file names, so it can be shared.
 """
 
 from __future__ import annotations
@@ -22,6 +25,7 @@ from typing import Any, Literal
 import numpy as np
 
 from flight_insights import __version__
+from flight_insights.analyzers.registry import Registry
 from flight_insights.dataflash.log import read_dataflash
 from flight_insights.filters.check import check
 from flight_insights.fingerprint import fingerprint
@@ -30,7 +34,22 @@ from flight_insights.history import from_log
 from flight_insights.knowledge import load_pack
 
 Status = Literal["checked", "no post-filter data", "no pre-filter data", "no hover", "error"]
-TABLES = ("GYR", "ESC", "MOTB", "FCN", "FCNS", "RPM")
+TABLES = ("GYR", "ESC", "MOTB", "FCN", "FCNS", "FTN", "FTNS", "RPM")
+METRIC = {"exact": "filter.model_error", "none": "filter.model_error",
+          "rebuilt": "filter.model_error_rebuilt"}  # fmt: skip
+CONTROL = "filter.model_error_control"
+
+
+def targets(reg: Registry) -> dict[str, float]:
+    """The upper edge of each class's target zone, dB."""
+
+    def edge(metric: str) -> float:
+        (low, high), *_ = reg.metrics[metric].zones["target"]
+        assert low is None and high is not None
+        return float(high)
+
+    return {"exact": edge(METRIC["exact"]), "rebuilt": edge(METRIC["rebuilt"]),
+            "control": edge(CONTROL)}  # fmt: skip
 
 
 @dataclass
@@ -42,6 +61,11 @@ class LogCheck:
     rate_hz: float | None = None
     seconds: float | None = None
     notch_modes: list[int] = field(default_factory=list[int])
+    # "exact", "rebuilt" or "none": what the notches followed, which decides the target
+    notch_inputs: str | None = None
+    target_db: float | None = None  # whole spectrum, for this log's class
+    control_target_db: float | None = None
+    passed: bool | None = None
     error: str | None = None
 
 
@@ -62,14 +86,27 @@ def check_log(path: Path) -> LogCheck:
             return LogCheck(ident, "no pre-filter data")
         modes = [s.notch.p.mode for s in result.filters.sets]
         error = result.spectrum_error_db()
+        control = result.control_band_error_db()
+        aims = targets(Registry.load(pack))
+        inputs = result.notch_inputs
+        aim = aims["rebuilt" if inputs == "rebuilt" else "exact"]
+        passed = (
+            error < aim and abs(control) < aims["control"]
+            if error is not None and control is not None
+            else None
+        )
         return LogCheck(
             ident,
             "checked" if error is not None else "no post-filter data",
             error,
-            result.control_band_error_db(),
+            control,
             round(result.rate_hz, 1),
             round(result.prediction.seconds, 1),
             modes,
+            inputs,
+            aim,
+            aims["control"],
+            passed,
         )
     except Exception as e:  # a log that cannot be checked is reported, not fatal
         return LogCheck(ident, "error", error=type(e).__name__)
@@ -88,10 +125,11 @@ def run(paths: Sequence[Path], jobs: int = 1) -> list[LogCheck]:
         return list(pool.map(check_log, paths))
 
 
-def report(results: Iterable[LogCheck], target_db: float | None = None) -> dict[str, Any]:
-    """Aggregate errors; with a target, whether every checked log meets it."""
+def report(results: Iterable[LogCheck]) -> dict[str, Any]:
+    """Aggregate errors, and whether every checked log meets its class's target."""
     results = list(results)
-    errors = np.array([r.spectrum_error_db for r in results if r.spectrum_error_db is not None])
+    checked = [r for r in results if r.spectrum_error_db is not None]
+    errors = np.array([r.spectrum_error_db for r in checked])
     stats = (
         {
             "median_db": round(float(np.median(errors)), 3),
@@ -106,12 +144,9 @@ def report(results: Iterable[LogCheck], target_db: float | None = None) -> dict[
         "engine_version": __version__,
         "date": datetime.now(UTC).date().isoformat(),
         "checked": len(errors),
-        "target_db": target_db,
-        "passed": (
-            bool(len(errors)) and bool((errors <= target_db).all())
-            if target_db is not None
-            else None
-        ),
+        "targets_db": targets(Registry.load(load_pack())),
+        "by_inputs": dict(Counter(r.notch_inputs for r in checked)),
+        "passed": bool(checked) and all(r.passed for r in checked) if checked else None,
         "spectrum_error": stats,
         "summary": dict(Counter(r.status for r in results)),
         "logs": [asdict(r) for r in results],

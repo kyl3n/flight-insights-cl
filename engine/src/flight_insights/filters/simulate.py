@@ -112,12 +112,31 @@ def biquads(x: Floats, starts: Ints, coeffs: Floats) -> Floats:
 
 
 def _blocks(times_us: Ints, period_us: int) -> Ints:
-    """Block starts where the update tick changes. A one-sample block joins the block
-    before it (the first, the one after it): the firmware would update in between,
-    one sample earlier or later."""
+    """Block starts where the update tick changes."""
     tick = (times_us - times_us[0]) // period_us
-    starts = np.flatnonzero(np.diff(tick, prepend=-1))
-    lengths = np.diff(np.append(starts, len(times_us)))
+    return _joined(np.flatnonzero(np.diff(tick, prepend=-1)), len(times_us))
+
+
+def _logged_blocks(times_us: Ints, updates_us: Ints, period_us: int) -> Ints:
+    """Block starts at the first sample at or after each logged update. Where updates
+    are logged less often (outside a stretch logged at every update), the regular
+    update grid splits the long blocks: the coefficients do not change there, so the
+    output is the same, and every block stays short."""
+    logged = np.unique(np.searchsorted(times_us, updates_us, side="left"))
+    logged = np.union1d([0], logged[logged < len(times_us)])
+    grid = _blocks(times_us, period_us)
+    near = np.searchsorted(logged, grid)
+    gap = np.minimum(
+        np.abs(grid - logged[np.clip(near - 1, 0, len(logged) - 1)]),
+        np.abs(logged[np.clip(near, 0, len(logged) - 1)] - grid),
+    )
+    return _joined(np.union1d(logged, grid[gap > 1]), len(times_us))
+
+
+def _joined(starts: Ints, n: int) -> Ints:
+    """A one-sample block joins the block before it (the first, the one after it): the
+    firmware would update in between, one sample earlier or later."""
+    lengths = np.diff(np.append(starts, n))
     keep = lengths >= 2
     keep[0] = True
     if lengths[0] < 2 and len(starts) > 1:
@@ -161,7 +180,10 @@ def simulate(chain: FilterChain, run: Run, loop_rate_hz: float = 400.0) -> Run:
     x = run.samples.astype(np.float64)
     for s in chain.sets:
         period = int(1e6 / loop_rate_hz) if s.notch.p.opts & LOOP_RATE else UPDATE_US
-        starts = _blocks(run.times_us, period)
+        if s.sources.every_update:
+            starts = _logged_blocks(run.times_us, s.sources.times_us, period)
+        else:
+            starts = _blocks(run.times_us, period)
         if len(starts) == 0 or len(x) < 2:
             continue
         sources: Sequence[Floats] = [

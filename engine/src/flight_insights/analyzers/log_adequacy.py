@@ -6,7 +6,10 @@ Whether the log holds what the other analyzers need, and whether the logger kept
   gyro data, which lets the filter prediction be checked against the aircraft;
 - raw gyro samples lost (from the log checks made at import), which spoil spectra;
 - messages the logger dropped (DSF.Dp) and stretches with no messages at all;
-- messages other analyzers read that LOG_BITMASK leaves out.
+- messages other analyzers read that LOG_BITMASK leaves out;
+- a harmonic notch that follows something whose inputs the log holds less often than
+  the notch moves, so the filters cannot be replayed exactly (fast harmonic notch
+  logging, for a filter test flight).
 
 Which bit logs which message, and the INS_RAW_LOG_OPT bits, come from the knowledge
 pack's rules (knowledge/rules/logging.json); the bit names from the release's own
@@ -31,6 +34,9 @@ from flight_insights.analyzers.model import (
     Result,
 )
 from flight_insights.analyzers.registry import Registry
+from flight_insights.filters.harmonic import ESC, FFT, FIXED, RPM, RPM2, THROTTLE, NotchParams
+from flight_insights.filters.predict import SETS
+from flight_insights.filters.tracking import logged_inputs, update_period_us
 
 
 def _bit(value: int, bit: int) -> bool:
@@ -251,18 +257,102 @@ def _missing(flight: FlightData, reg: Registry, out: Result) -> None:
     )
 
 
+# Where each tracking mode's own source is logged: (message, the column that tells the
+# instances apart, the instance; None for every row)
+MODE_SOURCE: dict[int, tuple[str, str | None]] = {
+    ESC: ("ESC", "Instance"), THROTTLE: ("MOTB", None), RPM: ("RPM", "I"), RPM2: ("RPM", "I"),
+    FFT: ("FCN", "I"),
+}  # fmt: skip
+
+
+def _rate_hz(flight: FlightData, name: str, key: str | None, value: int, a: int, b: int) -> float:
+    """How often a message is logged for one instance between two times."""
+    t = flight.table(name, ["TimeUS", *([key] if key else [])])
+    if t is None or t.num_rows < 3:
+        return 0.0
+    times = np.asarray(t.column("TimeUS").to_numpy(), np.int64)
+    sel = (times >= a) & (times <= b)
+    if key is not None and key in t.column_names:
+        instances = np.asarray(t.column(key).to_numpy(), np.int64)
+        sel &= instances == (instances.min() if name == "ESC" else value)
+    times = times[sel]
+    return 1e6 / float(np.median(np.diff(times))) if len(times) > 2 else 0.0
+
+
+def _notch_inputs(flight: FlightData, reg: Registry, out: Result) -> None:
+    """A notch that follows something, logged less often than it moves."""
+    bit = reg.rules["logging"]["fast_notch"]["bit"].get(flight.vehicle)
+    if bit is None or "LOG_BITMASK" not in flight.params:
+        return
+    bitmask = int(flight.params["LOG_BITMASK"])
+    hover = flight.hover()
+    a, b = (hover[0].start_us, hover[-1].end_us) if hover else (flight.arm_us, flight.disarm_us)
+    loop = float(flight.params.get("SCHED_LOOP_RATE", 400))
+    tables = {n: t for n in ("FTN", "FTNS") if (t := flight.table(n)) is not None}
+    short: list[dict[str, Any]] = []
+    for index, prefix in enumerate(SETS):
+        p = NotchParams.read(flight.params, prefix)
+        if not p.enable or not p.num_harmonics or p.mode == FIXED or p.ref == 0:
+            continue
+        period = update_period_us(p.opts, loop)
+        if logged_inputs(tables, index, period, a, b) is not None:
+            continue
+        name, key = MODE_SOURCE.get(p.mode, ("", None))
+        rates = [_rate_hz(flight, n, "I", index, a, b) for n in ("FTN", "FTNS")]
+        if name:
+            rates.append(_rate_hz(flight, name, key, index if p.mode == FFT else 0, a, b))
+        short.append(
+            {"set": prefix, "mode": p.mode, "update_hz": round(1e6 / period),
+             "logged_hz": round(max(rates))}
+        )  # fmt: skip
+    if not short:
+        return
+    worst = max(short, key=lambda s: s["update_hz"] / max(s["logged_hz"], 0.1))
+    proposed = bitmask | 1 << bit
+    ev = Evidence(
+        id="log:notch-inputs",
+        kind="parameter",
+        summary=(
+            f"{', '.join(s['set'] for s in short)}: the notch moves {worst['update_hz']} times a"
+            f" second; what it followed is logged at most {worst['logged_hz']} times a second,"
+            f" and LOG_BITMASK {bitmask} leaves bit {bit} (fast harmonic notch logging) off"
+        ),
+        messages=("FTN", "FTNS"),
+        fields=("LOG_BITMASK",),
+        segment=flight.armed,
+        values={"LOG_BITMASK": bitmask, "sets": short},
+    )
+    out.findings.append(
+        Finding(
+            code="logging.notch_inputs_not_logged",
+            severity="info",
+            confidence="high",
+            evidence=(ev,),
+            params={
+                "update_hz": worst["update_hz"],
+                "logged_hz": worst["logged_hz"],
+                "bit": bit,
+                "proposed": proposed,
+                "current": bitmask,
+            },
+            changes=(CandidateChange("LOG_BITMASK", bitmask, proposed, "evidence"),),
+        )
+    )
+
+
 def _log_adequacy(flight: FlightData, reg: Registry) -> Result:
     out = Result()
     _gyro(flight, reg, out)
     _dropouts(flight, reg, out)
     _gaps(flight, out)
     _missing(flight, reg, out)
+    _notch_inputs(flight, reg, out)
     return out
 
 
 LOG_ADEQUACY = Analyzer(
     name="logging",
-    version=1,
+    version=2,
     run=_log_adequacy,
     metrics=("logging.imu_sample_loss", "logging.dropped_messages"),
     findings=(
@@ -272,5 +362,6 @@ LOG_ADEQUACY = Analyzer(
         "logging.dropouts",
         "logging.gap",
         "logging.missing_messages",
+        "logging.notch_inputs_not_logged",
     ),
 )

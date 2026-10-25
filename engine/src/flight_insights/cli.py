@@ -48,7 +48,6 @@ def build_parser() -> argparse.ArgumentParser:
     )
     fcheck.add_argument("--corpus", type=Path, required=True, help="folder searched for .bin logs")
     fcheck.add_argument("--report", type=Path, help="write the shareable JSON report here")
-    fcheck.add_argument("--target-db", type=float, help="fail if any log's error is above this")
     fcheck.add_argument(
         "--jobs", type=int, default=os.cpu_count() or 1, help="logs checked in parallel"
     )
@@ -158,8 +157,13 @@ def _filter_check(args: argparse.Namespace) -> int:
     results = run(paths, args.jobs)
     for path, r in zip(paths, results, strict=True):
         err = f"{r.spectrum_error_db:6.3f} dB" if r.spectrum_error_db is not None else " " * 9
-        print(f"{r.status:<20}{r.id}  {err}  {r.error or ''} {path}")
-    data = report(results, args.target_db)
+        aim = (
+            f"{r.notch_inputs:<8} {'pass' if r.passed else 'FAIL'} (< {r.target_db} dB)"
+            if r.passed is not None
+            else ""
+        )
+        print(f"{r.status:<20}{r.id}  {err}  {aim}  {r.error or ''} {path}")
+    data = report(results)
     if args.report:
         args.report.write_text(json.dumps(data, indent=2) + "\n", encoding="utf-8")
     stats = data["spectrum_error"]
@@ -172,7 +176,12 @@ def _filter_check(args: argparse.Namespace) -> int:
         print("\nno log had both pre- and post-filter gyro data in steady hover")
     if data["passed"] is None:
         return 0
-    print("PASSED" if data["passed"] else "FAILED", f"against {args.target_db} dB")
+    t = data["targets_db"]
+    print(
+        "PASSED" if data["passed"] else "FAILED",
+        f"against {t['exact']} dB with the notch inputs known exactly, {t['rebuilt']} dB with"
+        f" them rebuilt from the log, and {t['control']} dB in the 0-40 Hz control band",
+    )
     return 0 if data["passed"] else 1
 
 
