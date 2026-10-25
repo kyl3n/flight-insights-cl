@@ -23,6 +23,7 @@ gains never tuned.
 from __future__ import annotations
 
 import fnmatch
+import math
 import re
 from collections.abc import Mapping
 from typing import Any, cast
@@ -146,6 +147,7 @@ def _audit(flight: FlightData, reg: Registry) -> Result:
         contradicted |= _battery(flight, rules, out)
         contradicted |= _other_monitors(flight, out)
         contradicted |= _power_setup(flight, rules, out)
+        _navigation(flight, out)
         _never_tuned(flight, rules, out)
 
     # --- the four verdicts ----------------------------------------------------------------
@@ -458,12 +460,112 @@ def _battery(flight: FlightData, rules: Mapping[str, Any], out: Result) -> set[s
     return flagged
 
 
+def _navigation(flight: FlightData, out: Result) -> None:
+    """GNSS, compass, estimator sources and the fence against the setup answers. Each
+    needs a person's choice (the receiver's type, the sensor, the site), so they carry
+    procedures rather than values."""
+    p, a = flight.params, flight.answers
+
+    def add(code: str, severity: Any, names: list[str], summary: str) -> None:
+        values = {n: p.get(n) for n in names}
+        out.findings.append(
+            Finding(
+                code=code,
+                severity=severity,
+                confidence="high",
+                evidence=(ev(f"params:{code}", summary, values),),
+            )
+        )
+
+    if int(a.get("gnss_count") or 0) >= 2 and p.get("GPS2_TYPE") == 0:
+        add("params.second_gnss_unset", "caution", ["GPS2_TYPE"],
+            "a second GNSS receiver in the platform setup, none in the parameters")  # fmt: skip
+    if a.get("compass_mounting") == "on the flight controller" and p.get("COMPASS_MOTCT") == 0:
+        add("params.compassmot_not_done", "info", ["COMPASS_MOTCT"],
+            "the compass sits on the flight controller and CompassMot was never run")  # fmt: skip
+    sources = ("EK3_SRC2_POSXY", "EK3_SRC2_VELXY")
+    if a.get("flies_without_gnss") is True and all(p.get(n) == 0 for n in sources):
+        add("params.no_gnss_fallback", "caution", list(sources),
+            "flies without GNSS (platform setup), with no second EKF source set")  # fmt: skip
+    if p.get("FENCE_ENABLE") == 0:
+        add("params.fence_off", "info", ["FENCE_ENABLE"], "the geofence is off")
+
+
+def _round_to(value: float, places: int) -> float:
+    """Mission Planner's RoundTo for negative places: to the nearest 10^-places, halves up."""
+    step = 10**-places
+    return float(math.floor((value + step / 2) / step) * step)
+
+
+def _starting_values(flight: FlightData, rules: Mapping[str, Any], out: Result) -> None:
+    """Starting values by propeller diameter for an aircraft never tuned, for the
+    parameters still at the firmware's default (rules/audit.json starting_tune)."""
+    r: Mapping[str, Any] = rules["starting_tune"]
+    prop = flight.answers.get("prop_diameter_in")
+    p, d = flight.params, flight.defaults
+    if not prop or float(prop) <= 0:
+        return
+    prop = float(prop)
+    # The filter analyzer judges the low-pass from the gyro spectrum where there is one.
+    gyro = float(p.get("INS_GYRO_FILTER", 20))
+    if not flight.has("GYR"):
+        gyro = max(20.0, float(round(289.22 * prop**-0.838)))
+    rate = (
+        float(r["large_rate_filter_hz"])
+        if prop >= r["large_prop_in"]
+        else max(10.0, round(gyro / 2))
+    )
+    acc_rp = max(
+        100.0,
+        _round_to(-2.613267 * prop**3 + 343.39216 * prop**2 - 15083.7121 * prop + 235771, -2) / 100,
+    )
+    acc_y = max(80.0, _round_to(-900 * prop + 36000, -2) / 100)
+    expo = min(round(0.15686 * math.log(prop) + 0.23693, 2), float(r["expo_max"]))
+    wanted: dict[str, float] = {
+        "INS_GYRO_FILTER": gyro, "INS_ACCEL_FILTER": 10.0,
+        "ATC_RAT_RLL_FLTD": rate, "ATC_RAT_RLL_FLTT": rate,
+        "ATC_RAT_PIT_FLTD": rate, "ATC_RAT_PIT_FLTT": rate,
+        "ATC_RAT_YAW_FLTT": max(10.0, round(gyro / 2)), "ATC_RAT_YAW_FLTE": 2.0,
+        "ATC_ACC_P_MAX": acc_rp, "ATC_ACC_R_MAX": acc_rp, "ATC_ACC_Y_MAX": acc_y,
+        "MOT_THST_EXPO": expo,
+    }  # fmt: skip
+    lower_only = ("ATC_ACC_P_MAX", "ATC_ACC_R_MAX", "ATC_ACC_Y_MAX")
+    changes = tuple(
+        CandidateChange(n, p[n], v, "setup")
+        for n, v in wanted.items()
+        if n in p
+        and n in d
+        and _is_default(n, p[n], d)  # someone's choice is kept
+        and abs(p[n] - v) > TOLERANCE
+        and not (n in lower_only and v > p[n])
+    )
+    if changes:
+        out.findings.append(
+            Finding(
+                code="params.tuning_starting_values",
+                # caution: they come first, so AutoTune waits for a flight on them
+                severity="caution",
+                confidence="medium",
+                evidence=(
+                    ev(
+                        "params:starting-values",
+                        f"starting values for {format_value(prop)} inch propellers",
+                        {"prop_in": prop, **{c.param: c.proposed for c in changes}},
+                    ),
+                ),
+                params={"prop": format_value(prop), "count": len(changes)},
+                changes=changes,
+            )
+        )
+
+
 def _never_tuned(flight: FlightData, rules: Mapping[str, Any], out: Result) -> None:
     names: list[str] = list(rules["never_tuned"]["names"])
     p, d = flight.params, flight.defaults
     if not all(n in p and n in d for n in names):
         return  # without recorded defaults there is no telling
     if all(_is_default(n, p[n], d) for n in names):
+        _starting_values(flight, rules, out)
         out.findings.append(
             Finding(
                 code="params.never_tuned",
@@ -482,7 +584,7 @@ def _never_tuned(flight: FlightData, rules: Mapping[str, Any], out: Result) -> N
 
 PARAMS_AUDIT = Analyzer(
     name="params",
-    version=3,
+    version=4,
     run=_audit,
     metrics=(),
     findings=(
@@ -497,5 +599,7 @@ PARAMS_AUDIT = Analyzer(
         "params.battery_no_low", "params.vibe_failsafe_off",
         "params.dead_reckoning_failsafe_off", "params.ekf_failsafe_off",
         "params.gcs_failsafe_off", "params.arming_checks_skipped",
+        "params.tuning_starting_values", "params.second_gnss_unset",
+        "params.compassmot_not_done", "params.no_gnss_fallback", "params.fence_off",
     ),
 )  # fmt: skip

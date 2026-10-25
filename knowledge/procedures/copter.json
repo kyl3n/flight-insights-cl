@@ -955,6 +955,124 @@
           }
         }
       ]
+    },
+    "params.never_tuned": {
+      "steps": [
+        {
+          "kind": "hardware",
+          "text": {
+            "en": "Remove the camera gimbal and anything else that could wobble in flight, and make sure the aircraft flies steadily in AltHold.",
+            "uk": "Зніміть підвіс камери та все, що може хитатися в польоті, і переконайтеся, що апарат стабільно летить в AltHold."
+          }
+        },
+        {
+          "kind": "ground_check",
+          "text": {
+            "en": "Put AltHold on one flight-mode switch position and AutoTune on a spare switch (RCn_OPTION 17), and leave that switch LOW. Choose the axes in AUTOTUNE_AXES (1 roll, 2 pitch, 4 yaw: one at a time if a battery cannot finish them all) and keep AUTOTUNE_AGGR at its default 0.1.",
+            "uk": "Призначте AltHold на одне положення перемикача режимів, а AutoTune — на вільний перемикач (RCn_OPTION 17) і залиште його в нижньому положенні. Оберіть осі в AUTOTUNE_AXES (1 крен, 2 тангаж, 4 рискання: по одній, якщо батареї не вистачає на всі) і залиште AUTOTUNE_AGGR стандартним 0.1."
+          }
+        },
+        {
+          "kind": "fly",
+          "text": {
+            "en": "On a calm day in a large open area, take off and hold AltHold at a comfortable height. Face the aircraft so it twitches across the wind (into the wind when tuning roll), then switch AutoTune HIGH. It twitches about 20 degrees each way for a few minutes per axis; reposition with the sticks whenever it drifts. When it finishes it flies on the old gains: switch LOW then HIGH to try the new ones.",
+            "uk": "У тихий день на великому відкритому майданчику злетіть і тримайте AltHold на зручній висоті. Розверніть апарат так, щоб він смикався поперек вітру (носом проти вітру для крену), потім перемкніть AutoTune вгору. Він смикається приблизно на 20 градусів у кожен бік кілька хвилин на вісь; повертайте його стіками, коли зноситься. Після завершення він летить на старих коефіцієнтах: перемкніть вниз і вгору, щоб спробувати нові."
+          }
+        },
+        {
+          "kind": "abort",
+          "text": {
+            "en": "If it oscillates, or the wind pushes it hard, switch AutoTune LOW: the original gains come back and nothing is saved.",
+            "uk": "Якщо апарат розгойдується або вітер сильно зносить, перемкніть AutoTune вниз: повернуться початкові коефіцієнти, і нічого не збережеться."
+          }
+        },
+        {
+          "kind": "verify",
+          "checks": [
+            {
+              "check": "finding_clears"
+            }
+          ],
+          "text": {
+            "en": "If you like the new gains, land and disarm with the switch HIGH to save them: the ground station says the gains were saved. The next log shows the rate gains changed.",
+            "uk": "Якщо нові коефіцієнти подобаються, сядьте й вимкніть двигуни з перемикачем угорі, щоб зберегти їх: наземна станція повідомить про збереження. Наступний журнал покаже змінені коефіцієнти швидкості."
+          }
+        }
+      ]
+    },
+    "params.tuning_starting_values": {
+      "steps": [
+        {
+          "kind": "verify",
+          "checks": [
+            {
+              "check": "finding_clears"
+            }
+          ],
+          "text": {
+            "en": "The next flight holds steady in AltHold, ready for AutoTune.",
+            "uk": "Наступний політ стабільний в AltHold і готовий до AutoTune."
+          }
+        }
+      ]
+    },
+    "params.compassmot_not_done": {
+      "steps": [
+        {
+          "kind": "ground_check",
+          "text": {
+            "en": "CompassMot needs the current monitor working. Flip each propeller over and move it one position around the frame so they push the aircraft down, and tie the aircraft down: the propellers will spin.",
+            "uk": "Для CompassMot потрібен робочий монітор струму. Переверніть кожен пропелер і перемістіть на одну позицію по рамі, щоб вони притискали апарат донизу, і прив'яжіть апарат: пропелери обертатимуться."
+          }
+        },
+        {
+          "kind": "ground_check",
+          "text": {
+            "en": "Start Compass/Motor calibration in the ground station, raise the throttle slowly to 50-75% for 5-10 seconds, bring it back to zero quickly and finish. Read the interference: under 30% is good, above 60% needs the compass moved or an external one.",
+            "uk": "Запустіть у наземній станції калібрування компаса й моторів, плавно підніміть газ до 50-75% на 5-10 секунд, швидко зменште до нуля й завершіть. Прочитайте рівень завад: до 30% добре, понад 60% — потрібно перемістити компас або встановити зовнішній."
+          }
+        },
+        {
+          "kind": "hardware",
+          "text": {
+            "en": "Put the propellers back in their right places and the right way up before flying.",
+            "uk": "Поверніть пропелери на свої місця правильною стороною перед польотом."
+          }
+        }
+      ]
+    },
+    "params.no_gnss_fallback": {
+      "steps": [
+        {
+          "kind": "ground_check",
+          "text": {
+            "en": "On the bench, switch between source sets with the RCn_OPTION 90 switch: the ground station shows a message for each change, the EKF stays healthy for 10 seconds after it, and position, altitude and heading stay sensible.",
+            "uk": "На стенді перемикайте набори джерел перемикачем RCn_OPTION 90: наземна станція показує повідомлення для кожної зміни, EKF лишається справним 10 секунд після неї, а позиція, висота й курс лишаються правдоподібними."
+          }
+        }
+      ]
+    },
+    "params.fence_off": {
+      "steps": [
+        {
+          "kind": "ground_check",
+          "text": {
+            "en": "Before take-off, check the ground station shows the fence enabled and arming is allowed once the aircraft has its position.",
+            "uk": "Перед зльотом перевірте, що наземна станція показує ввімкнену геозону, а зведення дозволено, щойно апарат має позицію."
+          }
+        }
+      ]
+    },
+    "params.second_gnss_unset": {
+      "steps": [
+        {
+          "kind": "ground_check",
+          "text": {
+            "en": "After the reboot, check the ground station shows both receivers with a fix.",
+            "uk": "Після перезавантаження перевірте, що наземна станція показує обидва приймачі з фіксацією."
+          }
+        }
+      ]
     }
   }
 }

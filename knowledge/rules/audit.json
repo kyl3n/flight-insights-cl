@@ -17,6 +17,17 @@
     "scaling_min": [2.5, 3.9]
   },
   "capacity_share": 0.1,
+  "starting_tune": {
+    "about": "Starting values by propeller diameter for an aircraft never tuned, offered only for parameters still at the firmware's default: Mission Planner's Initial Parameter Setup formulas (INS_GYRO_FILTER, the rate filters at half of it, ATC_ACC_*_MAX, MOT_THST_EXPO, INS_ACCEL_FILTER 10, ATC_RAT_YAW_FLTE 2), with ArduPilot's AutoTune guidance that copters with props of 13 inches or more set the roll and pitch rate filters to 10 Hz, and its tuning guide's warning not to set MOT_THST_EXPO above 0.75 without thrust-stand data. ATC_ACC_*_MAX is only ever lowered.",
+    "sources": [
+      "https://github.com/ArduPilot/MissionPlanner/blob/master/GCSViews/ConfigurationView/ConfigInitialParams.cs",
+      "https://ardupilot.org/copter/docs/setting-up-for-tuning.html",
+      "https://ardupilot.org/copter/docs/autotune.html"
+    ],
+    "large_prop_in": 13,
+    "large_rate_filter_hz": 10,
+    "expo_max": 0.75
+  },
   "starting_volts": {
     "about": "Battery thresholds the app proposes where none is set, from the cell count and the chemistry's empty voltage per cell (cell_min): low = (cell_min + low_above_min) x cells, critical = (cell_min + critical_above_min) x cells, arming = (cells - 1) x arm_per_extra_cell + (cell_min + arm_above_min) x cells.",
     "source": "Mission Planner, GCSViews/ConfigurationView/ConfigInitialParams.cs calc_values() (the Initial Parameter Setup the ArduPilot tuning guide points to)",
