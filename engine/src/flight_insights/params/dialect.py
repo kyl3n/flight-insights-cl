@@ -91,6 +91,17 @@ class Dialect:
                 value = None if value is None else value / r.scale
         return name, value
 
+    def gate(self, name: str) -> tuple[str, Literal["refresh", "reboot"]] | None:
+        """For a canonical parameter, the canonical parameter that switches it into view
+        in this firmware, and whether it then appears on a parameter "refresh" or only
+        after a "reboot" (knowledge pack, read from the release's source)."""
+        native, _ = self.native(name)
+        entry = self.pack.gates(self.choice.version, self.vehicle).get(native)
+        if entry is None:
+            return None
+        after: Literal["refresh", "reboot"] = "reboot" if entry["after"] == "reboot" else "refresh"
+        return self.canonical(entry["gate"])[0], after
+
     def to_canonical(self, values: Mapping[str, float]) -> CanonicalParams:
         out = CanonicalParams({})
         for name, value in values.items():

@@ -247,12 +247,50 @@ def test_a_switched_off_feature_is_enabled_first(reg: Registry) -> None:
 
 def test_parameters_that_appear_once_enabled_come_a_step_later(reg: Registry) -> None:
     p = plan(reg, finding("filter.better_settings", ("FFT_MINHZ", 60.0), ("FFT_MAXHZ", 300.0)))
+    # FFT_ENABLE hides the FFT's other parameters until it is set (a refresh shows them),
+    # and the FFT itself starts only after a reboot.
     assert [(s.params, s.after) for s in p.steps] == [
         (("FFT_ENABLE",), "refresh"),
-        (("FFT_MAXHZ", "FFT_MINHZ"), "fly"),
+        (("FFT_MAXHZ", "FFT_MINHZ"), "reboot"),
     ]
     text = export_step(p, reg, 1, "mission planner")["text"]
     assert "FFT_ENABLE,1" in text and "FFT_MINHZ" not in text and "refresh" in text
+    assert "reboot" not in text.split("FFT_ENABLE")[0]  # a refresh is enough between steps
+
+
+def test_a_backend_parameter_waits_for_a_reboot_after_its_type(reg: Registry) -> None:
+    # The firmware creates a battery monitor's backend at boot, so its own parameters
+    # appear only after a reboot; its common ones on a refresh.
+    p = plan(
+        reg,
+        finding(
+            "params.battery_warn_only",
+            ("BATT2_MONITOR", 4.0), ("BATT2_AMP_PERVLT", 36.0), ("BATT2_LOW_VOLT", 21.0),
+        ),
+    )  # fmt: skip
+    assert [(s.params, s.after) for s in p.steps] == [
+        (("BATT2_MONITOR",), "reboot_refresh"),
+        (("BATT2_AMP_PERVLT", "BATT2_LOW_VOLT"), "reboot"),
+    ]
+    text = export_step(p, reg, 1, "mission planner")["text"]
+    assert "reboot the flight controller and refresh" in text
+
+
+def test_a_gate_that_names_a_device_is_left_to_a_person(reg: Registry) -> None:
+    p = plan(reg, finding("params.battery_warn_only", ("BATT2_LOW_VOLT", 21.0)))
+    rec = one(p, "BATT2_LOW_VOLT")
+    assert rec.status == "blocked" and note(rec) == "needs_choice"
+    assert not [r for r in p.recommendations if r.param == "BATT2_MONITOR"]
+
+
+def test_gates_behind_gates_come_in_order(reg: Registry) -> None:
+    # ARSPD_ENABLE shows ARSPD_TYPE, which shows ARSPD_PIN: three steps, refreshing between.
+    p = plan(reg, finding("filter.better_settings", ("ARSPD_TYPE", 2.0), ("ARSPD_PIN", 15.0)))
+    assert [(s.params, s.after) for s in p.steps] == [
+        (("ARSPD_ENABLE",), "refresh"),
+        (("ARSPD_TYPE",), "refresh"),
+        (("ARSPD_PIN",), "fly"),
+    ]
 
 
 def test_a_reboot_parameter_says_so(reg: Registry) -> None:

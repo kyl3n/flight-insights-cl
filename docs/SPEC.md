@@ -945,9 +945,15 @@ The numbers above are illustrative. `expected_effect` comes from simulation wher
   - a bitmask value must set only bits the metadata defines.
 
   A failed check keeps the recommendation, blocked, with its reason.
-- Dependencies are resolved. A parameter's enable is the longest `<group>_ENABLE` whose group prefixes it, such as `INS_HNTCH_ENABLE` for `INS_HNTCH_FREQ`.
-  - If the feature is off, the plan switches it on first.
-  - A parameter the snapshot doesn't hold yet only appears once the feature is on. It moves to a later step, after a reboot and a parameter refresh.
+- Dependencies are resolved from the knowledge pack's gates table (`knowledge/params/<version>/gates.json.gz`). `knowledge/tools/build_param_gates.py` reads it from each release's source, never from names, so a gate is the same one the firmware uses. ArduPilot hides parameters in two ways:
+  - **Behind a switch.** An 8-bit parameter flagged `AP_PARAM_FLAG_ENABLE` (`INS_HNTCH_ENABLE`, `FFT_ENABLE`, `BATT2_MONITOR`, `RNGFND1_TYPE`) hides the rest of its group while it is 0. Once it is set, a parameter refresh in the ground station shows them; no reboot is needed for that. Logs leave hidden parameters out too.
+  - **Created at boot.** A backend's own parameters (the battery monitor's analog pins and scale, for example) exist only after the backend has been created at boot from its type, so they appear after a reboot and a refresh.
+
+  How the plan uses it:
+  - If the feature is off and its switch is plain on/off, the plan switches it on first.
+  - When the switch names a device type (a battery monitor, rangefinder or GPS type), the recommendation is blocked with that reason. Only a person knows what hardware is fitted.
+  - A parameter the snapshot doesn't hold yet moves to a later step. The step before ends with a parameter refresh, or with a reboot and a refresh when the firmware creates the parameter at boot. A switch behind another switch adds a step for each.
+  - The last step ends with a reboot when any parameter in the plan needs one.
   - Changes from one finding require each other.
 - Step limits: gain changes larger than the rule pack's per-flight limit are split across flights. The limit starts at a quarter of the current value, uncalibrated, for rate, angle and position gains.
 - Never proposed automatically:
@@ -968,7 +974,7 @@ The numbers above are illustrative. `expected_effect` comes from simulation wher
 - A `.param` file of changed values only, with a comment per line giving the reason, loadable in Mission Planner or QGroundControl.
   - The file is written per step, in the firmware's own names and units, in English or Ukrainian.
   - It holds only the changes a person accepted in the plan. The changes one finding proposes are shown, accepted and rejected together. The engine writes the file to the path the person picks in a save dialog, and only as a `.param` or `.params` file.
-  - Its header says what to do after loading: fly the test, reboot, or reboot and refresh for the next step. It also gives the stage's verification.
+  - Its header says what to do after loading: fly the test, reboot, refresh the parameters for the next step, or reboot and refresh for it. It also gives the stage's verification.
   - Mission Planner `.param` files carry the reason after each value (`NAME,VALUE  # why`), as Methodic Configurator writes them.
   - QGroundControl `.params` files carry the reasons as header comments, since its rows have five fixed fields.
 - A full parameter snapshot for the airframe's history.
@@ -1785,6 +1791,7 @@ A tuning tool earns trust only by being right on real aircraft, so validation is
 | --- | --- | --- |
 | Decoder | The same messages, in the same order, with the same values as pymavlink, across firmware lines. pymavlink applies only the scaling implied by format characters (such as `L`, ×10⁻⁷) and skips unparseable bytes one at a time; the engine matches both. Units and SI conversion from FMTU, UNIT and MULT are a separate layer with its own tests | Exact, bit-for-bit match on the reference corpus |
 | Dialect | Parameter names and scaling round-trip between versions | No unmapped parameters in the corpus |
+| Parameter gates | The gates table is what the generator reads from each release's source. In SITL, each switch the simulator can set shows its parameters exactly when the table says (refresh or reboot). No logged parameter sits behind a switch that is off | The table regenerates byte for byte; zero SITL disagreements; zero in the corpus |
 | Analyzer golden tests | Each analyzer finds what the labels say, within tolerance | No regression on the labelled set |
 | Filter prediction | Simulated post-filter spectrum matches logged post-filter data (the filter model error: RMS of 10 Hz band-power differences up to 45% of the sample rate, `fi-engine filter-check`) | Provisional, by what the notches followed (see "Checking the model"): under 0.1 dB with the notch inputs known exactly, under 1.5 dB with them rebuilt from the log, and under 0.1 dB in the 0-40 Hz control band on every flight |
 | Scrubber | No planted coordinate leaves in any form | Zero tolerance; blocks the build |

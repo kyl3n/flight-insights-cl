@@ -60,7 +60,7 @@ export interface Plan {
   firmware: string;
   stage: string | null;
   recommendations: PlanRec[];
-  steps: { number: number; params: string[]; after: "refresh" | "reboot" | "fly" }[];
+  steps: { number: number; params: string[]; after: "refresh" | "reboot_refresh" | "reboot" | "fly" }[];
 }
 
 export interface HistoryRow {
