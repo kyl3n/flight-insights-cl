@@ -322,6 +322,8 @@ def test_every_boot_only_parameter_is_real_and_sourced(reg: Registry) -> None:
     meta = reg.pack.metadata("4.7.0", "copter")
     for name, source in reg.rules["recommend"]["boot_only"]["params"].items():
         assert name in meta and not meta[name].get("reboot_required") and source
+    for name, rule in reg.rules["recommend"]["processor"]["changes"].items():
+        assert name in meta and (rule.get("up") or rule.get("bits")), name
 
 
 def test_a_filter_test_flight_lifts_the_logging_cap(reg: Registry) -> None:
@@ -332,6 +334,38 @@ def test_a_filter_test_flight_lifts_the_logging_cap(reg: Registry) -> None:
     )
     rec = one(p, "LOG_FILE_RATEMAX")
     assert rec.proposed == 0.0 and rec.temporary and rec.revert == 50.0
+
+
+def test_processor_heavy_changes_come_one_finding_at_a_time(reg: Registry) -> None:
+    fast = finding("option.fast_rate_loop.available", ("FSTRATE_ENABLE", 1.0), severity="info")
+    loop = finding("option.notch_loop_rate.available", ("INS_HNTCH_OPTS", 4.0), severity="info")
+    loop["params"] = {"rank": 9}  # ranked above the fast-rate loop
+    gyro = finding(
+        "filter.harmonics_above_nyquist", ("INS_GYRO_RATE", 1.0), ("INS_FAST_SAMPLE", 1.0)
+    )
+    p = plan(reg, fast, loop, gyro, FSTRATE_ENABLE=0.0, INS_GYRO_RATE=0.0, INS_FAST_SAMPLE=0.0)
+    # the filter finding (a problem, not an option) goes first, both its changes together
+    assert (one(p, "INS_GYRO_RATE").status, one(p, "INS_FAST_SAMPLE").status) == ("next", "next")
+    for param in ("FSTRATE_ENABLE", "INS_HNTCH_OPTS"):
+        rec = one(p, param)
+        assert rec.status == "waiting" and rec.notes[-1].reason == "processor"
+    # between options of one stage, the higher rank goes first
+    rate = finding(
+        "option.loop_rate_default.available", ("SCHED_LOOP_RATE", 400.0), severity="info"
+    )
+    rate["params"] = {"rank": 9}
+    q = plan(reg, fast, rate, FSTRATE_ENABLE=0.0, SCHED_LOOP_RATE=300.0)
+    assert (one(q, "SCHED_LOOP_RATE").status, one(q, "FSTRATE_ENABLE").status) == (
+        "next", "waiting",
+    )  # fmt: skip
+
+
+def test_changes_that_free_processor_time_never_wait(reg: Registry) -> None:
+    gyro = finding("filter.harmonics_above_nyquist", ("INS_GYRO_RATE", 1.0))
+    lower = finding("filter.better_settings", ("INS_HNTCH_OPTS", 0.0), severity="info")
+    p = plan(reg, gyro, lower, INS_GYRO_RATE=0.0, INS_HNTCH_OPTS=4.0)
+    # clearing bits costs nothing, so both go out together
+    assert (one(p, "INS_GYRO_RATE").status, one(p, "INS_HNTCH_OPTS").status) == ("next", "next")
 
 
 def test_changes_from_one_finding_require_each_other(reg: Registry) -> None:

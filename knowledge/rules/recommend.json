@@ -31,6 +31,21 @@
       "SERVO_DSHOT_ESC": "libraries/AP_Motors/AP_Motors_Class.cpp AP_Motors::rc_set_freq(): the DShot ESC type (and with it EDT) is handed to the outputs when the motors are set up at start-up"
     }
   },
+  "processor": {
+    "about": "Changes that cost processor time come one finding at a time: the next log's load (PM) says whether there is room for the next, so no estimate of each feature's cost is needed. A change counts when it raises a value ('up') or sets bits the current value lacks ('bits': the bits that cost time, or 'any'). The highest-priority finding's changes are offered; the others wait.",
+    "changes": {
+      "FSTRATE_ENABLE": {"up": true},
+      "SCHED_LOOP_RATE": {"up": true},
+      "INS_GYRO_RATE": {"up": true},
+      "INS_FAST_SAMPLE": {"bits": "any"},
+      "FFT_ENABLE": {"up": true},
+      "INS_HNTCH_OPTS": {"bits": [2, 3]},
+      "INS_HNTC2_OPTS": {"bits": [2, 3]},
+      "INS_HNTC3_OPTS": {"bits": [2, 3]},
+      "INS_HNTC4_OPTS": {"bits": [2, 3]},
+      "SCR_ENABLE": {"up": true}
+    }
+  },
   "risk": {
     "mechanical": "low", "evidence": "low", "setup": "medium", "filters": "medium",
     "rate tune": "medium", "autotune": "medium", "feel": "low", "navigation": "medium",
@@ -196,6 +211,10 @@
     "disputed": {
       "en": "Findings disagree on {param}: a person decides.",
       "uk": "Зауваження не згодні щодо {param}: рішення ухвалює людина."
+    },
+    "processor": {
+      "en": "Waits for the next flight's processor load: {param} costs processor time, and such changes are tried one at a time.",
+      "uk": "Чекає на завантаження процесора в наступному польоті: {param} потребує часу процесора, а такі зміни пробують по одній."
     },
     "waiting": {
       "en": "Waits until the {stage} stage is verified.",
