@@ -90,6 +90,9 @@ class Rehearsal:
     answers: Mapping[str, Any]  # the platform setup's answers
     expects: tuple[str, ...]  # findings the weaker setup must raise, with changes on offer
     test_flight: Callable[[Vehicle], None]  # what the procedure says to fly
+    # Plans carried out, one test flight each, as a person works through the stages:
+    # a problem in an earlier stage (logging dropouts, say) is fixed first.
+    rounds: int = 3
 
 
 # A quad with motor vibration and ESC telemetry, whose harmonic notch is off: the

@@ -6,16 +6,20 @@ For each rehearsal in rehearsals.py:
 
 1. Start the simulator with the weaker setup and fly the flight that shows it.
 2. Import the log into a fresh store, plan it, and export the plan's files: each
-   step, the revert file, the undo file and the test card.
+   step, the revert file, the undo file and the test card. The undo file must hold
+   every value the aircraft had.
 3. Carry out the session's procedure exactly as written: load each step's file,
    refresh or reboot where it says, and check that every parameter a file names is
    listed when it is loaded, so that no switch, refresh or reboot is missing.
 4. Fly the test flight the procedure asks for, import its log, and plan it. That
-   grades the first plan: every parameter change must be confirmed, with each of its
-   checks passed.
-5. The second plan must offer to take the test-flight settings out again. Loading the
-   revert file must do so, and loading the undo file must put back every value the
-   first flight had.
+   grades the plan before: every parameter change must be confirmed, with each of its
+   checks passed. The new plan must offer to take that flight's test settings out,
+   unless its own test flight needs them again.
+5. Repeat from 2 with the new plan, as a person works through the stages (a problem
+   in an earlier stage, such as logging dropouts, is fixed first), until every finding
+   the rehearsal plants has been on offer, or for at most `rounds` plans.
+6. Last, the revert file must take the test-flight settings out, and the undo file
+   must put back every value the last plan started from.
 
 The simulator does not reproduce a real aircraft's vibration, so a rehearsal proves
 the procedure (its order, its files, its gates and reboots, its checks, its revert
@@ -260,6 +264,10 @@ class Report:
         print(f"  {'ok  ' if passed else 'FAIL'} {name}" + (f": {detail}" if detail else ""))
         return passed
 
+    def note(self, text: str) -> None:
+        self.notes.append(text)
+        print(f"  note {text}", flush=True)
+
     @property
     def passed(self) -> bool:
         return self.error is None and all(c.passed for c in self.checks)
@@ -300,6 +308,7 @@ def carry_out(
     files: Mapping[str, Path],
     listed: set[str],
     report: Report,
+    prefix: str = "",
 ) -> dict[str, float]:
     """The session's parameter steps, in order, as a person carries them out from the
     ground station. Returns every value loaded."""
@@ -310,7 +319,7 @@ def carry_out(
             values = read_param_file(files[f"step {s.step}"]).values()
             hidden = sorted(n for n in values if n not in seen)
             report.check(
-                f"step {s.step}: every parameter is listed when loaded", not hidden, hidden
+                f"{prefix}step {s.step}: every parameter is listed when loaded", not hidden, hidden
             )
             for name, value in values.items():
                 if name in seen:
@@ -322,13 +331,15 @@ def carry_out(
             now = sim.params()
             appeared = sorted(set(now) - seen)
             if appeared:
-                report.notes.append(f"after the {s.kind}: {len(appeared)} parameters appeared")
+                report.note(f"after the {s.kind}: {len(appeared)} parameters appeared")
             seen = set(now)
             wrong = {k: (v, now.get(k)) for k, v in loaded.items() if not same(now.get(k), v)}
-            report.check(f"values hold after the {s.kind}", not wrong, wrong or None)
+            report.check(f"{prefix}values hold after the {s.kind}", not wrong, wrong or None)
         elif s.kind == "temporary":
             missing = [p for p in s.params if p not in loaded]
-            report.check("the test-flight settings are in the files", not missing, missing or None)
+            report.check(
+                f"{prefix}the test-flight settings are in the files", not missing, missing or None
+            )
     return loaded
 
 
@@ -358,41 +369,102 @@ def rehearse(r: Rehearsal, ardupilot: Path, out: Path, work: Path) -> Report:
     return report
 
 
+@dataclass
+class Round:
+    """One plan carried out: its files, its test-flight settings with their revert
+    values, and what the aircraft had before its files were loaded."""
+
+    files: dict[str, Path]
+    temporary: dict[str, float]
+    start: dict[str, float]
+
+
 def _rehearse(r: Rehearsal, sim: Simulator, app: App, out: Path, report: Report) -> None:
     v = sim.connect()
     for name, value in r.setup.params.items():  # planted after boot, keeping the defaults
         sim.set(name, value(v.get_param(name)) if callable(value) else value)
-    start = sim.params()
 
-    # 1. The weaker setup, flown.
+    # The weaker setup, flown.
     t0 = time.time()
     r.setup.fly(sim.vehicle)
-    first = app.import_log(sim.log_since(t0))
-    plan, recorded = app.plan(first)
-    on_offer = {s.code for rec in plan.offered() for s in rec.sources}
+    plan, recorded = app.plan(app.import_log(sim.log_since(t0)))
     raised = {s.code for rec in plan.recommendations for s in rec.sources}
     report.check("the weaker setup raises what it plants", set(r.expects) <= raised, r.expects)
-    report.check("with changes on offer", set(r.expects) <= on_offer, sorted(on_offer))
 
-    # 2. Its files, and the procedure carried out.
+    # Plan after plan, one test flight each, until what it plants has been on offer.
+    pending = set(r.expects)
+    last: Round | None = None
+    for n in range(1, r.rounds + 1):
+        on_offer = sorted({s.code for rec in plan.offered() for s in rec.sources})
+        actions = sorted(rec.lead.code for rec in plan.recommendations if rec.param is None)
+        report.note(f"plan {n} ({plan.stage}) offers {on_offer}; actions {actions}")
+        if not on_offer:
+            break
+        pending -= set(on_offer)
+        last = _carry_out_plan(app, sim, plan, out / f"plan{n}", report, n)
+        t = time.time()
+        r.test_flight(sim.vehicle)
+        following, recorded_next = app.plan(app.import_log(sim.log_since(t)))
+        _graded(app, recorded, report, n)
+        if last.temporary:
+            follow = {
+                rec.native
+                for rec in following.offered()
+                if rec.lead.code == "followup.revert_test_settings"
+            }
+            again = {rec.native for rec in following.offered() if rec.native_revert is not None}
+            missing = sorted(set(last.temporary) - follow - again)
+            report.check(
+                f"plan {n + 1} takes plan {n}'s test-flight settings out, or needs them again",
+                not missing,
+                missing or None,
+            )
+        plan, recorded = following, recorded_next
+        if not pending:
+            break
+    report.check("everything the weaker setup plants was on offer", not pending, sorted(pending))
+
+    # Last, the revert and undo files of the last plan carried out.
+    if last is not None and last.temporary:
+        back = load_back(sim, last.files["revert"], last.temporary)
+        report.check("the revert file takes the test-flight settings out", not back, back or None)
+    if last is not None and "undo" in last.files:
+        names = read_param_file(last.files["undo"]).values()
+        back = load_back(sim, last.files["undo"], {k: last.start[k] for k in names})
+        report.check("the undo file puts back every value it changed", not back, back or None)
+
+
+def _carry_out_plan(
+    app: App, sim: Simulator, plan: Plan, out: Path, report: Report, n: int
+) -> Round:
+    """A plan's files, exported and loaded as its procedure says."""
+    start = sim.params()
     files = export(app, plan, out)
     steps = session(plan, app.reg)
     (out / "procedure.json").write_text(
         json.dumps([{"kind": s.kind, "text": s.text["en"]} for s in steps], indent=1)
     )
-    report.person = [s.text["en"] for s in steps if s.kind in PERSON]
-    loaded = carry_out(sim, steps, files, set(start), report)
-    after_files = sim.params()
-    wrong = {
-        k: (v, after_files.get(k)) for k, v in loaded.items() if not same(after_files.get(k), v)
+    report.person += [s.text["en"] for s in steps if s.kind in PERSON]
+    if "undo" in files:
+        undo = read_param_file(files["undo"]).values()
+        wrong = {k: (v, start.get(k)) for k, v in undo.items() if not same(start.get(k), v)}
+        report.check(
+            f"plan {n}: its undo file holds what the aircraft had", not wrong, wrong or None
+        )
+    loaded = carry_out(sim, steps, files, set(start), report, f"plan {n}: ")
+    now = sim.params()
+    wrong = {k: (v, now.get(k)) for k, v in loaded.items() if not same(now.get(k), v)}
+    report.check(f"plan {n}: every value in its files is on the aircraft", not wrong, wrong or None)
+    temporary = {
+        rec.native: float(rec.native_revert)
+        for rec in plan.offered()
+        if rec.native is not None and rec.native_revert is not None
     }
-    report.check("every value in the files is on the aircraft", not wrong, wrong or None)
+    return Round(files, temporary, start)
 
-    # 3. The test flight, and the next plan grading the first.
-    t1 = time.time()
-    r.test_flight(sim.vehicle)
-    second = app.import_log(sim.log_since(t1))
-    plan2, _ = app.plan(second)
+
+def _graded(app: App, recorded: Mapping[str, Any], report: Report, n: int) -> None:
+    """Every change a plan offered is confirmed by its test flight, each check passed."""
     records = app.records()
     for rec in recorded["recommendations"]:
         if rec["status"] != "next" or rec["canonical"] is None:
@@ -401,32 +473,9 @@ def _rehearse(r: Rehearsal, sim: Simulator, app: App, out: Path, report: Report)
         grade = row["detail"].get("grade") or {}
         checks = [(c["check"], c["passed"]) for c in grade.get("checks", ())]
         report.check(
-            f"{rec['param']} -> {rec['proposed']} confirmed by the test flight",
+            f"plan {n}: {rec['param']} -> {rec['proposed']} confirmed by the test flight",
             row["status"] == "confirmed" and all(p is True for _, p in checks),
             {"status": row["status"], "after": grade.get("after"), "checks": checks},
-        )
-    report.notes += [f"the next plan offers {rec.lead.code}" for rec in plan2.offered()]
-
-    # 4. Revert, then undo.
-    temporary = {
-        r_.native: r_.native_revert for r_ in plan.offered() if r_.native_revert is not None
-    }
-    if temporary:
-        follow = {
-            r_.native for r_ in plan2.offered() if r_.lead.code == "followup.revert_test_settings"
-        }
-        report.check(
-            "the next plan offers to take the test-flight settings out",
-            set(temporary) <= follow,
-            sorted(temporary),
-        )
-        back = load_back(sim, files["revert"], {k: float(v) for k, v in temporary.items() if k})
-        report.check("the revert file takes them out", not back, back or None)
-    if "undo" in files:
-        expected = {k: start[k] for k in read_param_file(files["undo"]).values() if k in start}
-        back = load_back(sim, files["undo"], expected)
-        report.check(
-            "the undo file puts back every value the first flight had", not back, back or None
         )
 
 

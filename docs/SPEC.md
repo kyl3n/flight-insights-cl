@@ -1848,10 +1848,11 @@ A tuning tool earns trust only by being right on real aircraft, so validation is
 
 **Procedure rehearsal.** `tools/procedures/rehearse.py` carries out the app's procedures in ArduPilot SITL, as a person would from the ground station. Each rehearsal (`tools/procedures/rehearsals.py`) is a weaker setup: the simulator boots with it and flies a flight that shows the problem. The tool then:
 
-1. imports that log into a fresh store with the platform's setup answers, plans it, and exports the plan's files (each step, revert, undo and the test card);
+1. imports that log into a fresh store with the platform's setup answers, plans it, and exports the plan's files (each step, revert, undo and the test card); the undo file must hold every value the aircraft had;
 2. carries out the session's procedure in order: loads each step's file, refreshes or reboots where it says, and checks that every parameter a file names is listed when it is loaded, so a missing switch, refresh or reboot is caught;
-3. flies the test flight the procedure asks for, imports its log and plans it, which grades the first plan: every parameter change must be confirmed, with each of its checks passed;
-4. checks that the second plan offers to take the test-flight settings out, that the revert file does so, and that the undo file puts back every value the first flight had.
+3. flies the test flight the procedure asks for, imports its log and plans it, which grades the plan before: every parameter change must be confirmed, with each of its checks passed, and the new plan must offer to take the test-flight settings out unless its own test needs them again;
+4. repeats from 1 with the new plan, as a person works through the stages (a problem in an earlier stage, such as logging dropouts, comes first), until everything the weaker setup plants has been on offer, for at most three plans;
+5. checks last that the revert file takes the test-flight settings out, and that the undo file puts back every value it changed.
 
 - **Rehearsals:** a quad with ESC telemetry whose harmonic notch is off (switched on, following ESC RPM, with raw IMU and fast harmonic notch logging for the test flight); the heavy-lift X8 whose notch follows throttle, flown loaded, with hover learning off; failsafes the firmware ships on, found off.
 - **What it proves:** the procedure (its order, files, gates and reboots, checks, revert and undo). SITL's vibration is synthetic, so not that the values suit a real aircraft. Hardware, firmware and bench steps are listed in its report as a person's work.
