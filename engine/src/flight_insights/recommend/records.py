@@ -15,13 +15,15 @@ it answered clear:
 - regressed: one of them is raised at a higher severity.
 
 A grade needs the analyzer that raised the finding to have judged the later flight; a
-log without the data it needs leaves the recommendation applied, ungraded.
+log without the data it needs leaves the recommendation applied, ungraded. The checks
+its procedure lists for the next log (a message logged, a metric within a limit, a
+parameter's value) are run too: a cleared finding with a failed check is no effect.
 """
 
 from __future__ import annotations
 
 import json
-from collections.abc import Mapping, Sequence
+from collections.abc import Collection, Mapping, Sequence
 from typing import Any
 
 from flight_insights.history.persist import load_snapshot
@@ -53,7 +55,7 @@ def _same(a: float | None, b: float | None) -> bool:
     return a is not None and b is not None and abs(a - b) < TOLERANCE
 
 
-def _row(cur: Any, row: Sequence[Any]) -> dict[str, Any]:
+def record_row(cur: Any, row: Sequence[Any]) -> dict[str, Any]:
     out = {d[0]: v for d, v in zip(cur.description, row, strict=True)}
     out["detail"] = json.loads(out.pop("detail_json"))
     return out
@@ -66,7 +68,7 @@ def _open_for(store: Store, airframe_id: str) -> list[dict[str, Any]]:
         "ORDER BY created_hlc",
         (airframe_id, *OPEN),
     )
-    return [_row(cur, r) for r in cur.fetchall()]
+    return [record_row(cur, r) for r in cur.fetchall()]
 
 
 def _code(r: Mapping[str, Any]) -> str:
@@ -105,7 +107,7 @@ def record_plan(store: Store, plan: dict[str, Any]) -> dict[str, Any]:
                 (plan["flight"], code, param, proposed),
             )
             if (found := cur.fetchone()) is not None:
-                decided = _row(cur, found)
+                decided = record_row(cur, found)
                 r["id"], r["record_status"] = decided["id"], decided["status"]
                 r["record_version"] = decided["version"]
                 continue
@@ -167,7 +169,7 @@ def history(store: Store, airframe_id: str) -> list[dict[str, Any]]:
         "SELECT * FROM recommendation WHERE airframe_id = ? ORDER BY created_hlc DESC",
         (airframe_id,),
     )
-    return [_row(cur, r) for r in cur.fetchall()]
+    return [record_row(cur, r) for r in cur.fetchall()]
 
 
 def _when(flight: Mapping[str, Any]) -> tuple[int, Any]:
@@ -177,18 +179,56 @@ def _when(flight: Mapping[str, Any]) -> tuple[int, Any]:
     return (1, flight["created_hlc"])
 
 
-def _earlier(a: Mapping[str, Any], b: Mapping[str, Any]) -> bool:
+def flew_before(a: Mapping[str, Any], b: Mapping[str, Any]) -> bool:
     ka, kb = _when(a), _when(b)
     if ka[0] == kb[0]:
         return bool(ka[1] < kb[1])
     return bool(a["created_hlc"] < b["created_hlc"])
 
 
+def _check(
+    check: Mapping[str, Any],
+    cleared: bool,
+    analysis: Mapping[str, Any],
+    params: Mapping[str, float],
+    messages: Collection[str] | None,
+) -> bool | None:
+    """One of a procedure's checks against the later flight; None when it cannot say."""
+    kind = check.get("check")
+    if kind == "finding_clears":
+        return cleared
+    if kind == "has_message":
+        if messages is None:
+            return None
+        name = str(check["message"])
+        return any(m == name or m.startswith((f"{name}[", f"{name}~")) for m in messages)
+    if kind == "metric":
+        values = [
+            float(m["value"])
+            for m in analysis.get("metrics", ())
+            if m["metric"] == check["metric"] and m["value"] is not None
+        ]
+        if not values:
+            return None
+        if "below" in check:
+            return all(v < float(check["below"]) for v in values)
+        return all(v > float(check["above"]) for v in values) if "above" in check else None
+    if kind == "param_is":
+        value = params.get(str(check["param"]))
+        return None if value is None else _same(value, float(check["value"]))
+    return None
+
+
 def grade_flight(
-    store: Store, pack: Pack, flight_id: str, analysis: Mapping[str, Any]
+    store: Store,
+    pack: Pack,
+    flight_id: str,
+    analysis: Mapping[str, Any],
+    messages: Collection[str] | None = None,
 ) -> list[dict[str, Any]]:
     """Grades the airframe's open recommendations from earlier flights against this
-    flight; returns the ones it graded or saw applied."""
+    flight; returns the ones it graded or saw applied. `messages`, the flight's logged
+    message types, lets the procedures' message checks run."""
     flight = store.get("flight", flight_id)
     if flight is None or flight["airframe_id"] is None or not flight["param_snapshot_id"]:
         return []
@@ -199,11 +239,12 @@ def grade_flight(
         if SEVERITY_RANK[f["severity"]] >= SEVERITY_RANK.get(raised.get(f["code"], ""), -1):
             raised[f["code"]] = f["severity"]
     judged = {name for name, o in analysis["analyzers"].items() if not o.get("skipped")}
+    judged.add("followup")  # the plan's own follow-ups: judged by the parameters alone
     out: list[dict[str, Any]] = []
     with store.transaction():
         for rec in _open_for(store, flight["airframe_id"]):
             source = store.get("flight", rec["flight_id"]) if rec["flight_id"] else None
-            if source is None or source["id"] == flight_id or not _earlier(source, flight):
+            if source is None or source["id"] == flight_id or not flew_before(source, flight):
                 continue
             if rec["param"] is not None:
                 if not _same(params.get(rec["param"]), rec["proposed_value"]):
@@ -219,15 +260,25 @@ def grade_flight(
                 before = SEVERITY_RANK[lead["severity"]]
                 after = {s["code"]: raised[s["code"]] for s in sources if s["code"] in raised}
                 worst = max((SEVERITY_RANK[v] for v in after.values()), default=None)
+                cleared = SEVERITY_RANK.get(after.get(lead["code"], ""), -1) < before
+                checks = [
+                    dict(c) | {"passed": _check(c, cleared, analysis, params, messages)}
+                    for step in rec["detail"].get("procedure", ())
+                    if step.get("kind") == "verify"
+                    for c in step.get("checks", ())
+                ]
                 if worst is not None and worst > before:
                     grade = "regressed"
                 elif lead["code"] in after and SEVERITY_RANK[after[lead["code"]]] == before:
                     grade = "no effect"
+                elif any(c["passed"] is False for c in checks):
+                    grade = "no effect"  # cleared, but the next log does not show it worked
                 else:
                     grade = "confirmed"
                 status = grade
                 rec["detail"]["grade"] = {
                     "flight": flight_id, "before": lead["severity"], "after": after,
+                    "checks": checks,
                 }  # fmt: skip
             if status == rec["status"]:
                 continue

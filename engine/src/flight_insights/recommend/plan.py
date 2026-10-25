@@ -158,6 +158,9 @@ class Plan:
     recommendations: list[Recommendation]
     steps: list[Step]
     params: Mapping[str, float] = field(default_factory=dict[str, float])  # the flight's, canonical
+    held_back: list[dict[str, Any]] = field(
+        default_factory=list[dict[str, Any]]
+    )  # not proposed again
 
     def offered(self, step: int | None = None) -> list[Recommendation]:
         return [
@@ -706,4 +709,5 @@ def to_json(plan: Plan, reg: Registry) -> dict[str, Any]:
             {"number": s.number, "params": list(s.params), "after": s.after} for s in plan.steps
         ],
         "session": procedure.to_json(procedure.session(plan, reg)),
+        "held_back": [h | {"text": texts(rules, "held_back", h)} for h in plan.held_back],
     }

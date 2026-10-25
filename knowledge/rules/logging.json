@@ -113,5 +113,17 @@
       "copter": "ArduCopter/defines.h MASK_LOG_FTN_FAST (1<<21) and AP::ins().write_notch_log_messages() in ArduCopter/Copter.cpp and rate_thread.cpp, at Copter-4.7.0 (1511f27)",
       "plane": "ArduPlane/defines.h MASK_LOG_NOTCH_FULLRATE (1<<22) and ArduPlane/Log.cpp, at Plane-4.7.0"
     }
+  },
+  "filter_settings": {
+    "about": "What a filter check depends on: once a flight of the airframe has been checked with raw gyro data, the raw-gyro and fast-notch diagnostics are not proposed again while these parameters and the airframe's build stay the same. Learned values (MOT_THST_HOVER) are left out: they change on every flight.",
+    "names": [
+      "INS_HNTCH_*", "INS_HNTC2_*", "INS_HNTC3_*", "INS_HNTC4_*", "INS_GYRO_FILTER",
+      "INS_GYRO_RATE", "INS_FAST_SAMPLE", "SCHED_LOOP_RATE", "FSTRATE_*", "FFT_*",
+      "MOT_PWM_TYPE", "SERVO_BLH_BDMASK", "SERVO_BLH_POLES", "SERVO_FTW_POLES", "ESC_HW_POLES",
+      "SERVO_DSHOT_RATE"
+    ],
+    "diagnostics": [
+      "logging.no_prefilter_gyro", "logging.no_postfilter_gyro", "logging.notch_inputs_not_logged"
+    ]
   }
 }

@@ -1,0 +1,16 @@
+{
+  "about": "Findings the recommendation engine raises itself from the airframe's earlier plans (spec: Recommendation engine, 'Procedures'), not from a log's data.",
+  "findings": {
+    "followup.revert_test_settings": {
+      "stage": "evidence",
+      "title": {
+        "en": "{param} is still set for a test flight whose change is confirmed",
+        "uk": "{param} досі налаштовано для тестового польоту, зміну якого вже підтверджено"
+      },
+      "action": {
+        "en": "Load the revert file to take the test-flight setting out again: extra logging makes logs much larger and uses processor time.",
+        "uk": "Завантажте файл повернення, щоб прибрати налаштування тестового польоту: додатковий запис робить журнали значно більшими й забирає час процесора."
+      }
+    }
+  }
+}
