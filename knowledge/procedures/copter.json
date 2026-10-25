@@ -933,6 +933,28 @@
           }
         }
       ]
+    },
+    "params.arming_checks_skipped": {
+      "steps": [
+        {
+          "kind": "ground_check",
+          "text": {
+            "en": "With the propellers off, try to arm: if a check now fails, the ground station names it. Fix that cause rather than skipping the check again.",
+            "uk": "Зі знятими пропелерами спробуйте звести: якщо якась перевірка не проходить, наземна станція назве її. Усуньте причину, а не пропускайте перевірку знову."
+          }
+        }
+      ]
+    },
+    "params.gcs_failsafe_off": {
+      "steps": [
+        {
+          "kind": "ground_check",
+          "text": {
+            "en": "With the propellers off and the aircraft armed in a safe place, disconnect the ground station and check the failsafe action starts after FS_GCS_TIMEOUT.",
+            "uk": "Зі знятими пропелерами, звівши апарат у безпечному місці, від'єднайте наземну станцію й перевірте, що дія аварійного режиму починається через FS_GCS_TIMEOUT."
+          }
+        }
+      ]
     }
   }
 }

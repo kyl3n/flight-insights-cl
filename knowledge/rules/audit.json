@@ -17,6 +17,15 @@
     "scaling_min": [2.5, 3.9]
   },
   "capacity_share": 0.1,
+  "starting_volts": {
+    "about": "Battery thresholds the app proposes where none is set, from the cell count and the chemistry's empty voltage per cell (cell_min): low = (cell_min + low_above_min) x cells, critical = (cell_min + critical_above_min) x cells, arming = (cells - 1) x arm_per_extra_cell + (cell_min + arm_above_min) x cells.",
+    "source": "Mission Planner, GCSViews/ConfigurationView/ConfigInitialParams.cs calc_values() (the Initial Parameter Setup the ArduPilot tuning guide points to)",
+    "url": "https://github.com/ArduPilot/MissionPlanner/blob/master/GCSViews/ConfigurationView/ConfigInitialParams.cs",
+    "low_above_min": 0.3,
+    "critical_above_min": 0.2,
+    "arm_above_min": 0.3,
+    "arm_per_extra_cell": 0.1
+  },
   "controller_names": ["ATC_*", "PSC_*"],
   "listed_names_max": 20
 }

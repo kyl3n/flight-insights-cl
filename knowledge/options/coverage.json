@@ -161,7 +161,12 @@
         "params.rc_failsafe_off",
         "params.fs_thr_value",
         "params.ekf_failsafe_report_only",
-        "params.crash_check_off"
+        "params.crash_check_off",
+        "params.vibe_failsafe_off",
+        "params.dead_reckoning_failsafe_off",
+        "params.ekf_failsafe_off",
+        "params.gcs_failsafe_off",
+        "params.arming_checks_skipped"
       ]
     },
     "battery_failsafe": {
@@ -177,7 +182,8 @@
         "params.battery_threshold_cells",
         "params.other_battery_warn_only",
         "params.battery_capacity",
-        "params.battery_arm_unchecked"
+        "params.battery_arm_unchecked",
+        "params.battery_no_low"
       ]
     },
     "compass": {
