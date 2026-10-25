@@ -1840,10 +1840,23 @@ A tuning tool earns trust only by being right on real aircraft, so validation is
 | Parameter gates | The gates table is what the generator reads from each release's source. In SITL, each switch the simulator can set shows its parameters exactly when the table says (refresh or reboot). No logged parameter sits behind a switch that is off | The table regenerates byte for byte; zero SITL disagreements; zero in the corpus |
 | Analyzer golden tests | Each analyzer finds what the labels say, within tolerance | No regression on the labelled set |
 | Filter prediction | Simulated post-filter spectrum matches logged post-filter data (the filter model error: RMS of 10 Hz band-power differences up to 45% of the sample rate, `fi-engine filter-check`) | Provisional, by what the notches followed (see "Checking the model"): under 0.1 dB with the notch inputs known exactly, under 1.5 dB with them rebuilt from the log, and under 0.1 dB in the 0-40 Hz control band on every flight |
+| Procedure rehearsal | In SITL, a weaker setup is flown and its plan carried out exactly as the procedure says (see "Procedure rehearsal" below): every file's parameters are listed when it is loaded, every change is confirmed by the test flight with each of its checks passed, the next plan offers to take the test-flight settings out, and the revert and undo files put back what they should | Every rehearsal passes, on each change to procedures, the recommendation rules or the plan code |
 | Scrubber | No planted coordinate leaves in any form | Zero tolerance; blocks the build |
 | AI evaluation | Root-cause accuracy, expert acceptance of recommendations, evidence-citation rate, invalid parameters caught by the validator | Run on every prompt, schema or model change |
 | Outcome tracking | Applied recommendations improved the next flight | Reviewed monthly; feeds rule calibration |
 | Performance | Decode and analysis times on large raw-IMU logs | Targets from Data ingestion |
+
+**Procedure rehearsal.** `tools/procedures/rehearse.py` carries out the app's procedures in ArduPilot SITL, as a person would from the ground station. Each rehearsal (`tools/procedures/rehearsals.py`) is a weaker setup: the simulator boots with it and flies a flight that shows the problem. The tool then:
+
+1. imports that log into a fresh store with the platform's setup answers, plans it, and exports the plan's files (each step, revert, undo and the test card);
+2. carries out the session's procedure in order: loads each step's file, refreshes or reboots where it says, and checks that every parameter a file names is listed when it is loaded, so a missing switch, refresh or reboot is caught;
+3. flies the test flight the procedure asks for, imports its log and plans it, which grades the first plan: every parameter change must be confirmed, with each of its checks passed;
+4. checks that the second plan offers to take the test-flight settings out, that the revert file does so, and that the undo file puts back every value the first flight had.
+
+- **Rehearsals:** a quad with ESC telemetry whose harmonic notch is off (switched on, following ESC RPM, with raw IMU and fast harmonic notch logging for the test flight); the heavy-lift X8 whose notch follows throttle, flown loaded, with hover learning off; failsafes the firmware ships on, found off.
+- **What it proves:** the procedure (its order, files, gates and reboots, checks, revert and undo). SITL's vibration is synthetic, so not that the values suit a real aircraft. Hardware, firmware and bench steps are listed in its report as a person's work.
+- **Safety:** it only ever talks to a simulator it started itself on the same computer. Every link is checked before anything is written: the address must be loopback, and the vehicle must have the simulator's own `SIM_` parameters. Anything else is refused, so it can never write to an aircraft.
+- **Runs:** by hand, and on pull requests that change procedures, the recommendation rules, the plan code or the tool ("Procedure rehearsal" workflow). The simulator's logs stay in its working folder; the workflow keeps only the files, the cards and the report.
 
 **Paired logs.** The corpus includes onboard logs and tlogs from the same flights, recorded by both Mission Planner and QGroundControl, with real link outages and ground-station faults among them. Clock alignment between the two is a tested quantity, and attribution is tested on airframes where the effect of a parameter change is already known.
 
