@@ -1,12 +1,12 @@
 # Phase 1 report: Copter filters and health
 
-Status on 2026-10-25. **Phase 1 is built and green in CI** (PRs #27–#86, including the step-by-step procedures of section 2.1). Of its three gate checks, one passes and two wait on inputs from the team:
+Status on 2026-10-25. **Phase 1 is built and green in CI** (PRs #27–#88, including the step-by-step procedures of section 2.1). Two of its three gate checks pass. The third passes after three clean nights of the soak on the real drive:
 
 | Gate check | State | What it needs |
 | --- | --- | --- |
 | Zero scrubber leaks | **passes**, in CI on every change | nothing |
-| Sync soak test clean | clean on a local folder drive; **the real-drive run waits** | the Google setup in `docs/google-setup.md`, then several clean nightly runs |
-| Filter prediction on target | **passes on the 6 logs checked so far**, against a provisional target per class | the HL1/HL2 raw-IMU logs, to confirm the target on the reference set |
+| Sync soak test clean | clean on a local folder drive, and on the real test drive on 2026-10-25 | **three clean nightly runs in a row** (your decision), from 26 October |
+| Filter prediction on target | **passes**, closed on 2026-10-25 against the provisional target per class (your decision) | nothing; the first HL2 flight and the first flight with fast notch logging confirm the targets later |
 
 The roadmap line for Phase 1 (`docs/SPEC.md`, "Roadmap and milestones"):
 
@@ -53,7 +53,17 @@ The soak found three real divergences while it was built (#62), all fixed, and a
 - twin records merged without their children;
 - a decided recommendation was planned again.
 
-**On the real shared drive:** the nightly "Sync soak on the drive" workflow runs the same harness on a test shared drive, each run in its own folder. It is skipped until the Google setup in `docs/google-setup.md` is done. **The gate passes after several clean nights in a row.**
+**On the real shared drive:** the nightly "Sync soak on the drive" workflow runs the same harness on the test shared drive at 01:41 UTC, with seeds 1, 2 and 3, each run in its own folder. The Google setup was finished on 2026-10-25.
+- **The first two runs stopped at their first request** with a bare 404: the drive ID secret held more than the test drive's ID. #87 builds the sign-in helper ready to run. #88 adds Google's own reason to every Drive error, and makes the soak check that the test account belongs to the drive before writing.
+- **With the ID corrected, the first full run was clean** (run 40191572447: seed 1, 30 rounds, 3 laptops and one enrolled mid-run, 18 minutes). The result: "sync soak clean: 77 actions, 13 bad objects refused".
+
+**The gate passes after three clean nights in a row** (your decision, 2026-10-25):
+
+| Night | Run | Seeds clean |
+| --- | --- | --- |
+| 2026-10-26 | | |
+| 2026-10-27 | | |
+| 2026-10-28 | | |
 
 ### 1.3 Filter prediction
 
@@ -86,7 +96,13 @@ The other fixtures have no pre-filter gyro data or no hover, and are reported as
 
 **The 1.142 dB is explained.** With bidirectional DShot, the firmware moves HL1's 16 per-motor notches 400 times a second, but the log keeps ESC RPM at 100 Hz and the notch inputs at 10 Hz. However those gaps are filled, the rebuilt notch centres stay about 0.8 Hz from the firmware's own. Placement and notch shape match the 4.7.0 source exactly. A flight with fast harmonic notch logging on (`LOG_BITMASK` bit 21) records the inputs at every update, and the app then replays them exactly. The new finding `logging.notch_inputs_not_logged` proposes it for filter-tuning flights.
 
-**Still to do:** check the target on the HL1/HL2 raw-IMU logs, ideally with fast notch logging on, and confirm or tighten the provisional numbers with your approval.
+**Closed on 2026-10-25, against the provisional targets** (your decision). Every log checked meets its class's target, including the hardest real case: HL1's 16 per-motor ESC notches. The app also checks its model on every flight with pre-filter data (the `filter.model_error*` metrics in each analysis), so each later flight keeps testing the targets.
+
+Two flights would close the gaps that remain, without holding up Phase 2:
+- **a flight from HL2,** since only HL1 has been checked so far;
+- **a flight with fast notch logging on** (`LOG_BITMASK` bit 21; for HL1, 2293759), to check the exact replay on real hardware; so far it has only been checked in the simulator.
+
+When they arrive, the targets are confirmed or tightened, with your approval.
 
 ## 2. Delivered against the roadmap line
 
@@ -148,6 +164,8 @@ The next flight grades the change and runs the procedure's checks. Every Copter 
 | ESC desync: a collapse, not a spool-up | #84 |
 | The revert follow-up after a later plan replaced the lasting changes | #85 |
 | Procedure rehearsal in SITL | #86 |
+| The Google sign-in helper, built ready to run | #87 |
+| Drive errors carry Google's reason; the soak checks its drive first | #88 |
 
 **The SITL rehearsal** (`tools/procedures/rehearse.py`) carries out the procedures as a person would:
 - it flies a weaker setup, loads the plan's files with the refreshes and reboots the procedure gives, and flies the test flight;
@@ -169,9 +187,9 @@ Building it found the four app bugs fixed in #82, #84 and #85, and the ordering 
 
 ## 3. What waits on the team
 
-1. **The HL1/HL2 raw-IMU logs**, uploaded to this session as before. They are never committed or shown. The provisional filter targets are checked on them, with your approval. Flights with `LOG_BITMASK` bit 21 on (for HL1, 2293759) give exact notch inputs.
-2. **The rest of the Google setup** (`docs/google-setup.md`). `FI_GOOGLE_CLIENT_ID` and `FI_GOOGLE_CLIENT_SECRET` are in GitHub. Still needed: the test account's sign-in (step 6), which gives `FI_GOOGLE_TEST_REFRESH_TOKEN` and `FI_GOOGLE_TEST_DRIVE_ID`. Then the nightly real-drive soak runs on its own.
-3. **The Claude API key**, as a GitHub secret, if not already added. It turns on the nightly live smoke test from #57.
+Nothing blocks the gate: the nightly soak runs on its own. Neither of these holds it up:
+1. **An HL2 flight and a flight with fast notch logging,** when they are flown, to confirm the filter targets (section 1.3). Upload them to the session as before. They are never committed or shown.
+2. **The Claude API key** as the `ANTHROPIC_API_KEY` GitHub secret. It turns on the nightly live smoke test from #57, which skips itself without the key.
 
 ## 4. Open follow-ups
 
