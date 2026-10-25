@@ -1,6 +1,6 @@
 # Phase 1 report: Copter filters and health
 
-Status on 2026-10-25. **Phase 1 is built and green in CI** (PRs #27–#69). Of its three gate checks, one passes and two wait on inputs from the team:
+Status on 2026-10-25. **Phase 1 is built and green in CI** (PRs #27–#86, including the step-by-step procedures of section 2.1). Of its three gate checks, one passes and two wait on inputs from the team:
 
 | Gate check | State | What it needs |
 | --- | --- | --- |
@@ -115,6 +115,58 @@ The other fixtures have no pre-filter gyro data or no hover, and are reported as
 
 Each PR description lists its spec changes for the Claude Docs master.
 
+### 2.1 A step-by-step procedure for every improvement (WP21)
+
+Added on 2026-10-24 at your request: when there is something to improve, the app says exactly how. Each recommendation, action and better option comes with its steps, in order:
+1. hardware and firmware work;
+2. each parameter file, with the refresh or reboot the firmware needs between them;
+3. settings for the test flight only;
+4. bench checks;
+5. what to fly;
+6. when to stop and land;
+7. what the next log must show;
+8. a revert file and an undo file.
+
+The next flight grades the change and runs the procedure's checks. Every Copter subsystem now has settings checks with procedures, including the Phase 2 ones (failsafes, GNSS, EKF and compass, tuning starting values and AutoTune, navigation). Their log analysis stays in Phase 2.
+
+| Area | PRs |
+| --- | --- |
+| Filter model: every harmonic notch set the board has | #70 |
+| Parameter gates read from the firmware's source and checked in SITL | #71 |
+| Procedures, the session card, revert and undo files | #72 |
+| The next flight checks each procedure; test-flight settings come out again | #73 |
+| UI: procedures, session card, files, print, opportunities, coverage | #74 |
+| Filters: FFT settings, resonances, harmonics past the gyro's limit | #75 |
+| Logging and the control loop: rate caps, the write buffer, boot-only reboots | #76 |
+| Power and ESC settings: every battery monitor, capacity, calibration, EDT | #77 |
+| One processor-heavy change per flight; bus procedures | #78 |
+| Failsafe settings, skipped arming checks, pack thresholds | #79 |
+| Tuning starting values, the AutoTune procedure, navigation settings | #80 |
+| Audit false alarms found by the HL1 parameters-only review | #81 |
+| Each flight of a log gets the parameters it armed with | #82 |
+| Failsafes found off offered at any stage (your choice) | #83 |
+| ESC desync: a collapse, not a spool-up | #84 |
+| The revert follow-up after a later plan replaced the lasting changes | #85 |
+| Procedure rehearsal in SITL | #86 |
+
+**The SITL rehearsal** (`tools/procedures/rehearse.py`) carries out the procedures as a person would:
+- it flies a weaker setup, loads the plan's files with the refreshes and reboots the procedure gives, and flies the test flight;
+- it checks that every change is confirmed, that the next plan takes the test-flight settings out, and that the revert and undo files restore what they should;
+- it only ever talks to a simulator it started on the same computer.
+
+All three rehearsals pass on 4.7.0, 59 of 59 checks:
+- a quad with its notch off (your example);
+- the heavy-lift X8 whose notch followed throttle;
+- failsafes found off.
+
+Building it found the four app bugs fixed in #82, #84 and #85, and the ordering question you decided in #83.
+
+**The HL1 parameters-only review** (with your approval; parameters only, nothing committed) now shows:
+- **Next:** the AutoTune procedure, since the rate gains are still the firmware's defaults.
+- **Alongside it:** clearing a `LOG_BITMASK` bit the firmware ignores.
+- **Then the operations stage:** the arming charge check and the geofence.
+- **A question:** the ESC firmware, which decides whether Extended DShot Telemetry can be offered.
+
 ## 3. What waits on the team
 
 1. **The HL1/HL2 raw-IMU logs**, uploaded to this session as before. They are never committed or shown. The provisional filter targets are checked on them, with your approval. Flights with `LOG_BITMASK` bit 21 on (for HL1, 2293759) give exact notch inputs.
@@ -123,6 +175,6 @@ Each PR description lists its spec changes for the Claude Docs master.
 
 ## 4. Open follow-ups
 
-- **In progress before this report is final:** a step-by-step procedure for every improvement, across every Copter setting (WP21, approved 2026-10-24). It adds abort criteria, temporary test-flight settings with revert and undo files, settings checks for every subsystem, and a SITL rehearsal of each procedure.
+- `MOT_THST_EXPO` fitted from ESC RPM waits for real ESC-RPM logs: the simulator's RPM is linear in the command, so it cannot check the fit (SPEC roadmap, Phase 2).
 - Code signing for the installers still waits on certificates.
 - Move the Fedora build to Fedora 44 after 2026-12-09.
