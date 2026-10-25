@@ -18,7 +18,7 @@
   },
   "capacity_share": 0.1,
   "starting_tune": {
-    "about": "Starting values by propeller diameter for an aircraft never tuned, offered only for parameters still at the firmware's default: Mission Planner's Initial Parameter Setup formulas (INS_GYRO_FILTER, the rate filters at half of it, ATC_ACC_*_MAX, MOT_THST_EXPO, INS_ACCEL_FILTER 10, ATC_RAT_YAW_FLTE 2), with ArduPilot's AutoTune guidance that copters with props of 13 inches or more set the roll and pitch rate filters to 10 Hz, and its tuning guide's warning not to set MOT_THST_EXPO above 0.75 without thrust-stand data. ATC_ACC_*_MAX is only ever lowered.",
+    "about": "Starting values by propeller diameter for an aircraft never tuned, offered only for parameters still at the firmware's default: Mission Planner's Initial Parameter Setup formulas (INS_GYRO_FILTER, the rate filters at half of it, ATC_ACC_*_MAX, MOT_THST_EXPO, INS_ACCEL_FILTER 10; not its ATC_RAT_YAW_FLTE 2, which 4.7's own default 2.5 replaces), with ArduPilot's AutoTune guidance that copters with props of 13 inches or more set the roll and pitch rate filters to 10 Hz, and its tuning guide's warning not to set MOT_THST_EXPO above 0.75 without thrust-stand data. ATC_ACC_*_MAX is only ever lowered.",
     "sources": [
       "https://github.com/ArduPilot/MissionPlanner/blob/master/GCSViews/ConfigurationView/ConfigInitialParams.cs",
       "https://ardupilot.org/copter/docs/setting-up-for-tuning.html",

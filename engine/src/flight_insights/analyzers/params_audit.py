@@ -58,6 +58,25 @@ def _fingerprint_params(fp: Mapping[str, Any], params: Mapping[str, float]) -> s
     return names
 
 
+# Calibration values and the device ID that says whether a sensor fills their slot:
+# INS_ACCSCAL_X and INS_ACC_ID, INS_ACC2OFFS_X and INS_ACC2_ID, INS4_GYROFFS_X and
+# INS4_GYR_ID; COMPASS_OFS2_X and COMPASS_DEV_ID2.
+INS_CALIBRATION = re.compile(r"^INS(\d?)_(ACC|GYR)(\d?)(?:SCAL|OFFS)_[XYZ]$")
+COMPASS_CALIBRATION = re.compile(r"^COMPASS_(?:DIA|ODI|OFS|MOT|SCALE)(\d?)(?:_[XYZ])?$")
+
+
+def _absent_sensor(name: str, params: Mapping[str, float]) -> bool:
+    """A calibration value for a sensor slot whose device ID is 0: no sensor is there."""
+    if m := INS_CALIBRATION.match(name):
+        block, kind, n = m.groups()
+        device = f"INS{block}_{kind}_ID" if block else f"INS_{kind}{n}_ID"
+    elif m := COMPASS_CALIBRATION.match(name):
+        device = f"COMPASS_DEV_ID{m.group(1)}"
+    else:
+        return False
+    return params.get(device) == 0
+
+
 def _matches(name: str, patterns: list[str]) -> bool:
     return any(fnmatch.fnmatchcase(name, pattern) for pattern in patterns)
 
@@ -100,6 +119,7 @@ def _audit(flight: FlightData, reg: Registry) -> Result:
     # --- values against the firmware's own documentation --------------------------------
     unknown: list[str] = []
     problems: dict[str, dict[str, Any]] = {}
+    undefined: dict[str, tuple[int, int]] = {}  # bitmask: (value, value with only defined bits)
     # The simulator's own settings describe no aircraft.
     judged = {n: v for n, v in p.items() if not (flight.simulated and n.startswith("SIM_"))}
     for name, value in judged.items():
@@ -110,7 +130,20 @@ def _audit(flight: FlightData, reg: Registry) -> Result:
             continue
         if _is_default(name, value, defaults) or dialect.param_class(nname, p) in UNJUDGED:
             continue  # the firmware chose it, or it counts on its own: nobody set it wrong
+        if _absent_sensor(name, p):
+            continue  # a calibration slot with no sensor behind it holds no real value
         problem = metadata_problem(nname, value if nvalue is None else nvalue, meta, firmware)
+        if problem is not None and problem[0] == "out_of_range" and name in defaults:
+            # a documented range the firmware's own default falls outside is no real bound
+            default = metadata_problem(nname, defaults[name], meta, firmware)
+            if default is not None and default[0] == "out_of_range":
+                continue
+        if problem is not None and problem[0] == "undefined_bits" and value == int(value) >= 0:
+            # bits the firmware does not define do nothing: worth clearing, never a hold-up
+            bits: Mapping[str, str] = meta.get("bitmask") or {}
+            defined = sum(1 << int(b) for b in bits)
+            undefined[name] = (int(value), int(value) & defined)
+            continue
         if problem is not None and problem[0] != "read_only":
             problems[name] = {"reason": problem[0], **problem[1]}
 
@@ -141,7 +174,32 @@ def _audit(flight: FlightData, reg: Registry) -> Result:
             )
         )
 
-    contradicted: set[str] = set(problems)
+    if undefined:
+        names = sorted(native(n) for n in undefined)
+        out.findings.append(
+            Finding(
+                code="params.undefined_bits",
+                severity="info",
+                confidence="high",
+                evidence=(
+                    ev(
+                        "params:undefined-bits",
+                        "bitmask values against the bits the firmware defines",
+                        {
+                            native(n): {"value": v, "defined_only": k}
+                            for n, (v, k) in undefined.items()
+                        },
+                    ),
+                ),
+                params={"names": names[:listed], "firmware": firmware},
+                changes=tuple(
+                    CandidateChange(n, float(v), float(k), "setup")
+                    for n, (v, k) in undefined.items()
+                ),
+            )
+        )
+
+    contradicted: set[str] = set(problems) | set(undefined)
     if vehicle == "copter":
         contradicted |= _failsafes(flight, rules, dialect.meta, out)
         contradicted |= _battery(flight, rules, out)
@@ -525,7 +583,7 @@ def _starting_values(flight: FlightData, rules: Mapping[str, Any], out: Result) 
         "INS_GYRO_FILTER": gyro, "INS_ACCEL_FILTER": 10.0,
         "ATC_RAT_RLL_FLTD": rate, "ATC_RAT_RLL_FLTT": rate,
         "ATC_RAT_PIT_FLTD": rate, "ATC_RAT_PIT_FLTT": rate,
-        "ATC_RAT_YAW_FLTT": max(10.0, round(gyro / 2)), "ATC_RAT_YAW_FLTE": 2.0,
+        "ATC_RAT_YAW_FLTT": max(10.0, round(gyro / 2)),
         "ATC_ACC_P_MAX": acc_rp, "ATC_ACC_R_MAX": acc_rp, "ATC_ACC_Y_MAX": acc_y,
         "MOT_THST_EXPO": expo,
     }  # fmt: skip
@@ -584,7 +642,7 @@ def _never_tuned(flight: FlightData, rules: Mapping[str, Any], out: Result) -> N
 
 PARAMS_AUDIT = Analyzer(
     name="params",
-    version=4,
+    version=5,
     run=_audit,
     metrics=(),
     findings=(
@@ -601,5 +659,6 @@ PARAMS_AUDIT = Analyzer(
         "params.gcs_failsafe_off", "params.arming_checks_skipped",
         "params.tuning_starting_values", "params.second_gnss_unset",
         "params.compassmot_not_done", "params.no_gnss_fallback", "params.fence_off",
+        "params.undefined_bits",
     ),
 )  # fmt: skip

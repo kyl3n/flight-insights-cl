@@ -308,6 +308,17 @@
         "en": "Set a fence for the flying site: a maximum altitude and a circle around home at least (FENCE_TYPE, FENCE_ALT_MAX, FENCE_RADIUS), with an action such as RTL or Land, so a flyaway or a mistake stops at the boundary.",
         "uk": "Задайте геозону для місця польотів: щонайменше максимальну висоту й коло навколо точки старту (FENCE_TYPE, FENCE_ALT_MAX, FENCE_RADIUS) з дією на кшталт RTL чи Land, щоб некерований політ або помилка зупинялися на межі."
       }
+    },
+    "params.undefined_bits": {
+      "stage": "setup",
+      "title": {
+        "en": "Bitmasks set bits firmware {firmware} does not define: {names}",
+        "uk": "Бітові маски вмикають біти, яких прошивка {firmware} не визначає: {names}"
+      },
+      "action": {
+        "en": "The firmware ignores these bits, so they change nothing; often a mask set to 'everything' or carried over from another version. Clearing them keeps the setting honest about what it does.",
+        "uk": "Прошивка ігнорує ці біти, тож вони нічого не змінюють; часто це маска «усе» або перенесена з іншої версії. Їх очищення робить налаштування чесним щодо того, що воно робить."
+      }
     }
   }
 }
