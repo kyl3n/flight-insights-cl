@@ -407,18 +407,28 @@ def _rehearse(r: Rehearsal, sim: Simulator, app: App, out: Path, report: Report)
         following, recorded_next = app.plan(app.import_log(sim.log_since(t)))
         _graded(app, recorded, report, n)
         if last.temporary:
+            # The revert may wait for its stage, behind a problem the test flight found.
             follow = {
                 rec.native
-                for rec in following.offered()
-                if rec.lead.code == "followup.revert_test_settings"
+                for rec in following.recommendations
+                if rec.lead.code == "followup.revert_test_settings" and rec.status != "blocked"
             }
             again = {rec.native for rec in following.offered() if rec.native_revert is not None}
             missing = sorted(set(last.temporary) - follow - again)
+            held = {
+                rec.native: (rec.lead.code, rec.status, rec.native_value)
+                for rec in following.recommendations
+                if rec.native in missing
+            }
             report.check(
                 f"plan {n + 1} takes plan {n}'s test-flight settings out, or needs them again",
                 not missing,
-                missing or None,
+                held or missing or None,
             )
+            waiting = sorted(
+                rec.lead.code for rec in following.recommendations if rec.param is None
+            )
+            report.note(f"plan {n + 1} ({following.stage}) holds actions {waiting}")
         plan, recorded = following, recorded_next
         if not pending:
             break
