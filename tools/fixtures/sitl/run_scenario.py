@@ -176,6 +176,15 @@ class Vehicle:
             "SYS_STATUS",
             timeout,
         )
+        # The checks can pass before the estimator uses GPS; a take-off sent then is
+        # refused, and the vehicle disarms itself on the ground.
+        position = mavutil.mavlink.EKF_POS_HORIZ_ABS
+        self.wait(
+            "an absolute position",
+            lambda m: m.flags & position,  # type: ignore[attr-defined]
+            "EKF_STATUS_REPORT",
+            timeout,
+        )
         end = time.monotonic() + timeout
         while time.monotonic() < end:
             self.command(mavutil.mavlink.MAV_CMD_COMPONENT_ARM_DISARM, 1)
