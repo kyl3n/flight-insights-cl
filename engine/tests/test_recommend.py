@@ -422,6 +422,27 @@ def test_a_mechanical_problem_holds_back_tuning_but_not_safety(reg: Registry) ->
     assert p.recommendations[0].kind == "safety"
 
 
+def test_failsafes_found_off_are_offered_at_any_stage(reg: Registry) -> None:
+    # Back to the firmware's default touches no tuning, and it protects the tuning
+    # flights themselves (rules/recommend.json any_stage)
+    p = plan(
+        reg,
+        finding("filter.better_settings", ("INS_GYRO_FILTER", 40.0)),
+        finding("params.vibe_failsafe_off", ("FS_VIBE_ENABLE", 1.0)),
+        finding("params.fence_off", severity="info"),
+        FS_VIBE_ENABLE=0.0,
+    )
+    assert p.stage == "filters"
+    assert one(p, "INS_GYRO_FILTER").status == one(p, "FS_VIBE_ENABLE").status == "next"
+    [fence] = [r for r in p.recommendations if r.param is None]
+    assert fence.lead.code == "params.fence_off" and fence.status == "waiting"
+
+
+def test_every_any_stage_finding_is_known(reg: Registry) -> None:
+    codes = reg.rules["recommend"]["any_stage"]["codes"]
+    assert codes and all(c in reg.findings for c in codes)
+
+
 def test_a_better_option_never_holds_back_a_fix(reg: Registry) -> None:
     p = plan(
         reg,

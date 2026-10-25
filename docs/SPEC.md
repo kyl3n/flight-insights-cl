@@ -908,7 +908,7 @@ The app assumes every aircraft will lose GNSS at some point, through jamming, sp
 
 The engine turns findings into a staged plan: a short list of changes for the next test flight, each with its evidence and a way to verify it. Nothing is applied automatically.
 
-**Stages follow ArduPilot's tuning order.** A later stage is not offered while an earlier one is unverified, except for safety findings, which always surface first. A stage is unverified while it holds a problem: a safety or stability recommendation, or a finding at caution or worse. A better option fixes no problem, so it never holds a later stage back. It is offered with the stage on offer when it belongs to that stage or an earlier one, and waits otherwise.
+**Stages follow ArduPilot's tuning order.** A later stage is not offered while an earlier one is unverified, except for safety findings, which always surface first, and failsafes the firmware ships on but found off (vibration `FS_VIBE_ENABLE`, dead reckoning `FS_DR_ENABLE`, the EKF threshold `FS_EKF_THRESH`, crash check `FS_CRASH_CHECK`; the rule pack's `any_stage` list), which are offered with whatever stage is on offer: going back to the firmware's value touches no tuning, and it protects the tuning flights themselves. A stage is unverified while it holds a problem: a safety or stability recommendation, or a finding at caution or worse. A better option fixes no problem, so it never holds a later stage back. It is offered with the stage on offer when it belongs to that stage or an earlier one, and waits otherwise.
 
 1. Mechanical: vibration, mounting, props, motor faults
 2. Evidence: logging needed for the next analysis
