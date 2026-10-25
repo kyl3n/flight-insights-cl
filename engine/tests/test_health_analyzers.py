@@ -136,6 +136,73 @@ def test_only_mapped_vehicles_are_checked_for_their_log_bits(reg: Registry) -> N
     assert codes(LOG_ADEQUACY.run(f, reg)) == []
 
 
+def _ftn(rate_hz: float, start_us: int = ARM, end_us: int = DISARM) -> pa.Table:
+    times = list(range(start_us, end_us, int(1e6 / rate_hz)))
+    cols: dict[str, tuple[pa.DataType, list[Any]]] = {
+        "I": (pa.uint8(), [0] * len(times)),
+        "NDn": (pa.uint8(), [4] * len(times)),
+    }
+    for k in range(1, 13):
+        cols[f"NF{k}"] = (pa.float32(), [190.0 if k <= 4 else 0.0] * len(times))
+    return table(times, cols)
+
+
+def _esc(rate_hz: float) -> pa.Table:
+    times = [t for t in range(ARM, DISARM, int(1e6 / rate_hz)) for _ in range(4)]
+    return table(
+        times,
+        {"Instance": (pa.uint8(), [0, 1, 2, 3] * (len(times) // 4)),
+         "RPM": (pa.float32(), [11400.0] * len(times))},
+    )  # fmt: skip
+
+
+ESC_NOTCH = {
+    "INS_RAW_LOG_OPT": 9, "LOG_BITMASK": 0xFFFFF & ~(1 << 21), "INS_HNTCH_ENABLE": 1,
+    "INS_HNTCH_MODE": 3, "INS_HNTCH_REF": 1, "INS_HNTCH_OPTS": 6, "INS_HNTCH_HMNCS": 3,
+}  # fmt: skip
+
+
+def _notch_finding(r: Any) -> Any:
+    return next((f for f in r.findings if f.code == "logging.notch_inputs_not_logged"), None)
+
+
+def test_a_notch_logged_less_often_than_it_moves_asks_for_fast_notch_logging(
+    reg: Registry,
+) -> None:
+    tables = {"GYR": gyr([ARM + 1]), "FTN": _ftn(10), "ESC": _esc(100)}
+    f = _notch_finding(LOG_ADEQUACY.run(flight(tables, ARM, DISARM, ESC_NOTCH), reg))
+    assert f is not None and f.severity == "info"
+    # option bit 2: the notch moves at the 400 Hz loop rate; ESC RPM is the best logged
+    assert f.params["update_hz"] == 400 and f.params["logged_hz"] == 100
+    bitmask = ESC_NOTCH["LOG_BITMASK"]
+    assert (f.params["bit"], f.params["current"], f.params["proposed"]) == (
+        21, bitmask, bitmask | 1 << 21,
+    )  # fmt: skip
+    [change] = f.changes
+    assert (change.param, change.proposed) == ("LOG_BITMASK", bitmask | 1 << 21)
+
+
+def test_notch_inputs_logged_at_every_update_need_nothing_more(reg: Registry) -> None:
+    params = dict(ESC_NOTCH, LOG_BITMASK=0xFFFFF)
+    tables = {"GYR": gyr([ARM + 1]), "FTN": _ftn(400), "ESC": _esc(100)}
+    assert _notch_finding(LOG_ADEQUACY.run(flight(tables, ARM, DISARM, params), reg)) is None
+
+
+def test_a_fixed_notch_follows_nothing_the_log_could_miss(reg: Registry) -> None:
+    params = dict(ESC_NOTCH, INS_HNTCH_MODE=0)
+    f = flight({"GYR": gyr([ARM + 1])}, ARM, DISARM, params)
+    assert _notch_finding(LOG_ADEQUACY.run(f, reg)) is None
+
+
+def test_plane_logs_its_notch_inputs_with_its_own_bit(reg: Registry) -> None:
+    fp: dict[str, Any] = {"vehicle": "plane", "board": {"hal": "ChibiOS"}, "hover_windows": []}
+    params = dict(ESC_NOTCH, LOG_BITMASK=0, INS_HNTCH_OPTS=2)  # 200 Hz updates
+    f = _notch_finding(
+        LOG_ADEQUACY.run(flight({"ESC": _esc(100)}, ARM, DISARM, params, fingerprint=fp), reg)
+    )
+    assert f is not None and f.params["update_hz"] == 200 and f.params["proposed"] == 1 << 22
+
+
 # --- system health: loop timing ---------------------------------------------------------
 
 PM_META = {"Load": {b"unit": b"%", b"multiplier": b"0.1"}}

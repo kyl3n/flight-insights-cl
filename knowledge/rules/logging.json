@@ -101,5 +101,17 @@
     "pre_and_post_filter": 3,
     "log_bitmask_raw_imu": 19,
     "recommended": 9
+  },
+  "fast_notch": {
+    "about": "A harmonic notch that follows ESC RPM, an RPM sensor, throttle or the in-flight FFT moves at 200 Hz, or at the loop rate with option bit 2. Its inputs (FTN, FTNS) and centres (FCN, FCNS) are logged at 10 Hz unless this LOG_BITMASK bit logs them at every update; without it the filter model rebuilds what the notch followed from rows the log holds less often (ESC RPM at 100 Hz), and cannot replay it exactly. The bit makes logs much larger, so it is for filter test flights.",
+    "bit": {
+      "copter": 21,
+      "heli": 21,
+      "plane": 22
+    },
+    "source": {
+      "copter": "ArduCopter/defines.h MASK_LOG_FTN_FAST (1<<21) and AP::ins().write_notch_log_messages() in ArduCopter/Copter.cpp and rate_thread.cpp, at Copter-4.7.0 (1511f27)",
+      "plane": "ArduPlane/defines.h MASK_LOG_NOTCH_FULLRATE (1<<22) and ArduPlane/Log.cpp, at Plane-4.7.0"
+    }
   }
 }
