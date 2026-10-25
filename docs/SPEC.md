@@ -1881,7 +1881,7 @@ A tuning tool earns trust only by being right on real aircraft, so validation is
 - **Runs:**
   - every change runs a short soak in CI;
   - the "Sync soak" workflow runs long ones by hand, across many seeds;
-  - the "Sync soak on the drive" workflow runs every night on the real test shared drive, each run under its own top-level folder (`soak-<run>-<seed>`), deleting nothing. Its runs on successive nights are the multi-day soak of the Phase 1 gate. It needs the test account's refresh token and the test drive's ID as CI secrets (`FI_GOOGLE_TEST_REFRESH_TOKEN`, `FI_GOOGLE_TEST_DRIVE_ID`, taken once with `cargo run --example google_sign_in`) and is skipped without them. The by-hand workflow can use the test drive too.
+  - the "Sync soak on the drive" workflow runs every night on the real test shared drive, each run under its own top-level folder (`soak-<run>-<seed>`), deleting nothing. Its runs on successive nights are the multi-day soak of the Phase 1 gate. It needs the test account's refresh token and the test drive's ID as CI secrets (`FI_GOOGLE_TEST_REFRESH_TOKEN`, `FI_GOOGLE_TEST_DRIVE_ID`, taken once with the sign-in helper, which the by-hand "Google sign-in helper" workflow builds for Windows and Linux with the desktop client built in; `cargo run --example google_sign_in` runs the same helper from a checkout) and is skipped without them. The by-hand workflow can use the test drive too.
   - On the real drive, each file is hashed when first seen, its size is checked every round, and every file is fetched and hashed again at the end.
 
   A failure prints the seed that reproduces it.
