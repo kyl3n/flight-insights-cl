@@ -62,7 +62,7 @@ On your own machine, never a shared one, with a browser on the same machine (Goo
 4. It prints an address. Open it in a browser **signed in as the test account** (a private window avoids picking the wrong account), and allow access.
 5. It then prints the shared drives the account can see, with their IDs, and the account's refresh token. It writes nothing to disk.
 6. Add two more repository secrets:
-   - `FI_GOOGLE_TEST_DRIVE_ID`: the test drive's ID from that list (not the fleet's drive).
+   - `FI_GOOGLE_TEST_DRIVE_ID`: the test drive's ID from that list (not the fleet's drive): only the ID, the first column, without the drive's name.
    - `FI_GOOGLE_TEST_REFRESH_TOKEN`: the refresh token.
 7. Press Enter to close the helper (in a terminal you opened yourself, clear it and its scrollback too), and delete the helper. Don't paste the token anywhere else.
 

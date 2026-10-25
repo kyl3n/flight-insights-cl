@@ -250,6 +250,15 @@ fn serve(mut stream: TcpStream, state: &Arc<Mutex<State>>, base: &str) -> std::i
     }
 
     if method == "GET" && path == "/drive/v3/files" {
+        // as Google answers for a drive the account is not a member of, or a wrong id
+        if let Some(d) = q("driveId").filter(|d| d != DRIVE) {
+            let message = format!("Shared drive not found: {d}");
+            return json_reply(
+                &mut stream,
+                404,
+                &json!({ "error": { "code": 404, "message": message } }),
+            );
+        }
         // "'PARENT' in parents and trashed = false[ and name = 'NAME']"
         let query = q("q").unwrap_or_default();
         let parent = query.split('\'').nth(1).unwrap_or("").to_string();
