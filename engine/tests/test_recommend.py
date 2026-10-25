@@ -368,6 +368,14 @@ def test_changes_that_free_processor_time_never_wait(reg: Registry) -> None:
     assert (one(p, "INS_GYRO_RATE").status, one(p, "INS_HNTCH_OPTS").status) == ("next", "next")
 
 
+def test_starting_values_fly_before_autotune(reg: Registry) -> None:
+    start = finding("params.tuning_starting_values", ("INS_GYRO_FILTER", 42.0))
+    p = plan(reg, start, finding("params.never_tuned"), INS_GYRO_FILTER=20.0)
+    assert p.stage == "setup" and one(p, "INS_GYRO_FILTER").status == "next"
+    [tune] = [r for r in p.recommendations if r.param is None]
+    assert tune.status == "waiting" and tune.notes[-1].reason == "waiting"
+
+
 def test_changes_from_one_finding_require_each_other(reg: Registry) -> None:
     p = plan(
         reg, finding("filter.better_source", ("INS_HNTCH_MODE", 3.0), ("INS_HNTCH_FREQ", 60.0))

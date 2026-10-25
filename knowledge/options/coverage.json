@@ -106,6 +106,18 @@
         "system.long_loop"
       ]
     },
+    "rate_tuning": {
+      "title": {
+        "en": "Rate tuning and AutoTune",
+        "uk": "Налаштування швидкості та AutoTune"
+      },
+      "options": [],
+      "also": [
+        "params.never_tuned",
+        "params.tuning_starting_values",
+        "params.gain_out_of_range"
+      ]
+    },
     "logging": {
       "title": {
         "en": "Logging",
@@ -149,7 +161,13 @@
         "en": "Estimator and GNSS sources",
         "uk": "Джерела оцінювача та GNSS"
       },
-      "options": []
+      "options": [],
+      "also": [
+        "params.no_gnss_fallback",
+        "params.second_gnss_unset",
+        "params.ekf_failsafe_off",
+        "params.dead_reckoning_failsafe_off"
+      ]
     },
     "links_failsafes": {
       "title": {
@@ -186,12 +204,26 @@
         "params.battery_no_low"
       ]
     },
+    "navigation_ops": {
+      "title": {
+        "en": "Navigation and operations",
+        "uk": "Навігація та експлуатація"
+      },
+      "options": [],
+      "also": [
+        "params.fence_off",
+        "params.arming_checks_skipped"
+      ]
+    },
     "compass": {
       "title": {
         "en": "Compass",
         "uk": "Компас"
       },
-      "options": []
+      "options": [],
+      "also": [
+        "params.compassmot_not_done"
+      ]
     },
     "plane": {
       "title": {

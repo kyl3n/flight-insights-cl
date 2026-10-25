@@ -66,7 +66,7 @@ def test_every_option_is_explained_covered_and_asks_real_questions(reg: Registry
     for fact, q in reg.questions.items():
         assert q["field"] in fields, fact  # answers go into the platform setup
     uncovered = [s for s, v in reg.coverage.items() if not v["options"] and not v.get("also")]
-    assert "estimator_sources" in uncovered  # gaps are listed, not silent
+    assert "plane" in uncovered  # gaps are listed, not silent
     assert reg.coverage["plane"]["phase"] == 3 and reg.coverage["heli"]["phase"] == 4
 
 
