@@ -1,0 +1,129 @@
+# The Google sign-in helper (docs/google-setup.md, step 6): builds the google_sign_in
+# example for Windows and Linux with the desktop OAuth client built in, so the test
+# account's refresh token can be made without Rust or a checkout. Run it by hand and
+# download the helper from the run; the download is kept for one day. The client's
+# "secret" is not confidential for a desktop app and ships in every installer anyway.
+# Pull requests that touch the helper build it without the client and check it runs.
+
+name: Google sign-in helper
+
+on:
+  workflow_dispatch:
+  pull_request:
+    paths:
+      - .github/workflows/google-sign-in-helper.yml
+      - shell/src-tauri/examples/google_sign_in.rs
+
+permissions:
+  contents: read
+
+jobs:
+  helper:
+    name: Helper (${{ matrix.os }})
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: windows-latest
+            exe: google_sign_in.exe
+          # The Linux helper needs only the C library: glibc 2.34 or newer, checked below.
+          - os: ubuntu-24.04
+            exe: google_sign_in
+    runs-on: ${{ matrix.os }}
+    defaults:
+      run:
+        shell: bash
+    env:
+      # Built in only on a by-hand run; a pull request's build has no client.
+      FI_GOOGLE_CLIENT_ID: ${{ github.event_name == 'workflow_dispatch' && secrets.FI_GOOGLE_CLIENT_ID || '' }}
+      FI_GOOGLE_CLIENT_SECRET: ${{ github.event_name == 'workflow_dispatch' && secrets.FI_GOOGLE_CLIENT_SECRET || '' }}
+      BIN: shell/src-tauri/target/release/examples/${{ matrix.exe }}
+    steps:
+      - name: The client must be set up first
+        if: github.event_name == 'workflow_dispatch' && env.FI_GOOGLE_CLIENT_ID == ''
+        run: |
+          echo "::error::Add the FI_GOOGLE_CLIENT_ID and FI_GOOGLE_CLIENT_SECRET secrets first (docs/google-setup.md, step 5)."
+          exit 1
+      - uses: actions/checkout@v4
+      # As in ci.yml's Shell job, whose cached .debs this restores: the shell crate
+      # needs the WebKitGTK headers to build, though the helper never loads them.
+      - name: Cache Linux build dependency packages
+        if: runner.os == 'Linux'
+        uses: actions/cache@v4
+        with:
+          path: ~/apt-debs
+          key: apt-debs-${{ runner.os }}-webkit2gtk-4.1-${{ hashFiles('.github/workflows/ci.yml') }}
+          restore-keys: apt-debs-${{ runner.os }}-webkit2gtk-4.1-
+      - name: Linux build dependencies
+        if: runner.os == 'Linux'
+        timeout-minutes: 40
+        run: |
+          mkdir -p ~/apt-debs
+          sudo cp ~/apt-debs/*.deb /var/cache/apt/archives/ 2>/dev/null || true
+          apt_opts="-o Acquire::Retries=5 -o Acquire::http::Timeout=60 -o DPkg::Lock::Timeout=300"
+          packages="libwebkit2gtk-4.1-dev libayatana-appindicator3-dev librsvg2-dev"
+          for attempt in 1 2 3; do
+            if sudo apt-get $apt_opts update && sudo apt-get $apt_opts install -y $packages; then
+              cp /var/cache/apt/archives/*.deb ~/apt-debs/ 2>/dev/null || true
+              exit 0
+            fi
+            echo "apt attempt $attempt failed; retrying"
+            sleep 15
+          done
+          exit 1
+      - uses: dtolnay/rust-toolchain@b725eda525362e7cf34af9a7243cac1e3f01a7ec # stable
+      - uses: Swatinem/rust-cache@d1527c8f67ef9af357290475d4af4b0fab8f12e0 # v2
+        with:
+          workspaces: shell/src-tauri
+      - name: Build the helper
+        working-directory: shell/src-tauri
+        run: cargo build --release --locked --example google_sign_in
+      - name: It runs on a plain Linux desktop
+        if: runner.os == 'Linux'
+        run: |
+          ldd "$BIN"
+          extra=$(ldd "$BIN" | awk '{print $1}' \
+            | grep -vxE 'linux-vdso\.so\.1|/lib64/ld-linux-x86-64\.so\.2|libc\.so\.6|libm\.so\.6|libgcc_s\.so\.1' || true)
+          if [ -n "$extra" ]; then
+            echo "::error::The helper needs more than the C library: $extra"
+            exit 1
+          fi
+          newest=$(objdump -T "$BIN" | grep -o 'GLIBC_[0-9.]*' | sort -uV | tail -n 1)
+          echo "needs glibc ${newest#GLIBC_} or newer"
+          # Ubuntu 22.04 and Fedora 36 have glibc 2.35.
+          if [ "$(printf '%s\n' "$newest" GLIBC_2.35 | sort -V | tail -n 1)" != GLIBC_2.35 ]; then
+            echo "::error::The helper needs $newest, newer than Ubuntu 22.04 and Fedora 36 have"
+            exit 1
+          fi
+      - name: It runs on a plain Windows computer
+        if: runner.os == 'Windows'
+        run: |
+          rustup component add llvm-tools
+          host=$(rustc -vV | sed -n 's/^host: //p')
+          readobj="$(cygpath -u "$(rustc --print sysroot)")/lib/rustlib/$host/bin/llvm-readobj.exe"
+          imports=$("$readobj" --coff-imports "$BIN" | sed -n 's/^ *Name: //p' | sort -fu)
+          echo "$imports"
+          # The C runtime is linked in (tauri-build's static VC runtime), so nothing
+          # beyond Windows' own DLLs is needed.
+          if echo "$imports" | grep -iE '^(vcruntime|msvcp|webview2loader|libsodium)'; then
+            echo "::error::The helper needs a DLL that Windows does not ship"
+            exit 1
+          fi
+      - name: Without a client it says so and stops
+        if: env.FI_GOOGLE_CLIENT_ID == ''
+        run: |
+          set +e
+          "$BIN" < /dev/null > out.txt 2> err.txt
+          code=$?
+          set -e
+          cat err.txt
+          test "$code" = 2
+          grep -q "no Google client" err.txt
+          test ! -s out.txt
+      - uses: actions/upload-artifact@v4
+        if: github.event_name == 'workflow_dispatch'
+        with:
+          name: google-sign-in-helper-${{ runner.os }}
+          path: ${{ env.BIN }}
+          retention-days: 1
+          if-no-files-found: error

@@ -1,0 +1,78 @@
+name: Procedure rehearsal
+
+# Carries out the app's procedures in ArduPilot SITL (spec: Testing and validation,
+# "Procedure rehearsal"): a weaker setup is flown, its plan's files are loaded exactly
+# as the procedure says, the test flight is flown and graded, and the revert and undo
+# files are checked. The tool only ever talks to the simulator it starts on the runner.
+on:
+  workflow_dispatch:
+    inputs:
+      version:
+        description: ArduPilot release, e.g. 4.7.0
+        required: true
+        default: "4.7.0"
+      rehearsals:
+        description: Rehearsals to run, separated by spaces (empty for all)
+        required: false
+        default: ""
+  pull_request:
+    paths:
+      - knowledge/procedures/**
+      - knowledge/rules/recommend.json
+      - engine/src/flight_insights/recommend/**
+      - tools/procedures/**
+      - tools/fixtures/sitl/**
+      - .github/workflows/rehearse.yml
+
+permissions:
+  contents: read
+
+concurrency:
+  group: rehearse-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  rehearse:
+    name: Rehearse procedures in SITL (ArduPilot ${{ inputs.version || '4.7.0' }})
+    runs-on: ubuntu-24.04
+    timeout-minutes: 90
+    env:
+      VERSION: ${{ inputs.version || '4.7.0' }}
+      REHEARSALS: ${{ inputs.rehearsals || '' }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@d0cc045d04ccac9d8b7881df0226f9e82c39688e # v6
+      - run: echo "ARDUPILOT=$RUNNER_TEMP/ardupilot" >> "$GITHUB_ENV"
+
+      - name: Check out ArduPilot ${{ env.VERSION }}
+        run: |
+          git clone --depth 1 --branch "Copter-${VERSION}" https://github.com/ArduPilot/ardupilot.git "$ARDUPILOT"
+          git -C "$ARDUPILOT" submodule update --init --recursive --depth 1
+
+      - uses: actions/cache@v4
+        with:
+          path: ${{ runner.temp }}/ardupilot/build
+          key: ardupilot-sitl-copter-${{ env.VERSION }}-${{ runner.os }}
+
+      - name: Build SITL (copter)
+        run: |
+          uv venv "$RUNNER_TEMP/apbuild" --python 3.12
+          uv pip install --python "$RUNNER_TEMP/apbuild" "empy==3.3.4" pexpect future dronecan "pymavlink==2.4.50" lxml setuptools
+          source "$RUNNER_TEMP/apbuild/bin/activate"
+          cd "$ARDUPILOT"
+          ./waf configure --board sitl
+          ./waf copter
+
+      - run: uv sync --locked --project engine
+
+      - name: Rehearse
+        run: >
+          uv run --project engine python tools/procedures/rehearse.py
+          --ardupilot "$ARDUPILOT" --version "$VERSION" --out "$RUNNER_TEMP/rehearsal" $REHEARSALS
+
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: rehearsal-ardupilot-${{ env.VERSION }}
+          path: ${{ runner.temp }}/rehearsal
+          if-no-files-found: warn

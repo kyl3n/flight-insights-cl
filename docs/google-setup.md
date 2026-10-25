@@ -11,7 +11,7 @@ What you end up with:
 | `FI_GOOGLE_TEST_REFRESH_TOKEN` | the test account's sign-in, for the soak | the nightly soak |
 | `FI_GOOGLE_TEST_DRIVE_ID` | the test shared drive's ID | the nightly soak |
 
-You need a Workspace admin account for steps 1 to 4, and a machine with this repository and the Rust toolchain for step 6.
+You need a Workspace admin account for steps 1 to 4. Step 6 needs only a computer with a browser: a by-hand workflow builds the sign-in helper for Windows and Linux, ready to run.
 
 ## 1. The Google Cloud project
 
@@ -52,19 +52,34 @@ The next run of the **Package** workflow (by hand, or on a `v*` tag) builds inst
 
 ## 6. The test account's sign-in
 
-On your own machine, never a shared one, with a browser on the same machine (Google sends the browser back to `127.0.0.1` there):
+On your own machine, never a shared one, with a browser on the same machine (Google sends the browser back to `127.0.0.1` there). The helper uses the client from step 5's secrets, so add those first.
+
+1. In the repository: **Actions → Google sign-in helper → Run workflow**. It takes about ten minutes.
+2. Open the finished run and, under **Artifacts**, download **google-sign-in-helper-Windows** or **google-sign-in-helper-Linux**. It is kept for one day. Unzip it.
+3. Run it:
+   - **Windows:** double-click `google_sign_in.exe`. The helper is not code-signed yet, so Windows may say "Windows protected your PC": choose **More info → Run anyway**.
+   - **Linux:** in a terminal, `chmod +x google_sign_in && ./google_sign_in`. It needs only the C library (glibc 2.34 or newer: Fedora 35, Ubuntu 22.04 or later).
+4. It prints an address. Open it in a browser **signed in as the test account** (a private window avoids picking the wrong account), and allow access.
+5. It then prints the shared drives the account can see, with their IDs, and the account's refresh token. It writes nothing to disk.
+6. Add two more repository secrets:
+   - `FI_GOOGLE_TEST_DRIVE_ID`: the test drive's ID from that list (not the fleet's drive): only the ID, the first column, without the drive's name.
+   - `FI_GOOGLE_TEST_REFRESH_TOKEN`: the refresh token.
+7. Press Enter to close the helper (in a terminal you opened yourself, clear it and its scrollback too), and delete the helper. Don't paste the token anywhere else.
+
+With the GitHub CLI signed in (`gh auth login`), the token can go straight into its secret without showing on screen. Only the token goes through the pipe; the address and the drive list still show:
+
+```sh
+./google_sign_in | gh secret set FI_GOOGLE_TEST_REFRESH_TOKEN --repo <owner>/<repo>
+```
+
+On Windows, run `.\google_sign_in.exe | gh secret set …` the same way from PowerShell.
+
+From a checkout with the Rust toolchain and the shell's build dependencies (as in CI), the same helper runs with the client given to it, and steps 4 to 7 are the same:
 
 ```sh
 cd shell/src-tauri
 FI_GOOGLE_CLIENT_ID='…' FI_GOOGLE_CLIENT_SECRET='…' cargo run --example google_sign_in
 ```
-
-1. It prints an address. Open it in a browser **signed in as the test account** (a private window avoids picking the wrong account), and allow access.
-2. It then prints the shared drives the account can see, with their IDs, and the account's refresh token. It writes nothing to disk.
-3. Add two more repository secrets:
-   - `FI_GOOGLE_TEST_DRIVE_ID`: the test drive's ID from that list (not the fleet's drive).
-   - `FI_GOOGLE_TEST_REFRESH_TOKEN`: the refresh token.
-4. Clear the terminal (and its scrollback). Don't paste the token anywhere else.
 
 The token stays valid while the account exists and its access is not revoked. If a soak run reports "sign in again", run this step again. To revoke it: the test account's **Google Account → Security → Your connections to third-party apps**.
 

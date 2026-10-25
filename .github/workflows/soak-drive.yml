@@ -4,8 +4,8 @@ name: Sync soak on the drive
 # "sync soak test clean"; shell/src-tauri/tests/soak.rs with SOAK_DRIVE=google). Each
 # run writes under its own folder, soak-<run>-<seed>, in the test drive and deletes
 # nothing. It runs only when the repository has the test account's secrets
-# (FI_GOOGLE_TEST_REFRESH_TOKEN, FI_GOOGLE_TEST_DRIVE_ID, from
-# `cargo run --example google_sign_in`) and the OAuth client (FI_GOOGLE_CLIENT_ID,
+# (FI_GOOGLE_TEST_REFRESH_TOKEN, FI_GOOGLE_TEST_DRIVE_ID, from the sign-in helper:
+# docs/google-setup.md, step 6) and the OAuth client (FI_GOOGLE_CLIENT_ID,
 # FI_GOOGLE_CLIENT_SECRET); without them it says so and passes. A failure prints the
 # seed and settings that reproduce it.
 
