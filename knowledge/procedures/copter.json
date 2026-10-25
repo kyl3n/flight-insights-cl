@@ -87,6 +87,30 @@
           }
         }
       ]
+    },
+    "fft_check": {
+      "about": "A notch on the in-flight FFT: the FFT logs what it found (FTN1, with the control tuning messages or fast harmonic notch logging), so the next log shows whether it locked onto the motors.",
+      "steps": [
+        {
+          "kind": "verify",
+          "when": {
+            "param": "INS_HNTCH_MODE",
+            "in": [
+              4
+            ]
+          },
+          "checks": [
+            {
+              "check": "has_message",
+              "message": "FTN1"
+            }
+          ],
+          "text": {
+            "en": "The next log holds the FFT's measurements (FTN1), so the app checks that it found the motors' peak and the notch followed it.",
+            "uk": "Наступний журнал містить вимірювання FFT (FTN1), тож застосунок перевірить, що FFT знайшло пік моторів, а режекторний фільтр стежив за ним."
+          }
+        }
+      ]
     }
   },
   "procedures": {
@@ -199,7 +223,8 @@
     "filter.no_notch": {
       "use": [
         "esc_rpm_check",
-        "filter_test"
+        "filter_test",
+        "fft_check"
       ],
       "steps": []
     },
@@ -226,7 +251,8 @@
     "filter.better_settings": {
       "use": [
         "esc_rpm_check",
-        "filter_test"
+        "filter_test",
+        "fft_check"
       ],
       "steps": [
         {
@@ -458,6 +484,13 @@
             "en": "Or fit ESCs that support bidirectional DShot. Then answer the ESC firmware question in the platform setup, and the app gives the steps to turn it on.",
             "uk": "Або встановіть ESC з підтримкою двонаправленого DShot. Потім дайте відповідь на питання про прошивку ESC у налаштуванні платформи, і застосунок дасть кроки, щоб його увімкнути."
           }
+        },
+        {
+          "kind": "hardware",
+          "text": {
+            "en": "Where bidirectional DShot is not possible, BLHeli_32 and AM32 ESCs with a telemetry pad can send their RPM over a wire: join the pads to a free serial port's RX and set that port's SERIALn_PROTOCOL to 16 (ESC telemetry). It reports less often than bidirectional DShot, but it can steer the notch.",
+            "uk": "Де двонаправлений DShot неможливий, ESC з BLHeli_32 та AM32 з контактом телеметрії можуть передавати оберти дротом: з'єднайте контакти з RX вільного послідовного порту й встановіть SERIALn_PROTOCOL цього порту в 16 (телеметрія ESC). Вона оновлюється рідше, ніж двонаправлений DShot, але може керувати режекторним фільтром."
+          }
         }
       ]
     },
@@ -569,6 +602,51 @@
           "text": {
             "en": "The next log shows the rate loop in its own thread and the processor still keeping up (no rise in slow loops).",
             "uk": "Наступний журнал показує контур кутових швидкостей в окремому потоці, а процесор усе ще встигає (без зростання запізнілих циклів)."
+          }
+        }
+      ]
+    },
+    "filter.peak_unnotched": {
+      "use": [
+        "filter_test"
+      ],
+      "steps": [
+        {
+          "kind": "hardware",
+          "text": {
+            "en": "Look for the source first, with the battery out: tighten the arms, motor mounts, landing gear and payload mount, and look for a cracked, loose or flexing part. A fix at the source beats any filter, and the next log shows whether the notch is still needed.",
+            "uk": "Спершу пошукайте джерело, з від'єднаною батареєю: затягніть промені, кріплення моторів, шасі й кріплення вантажу та пошукайте тріснуту, ослаблену або гнучку деталь. Усунення джерела краще за будь-який фільтр, а наступний журнал покаже, чи режекторний фільтр ще потрібен."
+          }
+        },
+        {
+          "kind": "verify",
+          "checks": [
+            {
+              "check": "finding_clears"
+            }
+          ],
+          "text": {
+            "en": "After the filters, the {hz} Hz peak is gone or far below the control band.",
+            "uk": "Після фільтрів пік на {hz} Гц зник або значно нижчий за смугу керування."
+          }
+        }
+      ]
+    },
+    "filter.harmonics_above_nyquist": {
+      "use": [
+        "filter_test"
+      ],
+      "steps": [
+        {
+          "kind": "verify",
+          "checks": [
+            {
+              "check": "finding_clears"
+            }
+          ],
+          "text": {
+            "en": "The next log shows every harmonic in the notch's mask below the gyro's limit, and the processor still keeping up: no rise in slow loops or CPU load.",
+            "uk": "Наступний журнал показує, що всі гармоніки в масці режекторного фільтра нижчі за межу гіроскопа, а процесор усе ще встигає: без зростання запізнілих циклів чи завантаження процесора."
           }
         }
       ]

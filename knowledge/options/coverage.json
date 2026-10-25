@@ -22,7 +22,9 @@
       ],
       "also": [
         "filter.better_source",
-        "filter.better_settings"
+        "filter.better_settings",
+        "filter.no_notch",
+        "filter.peak_unnotched"
       ]
     },
     "rpm_sources": {
@@ -80,7 +82,10 @@
         "en": "Gyro sampling",
         "uk": "Вибірка гіроскопа"
       },
-      "options": []
+      "options": [],
+      "also": [
+        "filter.harmonics_above_nyquist"
+      ]
     },
     "estimator_sources": {
       "title": {

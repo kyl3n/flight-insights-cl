@@ -37,12 +37,15 @@ from flight_insights.filters.harmonic import (
     FFT,
     FIXED,
     MULTI_SOURCE,
+    NYQUIST_CUTOFF,
     RPM,
     RPM2,
     SETS,
     THROTTLE,
 )
 from flight_insights.filters.search import Outcome, Screen, search
+from flight_insights.fingerprint.devices import fast_sampling_capable
+from flight_insights.spectral.peaks import peaks
 from flight_insights.spectral.welch import Spectrum
 
 FFT_BOARDS = ("F7", "H7", "SITL", "Linux")  # boards ArduPilot runs the in-flight FFT on
@@ -92,6 +95,43 @@ def _harmonic_mask(m: MotorPicture) -> int:
         if p.prominence_db >= MOTOR_PEAK_DB:
             mask |= 1 << (k - 1)
     return mask
+
+
+FFT_DEFAULTS = {"FFT_MINHZ": 50.0, "FFT_MAXHZ": 450.0}  # AP_GyroFFT.cpp var_info, 4.7.0
+FFT_MAX_SHARE = 1.5  # FFT_MAXHZ: this share of the hover motor frequency, as motors spin up
+FFT_MAX_CAP_HZ = 480.0  # AP_GyroFFT caps MAXHZ at 0.48 of its sample rate; 1 kHz is the slowest
+# A peak further than this share of the motor frequency from every motor harmonic is not
+# the motors': a frame or payload resonance, which a static notch on a free set covers.
+NON_MOTOR_SHARE = 0.15
+ALL_IMUS_OPT = 1 << 3  # INS_HNTCH_OPTS: EnableOnAllIMUs
+# INS_GYRO_RATE: 1, 2, 4 or 8 kHz. The parameter's guidance: above 1 kHz on F7 and H7 only,
+# above 2 kHz only with careful tuning, so the app proposes 2 kHz at most.
+GYRO_RATE_MAX_INDEX = 1
+
+
+def _fft_changes(
+    flight: FlightData, m: MotorPicture, changes: tuple[CandidateChange, ...]
+) -> tuple[CandidateChange, ...]:
+    """A notch moved onto the in-flight FFT needs the FFT on, searching a band that
+    holds the motors: from the notch's own minimum up past the motors' frequency in a
+    climb. FFT_MINHZ's default (50 Hz) is above a large aircraft's notch floor."""
+    mode = next((c.proposed for c in changes if c.param == f"{SET}MODE"), None)
+    if mode != FFT or not m.fundamental_hz:
+        return changes
+    p = flight.params
+    out = list(changes)
+    if not int(p.get("FFT_ENABLE", 0)):
+        out.append(CandidateChange("FFT_ENABLE", p.get("FFT_ENABLE"), 1.0, "filters"))
+    floor = next((c.proposed for c in changes if c.param == f"{SET}FREQ"), None)
+    low = float(p.get("FFT_MINHZ", FFT_DEFAULTS["FFT_MINHZ"]))
+    if floor is not None and floor < low:
+        minimum = float(max(20, math.floor(floor)))
+        out.append(CandidateChange("FFT_MINHZ", p.get("FFT_MINHZ"), minimum, "filters"))
+    high = float(p.get("FFT_MAXHZ", FFT_DEFAULTS["FFT_MAXHZ"]))
+    needed = min(FFT_MAX_CAP_HZ, float(math.ceil(FFT_MAX_SHARE * m.fundamental_hz / 10) * 10))
+    if needed > high:
+        out.append(CandidateChange("FFT_MAXHZ", p.get("FFT_MAXHZ"), needed, "filters"))
+    return tuple(out)
 
 
 def _proposal(
@@ -188,6 +228,155 @@ def _post_filter(flight: FlightData, m: MotorPicture) -> Spectrum | None:
     return Spectrum(s.freqs, s.psd * gain[None, :], s.rate_hz, s.windows, s.seconds)
 
 
+def _above_nyquist(
+    flight: FlightData,
+    m: MotorPicture,
+    p1: NotchParams,
+    keep_mask: bool,
+    busy_cpu_pct: float,
+    setup_ev: Evidence,
+    picture_ev: Evidence,
+) -> list[Finding]:
+    """Harmonics the notch is set to cover whose hover frequency is at or above 0.48 of
+    the gyro rate: the firmware drops those notches (HarmonicNotchFilter.cpp,
+    HARMONIC_NYQUIST_CUTOFF). On an F7 or H7 with room, a faster gyro rate brings them
+    back when its gyro can sample fast; elsewhere they come out of the mask, which then
+    says what the notch really does."""
+    if m.spectrum is None or not m.fundamental_hz:
+        return []
+    limit = m.spectrum.rate_hz * NYQUIST_CUTOFF
+    bits = [k for k in range(1, 17) if p1.harmonics >> (k - 1) & 1]
+    dropped = [k for k in bits if k * m.fundamental_hz >= limit]
+    if not dropped:
+        return []
+    p = flight.params
+    highest = max(dropped) * m.fundamental_hz
+    changes: tuple[CandidateChange, ...] = ()
+    cpu = _cpu_load_p95(flight)
+    room = cpu is None or cpu < busy_cpu_pct
+    instance = m.instance or 0
+    faster = _family(flight) in ("F7", "H7") and room and fast_sampling_capable(p, instance) is True
+    if faster:
+        index = next(
+            (i for i in range(GYRO_RATE_MAX_INDEX + 1) if 1000 * 2**i * NYQUIST_CUTOFF > highest),
+            GYRO_RATE_MAX_INDEX,
+        )
+        current = p.get("INS_GYRO_RATE")
+        if current is None or int(current) < index:
+            changes += (CandidateChange("INS_GYRO_RATE", current, float(index), "filters"),)
+        bit = 1 << instance
+        mask = p.get("INS_FAST_SAMPLE")
+        if mask is None or not int(mask) & bit:
+            fast = float(int(mask or 0) | bit)
+            changes += (CandidateChange("INS_FAST_SAMPLE", mask, fast, "filters"),)
+    if not changes and not keep_mask:
+        kept = p1.harmonics & ~sum(1 << (k - 1) for k in dropped)
+        if kept:
+            changes = _changes(p1, {"HMNCS": float(kept)})
+    return [
+        Finding(
+            code="filter.harmonics_above_nyquist",
+            severity="caution" if faster else "info",
+            confidence="high",
+            evidence=(picture_ev, setup_ev),
+            params={
+                "harmonics": dropped,
+                "hz": round(highest, 1),
+                "limit_hz": round(limit, 1),
+                "gyro_hz": round(m.spectrum.rate_hz),
+            },
+            changes=changes,
+        )
+    ]
+
+
+def _unnotched(
+    flight: FlightData,
+    m: MotorPicture,
+    p1: NotchParams,
+    confidence: Confidence,
+    picture_ev: Evidence,
+    setup_ev: Evidence,
+) -> list[Finding]:
+    """A strong peak above the control band that is no motor harmonic and still shows
+    after the filters: a frame or payload resonance. It gets a static notch on the first
+    harmonic notch set that is off, or no change when the board has none free."""
+    post = _post_filter(flight, m)
+    if post is None or not m.fundamental_hz or m.kind != "hover":
+        return []  # over a whole flight the motors sweep too far to tell a resonance apart
+    f0 = m.fundamental_hz
+    spinning = [q.median_hz for q in m.escs if np.isfinite(q.median_hz)] or [f0]
+    low, high = min(spinning), max(spinning)
+    tol = NON_MOTOR_SHARE * f0
+
+    def motors(hz: float) -> bool:
+        return any(
+            k * low - tol <= hz <= k * high + tol for k in range(1, int(hz / max(low, 1.0)) + 2)
+        )
+
+    control = float(post.band_power(0.0, CONTROL_BAND_HZ).sum())
+    half = 3 * post.resolution_hz
+    found = None
+    for pk in peaks(post, CONTROL_BAND_HZ, post.rate_hz / 2, MOTOR_PEAK_DB):
+        if motors(pk.freq_hz):
+            continue
+        left = float(post.band_power(pk.freq_hz - half, pk.freq_hz + half).sum())
+        if left > 0 and 10 * np.log10(left / max(control, 1e-30)) >= -UNCOVERED_BELOW_CONTROL_DB:
+            found = pk
+            break
+    if found is None:
+        return []
+    hz = float(round(found.freq_hz))
+    free = next(
+        (
+            s
+            for s in SETS[1:]
+            if f"{s}ENABLE" in flight.params and not int(flight.params[f"{s}ENABLE"])
+        ),
+        None,
+    )
+    changes: tuple[CandidateChange, ...] = ()
+    if free is not None:
+        settings = {
+            "ENABLE": 1.0, "MODE": float(FIXED), "FREQ": hz, "BW": float(round(hz / 4)),
+            "HMNCS": 1.0, "OPTS": float(p1.opts & ALL_IMUS_OPT),
+        }  # fmt: skip
+        # a set that is off hides its other parameters, so they have no value to show
+        changes = tuple(
+            CandidateChange(free + k, flight.params.get(free + k), v, "filters")
+            for k, v in settings.items()
+            if flight.params.get(free + k) != v
+        )
+    ev = Evidence(
+        id="filters:unnotched",
+        kind="series",
+        summary=(
+            f"after the filters, a peak at {found.freq_hz:.1f} Hz, {found.prominence_db:.1f} dB "
+            f"above the floor, more than {NON_MOTOR_SHARE:.0%} of the motor frequency from "
+            f"every harmonic of the motors at {low:.1f} to {high:.1f} Hz"
+        ),
+        messages=("GYR",),
+        fields=("GyrX", "GyrY", "GyrZ"),
+        segment=Segment(m.kind, m.spans[0][0], m.spans[-1][1]),
+        values={
+            "peak_hz": round(found.freq_hz, 1),
+            "prominence_db": round(found.prominence_db, 1),
+            "motor_hz": [round(low, 1), round(high, 1)],
+            "free_set": free,
+        },
+    )
+    return [
+        Finding(
+            code="filter.peak_unnotched",
+            severity="caution",
+            confidence=confidence if m.fundamental_from == "ESC RPM" else "medium",
+            evidence=(picture_ev, setup_ev, ev),
+            params={"hz": hz, "set": (free or "").rstrip("_")},
+            changes=changes,
+        )
+    ]
+
+
 def _filters(flight: FlightData, reg: Registry) -> Result:
     m = picture(flight)
     if m.spectrum is None:
@@ -252,7 +441,7 @@ def _filters(flight: FlightData, reg: Registry) -> Result:
         peak = m.motor_peak()
         changes: tuple[CandidateChange, ...] = ()
         if proposal is not None:
-            changes = _changes(p1, {"ENABLE": 1.0, **proposal[1]})
+            changes = _fft_changes(flight, m, _changes(p1, {"ENABLE": 1.0, **proposal[1]}))
         out.findings.append(
             Finding(
                 code="filter.no_notch",
@@ -267,8 +456,11 @@ def _filters(flight: FlightData, reg: Registry) -> Result:
                 changes=changes,
             )
         )
-        return _with_search(flight, reg, m, p1, proposal, out, picture_ev, setup_ev, confidence)
+        res = _with_search(flight, reg, m, p1, proposal, out, picture_ev, setup_ev, confidence)
+        res.findings.extend(_unnotched(flight, m, p1, confidence, picture_ev, setup_ev))
+        return res
     if not enabled:
+        out.findings.extend(_unnotched(flight, m, p1, confidence, picture_ev, setup_ev))
         return out
 
     switching = False
@@ -390,7 +582,14 @@ def _filters(flight: FlightData, reg: Registry) -> Result:
                 changes=() if switching else _changes(p1, {"BW": float(bw)}),
             )
         )
-    return _with_search(flight, reg, m, p1, proposal, out, picture_ev, setup_ev, confidence)
+    res = _with_search(flight, reg, m, p1, proposal, out, picture_ev, setup_ev, confidence)
+    # after the search, which takes the changes of the flags before it into its own set;
+    # a mask it proposes already leaves out what the gyro cannot carry
+    busy = float(reg.rules["filters"]["busy_cpu_pct"])
+    searched = switching or any(f.code == "filter.better_settings" for f in res.findings)
+    res.findings.extend(_above_nyquist(flight, m, p1, searched, busy, setup_ev, picture_ev))
+    res.findings.extend(_unnotched(flight, m, p1, confidence, picture_ev, setup_ev))
+    return res
 
 
 def _cpu_load_p95(flight: FlightData) -> float | None:
@@ -449,6 +648,7 @@ def _with_search(
         changes += (
             CandidateChange("INS_GYRO_FILTER", gyro_filter, best.setting.gyro_filter, "filters"),
         )
+    changes = _fft_changes(flight, m, changes)
     explained = [dataclasses.replace(f, changes=()) for f in out.findings]
     better = Finding(
         code="filter.better_settings",
@@ -509,7 +709,7 @@ def _search_evidence(outcome: Outcome, m: MotorPicture) -> Evidence:
 
 FILTERS = Analyzer(
     name="filters",
-    version=4,
+    version=5,
     run=_filters,
     metrics=(),
     findings=(
@@ -522,5 +722,7 @@ FILTERS = Analyzer(
         "filter.harmonic_uncovered",
         "filter.bandwidth_wide",
         "filter.better_settings",
+        "filter.peak_unnotched",
+        "filter.harmonics_above_nyquist",
     ),
 )
