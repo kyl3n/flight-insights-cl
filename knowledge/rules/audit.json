@@ -1,5 +1,5 @@
 {
-  "about": "The parameter audit (spec: Analyzers common to all vehicles, 'Parameter audit'). Names are canonical. The cell-voltage bands are the app's own, chosen to catch a setting made for another pack (a 3-cell value on a 12-cell aircraft) and not to judge a reasonable threshold; they are uncalibrated.",
+  "about": "The parameter audit (spec: Analyzers common to all vehicles, 'Parameter audit'). Names are canonical. The cell-voltage bands are the app's own, chosen to catch a setting made for another pack (a 3-cell value on a 12-cell aircraft) and not to judge a reasonable threshold; they are uncalibrated. BATT_CAPACITY counts as another pack's when it is more than capacity_share away from the capacity in the platform setup.",
   "uncalibrated": true,
   "never_tuned": {
     "names": ["ATC_RAT_RLL_P", "ATC_RAT_RLL_I", "ATC_RAT_RLL_D", "ATC_RAT_PIT_P", "ATC_RAT_PIT_I", "ATC_RAT_PIT_D"],
@@ -16,6 +16,7 @@
     "scaling_max": [3.4, 4.45],
     "scaling_min": [2.5, 3.9]
   },
+  "capacity_share": 0.1,
   "controller_names": ["ATC_*", "PSC_*"],
   "listed_names_max": 20
 }

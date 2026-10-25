@@ -143,6 +143,50 @@
         "en": "Nothing is wrong with a changed value. Record why each was changed, such as a loaded file or a tuning session, so later changes can be traced.",
         "uk": "Змінене значення саме по собі не помилка. Зафіксуйте, чому кожне змінили, наприклад завантажений файл чи сеанс налаштування, щоб наступні зміни можна було відстежити."
       }
+    },
+    "params.other_battery_warn_only": {
+      "stage": "operations",
+      "title": {
+        "en": "Battery monitor {monitor} has a {level} threshold but its failsafe only warns ({param} 0)",
+        "uk": "Монітор батареї {monitor} має поріг ({level}), але його аварійний режим лише попереджає ({param} 0)"
+      },
+      "action": {
+        "en": "If this monitor watches a battery the aircraft flies on, give {param} an action such as RTL or Land. If it only reports (a sum, an avionics battery), clear its thresholds so a warning from it means something.",
+        "uk": "Якщо цей монітор стежить за батареєю, від якої летить апарат, задайте {param} дію на кшталт RTL чи Land. Якщо він лише показує дані (сума, батарея авіоніки), очистьте його пороги, щоб його попередження щось означало."
+      }
+    },
+    "params.battery_capacity": {
+      "stage": "operations",
+      "title": {
+        "en": "BATT_CAPACITY is {value} mAh, but the platform's pack holds {capacity} mAh",
+        "uk": "BATT_CAPACITY дорівнює {value} мА·год, але батарея платформи має {capacity} мА·год"
+      },
+      "action": {
+        "en": "Set it to the pack's capacity: the remaining percentage, the mAh failsafes and the arming check all count from it.",
+        "uk": "Встановіть ємність батареї: від неї рахуються залишок у відсотках, аварійні режими за мА·год і перевірка перед зведенням."
+      }
+    },
+    "params.battery_arm_unchecked": {
+      "stage": "operations",
+      "title": {
+        "en": "Arming never checks the pack's charge (BATT_ARM_VOLT and BATT_ARM_MAH are 0)",
+        "uk": "Перед зведенням заряд батареї не перевіряється (BATT_ARM_VOLT і BATT_ARM_MAH дорівнюють 0)"
+      },
+      "action": {
+        "en": "Set BATT_ARM_VOLT to the resting voltage of the emptiest pack you would still take off with, comfortably above the low-battery threshold, so a half-used pack cannot be flown by mistake. BATT_ARM_MAH alone is not enough: a reboot resets the remaining estimate.",
+        "uk": "Встановіть BATT_ARM_VOLT як напругу спокою найбільш розрядженої батареї, з якою ви ще злетіли б, з запасом над порогом низького заряду, щоб напіврозряджену батарею не можна було помилково використати. Лише BATT_ARM_MAH недостатньо: перезавантаження скидає оцінку залишку."
+      }
+    },
+    "params.power_module_uncalibrated": {
+      "stage": "operations",
+      "title": {
+        "en": "The power module was never calibrated: battery voltage, current and mAh may all be off",
+        "uk": "Модуль живлення не калібрували: напруга, струм і мА·год батареї можуть бути неточними"
+      },
+      "action": {
+        "en": "Calibrate it against a multimeter and the charger: every battery failsafe, the remaining capacity and the power analysis rely on these readings.",
+        "uk": "Відкалібруйте його за мультиметром і зарядним пристроєм: на цих вимірюваннях ґрунтуються всі аварійні режими батареї, залишок ємності та аналіз живлення."
+      }
     }
   }
 }

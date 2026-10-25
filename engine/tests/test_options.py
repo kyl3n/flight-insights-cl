@@ -154,6 +154,30 @@ def test_a_slow_main_loop_goes_back_to_400_hz_when_the_processor_has_room(reg: R
     assert "option.loop_rate_default.available" not in run(reg, {}, fp, {"PM": pm(30)})
 
 
+@pytest.mark.parametrize(("firmware", "esc_type"), [("Bluejay", 4.0), ("BLHeli_32", 3.0)])
+def test_esc_temperatures_over_bidirectional_dshot(
+    reg: Registry, firmware: str, esc_type: float
+) -> None:
+    found = run(reg, {"esc_firmware": firmware}, None, None, SERVO_DSHOT_ESC=0)
+    assert changes(found["option.edt_enable.available"]) == {"SERVO_DSHOT_ESC": (0.0, esc_type)}
+    on = run(reg, {"esc_firmware": firmware}, None, None, SERVO_DSHOT_ESC=esc_type)
+    assert "option.edt_enable.available" not in on
+    asked = run(reg, {}, None, None, SERVO_DSHOT_ESC=0)
+    assert "edt_enable" in asked["option.question.esc_edt_capable"].params["options"]
+
+
+def test_the_escs_as_a_second_battery_monitor(reg: Registry) -> None:
+    t = np.arange(ARM, DISARM, 100_000)
+    cols = {"Instance": (pa.uint8(), [0] * len(t)), "Curr": (pa.float32(), [9.0] * len(t))}
+    esc = table(t.tolist(), cols, {"Curr": {b"unit": b"A", b"multiplier": b"1.0"}})
+    fp = {"board": {"hal": "ChibiOS", "family": "H7"}}
+    found = run(reg, {}, fp, {"ESC": esc}, BATT2_MONITOR=0)
+    assert changes(found["option.esc_battery_monitor.available"]) == {"BATT2_MONITOR": (0.0, 9.0)}
+    taken = run(reg, {}, fp, {"ESC": esc}, BATT2_MONITOR=0, BATT_MONITOR=9)
+    assert "option.esc_battery_monitor.available" not in taken
+    assert "option.esc_battery_monitor.available" not in run(reg, {}, fp, {}, BATT2_MONITOR=0)
+
+
 def test_options_rank_by_the_platforms_priority(reg: Registry) -> None:
     fp = {"board": {"hal": "ChibiOS", "family": "H7"}}
     answers = {"payload": "variable", "esc_firmware": "AM32", "priority": "agility"}

@@ -336,6 +336,28 @@
         "en": "Check the power module or BEC feeding the flight controller, and what switched on at that moment: servos, a gripper, a camera or the payload. Give heavy loads their own supply.",
         "uk": "Перевірте модуль живлення або BEC, що живить польотний контролер, і що ввімкнулося в той момент: серви, захват, камера чи навантаження. Дайте великим навантаженням окреме живлення."
       }
+    },
+    "power.thst_hover_stale": {
+      "stage": "setup",
+      "title": {
+        "en": "MOT_THST_HOVER is {value}, but the aircraft hovered at {throttle}, and hover learning is off",
+        "uk": "MOT_THST_HOVER дорівнює {value}, але апарат зависав на {throttle}, а навчання газу зависання вимкнено"
+      },
+      "action": {
+        "en": "Set MOT_THST_HOVER to the measured value. The altitude controller starts from it, so a stale value makes take-offs and altitude hold lurch until the controller catches up. Or turn learning on (MOT_HOVER_LEARN 2) if the weight changes from flight to flight.",
+        "uk": "Встановіть MOT_THST_HOVER на виміряне значення. Регулятор висоти стартує з нього, тож застаріле значення спричиняє ривки при зльоті й утриманні висоти, доки регулятор не наздожене. Або ввімкніть навчання (MOT_HOVER_LEARN 2), якщо вага змінюється від польоту до польоту."
+      }
+    },
+    "power.monitor_vs_escs": {
+      "stage": "operations",
+      "title": {
+        "en": "The battery monitor disagrees with the ESCs' telemetry on {what}",
+        "uk": "Монітор батареї не збігається з телеметрією ESC щодо: {what}"
+      },
+      "action": {
+        "en": "Either the power module or the ESCs' sensors are off, and the failsafes trust the power module. Calibrate it against a multimeter and the charger before relying on its readings.",
+        "uk": "Неточний або модуль живлення, або датчики ESC, а аварійні режими довіряють модулю живлення. Відкалібруйте його за мультиметром і зарядним пристроєм, перш ніж покладатися на його показники."
+      }
     }
   }
 }

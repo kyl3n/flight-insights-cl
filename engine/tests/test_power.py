@@ -150,3 +150,45 @@ def test_zones_can_be_several_intervals_or_none(reg: Registry) -> None:
     throttle = reg.metrics["power.hover_throttle"]
     assert [throttle.zone(v) for v in (0.1, 0.3, 0.9)] == ["caution", "target", "caution"]
     assert reg.metrics["power.hover_power"].zone(3000.0) is None
+
+
+# --- the thrust model and the battery monitor ----------------------------------------------
+
+
+def test_a_stale_hover_thrust_with_learning_off(reg: Registry) -> None:
+    fp = {"hover_throttle": {"value": 0.42}}
+    params = {"MOT_HOVER_LEARN": 0.0, "MOT_THST_HOVER": 0.30}
+    r = POWER.run(hover_flight({"BAT": battery()}, params, fp), reg)
+    [f] = [x for x in r.findings if x.code == "power.thst_hover_stale"]
+    assert f.params == {"value": 0.3, "throttle": 0.42}
+    assert [(c.param, c.proposed) for c in f.changes] == [("MOT_THST_HOVER", 0.42)]
+    learning = POWER.run(
+        hover_flight({"BAT": battery()}, params | {"MOT_HOVER_LEARN": 2.0}, fp), reg
+    )
+    assert not [x for x in learning.findings if x.code == "power.thst_hover_stale"]
+
+
+def _quiet_battery(volt_scale: float) -> pa.Table:
+    """BAT with a quiet stretch after arming (2 A), then a 40 A hover."""
+    t = np.arange(ARM, DISARM, 100_000)
+    amps = np.where(t < ARM + 3_000_000, 2.0, 40.0)
+    volts = (50.0 - amps * 0.02) * volt_scale
+    return table(
+        t.tolist(),
+        {"Inst": (pa.uint8(), [0] * len(t)), "Volt": (pa.float32(), volts.tolist()),
+         "Curr": (pa.float32(), amps.tolist())},
+        {"Volt": V, "Curr": A},
+    )  # fmt: skip
+
+
+def test_the_battery_monitor_against_the_escs(reg: Registry) -> None:
+    # four ESCs drawing 12 A each is 48 A: more than the 40 A the monitor reports
+    over = POWER.run(hover_flight({"BAT": _quiet_battery(1.0), "ESC": escs(49.9, 12.0)}, {}), reg)
+    [f] = [x for x in over.findings if x.code == "power.monitor_vs_escs"]
+    assert f.params == {"what": "current"} and f.changes == ()
+    # the monitor reads 6% high while little current flows
+    high = POWER.run(hover_flight({"BAT": _quiet_battery(1.06), "ESC": escs(49.9, 9.0)}, {}), reg)
+    [g] = [x for x in high.findings if x.code == "power.monitor_vs_escs"]
+    assert g.params == {"what": "voltage"}
+    agree = POWER.run(hover_flight({"BAT": _quiet_battery(1.0), "ESC": escs(49.9, 9.0)}, {}), reg)
+    assert not [x for x in agree.findings if x.code == "power.monitor_vs_escs"]

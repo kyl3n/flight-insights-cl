@@ -193,3 +193,46 @@ def test_the_logs_defaults_survive_the_store(tmp_path: Path) -> None:
         back = load_snapshot(store, save_snapshot(store, snap, load_pack()))
     assert back.defaults == snap.defaults
     assert back.is_default("FS_THR_VALUE") == snap.is_default("FS_THR_VALUE")
+
+
+# --- every battery monitor, the pack's capacity, arming and calibration ---------------------
+
+
+def test_a_further_monitor_whose_failsafe_only_warns(reg: Registry) -> None:
+    params = {"BATT2_MONITOR": 4.0, "BATT2_LOW_VOLT": 22.0, "BATT2_FS_LOW_ACT": 0.0}
+    found, ev = audit(reg, params)
+    f = found["params.other_battery_warn_only"]
+    assert f.params == {"monitor": "BATT2", "param": "BATT2_FS_LOW_ACT", "level": "low"}
+    assert "BATT2_FS_LOW_ACT" in ev["inconsistent"]
+    # a monitor that only reports, with no thresholds, is left alone
+    quiet, _ = audit(reg, {"BATT2_MONITOR": 9.0, "BATT2_FS_LOW_ACT": 0.0})
+    assert "params.other_battery_warn_only" not in quiet
+
+
+def test_the_capacity_is_the_packs(reg: Registry) -> None:
+    found, _ = audit(reg, {"BATT_CAPACITY": 3300.0}, answers={"capacity_mah": 22000})
+    f = found["params.battery_capacity"]
+    assert [(c.param, c.current, c.proposed) for c in f.changes] == [
+        ("BATT_CAPACITY", 3300.0, 22000.0)
+    ]
+    close, _ = audit(reg, {"BATT_CAPACITY": 21000.0}, answers={"capacity_mah": 22000})
+    assert "params.battery_capacity" not in close  # within 10%
+    unanswered, _ = audit(reg, {"BATT_CAPACITY": 3300.0})
+    assert "params.battery_capacity" not in unanswered
+
+
+def test_arming_that_never_checks_the_charge(reg: Registry) -> None:
+    found, _ = audit(reg, {"BATT_ARM_VOLT": 0.0, "BATT_ARM_MAH": 0.0})
+    assert found["params.battery_arm_unchecked"].severity == "info"
+    checked, _ = audit(reg, {"BATT_ARM_VOLT": 15.6, "BATT_ARM_MAH": 0.0})
+    assert "params.battery_arm_unchecked" not in checked
+
+
+def test_an_analog_power_module_never_calibrated(reg: Registry) -> None:
+    answers = {"power_module_calibrated": False}
+    found, _ = audit(reg, {}, answers=answers)
+    assert found["params.power_module_uncalibrated"].severity == "caution"
+    smart, _ = audit(reg, {"BATT_MONITOR": 8.0}, answers=answers)  # DroneCAN: no scales
+    assert "params.power_module_uncalibrated" not in smart
+    done, _ = audit(reg, {}, answers={"power_module_calibrated": True})
+    assert "params.power_module_uncalibrated" not in done
