@@ -24,11 +24,12 @@
     }
   },
   "boot_only": {
-    "about": "Parameters the firmware reads only at start-up although its metadata does not say a reboot is needed: a change to one ends its step with a reboot, like a parameter flagged RebootRequired. Each names where the 4.7.0 source reads it.",
+    "about": "Parameters whose change needs a reboot although the metadata does not say so: most are read only at start-up, and one needs the next flight to start in a fresh log. A change to one ends its step with a reboot, like a parameter flagged RebootRequired. Each names the 4.7.0 source behind it.",
     "params": {
       "LOG_FILE_BUFSIZE": "libraries/AP_Logger/AP_Logger_File.cpp AP_Logger_File::Init(), called once from AP_Logger::init(): the write buffer is sized there",
       "INS_FAST_SAMPLE": "libraries/AP_InertialSensor backends' start() (AP_InertialSensor_Invensense.cpp _set_filter_register(), and the v2, v3, LSM6DSV and SCHA63T drivers): enable_fast_sampling() is read when the sensor starts",
-      "SERVO_DSHOT_ESC": "libraries/AP_Motors/AP_Motors_Class.cpp AP_Motors::rc_set_freq(): the DShot ESC type (and with it EDT) is handed to the outputs when the motors are set up at start-up"
+      "SERVO_DSHOT_ESC": "libraries/AP_Motors/AP_Motors_Class.cpp AP_Motors::rc_set_freq(): the DShot ESC type (and with it EDT) is handed to the outputs when the motors are set up at start-up",
+      "LOG_FILE_DSRMROT": "libraries/AP_Logger/AP_Logger_Backend.cpp AP_Logger_Backend::ShouldLog(): a log left open after a flight records parameter changes while disarmed only while this is off, so switched on there, the next flight would join that log with neither the arming nor the changes made before it; after a reboot it starts a fresh log with every parameter"
     }
   },
   "processor": {

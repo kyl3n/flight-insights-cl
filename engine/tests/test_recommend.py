@@ -318,6 +318,14 @@ def test_a_parameter_read_only_at_start_up_gets_a_reboot(reg: Registry) -> None:
     assert rec.reboot and p.steps[-1].after == "reboot"
 
 
+def test_one_log_per_flight_ends_with_a_reboot(reg: Registry) -> None:
+    # Switched on in a log left open, LOG_FILE_DSRMROT stops parameter changes being
+    # logged, so the next flight starts a fresh log (rules/recommend.json boot_only)
+    p = plan(reg, finding("option.log_per_flight.available", ("LOG_FILE_DSRMROT", 1.0)))
+    rec = one(p, "LOG_FILE_DSRMROT")
+    assert rec.reboot and p.steps[-1].after == "reboot"
+
+
 def test_every_boot_only_parameter_is_real_and_sourced(reg: Registry) -> None:
     meta = reg.pack.metadata("4.7.0", "copter")
     for name, source in reg.rules["recommend"]["boot_only"]["params"].items():

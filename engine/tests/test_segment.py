@@ -226,6 +226,40 @@ def test_arm_and_ev_records_of_one_change_count_once(tmp_path: Path, pack: Pack)
     ]
 
 
+def test_a_flight_whose_arming_went_unrecorded_starts_where_logging_resumed(
+    tmp_path: Path, pack: Pack
+) -> None:
+    """LOG_DISARMED 0 with the file left open: switching LOG_FILE_DSRMROT on stops the
+    logger writing while disarmed, the next arming record included. A parameter set
+    while disarmed is a lone record; the flight starts where streaming resumed."""
+    b = builder()
+    b.write("PARM", 0, b"LOG_DISARMED", 0.0, 0.0)
+    heartbeat(b, 1_000_000, 30_000_000, 20_000)
+    b.write("EV", 30_000_000, 11)
+    heartbeat(b, 30_000_000, 45_000_000, 20_000)  # the logger's 15 s after disarming
+    b.write("PARM", 60_000_000, b"LOG_FILE_DSRMROT", 1.0, 0.0)
+    heartbeat(b, 80_000_000, 120_000_000, 20_000)
+    b.write("ARM", 120_000_000, 0)
+    b.write("EV", 120_000_000, 11)
+    with read(b, tmp_path) as df:
+        _, fl = boots_and_flights(df, pack)
+    assert [(f.arm_us, f.disarm_us, f.start) for f in fl] == [
+        (0, 30_000_000, "log started armed"),
+        (80_000_000, 120_000_000, "logging resumed"),
+    ]
+
+
+def test_a_disarm_reported_twice_is_one_change(tmp_path: Path, pack: Pack) -> None:
+    b = builder()
+    b.write("PARM", 0, b"LOG_DISARMED", 0.0, 0.0)
+    heartbeat(b, 1_000_000, 30_000_000, 20_000)
+    b.write("ARM", 30_000_000, 0)
+    b.write("EV", 30_500_000, 11)  # the same disarm, half a second later
+    with read(b, tmp_path) as df:
+        _, fl = boots_and_flights(df, pack)
+    assert [(f.arm_us, f.disarm_us) for f in fl] == [(0, 30_000_000)]
+
+
 def test_modes_take_their_names_from_the_release(tmp_path: Path, pack: Pack) -> None:
     b = builder()
     modes_at = {1_000_000: 4, 2_000_000: 4, 5_000_000: 9, 8_000_000: 99}

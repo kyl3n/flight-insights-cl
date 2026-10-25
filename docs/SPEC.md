@@ -123,7 +123,7 @@ DataFlash .bin logs are the primary input because they describe themselves: FMT 
 2. **Decode to columns.** One vectorized pass turns each message type into an Arrow table in SI units, split per instance (IMU, ESC, battery). pymavlink's DFReader is the reference decoder for tests; a NumPy decoder built from the FMT offsets handles large raw-IMU logs. Target: 500 MB decoded in under 60 s on a 4-core laptop.
 3. **Cache.** Parquet per message type; re-analysis never re-parses.
 4. **Validate.** Flag logging dropouts (DSF write rejections, timestamp gaps), raw-IMU sample loss, clock resets and multiple boots in one file. Filter analysis on a log with dropped IMU samples gives false spectra, so this check gates it.
-5. **Segment.** Arm and disarm, flight modes, then phases: spool-up, takeoff, hover, cruise, aggressive manoeuvres, Autotune, landing, VTOL transitions, rotor run-up. Steady hover windows feed filter analysis; manoeuvres feed tune analysis.
+5. **Segment.** Arm and disarm (including an arming the log missed, see "Linking every flight to its exact parameters"), flight modes, then phases: spool-up, takeoff, hover, cruise, aggressive manoeuvres, Autotune, landing, VTOL transitions, rotor run-up. Steady hover windows feed filter analysis; manoeuvres feed tune analysis.
 6. **Extract configuration.** The full parameter set at boot plus any in-flight changes, firmware and board from the version messages, and embedded files such as Lua scripts.
 
 **Parameter dialects.** A normalization layer maps every parameter name and unit to one canonical internal form: the names of the newest release in the knowledge pack.
@@ -1002,7 +1002,7 @@ The numbers above are illustrative. `expected_effect` comes from simulation wher
 | --- | --- | --- |
 | 1 | Work for a person: what an action's finding says to do, hardware (balance the propellers, fit ESCs with bidirectional DShot) and firmware (flash Bluejay or AM32, the board's `-bdshot` build) | the finding's procedure template; an action with none follows its finding's own wording |
 | 2 | Each parameter file, then a refresh, or a reboot and a refresh, before the next | the plan's steps and the gates table |
-| 3 | A reboot when any value needs one | the firmware's metadata, plus the rule pack's list of parameters read only at start-up that the metadata does not flag (`rules/recommend.json` `boot_only`, each with the source line that reads it: `LOG_FILE_BUFSIZE`, `INS_FAST_SAMPLE`, `SERVO_DSHOT_ESC`) |
+| 3 | A reboot when any value needs one | the firmware's metadata, plus the rule pack's list of parameters that need one although the metadata does not say so (`rules/recommend.json` `boot_only`, each with its source line): read only at start-up (`LOG_FILE_BUFSIZE`, `INS_FAST_SAMPLE`, `SERVO_DSHOT_ESC`), or, for `LOG_FILE_DSRMROT`, so the next flight starts in a fresh log with every parameter (see "Linking every flight to its exact parameters") |
 | 4 | Settings for the test flight only, such as raw IMU logging (`LOG_BITMASK` bit 19, `INS_RAW_LOG_OPT` bits 0 and 3), fast harmonic notch logging (bit 21) and no logging rate cap (`LOG_FILE_RATEMAX` 0) for a filter change | the template: a finding's own changes it keeps for the test flight, and settings it adds (a value the flight does not show is left alone) |
 | 5 | Checks on the bench, propellers off: the motor test showing RPM for every motor before a notch follows ESC RPM | the template, kept only where it applies (a step can depend on a parameter's value after the plan) |
 | 6 | What to fly | the leading finding's template, else the stage's default |
@@ -1723,6 +1723,8 @@ Every flight is tied to the exact parameter set it flew with, and every change b
 **Logging settings that keep the link clean**
 
 - **One file per flight:** with `LOG_FILE_DSRMROT` set, a new log starts on each re-arm after a disarm, so every flight gets its own fresh parameter dump. Without it, one log covers a whole power cycle, and the app splits it into flights at each arm and disarm.
+  - **Each flight's set** is then the parameters as they stood when it armed. The log stays open between flights and records parameter changes made while disarmed (`AP_Logger_Backend::ShouldLog`), so a change made between two flights belongs to the later one, and is its change set.
+  - **An arming the log missed.** Switched on while a log is still open, `LOG_FILE_DSRMROT` stops the logger writing anything while disarmed, the next arming record included. With `LOG_DISARMED` 0, two disarms with no arming between them therefore mean a flight whose arming went unrecorded. It starts where logging resumed: the first message after a pause that streaming logging follows, since a parameter set while disarmed is a lone record. Changes made after the switch are missing from that flight's set, so switching it on ends its step with a reboot, and the next flight starts in a fresh log.
 - **Optional disarmed logging:** `LOG_DISARMED` = 2 logs from power-up except on USB power, so field sessions are covered without filling the card with bench logs.
 - **Logging always on:** a disabled logging backend breaks the chain, and the app flags any airframe whose flights stop producing logs.
 
