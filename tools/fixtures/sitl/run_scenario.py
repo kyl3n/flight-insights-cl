@@ -150,13 +150,27 @@ class Vehicle:
         mapping = self.conn.mode_mapping()
         if name not in mapping:
             raise ScenarioFailed(f"unknown mode {name}")
-        self.conn.set_mode(mapping[name])
-        self.wait(
-            f"mode {name}",
-            lambda m: m.custom_mode == mapping[name],  # type: ignore[attr-defined]
-            "HEARTBEAT",
-            30,
-        )
+        # The simulated radio can come up just after the mode is set, and its mode
+        # switch's first reading sets a mode of its own, so the mode must also hold.
+        for _ in range(5):
+            self.conn.set_mode(mapping[name])
+            self.wait(
+                f"mode {name}",
+                lambda m: m.custom_mode == mapping[name],  # type: ignore[attr-defined]
+                "HEARTBEAT",
+                30,
+            )
+            held, end = 0, time.monotonic() + 30
+            while held < 3 and time.monotonic() < end:
+                m = self.conn.recv_match(type="HEARTBEAT", blocking=True, timeout=1)
+                if m is None or m.get_srcComponent() != self.comp:
+                    continue
+                if m.custom_mode != mapping[name]:
+                    break
+                held += 1
+            if held == 3:
+                return
+        raise ScenarioFailed(f"mode {name} did not hold")
 
     def rc(self, **channels: int) -> None:
         values = [65535] * 18  # 65535 = leave the channel alone
