@@ -152,7 +152,16 @@ impl GoogleDrive {
         let status = reply.status();
         let body = reply.text().map_err(other)?;
         if !status.is_success() {
-            return Err(other(format!("Google Drive answered {status}")));
+            // Google's own reason, such as "Shared drive not found", says what to fix
+            let why = serde_json::from_str::<Value>(&body).ok().and_then(|v| {
+                v["error"]["message"]
+                    .as_str()
+                    .map(|m| m.chars().take(200).collect::<String>())
+            });
+            return Err(other(match why {
+                Some(m) => format!("Google Drive answered {status}: {m}"),
+                None => format!("Google Drive answered {status}"),
+            }));
         }
         serde_json::from_str(&body).map_err(|_| other("Google Drive's reply is not readable"))
     }
@@ -663,6 +672,28 @@ mod tests {
         };
         let drives = shared_drives(&fake.endpoints(), &client, &fake.refresh_token()).unwrap();
         assert_eq!(drives, vec![(DRIVE.to_string(), "Fleet data".to_string())]);
+    }
+
+    #[test]
+    fn a_drive_the_account_cannot_see_is_named_in_the_error() {
+        let fake = FakeGoogle::start();
+        let client = Client {
+            id: "c".into(),
+            secret: "s".into(),
+        };
+        let d = GoogleDrive::new(
+            fake.endpoints(),
+            client,
+            "another-drive",
+            Zeroizing::new(fake.refresh_token()),
+        )
+        .unwrap()
+        .quick();
+        let e = d.list("registry/").unwrap_err().to_string();
+        assert_eq!(
+            e,
+            "Google Drive answered 404 Not Found: Shared drive not found: another-drive"
+        );
     }
 
     #[test]

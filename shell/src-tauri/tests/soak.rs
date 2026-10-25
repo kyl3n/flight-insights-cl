@@ -37,7 +37,7 @@ use std::path::{Path, PathBuf};
 use flight_insights_shell::engine::{CALL_TIMEOUT, Engine, EngineCommand};
 use flight_insights_shell::identity::{LaptopIdentity, MemoryStore};
 use flight_insights_shell::sync::drive::{Drive, FolderDrive};
-use flight_insights_shell::sync::google::GoogleDrive;
+use flight_insights_shell::sync::google::{GoogleDrive, shared_drives};
 use flight_insights_shell::sync::keyring::{
     Device, Keyring, Registry, create_fleet, enroll, revoke,
 };
@@ -382,10 +382,12 @@ fn the_drive(root: &Path, seed: u64) -> (Box<dyn Drive>, Option<PathBuf>) {
         let local = root.join("drive");
         return (Box::new(FolderDrive::new(&local).unwrap()), Some(local));
     }
+    // A pasted secret may carry a line break, or the drive's name after its id as the
+    // sign-in helper lists them; no id or token holds whitespace.
     let need = |name: &str| {
         std::env::var(name)
             .ok()
-            .filter(|v| !v.is_empty())
+            .and_then(|v| v.split_whitespace().next().map(String::from))
             .unwrap_or_else(|| panic!("SOAK_DRIVE=google needs {name}"))
     };
     let client = oauth::built_in_client().unwrap_or_else(|| oauth::Client {
@@ -395,14 +397,20 @@ fn the_drive(root: &Path, seed: u64) -> (Box<dyn Drive>, Option<PathBuf>) {
     let run = std::env::var("SOAK_RUN").unwrap_or_else(|_| std::process::id().to_string());
     let folder = format!("soak-{run}-{seed}");
     eprintln!("sync soak: on the test shared drive, under {folder}/");
-    let drive = GoogleDrive::new(
-        Endpoints::default(),
-        client,
-        &need("FI_GOOGLE_TEST_DRIVE_ID"),
-        zeroize::Zeroizing::new(need("FI_GOOGLE_TEST_REFRESH_TOKEN")),
-    )
-    .and_then(|d| d.under(&folder))
-    .unwrap();
+    let drive_id = need("FI_GOOGLE_TEST_DRIVE_ID");
+    let refresh = zeroize::Zeroizing::new(need("FI_GOOGLE_TEST_REFRESH_TOKEN"));
+    // Only the count is printed: the drives' names are the company's, not the soak's.
+    let visible = shared_drives(&Endpoints::default(), &client, &refresh)
+        .unwrap_or_else(|e| panic!("the test account's shared drives could not be listed: {e}"));
+    assert!(
+        visible.iter().any(|(id, _)| *id == drive_id),
+        "FI_GOOGLE_TEST_DRIVE_ID is none of the {} shared drive(s) the test account is a member \
+         of: copy the test drive's id from the sign-in helper's list (docs/google-setup.md, step 6)",
+        visible.len()
+    );
+    let drive = GoogleDrive::new(Endpoints::default(), client, &drive_id, refresh)
+        .and_then(|d| d.under(&folder))
+        .unwrap();
     (Box::new(drive), None)
 }
 
