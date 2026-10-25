@@ -1,5 +1,5 @@
 {
-  "about": "Every configurable subsystem the spec names, with the Better options that cover it. A subsystem with none is listed as not yet covered in the app's metrics reference, so gaps are visible, not silent (spec: Configuration review, 'Better options').",
+  "about": "Every configurable subsystem the spec names, with the Better options that cover it. A subsystem with none is listed as not yet covered in the app's metrics reference, so gaps are visible, not silent (spec: Configuration review, 'Better options'). 'also' lists the findings that check a subsystem besides its options; 'phase' says when a subsystem's own analysis comes, for one the app does not cover yet.",
   "texts": {
     "question_action": {
       "en": "Answer it in the platform setup ({field}): the app then tells you which better options this aircraft can use.",
@@ -94,14 +94,26 @@
         "en": "Links and failsafes",
         "uk": "Зв'язки та аварійні режими"
       },
-      "options": []
+      "options": [],
+      "also": [
+        "params.rc_failsafe_off",
+        "params.fs_thr_value",
+        "params.ekf_failsafe_report_only",
+        "params.crash_check_off"
+      ]
     },
     "battery_failsafe": {
       "title": {
         "en": "Battery failsafe",
         "uk": "Аварійний режим батареї"
       },
-      "options": []
+      "options": [],
+      "also": [
+        "params.battery_warn_only",
+        "params.battery_no_critical",
+        "params.battery_critical_warn_only",
+        "params.battery_threshold_cells"
+      ]
     },
     "compass": {
       "title": {
@@ -115,14 +127,19 @@
         "en": "Plane and QuadPlane",
         "uk": "Літак і QuadPlane"
       },
-      "options": []
+      "options": [],
+      "phase": 3
     },
     "heli": {
       "title": {
         "en": "Traditional helicopter",
         "uk": "Класичний гелікоптер"
       },
-      "options": []
+      "options": [],
+      "phase": 4,
+      "also": [
+        "filter.heli_throttle"
+      ]
     }
   }
 }

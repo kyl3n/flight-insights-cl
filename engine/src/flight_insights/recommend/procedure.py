@@ -28,7 +28,7 @@ from typing import Any, Literal
 
 from flight_insights.analyzers.registry import LANGUAGES, Registry
 from flight_insights.params.files import format_value
-from flight_insights.recommend.plan import Plan, Recommendation, render
+from flight_insights.recommend.plan import PLACEHOLDER, Plan, Recommendation, render
 
 StepKind = Literal[
     "task", "hardware", "firmware", "set", "refresh", "reboot_refresh", "reboot",
@@ -164,10 +164,15 @@ def _values(plan: Plan, reg: Registry, recs: Sequence[Recommendation]) -> str:
 
 def _templates(
     reg: Registry, rec: Recommendation, lead_only: bool = False
-) -> list[Mapping[str, Any]]:
-    """The templates of every finding behind a recommendation, the lead's first."""
-    codes = dict.fromkeys([rec.lead.code, *(() if lead_only else (s.code for s in rec.sources))])
-    return [reg.procedures[c] for c in codes if c in reg.procedures]
+) -> list[tuple[Mapping[str, Any], Mapping[str, Any]]]:
+    """The template of every finding behind a recommendation, the lead's first, each
+    with the values its own finding fills its wording with."""
+    sources = [rec.lead] if lead_only else sorted(rec.sources, key=lambda s: s is not rec.lead)
+    out: dict[str, tuple[Mapping[str, Any], Mapping[str, Any]]] = {}
+    for s in sources:
+        if s.code in reg.procedures and s.code not in out:
+            out[s.code] = (reg.procedures[s.code], s.params)
+    return list(out.values())
 
 
 def _value_after(plan: Plan, param: str) -> float | None:
@@ -196,13 +201,13 @@ def _from_templates(
     out: list[ProcedureStep] = []
     seen: set[str] = set()
     for rec in recs:
-        for template in _templates(reg, rec, lead_only):
+        for template, values in _templates(reg, rec, lead_only):
             for s in template["steps"]:
                 if s["kind"] not in kinds or not _applies(plan, s):
                     continue
-                text = _fill(s["text"], rec.lead.params)
-                if text["en"] in seen:
-                    continue
+                text = _fill(s["text"], values)
+                if text["en"] in seen or PLACEHOLDER.search(text["en"]):
+                    continue  # said already, or its finding lacks the values it needs
                 seen.add(text["en"])
                 out.append(ProcedureStep(s["kind"], text, checks=tuple(s.get("checks", ()))))
     return out
@@ -215,7 +220,7 @@ def _tasks(plan: Plan, reg: Registry, recs: Sequence[Recommendation]) -> list[Pr
         if rec.param is not None:
             continue
         work = ("task", "hardware", "firmware", "ground_check")
-        if any(s["kind"] in work for t in _templates(reg, rec) for s in t["steps"]):
+        if any(s["kind"] in work for t, _ in _templates(reg, rec) for s in t["steps"]):
             continue
         text = reg.findings.get(rec.lead.code)
         if text is not None:

@@ -296,6 +296,10 @@ def _options(
             raise KnowledgeError(
                 f"option {oid}: its subsystem {option.subsystem} must list it in coverage.json"
             )
+    for sid, sub in coverage.items():
+        unknown = [code for code in sub.get("also", ()) if code not in findings]
+        if unknown:
+            raise KnowledgeError(f"coverage.json: {sid} lists unknown findings {unknown}")
     return options, questions, coverage
 
 
