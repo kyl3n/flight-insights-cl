@@ -29,7 +29,6 @@ import time
 from collections.abc import Callable
 from pathlib import Path
 
-import yaml
 from pymavlink import mavutil
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
@@ -151,13 +150,27 @@ class Vehicle:
         mapping = self.conn.mode_mapping()
         if name not in mapping:
             raise ScenarioFailed(f"unknown mode {name}")
-        self.conn.set_mode(mapping[name])
-        self.wait(
-            f"mode {name}",
-            lambda m: m.custom_mode == mapping[name],  # type: ignore[attr-defined]
-            "HEARTBEAT",
-            30,
-        )
+        # The simulated radio can come up just after the mode is set, and its mode
+        # switch's first reading sets a mode of its own, so the mode must also hold.
+        for _ in range(5):
+            self.conn.set_mode(mapping[name])
+            self.wait(
+                f"mode {name}",
+                lambda m: m.custom_mode == mapping[name],  # type: ignore[attr-defined]
+                "HEARTBEAT",
+                30,
+            )
+            held, end = 0, time.monotonic() + 30
+            while held < 3 and time.monotonic() < end:
+                m = self.conn.recv_match(type="HEARTBEAT", blocking=True, timeout=1)
+                if m is None or m.get_srcSystem() != self.sys:
+                    continue
+                if m.custom_mode != mapping[name]:
+                    break
+                held += 1
+            if held == 3:
+                return
+        raise ScenarioFailed(f"mode {name} did not hold")
 
     def rc(self, **channels: int) -> None:
         values = [65535] * 18  # 65535 = leave the channel alone
@@ -175,6 +188,15 @@ class Vehicle:
             "pre-arm checks",
             lambda m: m.onboard_control_sensors_health & prearm,  # type: ignore[attr-defined]
             "SYS_STATUS",
+            timeout,
+        )
+        # The checks can pass before the estimator uses GPS; a take-off sent then is
+        # refused, and the vehicle disarms itself on the ground.
+        position = mavutil.mavlink.EKF_POS_HORIZ_ABS
+        self.wait(
+            "an absolute position",
+            lambda m: m.flags & position,  # type: ignore[attr-defined]
+            "EKF_STATUS_REPORT",
             timeout,
         )
         end = time.monotonic() + timeout
@@ -330,34 +352,38 @@ def carry_payload(model: dict[str, float], kg: float) -> dict[str, float]:
     }
 
 
-def run(scenario: Scenario, ardupilot: Path, version: str, out_dir: Path) -> None:
+def sitl_command(scenario: Scenario, ardupilot: Path, work: Path) -> list[str]:
+    """The SITL command line for a scenario, run in `work`; writes the boot defaults and
+    any frame model it needs there."""
     binary = ardupilot / "build" / "sitl" / "bin" / scenario.binary
     if not binary.exists():
         raise ScenarioFailed(f"{binary} not built")
+    defaults = [str(ardupilot / "Tools" / "autotest" / d) for d in scenario.defaults]
+    if scenario.boot_params:
+        boot = work / "boot.parm"
+        boot.write_text("".join(f"{k} {v}\n" for k, v in scenario.boot_params.items()))
+        defaults.append(str(boot))
+    model = scenario.model
+    if scenario.model_json:
+        source = ardupilot / "Tools" / "autotest" / "models" / scenario.model_json
+        frame = work / scenario.model_json
+        frame.write_text(json.dumps(carry_payload(load_frame_model(source), scenario.payload_kg)))
+        model += ":" + frame.name  # SITL reads it from its working folder; a full path fails
+    return [
+        str(binary), "--model", model, "--speedup", str(scenario.speedup or SPEEDUP),
+        "--defaults", ",".join(defaults), "--home", SITL_HOME, "-I0",
+    ]  # fmt: skip
+
+
+def run(scenario: Scenario, ardupilot: Path, version: str, out_dir: Path) -> None:
+    import yaml  # here, so the procedure rehearsal can use Vehicle without it
+
     out_dir.mkdir(parents=True, exist_ok=True)
     stem = out_dir / scenario.name
     with tempfile.TemporaryDirectory() as work:
-        defaults = [str(ardupilot / "Tools" / "autotest" / d) for d in scenario.defaults]
-        if scenario.boot_params:
-            boot = Path(work) / "boot.parm"
-            boot.write_text("".join(f"{k} {v}\n" for k, v in scenario.boot_params.items()))
-            defaults.append(str(boot))
-        model = scenario.model
-        if scenario.model_json:
-            source = ardupilot / "Tools" / "autotest" / "models" / scenario.model_json
-            frame = Path(work) / scenario.model_json
-            frame.write_text(
-                json.dumps(carry_payload(load_frame_model(source), scenario.payload_kg))
-            )
-            model += ":" + frame.name  # SITL reads it from its working folder; a full path fails
+        command = sitl_command(scenario, ardupilot, Path(work))
         sitl_out = (Path(work) / "sitl.txt").open("w")
-        proc = subprocess.Popen(
-            [
-                str(binary), "--model", model, "--speedup", str(scenario.speedup or SPEEDUP),
-                "--defaults", ",".join(defaults), "--home", SITL_HOME, "-I0",
-            ],
-            cwd=work, stdout=sitl_out, stderr=subprocess.STDOUT,
-        )  # fmt: skip
+        proc = subprocess.Popen(command, cwd=work, stdout=sitl_out, stderr=subprocess.STDOUT)
         vehicle: Vehicle | None = None
         try:
             vehicle = Vehicle(stem.with_suffix(".tlog"))
