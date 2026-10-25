@@ -107,6 +107,20 @@ def test_rpm_collapsing_under_command_is_a_desync(reg: Registry) -> None:
     assert f.params["first_s"] == pytest.approx((HOVER[0] + 5_000_000 - ARM) / 1e6, abs=0.15)
 
 
+def test_a_slow_spool_up_at_take_off_is_not_a_desync(reg: Registry) -> None:
+    # 30-inch propellers take seconds to reach speed while take-off already asks for more
+    # than hover: RPM below half the hover RPM under a high command, but never collapsing.
+    t = np.arange(ARM, DISARM, STEP)
+    rows = [(int(x), i) for x in t for i in range(4)]
+    spool = [min(9000.0, 9000.0 * (x - ARM) / 3_000_000) for x, _ in rows]
+    escs = table(
+        [x for x, _ in rows],
+        {"Instance": (pa.uint8(), [i for _, i in rows]), "RPM": (pa.float32(), spool)},
+    )
+    take_off = {k: (ARM, ARM + 3_000_000, 1700.0) for k in range(1, 5)}
+    assert found({"RCOU": rcou([1550] * 4, take_off), "ESC": escs}, reg) == []
+
+
 def test_extended_dshot_warnings_are_named_by_motor(reg: Registry) -> None:
     [f] = found({"RCOU": rcou([1550] * 4), "EDT2": edt2(1 << 3 | 1 << 1, 1)}, reg)
     assert (f.code, f.severity, f.params) == (
