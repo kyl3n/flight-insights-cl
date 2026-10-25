@@ -99,7 +99,7 @@ def _filter_model(flight: FlightData, reg: Registry) -> Result:
 
 FILTER_MODEL = Analyzer(
     name="filter_model",
-    version=2,
+    version=3,
     run=_filter_model,
     metrics=("filter.model_error", "filter.model_error_rebuilt", "filter.model_error_control"),
     findings=("filter.model_mismatch",),

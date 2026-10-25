@@ -1,11 +1,12 @@
 """ArduPilot's harmonic notch: where its notches sit for given source frequencies
 (libraries/Filter/HarmonicNotchFilter.cpp and AP_Vehicle::update_dynamic_notch, 4.7.0).
 
-One harmonic notch set (INS_HNTCH_* or INS_HNTC2_*) places, for each source frequency
-and each harmonic in its HMNCS bitmask, one notch, or two or three for the double and
-triple options, spread around the centre. Notches above 48% of the sample rate are
-switched off; below the minimum frequency (FREQ x FM_RAT) a notch is held at the
-minimum, and faded out towards a quarter of it unless option bit 5 holds it there.
+One harmonic notch set (INS_HNTCH_*, INS_HNTC2_*, INS_HNTC3_* or INS_HNTC4_*) places,
+for each source frequency and each harmonic in its HMNCS bitmask, one notch, or two or
+three for the double and triple options, spread around the centre. Notches above 48%
+of the sample rate are switched off; below the minimum frequency (FREQ x FM_RAT) a notch
+is held at the minimum, and faded out towards a quarter of it unless option bit 5 holds
+it there.
 The firmware caps the number of notches per gyro by board class.
 
 The firmware also limits each update to a 5% move of a notch's centre; the
@@ -32,13 +33,17 @@ DOUBLE, MULTI_SOURCE, LOOP_RATE, ALL_IMUS, TRIPLE, LOW_AS_MIN, QUINTUPLE = (
     1 << 0, 1 << 1, 1 << 2, 1 << 3, 1 << 4, 1 << 5, 1 << 6,
 )  # fmt: skip
 FIXED, THROTTLE, RPM, ESC, FFT, RPM2 = 0, 1, 2, 3, 4, 5  # INS_HNTCH_MODE
+# The sets, in the order the firmware applies them and indexes them in FTN, FTNS and
+# FCN. 4.7.0 builds three on boards with more than 1 MB of flash and two on the rest
+# (HAL_INS_NUM_HARMONIC_NOTCH_FILTERS); a set the board lacks has no parameters.
+SETS = ("INS_HNTCH_", "INS_HNTC2_", "INS_HNTC3_", "INS_HNTC4_")
 
 
 @dataclass(frozen=True)
 class NotchParams:
     """One harmonic notch set's parameters (canonical names, as the flight started)."""
 
-    prefix: str  # "INS_HNTCH_" or "INS_HNTC2_"
+    prefix: str  # one of SETS
     enable: bool
     mode: int
     freq: float
