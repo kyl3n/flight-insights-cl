@@ -34,8 +34,7 @@ from flight_insights.analyzers.model import (
     Result,
 )
 from flight_insights.analyzers.registry import Registry
-from flight_insights.filters.harmonic import ESC, FFT, FIXED, RPM, RPM2, THROTTLE, NotchParams
-from flight_insights.filters.predict import SETS
+from flight_insights.filters.harmonic import ESC, FFT, FIXED, RPM, RPM2, SETS, THROTTLE, NotchParams
 from flight_insights.filters.tracking import logged_inputs, update_period_us
 
 
@@ -352,7 +351,7 @@ def _log_adequacy(flight: FlightData, reg: Registry) -> Result:
 
 LOG_ADEQUACY = Analyzer(
     name="logging",
-    version=2,
+    version=3,
     run=_log_adequacy,
     metrics=("logging.imu_sample_loss", "logging.dropped_messages"),
     findings=(

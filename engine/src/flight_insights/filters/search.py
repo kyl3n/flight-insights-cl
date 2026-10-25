@@ -30,6 +30,7 @@ from flight_insights.filters.harmonic import (
     ESC,
     MULTI_SOURCE,
     QUINTUPLE,
+    SETS,
     TRIPLE,
     HarmonicNotch,
     NotchParams,
@@ -39,8 +40,7 @@ from flight_insights.spectral.welch import Spectrum
 
 Floats = np.ndarray[tuple[int, ...], np.dtype[np.float64]]
 COMPOSITE_BITS = DOUBLE | TRIPLE | QUINTUPLE
-SET = "INS_HNTCH_"
-OTHER_SET = "INS_HNTC2_"
+SET = SETS[0]  # the set the search tunes; the others stay as flown
 
 
 @dataclass(frozen=True)
@@ -117,17 +117,22 @@ class Screen:
         self.band = (f >= float(self.rules["noise_band_low_hz"])) & (f < top)
         self.pre = self.spectrum.psd.sum(axis=0)
         self.lag_hz = float(self.rules["lag_hz"])
-        other = NotchParams.read(self.params, OTHER_SET)
         self.other_gain: Floats = np.ones(len(f))
         self.other_lag = 0.0
         self.other_count = 0
-        if other.enable and other.num_harmonics:
+        for index, prefix in enumerate(SETS):
+            other = NotchParams.read(self.params, prefix)
+            if prefix == SET or not other.enable or not other.num_harmonics:
+                continue
             notch = HarmonicNotch(other, self.spectrum.rate_hz, self.family)
-            src = sources(notch, dict(self.tables), self.first, self.last, 1)
-            if src is not None:
-                rows = _rows(src, self.first, self.last, int(self.rules["screening_rows"]))
-                self.other_gain, self.other_lag = _set_gain(notch, rows, f, self.lag_hz)
-                self.other_count = notch_count(other, rows.shape[1], self.imus)
+            src = sources(notch, dict(self.tables), self.first, self.last, index)
+            if src is None:
+                continue
+            rows = _rows(src, self.first, self.last, int(self.rules["screening_rows"]))
+            gain, lag = _set_gain(notch, rows, f, self.lag_hz)
+            self.other_gain = self.other_gain * gain
+            self.other_lag += lag
+            self.other_count += notch_count(other, rows.shape[1], self.imus)
 
     def notch_part(self, p: NotchParams) -> tuple[Floats, float, int] | None:
         """Gain, lag and notch count of the main set; None if the log lacks its source."""
