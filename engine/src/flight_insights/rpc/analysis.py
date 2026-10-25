@@ -120,16 +120,21 @@ def add_analysis_methods(server: Server, state: EngineState, guarded: Callable[[
         store, cache = state.require_store(), state.cache
         assert cache is not None
         step, kind, lang = params.get("step", 1), params.get("kind"), params.get("lang", "en")
+        file = params.get("file", "step")
+        if file not in ("step", "revert", "undo", "card"):
+            raise RpcError(INVALID_PARAMS, "file must be 'step', 'revert', 'undo' or 'card'")
         if not isinstance(step, int) or isinstance(step, bool) or step < 1:
             raise RpcError(INVALID_PARAMS, "step must be a step number, from 1")
-        if kind not in ("mission planner", "qgroundcontrol"):
+        if file == "card":
+            kind = None
+        elif kind not in ("mission planner", "qgroundcontrol"):
             raise RpcError(INVALID_PARAMS, "kind must be 'mission planner' or 'qgroundcontrol'")
         if lang not in LANGUAGES:
             raise RpcError(INVALID_PARAMS, f"lang must be one of {LANGUAGES}")
         accepted_only, path = params.get("accepted_only", True), params.get("path")
         if not isinstance(accepted_only, bool):
             raise RpcError(INVALID_PARAMS, "accepted_only must be true or false")
-        suffix = ".param" if kind == "mission planner" else ".params"
+        suffix = {"mission planner": ".param", "qgroundcontrol": ".params", None: ".txt"}[kind]
         if path is not None and (not isinstance(path, str) or not path.endswith(suffix)):
             raise RpcError(INVALID_PARAMS, f"path must be a {suffix} file")
         reg = analyzers.Registry.load(state.pack)
@@ -143,7 +148,14 @@ def add_analysis_methods(server: Server, state: EngineState, guarded: Callable[[
                     for r in kept["recommendations"]
                     if r.get("record_status") == "accepted" and r["canonical"]
                 }
-            out = recommend.export_step(plan, reg, step, kind, lang, only)
+            if kind is None:
+                out = recommend.export_card(plan, reg, lang, only)
+            elif file == "revert":
+                out = recommend.export_revert(plan, reg, kind, lang, only)
+            elif file == "undo":
+                out = recommend.export_undo(plan, reg, kind, lang, only)
+            else:
+                out = recommend.export_step(plan, reg, step, kind, lang, only)
         except (analyzers.FlightError, recommend.ExportError) as e:
             raise RpcError(BAD_INPUT, str(e)) from None
         if path is not None:  # the file a person chose in the save dialog

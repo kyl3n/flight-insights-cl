@@ -26,6 +26,17 @@ export interface RecSource {
   origin?: "measured" | "ai";
 }
 
+/** One step of a procedure, in the order a person does it. */
+export interface ProcedureStep {
+  kind:
+    | "task" | "hardware" | "firmware" | "set" | "refresh" | "reboot_refresh" | "reboot"
+    | "temporary" | "ground_check" | "fly" | "abort" | "verify" | "revert" | "undo";
+  text: Text;
+  params: string[]; // the firmware's own names it loads or names
+  step: number | null; // the plan's file, for "set"
+  checks: Record<string, unknown>[]; // what the app tests on the next flight
+}
+
 export interface PlanRec {
   param: string | null; // the firmware's own name; null for an action
   canonical: string | null;
@@ -44,7 +55,10 @@ export interface PlanRec {
   risk: string;
   requires: string[];
   reboot: boolean;
+  temporary?: boolean; // for the test flight only
+  revert?: number | null; // what a test-flight setting goes back to, the firmware's units
   verify: Text | null;
+  procedure?: ProcedureStep[];
   source: string;
   sources: RecSource[];
   notes: Note[];
@@ -61,6 +75,7 @@ export interface Plan {
   stage: string | null;
   recommendations: PlanRec[];
   steps: { number: number; params: string[]; after: "refresh" | "reboot_refresh" | "reboot" | "fly" }[];
+  session?: ProcedureStep[]; // everything on offer, as one procedure
 }
 
 export interface HistoryRow {

@@ -20,8 +20,12 @@ reviews before the next test flight:
    switch that names a device type is left to a person, who knows what is fitted.
 5. Stages follow ArduPilot's tuning order: only the earliest stage with work left is
    offered, plus anything safety-related; later stages wait.
+6. Settings a finding's procedure needs for the test flight only (raw IMU and fast
+   notch logging, for example) are changes like any other, marked temporary with the
+   value they go back to once the next log has confirmed the change.
 
-A finding at caution or worse with no change to offer (a loose mount, a hot ESC)
+A finding at caution or worse with no change to offer (a loose mount, a hot ESC), or any
+finding with a procedure of its own (a better option that needs new ESC firmware),
 becomes an action for a person, with no parameter. Nothing here writes to an aircraft.
 """
 
@@ -118,6 +122,9 @@ class Recommendation:
     requires: list[str] = field(default_factory=list[str])
     after_gate: str | None = None  # appears only once this (canonical) parameter is set
     appears: Literal["refresh", "reboot"] | None = None  # ...and then after this
+    temporary: bool = False  # for the test flight only
+    revert: float | None = None  # what a test-flight setting goes back to, canonical
+    native_revert: float | None = None
     alternatives: list[Alternative] = field(default_factory=list[Alternative])
 
     @property
@@ -150,6 +157,7 @@ class Plan:
     stage: str | None  # the stage on offer; None when nothing is left to do
     recommendations: list[Recommendation]
     steps: list[Step]
+    params: Mapping[str, float] = field(default_factory=dict[str, float])  # the flight's, canonical
 
     def offered(self, step: int | None = None) -> list[Recommendation]:
         return [
@@ -217,6 +225,54 @@ class _Candidate:
     proposed: float
     stage: str
     source: Source
+    temporary: bool = False  # for the test flight only
+
+
+def _test_flight_changes(
+    procedure: Mapping[str, Any], f: Mapping[str, Any], params: Mapping[str, float]
+) -> list[dict[str, Any]]:
+    """A finding's own changes, those its procedure keeps for the test flight marked
+    so, plus the settings its procedure adds for the test flight when it has a lasting
+    change to test."""
+    temporary = set(procedure.get("temporary", ()))
+    changes = [
+        dict(ch) | {"temporary": bool(ch.get("temporary")) or ch["param"] in temporary}
+        for ch in f.get("changes") or ()
+    ]
+    if not changes:  # nothing proposed: nothing to test
+        return changes
+    for add in procedure.get("add_temporary", ()):
+        current = params.get(add["param"])
+        if "set_bits" in add:
+            value = float(int(current or 0) | sum(1 << int(b) for b in add["set_bits"]))
+        else:
+            value = float(add["value"])
+        stage = f.get("stage") or "evidence"
+        changes.append(
+            {"param": add["param"], "proposed": value, "stage": stage, "temporary": True}
+        )
+    return changes
+
+
+def _set_bits(current: float | None, group: Iterable[_Candidate]) -> int:
+    return sum({1 << b for c in group for b in range(32) if _bits(current, c.proposed)[0] >> b & 1})
+
+
+def _mark_temporary(
+    rec: Recommendation, current: float | None, group: list[_Candidate], bitmask: bool
+) -> None:
+    """A test-flight-only change, and what it goes back to. A lasting change to the same
+    parameter wins: only bits nothing lasting asked for are taken out again."""
+    lasting = [c for c in group if not c.temporary]
+    if len(lasting) == len(group) or rec.proposed is None:
+        return
+    if bitmask:
+        only_test = _set_bits(current, group) & ~_set_bits(current, lasting)
+        if only_test:
+            rec.revert = float(int(rec.proposed) & ~only_test)
+            rec.temporary = not lasting
+    elif not lasting:
+        rec.temporary, rec.revert = True, current  # unknown before: nothing to go back to
 
 
 def _sources(findings: Sequence[Mapping[str, Any]]) -> list[tuple[Source, Mapping[str, Any]]]:
@@ -306,6 +362,8 @@ def build_plan(
     candidates: dict[str, list[_Candidate]] = {}
     blocked: dict[tuple[str, float], Recommendation] = {}
     sources = _sources(findings)
+    procedures: Mapping[str, Mapping[str, Any]] = reg.procedures
+    lasting: dict[str, bool] = {}  # findings with a lasting change of their own
     by_code: dict[str, list[Source]] = {}
     for source, _ in sources:
         by_code.setdefault(source.code, []).append(source)
@@ -313,12 +371,15 @@ def build_plan(
         # A finding that replaces other findings' changes answers them too, and takes on
         # their weight: the filter search's whole set fixes the flags it explains.
         explained = [e for code in source.params.get("explains", ()) for e in by_code.get(code, ())]
-        for ch in f.get("changes") or ():
+        for ch in _test_flight_changes(procedures.get(source.code, {}), f, params):
             param, proposed = str(ch["param"]), ch.get("proposed")
             if proposed is None:
                 continue
             proposed = float(proposed)
             current = params.get(param)
+            temporary = bool(ch.get("temporary"))
+            if not temporary:
+                lasting[source.finding] = True
             if current is not None and abs(current - proposed) < TOLERANCE:
                 continue  # already set
             note = check(param, proposed)
@@ -332,13 +393,20 @@ def build_plan(
                 rec.sources += [source, *explained]
                 continue
             candidates.setdefault(param, []).extend(
-                _Candidate(param, proposed, str(ch["stage"]), s) for s in (source, *explained)
+                _Candidate(param, proposed, str(ch["stage"]), s, temporary)
+                for s in (source, *explained)
             )
 
     by_param: dict[str, Recommendation] = {}
     for param, group in candidates.items():
         name, _ = native(param, None)
-        rec = _resolve(param, params.get(param), group, _is_bitmask(dialect.meta.get(name)))
+        bitmask = _is_bitmask(dialect.meta.get(name))
+        durable = [c for c in group if not c.temporary]
+        # A test-flight value never competes with a lasting one; bits combine as usual.
+        rec = _resolve(
+            param, params.get(param), durable if durable and not bitmask else group, bitmask
+        )
+        _mark_temporary(rec, params.get(param), group, bitmask)
         by_param[param] = rec
 
     # Gain changes past the per-flight limit: this flight takes one step towards the target.
@@ -406,6 +474,11 @@ def build_plan(
 
     for rec in by_param.values():
         rec.step = step_of(rec)
+    # Test-flight settings go in the file loaded last, just before the flight.
+    last = max((r.step for r in by_param.values() if r.status == "next"), default=1)
+    for rec in by_param.values():
+        if rec.temporary and rec.after_gate is None:
+            rec.step = last
 
     recs = [*by_param.values(), *blocked.values()]
     for rec in recs:
@@ -415,12 +488,15 @@ def build_plan(
             rec.native_value = rec.proposed
         rec.native_current = _native_value(dialect, rec.param, rec.current)
         rec.native_target = _native_value(dialect, rec.param, rec.target)
+        rec.native_revert = _native_value(dialect, rec.param, rec.revert)
         rec.reboot = bool((dialect.meta.get(rec.native) or {}).get("reboot_required"))
 
-    # Findings that need a person and leave nothing to load become actions.
+    # Findings that need a person and leave nothing to load become actions, and so does
+    # any finding with steps of its own (new ESC firmware for a better option).
     answered = {s.finding for r in recs if r.status in ("next", "disputed") for s in r.sources}
     for source, f in sources:
-        if source.severity in ACTION_SEVERITIES and source.finding not in answered:
+        needs_person = source.severity in ACTION_SEVERITIES or source.code in procedures
+        if needs_person and source.finding not in answered:
             stage = str(f.get("stage") or "mechanical")
             recs.append(Recommendation(None, None, None, None, stage, [source]))
 
@@ -438,14 +514,35 @@ def build_plan(
             rec.status = "waiting"
             rec.notes.append(Note("waiting", {"stage": gate}))
 
+    # Test-flight settings serve a finding's lasting changes: with none of them on offer
+    # (blocked, disputed or set already), there is nothing to test.
+    live = {
+        s.finding
+        for r in recs
+        if r.param is not None and not r.temporary and r.status in ("next", "waiting")
+        for s in r.sources
+    }
+    recs = [
+        r
+        for r in recs
+        if not (
+            r.temporary
+            and (own := [s.finding for s in r.sources if s.finding in lasting])
+            and not any(f in live for f in own)
+        )
+    ]
+
     # Changes from one finding are loaded together; a reboot joins them where needed.
     offered = [r for r in recs if r.status == "next" and r.param is not None]
     for rec in offered:
         mine = {s.finding for s in rec.sources}
+        if rec.temporary:
+            continue
         rec.requires += [
             f"{o.native}={format_value(o.native_value or 0)}"
             for o in offered
             if o is not rec
+            and not o.temporary
             and o.step == rec.step
             and mine & {s.finding for s in o.sources}
             and f"{o.native}={format_value(o.native_value or 0)}" not in rec.requires
@@ -468,6 +565,7 @@ def build_plan(
         stage=gate,
         recommendations=recs,
         steps=steps,
+        params=dict(params),
     )
 
 
@@ -542,6 +640,9 @@ def expected_effect(reg: Registry, rec: Recommendation) -> dict[str, Any]:
 
 
 def to_json(plan: Plan, reg: Registry) -> dict[str, Any]:
+    # procedures are built from a finished plan; imported here, as that module needs this one
+    from flight_insights.recommend import procedure
+
     rules: Mapping[str, Any] = reg.rules["recommend"]
 
     def source(s: Source) -> dict[str, Any]:
@@ -573,7 +674,10 @@ def to_json(plan: Plan, reg: Registry) -> dict[str, Any]:
             "risk": rules["risk"].get(r.stage, "medium"),
             "requires": list(r.requires),
             "reboot": r.reboot,
+            "temporary": r.temporary,
+            "revert": r.native_revert,
             "verify": dict(rules["verify"][r.stage]) if r.stage in rules["verify"] else None,
+            "procedure": procedure.to_json(procedure.procedure(plan, reg, r)),
             "source": f"finding:{lead.code}",
             "sources": [source(s) for s in sorted(r.sources, key=Source.priority)],
             "notes": [
@@ -601,4 +705,5 @@ def to_json(plan: Plan, reg: Registry) -> dict[str, Any]:
         "steps": [
             {"number": s.number, "params": list(s.params), "after": s.after} for s in plan.steps
         ],
+        "session": procedure.to_json(procedure.session(plan, reg)),
     }
