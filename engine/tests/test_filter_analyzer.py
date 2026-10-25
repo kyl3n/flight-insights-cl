@@ -210,6 +210,19 @@ def test_notching_the_motors_frees_room_to_raise_the_low_pass() -> None:
     assert out.best.noise_db <= out.current.noise_db and out.best.lag_deg < out.current.lag_deg
 
 
+def test_the_search_keeps_every_other_set_as_flown() -> None:
+    # The search tunes the first set; fixed notches in the second and third sets stay in
+    # every candidate's noise, lag and notch count.
+    tables = {"GYR": gyr([(5.0, 2.0), (150.0, 4.0)]), "ESC": MOTORS}
+    fixed = {"ENABLE": 1, "MODE": 0, "BW": 20, "ATT": 40, "HMNCS": 1, "REF": 0, "OPTS": 0}
+    two = {f"INS_HNTC2_{k}": float(v) for k, v in (fixed | {"FREQ": 60}).items()}
+    three = {f"INS_HNTC3_{k}": float(v) for k, v in (fixed | {"FREQ": 75}).items()}
+    alone = screen_for(tables, INS_HNTCH_ENABLE=0, **two)
+    both = screen_for(tables, INS_HNTCH_ENABLE=0, **two, **three)
+    assert both.other_count == 2 * alone.other_count > 0
+    assert both.other_lag > alone.other_lag > 0
+
+
 def test_a_busy_processor_gets_no_more_notches() -> None:
     tables = {"GYR": gyr([(5.0, 2.0), (150.0, 4.0)]), "ESC": MOTORS}
     s = screen_for(tables, **(NOTCH | {"INS_GYRO_FILTER": 20}))

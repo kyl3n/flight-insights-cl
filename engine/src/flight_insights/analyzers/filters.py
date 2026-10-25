@@ -32,7 +32,16 @@ from flight_insights.analyzers.motors import MOTOR_PEAK_DB, MotorPicture, pictur
 from flight_insights.analyzers.registry import Registry
 from flight_insights.dataflash import si
 from flight_insights.filters import NotchParams, chain
-from flight_insights.filters.harmonic import ESC, FFT, FIXED, MULTI_SOURCE, RPM, RPM2, THROTTLE
+from flight_insights.filters.harmonic import (
+    ESC,
+    FFT,
+    FIXED,
+    MULTI_SOURCE,
+    RPM,
+    RPM2,
+    SETS,
+    THROTTLE,
+)
 from flight_insights.filters.search import Outcome, Screen, search
 from flight_insights.spectral.welch import Spectrum
 
@@ -49,7 +58,7 @@ RPM_FAIL_OPT = 1 << 5  # INS_HNTCH_OPTS: use the minimum frequency if the RPM so
 UNCOVERED_BELOW_CONTROL_DB = 30.0
 CONTROL_BAND_HZ = 40.0
 STEADY_ENOUGH_S = 10.0
-SET = "INS_HNTCH_"
+SET = SETS[0]
 
 
 def _mode(p: NotchParams) -> str:
@@ -184,7 +193,8 @@ def _filters(flight: FlightData, reg: Registry) -> Result:
     if m.spectrum is None:
         return Result(skipped="no pre-filter gyro data: the logging analyzer says how to get it")
     p1 = NotchParams.read(flight.params, SET)
-    p2 = NotchParams.read(flight.params, "INS_HNTC2_")
+    # the other sets this board has (a set it lacks has no parameters in the log)
+    others = [NotchParams.read(flight.params, s) for s in SETS[1:] if f"{s}ENABLE" in flight.params]
     enabled = p1.enable and p1.num_harmonics > 0
     confident = m.kind == "hover" and m.seconds >= STEADY_ENOUGH_S
     confidence: Confidence = "high" if confident else "medium"
@@ -215,7 +225,7 @@ def _filters(flight: FlightData, reg: Registry) -> Result:
     )
     setup: dict[str, Any] = {
         f"{p.prefix}{name}": value
-        for p in (p1, p2)
+        for p in (p1, *others)
         for name, value in (
             ("ENABLE", int(p.enable)), ("MODE", p.mode), ("FREQ", p.freq), ("BW", p.bw),
             ("REF", p.ref), ("HMNCS", p.harmonics), ("OPTS", p.opts), ("FM_RAT", p.fm_rat),
@@ -237,7 +247,8 @@ def _filters(flight: FlightData, reg: Registry) -> Result:
     out = Result()
     proposal = _proposal(flight, m, p1)
 
-    if not enabled and not (p2.enable and p2.num_harmonics) and m.clear_motor_noise():
+    others_on = any(p.enable and p.num_harmonics for p in others)
+    if not enabled and not others_on and m.clear_motor_noise():
         peak = m.motor_peak()
         changes: tuple[CandidateChange, ...] = ()
         if proposal is not None:
@@ -498,7 +509,7 @@ def _search_evidence(outcome: Outcome, m: MotorPicture) -> Evidence:
 
 FILTERS = Analyzer(
     name="filters",
-    version=3,
+    version=4,
     run=_filters,
     metrics=(),
     findings=(

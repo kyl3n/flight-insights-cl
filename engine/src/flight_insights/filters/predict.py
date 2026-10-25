@@ -19,11 +19,16 @@ import numpy as np
 import pyarrow as pa
 
 from flight_insights.filters.biquad import Biquad, Complex, Floats, lowpass
-from flight_insights.filters.harmonic import LOOP_RATE, MULTI_SOURCE, HarmonicNotch, NotchParams
+from flight_insights.filters.harmonic import (
+    LOOP_RATE,
+    MULTI_SOURCE,
+    SETS,
+    HarmonicNotch,
+    NotchParams,
+)
 from flight_insights.filters.tracking import Sources, sources, update_period_us
 from flight_insights.spectral.welch import Spectrum, Windows
 
-SETS = ("INS_HNTCH_", "INS_HNTC2_")
 DECIMALS = 2  # source frequencies equal to 0.01 Hz share one response
 
 
