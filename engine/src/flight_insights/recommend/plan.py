@@ -508,9 +508,11 @@ def build_plan(
             stage = str(f.get("stage") or "mechanical")
             recs.append(Recommendation(None, None, None, None, stage, [source]))
 
-    # The earliest stage with a problem left is on offer, with safety at any stage. A
-    # better option fixes no problem, so it never holds a stage back: it comes with the
-    # stage on offer when it belongs to that stage or an earlier one.
+    # The earliest stage with a problem left is on offer, with safety at any stage, and
+    # the rule pack's any-stage findings (failsafes found off). A better option fixes no
+    # problem, so it never holds a stage back: it comes with the stage on offer when it
+    # belongs to that stage or an earlier one.
+    any_stage = set(rules["any_stage"]["codes"])
     open_recs = [r for r in recs if r.status != "blocked" and r.stage in STAGES]
     pool = [r.stage for r in open_recs if r.kind != "performance"] or [r.stage for r in open_recs]
     gate = min(pool, key=STAGES.index) if pool else None
@@ -518,7 +520,12 @@ def build_plan(
         later = (
             gate is None or rec.stage not in STAGES or STAGES.index(rec.stage) > STAGES.index(gate)
         )
-        if rec.status == "next" and later and rec.kind != "safety":
+        if (
+            rec.status == "next"
+            and later
+            and rec.kind != "safety"
+            and rec.lead.code not in any_stage
+        ):
             rec.status = "waiting"
             rec.notes.append(Note("waiting", {"stage": gate}))
 

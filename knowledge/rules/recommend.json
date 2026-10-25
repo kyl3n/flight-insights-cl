@@ -23,6 +23,15 @@
       "why": "No analyzer yet measures what the airframe can do beyond what it has flown, so a limit is never raised automatically."
     }
   },
+  "any_stage": {
+    "about": "Findings offered whatever stage is on offer, like safety findings: failsafes the firmware ships on, found off. Going back to the firmware's own value touches no tuning, and it protects the tuning flights themselves, when a vibration or estimator failsafe matters most.",
+    "codes": [
+      "params.vibe_failsafe_off",
+      "params.dead_reckoning_failsafe_off",
+      "params.ekf_failsafe_off",
+      "params.crash_check_off"
+    ]
+  },
   "boot_only": {
     "about": "Parameters whose change needs a reboot although the metadata does not say so: most are read only at start-up, and one needs the next flight to start in a fresh log. A change to one ends its step with a reboot, like a parameter flagged RebootRequired. Each names the 4.7.0 source behind it.",
     "params": {
