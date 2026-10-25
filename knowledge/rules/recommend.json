@@ -253,6 +253,14 @@
       "en": "Revert file: load it once the next log has confirmed the change. It takes out the settings that were only for the test flight.",
       "uk": "Файл повернення: завантажте його, щойно наступний журнал підтвердить зміну. Він прибирає налаштування, що були лише для тестового польоту."
     },
+    "held_back": {
+      "en": "{code} is not proposed again: flight {flight} was checked with raw gyro data, and the filter settings and the airframe's build have not changed since.",
+      "uk": "{code} не пропонується знову: політ {flight} перевірено з сирими даними гіроскопа, а налаштування фільтрів і збірка апарата відтоді не змінилися."
+    },
+    "check_failed": {
+      "en": "The finding cleared, but a check of its procedure did not pass on the next flight.",
+      "uk": "Знахідка зникла, але перевірка з її процедури не пройшла в наступному польоті."
+    },
     "undo_header": {
       "en": "Undo file: load it if the test goes wrong. It puts back every value the plan changed; parameters the plan made appear are hidden again once their switch is back off.",
       "uk": "Файл скасування: завантажте його, якщо тест піде не так. Він повертає кожне значення, змінене планом; параметри, що з'явилися через план, знову сховаються, щойно їхній перемикач вимкнено."

@@ -76,6 +76,7 @@ export interface Plan {
   recommendations: PlanRec[];
   steps: { number: number; params: string[]; after: "refresh" | "reboot_refresh" | "reboot" | "fly" }[];
   session?: ProcedureStep[]; // everything on offer, as one procedure
+  held_back?: { code: string; flight: string; text: Text }[]; // diagnostics not proposed again
 }
 
 export interface HistoryRow {

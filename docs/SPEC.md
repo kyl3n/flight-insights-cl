@@ -1011,6 +1011,10 @@ The numbers above are illustrative. `expected_effect` comes from simulation wher
 
 **Closing the loop.** When the next log from the same airframe arrives, each applied recommendation is graded: confirmed, no measurable effect, or regressed, against its own `expected_effect`. Those grades calibrate the rule pack thresholds and feed the AI layer's evaluation set.
 
+- **The procedure's checks** run on that log too: a message logged, a metric within a limit, a parameter's value. Each result is kept with the grade. A finding that cleared while a check failed is graded no effect, because the log doesn't show the change worked.
+- **Test-flight settings come out again.** Once the change they served is confirmed, a later flight that still flies with them gets a follow-up in its plan (`followup.revert_test_settings`). The follow-up proposes the revert value as a change, with its procedure. On a bitmask only the test flight's bits come out, whatever else changed since.
+- **A diagnostic is not proposed again while nothing it checks has changed.** This covers raw gyro logging and fast notch logging for a filter check. The condition is an earlier flight of the airframe that was checked with raw gyro data, with the same filter settings (`rules/logging.json`, `filter_settings`) and the same build. The plan says what it held back and why. The flight report still shows the finding.
+
 - **Kept once per airframe.** A plan's recommendations are kept for the airframe, with what the person saw: why, evidence, expected effect and verification.
   - A later plan proposing the same change finds the same recommendation.
   - If a later plan wants another value for a parameter whose proposal nobody acted on, the earlier proposal is marked **superseded**.

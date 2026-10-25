@@ -13,6 +13,7 @@ from flight_insights.analyzers.run import run_analysis
 from flight_insights.history.persist import load_snapshot
 from flight_insights.knowledge import Pack
 from flight_insights.params.dialect import Dialect
+from flight_insights.recommend import followup
 from flight_insights.recommend.export import (
     ExportError,
     export_card,
@@ -52,8 +53,21 @@ def flight_plan(
     snapshot = load_snapshot(store, row["param_snapshot_id"])
     dialect = snapshot.dialect(pack)
     params = dialect.to_canonical(snapshot.values).values
+    reg = Registry.load(pack)
     findings = [*analysis["findings"], *_ai(store, dialect, flight_id, analysis)]
-    return build_plan(flight_id, findings, params, dialect, Registry.load(pack))
+    # A filter diagnostic is not proposed again while nothing it checks has changed.
+    held: list[dict[str, Any]] = []
+    checked = followup.filters_checked_on(store, pack, reg, flight_id, params)
+    if checked is not None:
+        diagnostics = set(reg.rules["logging"]["filter_settings"]["diagnostics"])
+        held = [
+            {"code": f["code"], "flight": checked} for f in findings if f["code"] in diagnostics
+        ]
+        findings = [f for f in findings if f["code"] not in diagnostics]
+    findings += followup.revert_findings(store, flight_id, dialect, params)
+    plan = build_plan(flight_id, findings, params, dialect, reg)
+    plan.held_back = held
+    return plan
 
 
 def _ai(
@@ -79,7 +93,9 @@ def plan_and_record(store: Store, cache: ColumnCache, pack: Pack, flight_id: str
     """What the app shows for a flight: earlier recommendations graded against it first,
     then its own plan, kept for its airframe with each recommendation's stored status."""
     analysis = run_analysis(store, cache, pack, flight_id)
-    grade_flight(store, pack, flight_id, analysis)
+    row = store.get("flight", flight_id)
+    messages = cache.names(row["flight_key"]) if row and row.get("flight_key") else None
+    grade_flight(store, pack, flight_id, analysis, messages)
     plan = flight_plan(store, cache, pack, flight_id, analysis)
     return record_plan(store, to_json(plan, Registry.load(pack)))
 
