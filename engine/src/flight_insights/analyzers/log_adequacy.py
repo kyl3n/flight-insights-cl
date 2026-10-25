@@ -9,7 +9,9 @@ Whether the log holds what the other analyzers need, and whether the logger kept
 - messages other analyzers read that LOG_BITMASK leaves out;
 - a harmonic notch that follows something whose inputs the log holds less often than
   the notch moves, so the filters cannot be replayed exactly (fast harmonic notch
-  logging, for a filter test flight).
+  logging, for a filter test flight);
+- a logging rate cap (LOG_FILE_RATEMAX, LOG_BLK_RATEMAX) that thins the messages logged
+  every loop or at the gyro rate.
 
 Which bit logs which message, and the INS_RAW_LOG_OPT bits, come from the knowledge
 pack's rules (knowledge/rules/logging.json); the bit names from the release's own
@@ -34,8 +36,7 @@ from flight_insights.analyzers.model import (
     Result,
 )
 from flight_insights.analyzers.registry import Registry
-from flight_insights.filters.harmonic import ESC, FFT, FIXED, RPM, RPM2, THROTTLE, NotchParams
-from flight_insights.filters.predict import SETS
+from flight_insights.filters.harmonic import ESC, FFT, FIXED, RPM, RPM2, SETS, THROTTLE, NotchParams
 from flight_insights.filters.tracking import logged_inputs, update_period_us
 
 
@@ -178,8 +179,82 @@ def _dropouts(flight: FlightData, reg: Registry, out: Result) -> None:
                 confidence="high",
                 evidence=(ev,),
                 params={"count": count},
+                changes=_bigger_buffer(flight, reg),
             )
         )
+
+
+def _bigger_buffer(flight: FlightData, reg: Registry) -> tuple[CandidateChange, ...]:
+    """A bigger SD write buffer, while the flight's lowest free memory leaves room."""
+    rules: Mapping[str, Any] = reg.rules["logging"]["buffer"]
+    backends = int(flight.params.get("LOG_BACKEND_TYPE", 1))
+    current = flight.params.get("LOG_FILE_BUFSIZE")
+    pm = flight.table("PM", ["TimeUS", "Mem"])
+    if not backends & 1 or current is None or pm is None or pm.num_rows == 0:
+        return ()
+    t = np.asarray(pm.column("TimeUS").to_numpy(), np.int64)
+    free = np.asarray(pm.column("Mem").to_numpy(), np.int64)[_armed(flight, t)]
+    if not len(free):
+        return ()
+    room = int(free.min()) // 1024 - int(rules["keep_free_kib"])
+    proposed = min(int(rules["max_kib"]), int(current) + min(int(rules["step_kib"]), room))
+    if proposed - int(current) < int(rules["min_step_kib"]):
+        return ()
+    return (CandidateChange("LOG_FILE_BUFSIZE", current, float(proposed), "evidence"),)
+
+
+def _rate_limited(flight: FlightData, reg: Registry, out: Result) -> None:
+    """A rate cap on a logging backend in use, below the loop rate or, with raw IMU
+    logging on, below the gyro rate: the messages logged that often are thinned."""
+    rules: Mapping[str, Any] = reg.rules["logging"]["rate_limit"]
+    p = flight.params
+    backends = int(p.get("LOG_BACKEND_TYPE", rules["backend_default"]))
+    capped = {
+        str(b["param"]): float(p[b["param"]])
+        for b in rules["backends"]
+        if backends >> int(b["bit"]) & 1 and float(p.get(b["param"], 0)) > 0
+    }
+    if not capped:
+        return
+    loop = float(p.get("SCHED_LOOP_RATE", rules["loop_rate_default"]))
+    bit = int(reg.rules["logging"]["raw_gyro"]["log_bitmask_raw_imu"])
+    raw = _bit(int(p.get("LOG_BITMASK", 0)), bit) or flight.has("GYR")
+    needed = max(loop, float(rules["raw_gyro_hz"]) if raw else 0.0)
+    low = {name: hz for name, hz in capped.items() if hz < needed}
+    if not low:
+        return
+    seconds = max((flight.disarm_us - flight.arm_us) / 1e6, 1e-6)
+    logged: dict[str, float] = {}
+    for name in rules["messages"]:
+        t = flight.table(name, ["TimeUS"]) if flight.logged else None
+        if t is not None and t.num_rows:
+            times = np.asarray(t.column("TimeUS").to_numpy(), np.int64)
+            logged[name] = round(float(_armed(flight, times).sum()) / seconds, 1)
+    cap = min(low.values())
+    ev = Evidence(
+        id="log:rate-limit",
+        kind="parameter",
+        summary=(
+            ", ".join(f"{k} {v:g} Hz" for k, v in low.items())
+            + f" caps every streaming message, below the {needed:g} Hz the rate, attitude"
+            + (" and raw gyro" if raw else "")
+            + " messages are logged at"
+        ),
+        messages=tuple(logged),
+        fields=tuple(low),
+        segment=flight.armed if flight.logged else None,
+        values={**low, "LOG_BACKEND_TYPE": backends, "needed_hz": needed, "rows_per_s": logged},
+    )
+    out.findings.append(
+        Finding(
+            code="logging.rate_limited",
+            severity="caution",
+            confidence="high",
+            evidence=(ev,),
+            params={"cap": cap, "needed": needed, "params": ", ".join(low)},
+            changes=tuple(CandidateChange(k, v, 0.0, "evidence") for k, v in low.items()),
+        )
+    )
 
 
 def _gaps(flight: FlightData, out: Result) -> None:
@@ -235,7 +310,11 @@ def _missing(flight: FlightData, reg: Registry, out: Result) -> None:
     ev = Evidence(
         id="log:missing",
         kind="parameter",
-        summary=f"no {messages} in the log, and LOG_BITMASK {bitmask} logs none of them",
+        summary=(
+            f"no {messages} in the log, and LOG_BITMASK {bitmask} logs none of them"
+            if flight.logged
+            else f"LOG_BITMASK {bitmask} logs none of {messages}"
+        ),
         messages=tuple(n["message"] for n in missing),
         fields=("LOG_BITMASK",),
         values={"LOG_BITMASK": bitmask, "missing": [n["message"] for n in missing]},
@@ -285,6 +364,8 @@ def _notch_inputs(flight: FlightData, reg: Registry, out: Result) -> None:
     if bit is None or "LOG_BITMASK" not in flight.params:
         return
     bitmask = int(flight.params["LOG_BITMASK"])
+    if _bit(bitmask, bit):
+        return  # on already: what still thins the inputs is a rate cap (logging.rate_limited)
     hover = flight.hover()
     a, b = (hover[0].start_us, hover[-1].end_us) if hover else (flight.arm_us, flight.disarm_us)
     loop = float(flight.params.get("SCHED_LOOP_RATE", 400))
@@ -342,17 +423,22 @@ def _notch_inputs(flight: FlightData, reg: Registry, out: Result) -> None:
 
 def _log_adequacy(flight: FlightData, reg: Registry) -> Result:
     out = Result()
+    if not flight.logged:  # a parameter file: what its logging settings will leave out
+        _missing(flight, reg, out)
+        _rate_limited(flight, reg, out)
+        return out
     _gyro(flight, reg, out)
     _dropouts(flight, reg, out)
     _gaps(flight, out)
     _missing(flight, reg, out)
     _notch_inputs(flight, reg, out)
+    _rate_limited(flight, reg, out)
     return out
 
 
 LOG_ADEQUACY = Analyzer(
     name="logging",
-    version=2,
+    version=4,
     run=_log_adequacy,
     metrics=("logging.imu_sample_loss", "logging.dropped_messages"),
     findings=(
@@ -363,5 +449,6 @@ LOG_ADEQUACY = Analyzer(
         "logging.gap",
         "logging.missing_messages",
         "logging.notch_inputs_not_logged",
+        "logging.rate_limited",
     ),
 )

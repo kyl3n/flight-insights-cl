@@ -65,8 +65,9 @@ def test_every_option_is_explained_covered_and_asks_real_questions(reg: Registry
         assert o.sources and all(s["title"] for s in o.sources)
     for fact, q in reg.questions.items():
         assert q["field"] in fields, fact  # answers go into the platform setup
-    uncovered = [s for s, v in reg.coverage.items() if not v["options"]]
-    assert "estimator_sources" in uncovered  # gaps are listed, not silent
+    uncovered = [s for s, v in reg.coverage.items() if not v["options"] and not v.get("also")]
+    assert "plane" in uncovered  # gaps are listed, not silent
+    assert reg.coverage["plane"]["phase"] == 3 and reg.coverage["heli"]["phase"] == 4
 
 
 # --- the three outcomes -------------------------------------------------------------------------
@@ -138,6 +139,43 @@ def test_notches_on_every_imu_need_processor_time(reg: Registry) -> None:
     assert "option.notch_all_imus.available" not in run(
         reg, {}, sitl, {"PM": pm(30)}, INS_HNTCH_OPTS=4
     )
+
+
+def test_a_slow_main_loop_goes_back_to_400_hz_when_the_processor_has_room(reg: Registry) -> None:
+    fp = {"board": {"hal": "ChibiOS", "family": "F7"}}
+    free = run(reg, {}, fp, {"PM": pm(30)}, SCHED_LOOP_RATE=300)[
+        "option.loop_rate_default.available"
+    ]
+    assert changes(free) == {"SCHED_LOOP_RATE": (300.0, 400.0)}
+    # 60% at 300 Hz could be 80% at 400 Hz: no room
+    assert "option.loop_rate_default.available" not in run(
+        reg, {}, fp, {"PM": pm(60)}, SCHED_LOOP_RATE=300
+    )
+    assert "option.loop_rate_default.available" not in run(reg, {}, fp, {"PM": pm(30)})
+
+
+@pytest.mark.parametrize(("firmware", "esc_type"), [("Bluejay", 4.0), ("BLHeli_32", 3.0)])
+def test_esc_temperatures_over_bidirectional_dshot(
+    reg: Registry, firmware: str, esc_type: float
+) -> None:
+    found = run(reg, {"esc_firmware": firmware}, None, None, SERVO_DSHOT_ESC=0)
+    assert changes(found["option.edt_enable.available"]) == {"SERVO_DSHOT_ESC": (0.0, esc_type)}
+    on = run(reg, {"esc_firmware": firmware}, None, None, SERVO_DSHOT_ESC=esc_type)
+    assert "option.edt_enable.available" not in on
+    asked = run(reg, {}, None, None, SERVO_DSHOT_ESC=0)
+    assert "edt_enable" in asked["option.question.esc_edt_capable"].params["options"]
+
+
+def test_the_escs_as_a_second_battery_monitor(reg: Registry) -> None:
+    t = np.arange(ARM, DISARM, 100_000)
+    cols = {"Instance": (pa.uint8(), [0] * len(t)), "Curr": (pa.float32(), [9.0] * len(t))}
+    esc = table(t.tolist(), cols, {"Curr": {b"unit": b"A", b"multiplier": b"1.0"}})
+    fp = {"board": {"hal": "ChibiOS", "family": "H7"}}
+    found = run(reg, {}, fp, {"ESC": esc}, BATT2_MONITOR=0)
+    assert changes(found["option.esc_battery_monitor.available"]) == {"BATT2_MONITOR": (0.0, 9.0)}
+    taken = run(reg, {}, fp, {"ESC": esc}, BATT2_MONITOR=0, BATT_MONITOR=9)
+    assert "option.esc_battery_monitor.available" not in taken
+    assert "option.esc_battery_monitor.available" not in run(reg, {}, fp, {}, BATT2_MONITOR=0)
 
 
 def test_options_rank_by_the_platforms_priority(reg: Registry) -> None:

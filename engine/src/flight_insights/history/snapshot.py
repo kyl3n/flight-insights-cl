@@ -120,9 +120,16 @@ def first_arm_us(df: DataflashLog) -> int | None:
     return min(times) if times else None
 
 
-def from_log(df: DataflashLog, at_us: int | None = None) -> Snapshot:
+def from_log(
+    df: DataflashLog,
+    at_us: int | None = None,
+    until_us: int | None = None,
+    span: tuple[int, int] | None = None,
+) -> Snapshot:
     """The log's parameters as they stood at `at_us` (default: first arming, or the end
-    of the start-of-log dump), with every later change kept as an in-flight change."""
+    of the start-of-log dump), with every later change, up to `until_us`, kept as an
+    in-flight change. `span` (file offsets) keeps to one power-on of a file that holds
+    several, whose clocks each start again from zero."""
     vehicle, firmware = log_firmware(df)
     if "PARM" not in df.message_types:
         raise SnapshotError("the log has no PARM messages")
@@ -131,7 +138,14 @@ def from_log(df: DataflashLog, at_us: int | None = None) -> Snapshot:
     defaults: dict[str, float] = {}
     dump_end: int | None = None
     changes: list[ParamChange] = []
-    for r in sorted(df.table("PARM").to_pylist(), key=lambda r: r["TimeUS"]):
+    rows = df.table("PARM").to_pylist()
+    if span is not None:  # the table is in file order, as the formats' offsets sorted
+        ids = [i for i in df.formats_named("PARM") if df.count_format(i)]
+        offsets = np.sort(np.concatenate([df.offsets(i) for i in ids]))
+        rows = [r for r, o in zip(rows, offsets, strict=True) if span[0] <= o <= span[1]]
+        if not rows:
+            raise SnapshotError("this part of the log has no PARM messages")
+    for r in sorted(rows, key=lambda r: r["TimeUS"]):
         name, value = text(r["Name"]), float(r["Value"])
         if name not in initial:
             initial[name] = current[name] = value
@@ -154,7 +168,9 @@ def from_log(df: DataflashLog, at_us: int | None = None) -> Snapshot:
     for c in changes:
         if c.time_us <= at:
             values[c.name] = c.new
-    after = tuple(c for c in changes if c.time_us > at)
+    after = tuple(
+        c for c in changes if c.time_us > at and (until_us is None or c.time_us <= until_us)
+    )
     return Snapshot(values, vehicle, firmware, "log start", "primary", at, after, defaults)
 
 

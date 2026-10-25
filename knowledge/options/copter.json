@@ -1,6 +1,6 @@
 {
   "about": "The Better options catalog for multicopters (spec: Configuration review, 'Better options'). Each option says when the aircraft is set up the weaker way, what the better way is, what it needs, and what it brings. The engine works out facts about the aircraft (engine/src/flight_insights/analyzers/facts.py); an option whose needs all hold is available now as parameter changes, one whose hardware cannot do it needs hardware, and one that depends on something unknown asks a question that the platform setup stores. Cases another analyzer already reports with its fix (a throttle notch while ESC RPM is reliable: filter.better_source) are left out here.",
-  "version": 1,
+  "version": 2,
   "questions": {
     "esc_dshot_capable": {
       "field": "esc_firmware",
@@ -28,6 +28,13 @@
       "text": {
         "en": "What chemistry are the battery packs: LiPo, LiHV, Li-ion or LiFePO4?",
         "uk": "Яка хімія батарей: LiPo, LiHV, Li-ion чи LiFePO4?"
+      }
+    },
+    "esc_edt_capable": {
+      "field": "esc_firmware",
+      "text": {
+        "en": "Which firmware do the ESCs run: BLHeli_32, AM32, Bluejay, BLHeli_S or other?",
+        "uk": "Яку прошивку мають ESC: BLHeli_32, AM32, Bluejay, BLHeli_S чи іншу?"
       }
     }
   },
@@ -618,6 +625,214 @@
         {
           "kind": "ardupilot",
           "title": "ArduPilot parameter FSTRATE_ENABLE (4.7)",
+          "url": "https://ardupilot.org/copter/docs/parameters.html"
+        }
+      ]
+    },
+    "loop_rate_default": {
+      "area": "control",
+      "subsystem": "control_loop",
+      "title": {
+        "en": "Run the main loop at Copter's 400 Hz",
+        "uk": "Запускайте головний цикл Copter на 400 Гц"
+      },
+      "hardware": {
+        "en": "Processor time to spare at the faster loop",
+        "uk": "Запас часу процесора на швидшому циклі"
+      },
+      "benefit": {
+        "en": "Copter's controllers, filters and motor outputs are designed and tuned at 400 Hz. A slower loop adds delay between a gyro sample and the motors' response, and ArduPilot says the rate should only be changed by developers.",
+        "uk": "Регулятори, фільтри й виходи моторів Copter розроблено й налаштовано на 400 Гц. Повільніший цикл додає затримку між вибіркою гіроскопа й реакцією моторів, а ArduPilot каже, що змінювати частоту мають лише розробники."
+      },
+      "how": {
+        "en": "Set SCHED_LOOP_RATE to 400 and reboot, then check slow loops, CPU load and the filters on the next flight.",
+        "uk": "Встановіть SCHED_LOOP_RATE у 400 і перезавантажте, потім перевірте запізнілі цикли, завантаження процесора й фільтри в наступному польоті."
+      },
+      "applies": [
+        {
+          "fact": "copter",
+          "is": true
+        }
+      ],
+      "when": [
+        {
+          "param": "SCHED_LOOP_RATE",
+          "lt": 400
+        }
+      ],
+      "outcomes": [
+        {
+          "outcome": "available",
+          "requires": [
+            {
+              "fact": "loop_rate_room",
+              "is": true
+            }
+          ],
+          "changes": [
+            {
+              "param": "SCHED_LOOP_RATE",
+              "value": 400
+            }
+          ]
+        }
+      ],
+      "benefit_by_priority": {
+        "stability": 2,
+        "agility": 2,
+        "endurance": 0,
+        "efficiency": 0
+      },
+      "cost": "reboot",
+      "sources": [
+        {
+          "kind": "ardupilot",
+          "title": "ArduPilot 4.7.0 source: SCHEDULER_DEFAULT_LOOP_RATE 400 for Copter and the SCHED_LOOP_RATE description (libraries/AP_Scheduler/AP_Scheduler.cpp)",
+          "url": "https://github.com/ArduPilot/ardupilot/blob/Copter-4.7.0/libraries/AP_Scheduler/AP_Scheduler.cpp"
+        }
+      ]
+    },
+    "edt_enable": {
+      "area": "motors",
+      "subsystem": "esc_health",
+      "title": {
+        "en": "Read ESC temperature and status over bidirectional DShot (EDT)",
+        "uk": "Отримуйте температуру й стан ESC через двонаправлений DShot (EDT)"
+      },
+      "hardware": {
+        "en": "ESC firmware with Extended DShot Telemetry",
+        "uk": "Прошивка ESC з розширеною телеметрією DShot (EDT)"
+      },
+      "benefit": {
+        "en": "Bidirectional DShot already brings each motor's RPM. With Extended DShot Telemetry the same wire also brings each ESC's temperature, voltage and stress, so the app can warn of a hot or struggling ESC before it fails, with no extra wiring.",
+        "uk": "Двонаправлений DShot уже передає оберти кожного мотора. З розширеною телеметрією DShot той самий дріт передає ще й температуру, напругу та навантаження кожного ESC, тож застосунок може попередити про гарячий чи перевантажений ESC до відмови, без додаткових дротів."
+      },
+      "how": {
+        "en": "Make sure the ESC firmware supports EDT, set SERVO_DSHOT_ESC to the EDT type for that firmware and reboot, then check the motor test shows temperatures.",
+        "uk": "Переконайтеся, що прошивка ESC підтримує EDT, встановіть SERVO_DSHOT_ESC у тип з EDT для цієї прошивки й перезавантажте, потім перевірте, що тест моторів показує температури."
+      },
+      "applies": [
+        {
+          "fact": "copter",
+          "is": true
+        }
+      ],
+      "when": [
+        {
+          "fact": "bdshot_enabled",
+          "is": true
+        },
+        {
+          "param": "SERVO_DSHOT_ESC",
+          "in": [
+            0,
+            1,
+            2
+          ]
+        }
+      ],
+      "outcomes": [
+        {
+          "outcome": "available",
+          "requires": [
+            {
+              "fact": "esc_edt_capable",
+              "is": true
+            }
+          ],
+          "changes": [
+            {
+              "param": "SERVO_DSHOT_ESC",
+              "value": {
+                "fact": "edt_esc_type"
+              }
+            }
+          ]
+        }
+      ],
+      "benefit_by_priority": {
+        "stability": 1,
+        "agility": 0,
+        "endurance": 1,
+        "efficiency": 0
+      },
+      "cost": "reboot",
+      "sources": [
+        {
+          "kind": "ardupilot",
+          "title": "ArduPilot parameter SERVO_DSHOT_ESC (4.7): 3 BLHeli32/AM32/Kiss+EDT, 4 BLHeli_S/BlueJay+EDT; EDT needs EDT-capable ESC firmware",
+          "url": "https://ardupilot.org/copter/docs/parameters.html"
+        },
+        {
+          "kind": "ardupilot",
+          "title": "ArduPilot 4.7.0 source: EDT frames decoded only for ESC types 3 and 4 (libraries/AP_HAL_ChibiOS/RCOutput_bdshot.cpp)",
+          "url": "https://github.com/ArduPilot/ardupilot/blob/Copter-4.7.0/libraries/AP_HAL_ChibiOS/RCOutput_bdshot.cpp"
+        }
+      ]
+    },
+    "esc_battery_monitor": {
+      "area": "power",
+      "subsystem": "power_monitoring",
+      "title": {
+        "en": "Use the ESCs' telemetry as a second battery monitor",
+        "uk": "Використовуйте телеметрію ESC як другий монітор батареї"
+      },
+      "hardware": {
+        "en": "ESC telemetry with voltage and current",
+        "uk": "Телеметрія ESC з напругою та струмом"
+      },
+      "benefit": {
+        "en": "The ESCs already report voltage and current. As a second battery monitor (type 9, ESC) they give an independent reading of what the motors draw, so a power module that drifts or fails shows up at once.",
+        "uk": "ESC уже повідомляють напругу та струм. Як другий монітор батареї (тип 9, ESC) вони дають незалежне вимірювання того, що споживають мотори, тож розбіжність або відмова модуля живлення одразу помітні."
+      },
+      "how": {
+        "en": "Set BATT2_MONITOR to 9 (ESC) and reboot; the ground station then shows a second battery.",
+        "uk": "Встановіть BATT2_MONITOR у 9 (ESC) і перезавантажте; наземна станція тоді покаже другу батарею."
+      },
+      "applies": [
+        {
+          "fact": "copter",
+          "is": true
+        }
+      ],
+      "when": [
+        {
+          "param": "BATT2_MONITOR",
+          "eq": 0
+        },
+        {
+          "fact": "battery_esc_monitor",
+          "is": false
+        }
+      ],
+      "outcomes": [
+        {
+          "outcome": "available",
+          "requires": [
+            {
+              "fact": "esc_current_telemetry",
+              "is": true
+            }
+          ],
+          "changes": [
+            {
+              "param": "BATT2_MONITOR",
+              "value": 9
+            }
+          ]
+        }
+      ],
+      "benefit_by_priority": {
+        "stability": 0,
+        "agility": 0,
+        "endurance": 1,
+        "efficiency": 1
+      },
+      "cost": "reboot",
+      "sources": [
+        {
+          "kind": "ardupilot",
+          "title": "ArduPilot parameter BATT2_MONITOR (4.7): 9 ESC",
           "url": "https://ardupilot.org/copter/docs/parameters.html"
         }
       ]

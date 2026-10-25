@@ -77,6 +77,34 @@ def test_a_firmware_default_outside_its_own_range_is_not_an_error(reg: Registry)
     assert "params.out_of_range" not in found and "ATC_RAT_PIT_FF" not in ev["inconsistent"]
 
 
+def test_a_range_the_firmware_ships_outside_is_no_bound(reg: Registry) -> None:
+    # 4.7's yaw error filter defaults to 2.5 Hz against a documented 5-50 Hz; the tuning
+    # guide's 2 Hz is no error either
+    found, _ = audit(reg, {"ATC_RAT_YAW_FLTE": 2.0}, {"ATC_RAT_YAW_FLTE": 2.5})
+    assert "params.gain_out_of_range" not in found
+
+
+def test_calibration_slots_without_a_sensor_are_not_judged(reg: Registry) -> None:
+    empty = {"INS4_ACC_ID": 0.0, "INS4_ACCSCAL_X": 0.0, "COMPASS_DEV_ID3": 0.0,
+             "COMPASS_SCALE3": 0.0}  # fmt: skip
+    found, _ = audit(reg, empty, {"INS4_ACCSCAL_X": 1.0, "COMPASS_SCALE3": 1.0})
+    assert "params.out_of_range" not in found
+    fitted = empty | {"INS4_ACC_ID": 3867658.0}  # a sensor there: its scale of 0 is wrong
+    found, _ = audit(reg, fitted, {"INS4_ACCSCAL_X": 1.0})
+    assert found["params.out_of_range"].params["names"] == ["INS4_ACCSCAL_X"]
+
+
+def test_undefined_bitmask_bits_are_cleared_without_holding_anything_back(
+    reg: Registry,
+) -> None:
+    # LOG_BITMASK with every bit from 0 to 15 set: bit 14 is not defined in 4.7
+    found, ev = audit(reg, {"LOG_BITMASK": 196607.0}, {"LOG_BITMASK": 180222.0})
+    f = found["params.undefined_bits"]
+    assert f.severity == "info" and "params.out_of_range" not in found
+    assert [(c.param, c.proposed) for c in f.changes] == [("LOG_BITMASK", 196607.0 - (1 << 14))]
+    assert "LOG_BITMASK" in ev["inconsistent"]
+
+
 def test_a_chosen_value_outside_its_range_is_inconsistent(reg: Registry) -> None:
     params = {"ATC_RAT_RLL_P": 0.45, "INS_GYRO_FILTER": 300.0}  # ranges 0-0.35 and 0-256
     found, ev = audit(reg, params, {"ATC_RAT_RLL_P": 0.135, "INS_GYRO_FILTER": 20.0})
@@ -193,3 +221,163 @@ def test_the_logs_defaults_survive_the_store(tmp_path: Path) -> None:
         back = load_snapshot(store, save_snapshot(store, snap, load_pack()))
     assert back.defaults == snap.defaults
     assert back.is_default("FS_THR_VALUE") == snap.is_default("FS_THR_VALUE")
+
+
+# --- every battery monitor, the pack's capacity, arming and calibration ---------------------
+
+
+def test_a_further_monitor_whose_failsafe_only_warns(reg: Registry) -> None:
+    params = {"BATT2_MONITOR": 4.0, "BATT2_LOW_VOLT": 22.0, "BATT2_FS_LOW_ACT": 0.0}
+    found, ev = audit(reg, params)
+    f = found["params.other_battery_warn_only"]
+    assert f.params == {"monitor": "BATT2", "param": "BATT2_FS_LOW_ACT", "level": "low"}
+    assert "BATT2_FS_LOW_ACT" in ev["inconsistent"]
+    # a monitor that only reports, with no thresholds, is left alone
+    quiet, _ = audit(reg, {"BATT2_MONITOR": 9.0, "BATT2_FS_LOW_ACT": 0.0})
+    assert "params.other_battery_warn_only" not in quiet
+
+
+def test_the_capacity_is_the_packs(reg: Registry) -> None:
+    found, _ = audit(reg, {"BATT_CAPACITY": 3300.0}, answers={"capacity_mah": 22000})
+    f = found["params.battery_capacity"]
+    assert [(c.param, c.current, c.proposed) for c in f.changes] == [
+        ("BATT_CAPACITY", 3300.0, 22000.0)
+    ]
+    close, _ = audit(reg, {"BATT_CAPACITY": 21000.0}, answers={"capacity_mah": 22000})
+    assert "params.battery_capacity" not in close  # within 10%
+    unanswered, _ = audit(reg, {"BATT_CAPACITY": 3300.0})
+    assert "params.battery_capacity" not in unanswered
+
+
+def test_arming_that_never_checks_the_charge(reg: Registry) -> None:
+    found, _ = audit(reg, {"BATT_ARM_VOLT": 0.0, "BATT_ARM_MAH": 0.0})
+    assert found["params.battery_arm_unchecked"].severity == "info"
+    checked, _ = audit(reg, {"BATT_ARM_VOLT": 15.6, "BATT_ARM_MAH": 0.0})
+    assert "params.battery_arm_unchecked" not in checked
+
+
+def test_an_analog_power_module_never_calibrated(reg: Registry) -> None:
+    answers = {"power_module_calibrated": False}
+    found, _ = audit(reg, {}, answers=answers)
+    assert found["params.power_module_uncalibrated"].severity == "caution"
+    smart, _ = audit(reg, {"BATT_MONITOR": 8.0}, answers=answers)  # DroneCAN: no scales
+    assert "params.power_module_uncalibrated" not in smart
+    done, _ = audit(reg, {}, answers={"power_module_calibrated": True})
+    assert "params.power_module_uncalibrated" not in done
+
+
+# --- failsafes switched off, arming checks skipped, thresholds from the pack --------------
+
+LIPO = {"battery_chemistry": "LiPo"}
+
+
+@pytest.mark.parametrize(
+    ("name", "code", "default"),
+    [("FS_VIBE_ENABLE", "params.vibe_failsafe_off", 1.0),
+     ("FS_DR_ENABLE", "params.dead_reckoning_failsafe_off", 2.0),
+     ("FS_EKF_THRESH", "params.ekf_failsafe_off", 0.8)],
+)  # fmt: skip
+def test_a_failsafe_switched_off_goes_back_to_the_firmwares_value(
+    reg: Registry, name: str, code: str, default: float
+) -> None:
+    found, ev = audit(reg, {name: 0.0}, {name: default})
+    assert [(c.param, c.current, c.proposed) for c in found[code].changes] == [(name, 0.0, default)]
+    assert name in ev["inconsistent"]
+    unknown, _ = audit(reg, {name: 0.0})  # no recorded default: nothing to propose
+    assert unknown[code].changes == ()
+
+
+def test_flown_from_the_ground_station_alone_needs_a_gcs_failsafe(reg: Registry) -> None:
+    found, _ = audit(reg, {"RC_OPTIONS": 1.0, "FS_GCS_ENABLE": 0.0})
+    assert found["params.gcs_failsafe_off"].severity == "safety"
+    with_rc, _ = audit(reg, {"RC_OPTIONS": 0.0, "FS_GCS_ENABLE": 0.0})
+    assert "params.gcs_failsafe_off" not in with_rc
+
+
+def test_skipped_arming_checks_are_named_and_cleared(reg: Registry) -> None:
+    found, _ = audit(reg, {"ARMING_SKIPCHK": float(1 << 2 | 1 << 11)})
+    f = found["params.arming_checks_skipped"]
+    assert f.params == {"checks": "Compass, Hardware safety switch"}
+    assert [(c.param, c.proposed) for c in f.changes] == [("ARMING_SKIPCHK", 0.0)]
+
+
+def test_battery_thresholds_come_from_the_pack(reg: Registry) -> None:
+    # Mission Planner's starting values for a 4-cell LiPo (empty at 3.3 V a cell)
+    params = {"BATT_LOW_VOLT": 0.0, "BATT_LOW_MAH": 0.0, "BATT_CRT_VOLT": 0.0,
+              "BATT_CRT_MAH": 0.0, "BATT_ARM_VOLT": 0.0, "BATT_ARM_MAH": 0.0}  # fmt: skip
+    found, _ = audit(reg, params, answers=LIPO)
+    proposed = {
+        c.param: c.proposed
+        for code in ("params.battery_no_low", "params.battery_no_critical",
+                     "params.battery_arm_unchecked")
+        for c in found[code].changes
+    }  # fmt: skip
+    assert proposed == {"BATT_LOW_VOLT": 14.4, "BATT_CRT_VOLT": 14.0, "BATT_ARM_VOLT": 14.7}
+    unknown, _ = audit(reg, params)  # chemistry not answered: the findings, no values
+    assert unknown["params.battery_no_low"].changes == ()
+
+
+# --- starting values by propeller size for an aircraft never tuned ------------------------
+
+FIRMWARE = {  # 4.7.0 defaults of what the starting values touch
+    "INS_GYRO_FILTER": 20.0, "INS_ACCEL_FILTER": 20.0, "MOT_THST_EXPO": 0.65,
+    "ATC_RAT_RLL_FLTD": 20.0, "ATC_RAT_RLL_FLTT": 20.0, "ATC_RAT_PIT_FLTD": 20.0,
+    "ATC_RAT_PIT_FLTT": 20.0, "ATC_RAT_YAW_FLTT": 20.0, "ATC_RAT_YAW_FLTE": 2.5,
+    "ATC_ACC_P_MAX": 1100.0, "ATC_ACC_R_MAX": 1100.0, "ATC_ACC_Y_MAX": 270.0,
+}  # fmt: skip
+
+
+def starting(reg: Registry, prop: float, **changed: float) -> dict[str, float | None]:
+    params = GAINS | FIRMWARE | changed
+    found, _ = audit(reg, params, GAINS | FIRMWARE, answers={"prop_diameter_in": prop})
+    f = found.get("params.tuning_starting_values")
+    return {} if f is None else {c.param: c.proposed for c in f.changes}
+
+
+def test_starting_values_for_ten_inch_propellers(reg: Registry) -> None:
+    # Mission Planner: gyro 289.22 x 10^-0.838 = 42 Hz, rate filters half of it, expo 0.60;
+    # its 1167 deg/s/s pitch and roll limit is above the default, and limits only go down
+    assert starting(reg, 10) == {
+        "INS_GYRO_FILTER": 42.0, "INS_ACCEL_FILTER": 10.0, "MOT_THST_EXPO": 0.6,
+        "ATC_RAT_RLL_FLTD": 21.0, "ATC_RAT_RLL_FLTT": 21.0, "ATC_RAT_PIT_FLTD": 21.0,
+        "ATC_RAT_PIT_FLTT": 21.0, "ATC_RAT_YAW_FLTT": 21.0,
+    }  # fmt: skip
+
+
+def test_starting_values_for_a_heavy_lifter(reg: Registry) -> None:
+    # 28 inch: gyro at its 20 Hz floor, roll and pitch rate filters 10 Hz (AutoTune's advice
+    # for 13 inches and up), limits lowered, expo held at the guide's 0.75 ceiling
+    got = starting(reg, 28)
+    assert got["ATC_RAT_RLL_FLTD"] == 10.0 and got["ATC_RAT_YAW_FLTT"] == 10.0
+    assert (got["ATC_ACC_P_MAX"], got["ATC_ACC_R_MAX"], got["ATC_ACC_Y_MAX"]) == (253, 253, 108)
+    assert got["MOT_THST_EXPO"] == 0.75 and "INS_GYRO_FILTER" not in got  # 20 already
+
+
+def test_starting_values_keep_choices_and_tuned_aircraft(reg: Registry) -> None:
+    assert "MOT_THST_EXPO" not in starting(reg, 10, MOT_THST_EXPO=0.5)  # someone chose it
+    tuned = GAINS | FIRMWARE | {"ATC_RAT_RLL_P": 0.2}
+    found, _ = audit(reg, tuned, GAINS | FIRMWARE, answers={"prop_diameter_in": 10})
+    assert "params.tuning_starting_values" not in found
+    assert starting(reg, 0) == {}  # no propeller size answered
+
+
+# --- GNSS, compass, estimator sources and the fence ------------------------------------------
+
+
+def test_navigation_settings_against_the_setup(reg: Registry) -> None:
+    params = {"GPS2_TYPE": 0.0, "COMPASS_MOTCT": 0.0, "EK3_SRC2_POSXY": 0.0,
+              "EK3_SRC2_VELXY": 0.0, "FENCE_ENABLE": 0.0}  # fmt: skip
+    answers = {"gnss_count": 2, "compass_mounting": "on the flight controller",
+               "flies_without_gnss": True}  # fmt: skip
+    found, _ = audit(reg, params, answers=answers)
+    assert {"params.second_gnss_unset", "params.compassmot_not_done",
+            "params.no_gnss_fallback", "params.fence_off"} <= set(found)  # fmt: skip
+    assert found["params.no_gnss_fallback"].severity == "caution"
+    # with one receiver, a mast compass, GNSS always there and flow set up: only the fence
+    quiet, _ = audit(
+        reg,
+        params | {"EK3_SRC2_VELXY": 5.0},
+        answers={"gnss_count": 1, "compass_mounting": "mast", "flies_without_gnss": True},
+    )
+    assert not [c for c in quiet if "gnss" in c or "compass" in c]
+    assert "params.fence_off" in quiet

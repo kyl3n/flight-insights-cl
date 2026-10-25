@@ -12,7 +12,8 @@
       "../../knowledge/ai/": "knowledge/ai/",
       "../../knowledge/metrics/": "knowledge/metrics/",
       "../../knowledge/setup/": "knowledge/setup/",
-      "../../knowledge/options/": "knowledge/options/"
+      "../../knowledge/options/": "knowledge/options/",
+      "../../knowledge/procedures/": "knowledge/procedures/"
     },
     "linux": {
       "rpm": {

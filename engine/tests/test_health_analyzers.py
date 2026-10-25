@@ -3,6 +3,7 @@ log checks kept at import."""
 
 from __future__ import annotations
 
+import dataclasses
 from pathlib import Path
 from typing import Any
 
@@ -134,6 +135,84 @@ def test_only_mapped_vehicles_are_checked_for_their_log_bits(reg: Registry) -> N
     params = {"INS_RAW_LOG_OPT": 9, "LOG_BITMASK": 0}
     f = flight({"GYR": gyr([ARM + 1])}, ARM, DISARM, params, fingerprint=fp)
     assert codes(LOG_ADEQUACY.run(f, reg)) == []
+
+
+# --- logging adequacy: rate caps and the write buffer --------------------------------------
+
+
+def _rows(name: str, rate_hz: float) -> pa.Table:
+    return table(list(range(ARM, DISARM, int(1e6 / rate_hz))), {})
+
+
+def _rate_finding(tables: dict[str, pa.Table], reg: Registry, **params: float) -> Any:
+    base = {"INS_RAW_LOG_OPT": 9.0, "LOG_BITMASK": 0xFFFFF & ~(1 << 19)}
+    r = LOG_ADEQUACY.run(flight(tables, ARM, DISARM, base | params), reg)
+    return next((f for f in r.findings if f.code == "logging.rate_limited"), None)
+
+
+def test_a_logging_cap_below_the_loop_rate_thins_the_analysis(reg: Registry) -> None:
+    f = _rate_finding({"RATE": _rows("RATE", 50)}, reg, LOG_FILE_RATEMAX=50, SCHED_LOOP_RATE=400)
+    assert f is not None and f.severity == "caution"
+    assert f.params == {"cap": 50.0, "needed": 400.0, "params": "LOG_FILE_RATEMAX"}
+    assert [(c.param, c.current, c.proposed) for c in f.changes] == [
+        ("LOG_FILE_RATEMAX", 50.0, 0.0)
+    ]
+    assert f.evidence[0].values["rows_per_s"]["RATE"] == pytest.approx(50, abs=1)
+
+
+def test_with_raw_imu_logging_the_cap_must_clear_the_gyro_rate(reg: Registry) -> None:
+    assert _rate_finding({}, reg, LOG_FILE_RATEMAX=500) is None  # no raw IMU: 500 is enough
+    f = _rate_finding({"GYR": gyr([ARM + 1])}, reg, LOG_FILE_RATEMAX=500)
+    assert f is not None and f.params["needed"] == 1000.0
+
+
+def test_only_the_backends_in_use_are_judged(reg: Registry) -> None:
+    # block logging only: the SD card's cap is not in use, the block backend's is
+    assert _rate_finding({}, reg, LOG_BACKEND_TYPE=4, LOG_FILE_RATEMAX=50) is None
+    f = _rate_finding({}, reg, LOG_BACKEND_TYPE=4, LOG_BLK_RATEMAX=50, LOG_FILE_RATEMAX=50)
+    assert f is not None and [c.param for c in f.changes] == ["LOG_BLK_RATEMAX"]
+    assert _rate_finding({}, reg, LOG_FILE_RATEMAX=0) is None
+
+
+def _dsf_pm(free_kib: int) -> dict[str, pa.Table]:
+    t = [ARM - 1_000_000, ARM + 1_000_000, ARM + 2_000_000]
+    dsf = table(t, {"Dp": (pa.uint32(), [0, 0, 300])})
+    pm = table(t, {"Mem": (pa.uint32(), [free_kib * 1024] * 3)})
+    return {"DSF": dsf, "PM": pm}
+
+
+def test_dropouts_get_a_bigger_buffer_where_memory_allows(reg: Registry) -> None:
+    params = {"INS_RAW_LOG_OPT": 9, "LOG_FILE_BUFSIZE": 16}
+    r = LOG_ADEQUACY.run(flight(_dsf_pm(300), ARM, DISARM, params), reg)
+    f = next(x for x in r.findings if x.code == "logging.dropouts")
+    assert [(c.param, c.current, c.proposed) for c in f.changes] == [
+        ("LOG_FILE_BUFSIZE", 16.0, 80.0)  # a step of 64 KiB at most
+    ]
+    tight = LOG_ADEQUACY.run(flight(_dsf_pm(36), ARM, DISARM, params), reg)
+    assert next(x for x in tight.findings if x.code == "logging.dropouts").changes == ()
+    full = LOG_ADEQUACY.run(
+        flight(_dsf_pm(900), ARM, DISARM, params | {"LOG_FILE_BUFSIZE": 200}), reg
+    )
+    assert next(x for x in full.findings if x.code == "logging.dropouts").changes == ()
+
+
+def test_fast_notch_logging_thinned_by_a_cap_is_the_caps_finding(reg: Registry) -> None:
+    params = {
+        "INS_RAW_LOG_OPT": 9, "LOG_BITMASK": (1 << 21) | 0xFFFFF, "LOG_FILE_RATEMAX": 100,
+        "INS_HNTCH_ENABLE": 1, "INS_HNTCH_MODE": 3, "INS_HNTCH_REF": 1, "INS_HNTCH_HMNCS": 1,
+    }  # fmt: skip
+    r = LOG_ADEQUACY.run(
+        flight({"FTN": _ftn(100), "GYR": gyr([ARM + 1])}, ARM, DISARM, params), reg
+    )
+    assert "logging.notch_inputs_not_logged" not in codes(r)
+    assert "logging.rate_limited" in codes(r)
+
+
+def test_a_parameter_file_gets_the_logging_settings_checks_only(reg: Registry) -> None:
+    f = flight({}, ARM, DISARM, {"LOG_FILE_RATEMAX": 25, "LOG_BITMASK": 0, "INS_RAW_LOG_OPT": 0})
+    f = dataclasses.replace(f, cache=None)  # no log behind it
+    found = codes(LOG_ADEQUACY.run(f, reg))
+    assert sorted(found) == ["logging.missing_messages", "logging.rate_limited"]
 
 
 def _ftn(rate_hz: float, start_us: int = ARM, end_us: int = DISARM) -> pa.Table:

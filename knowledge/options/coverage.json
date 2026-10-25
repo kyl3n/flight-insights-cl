@@ -1,5 +1,5 @@
 {
-  "about": "Every configurable subsystem the spec names, with the Better options that cover it. A subsystem with none is listed as not yet covered in the app's metrics reference, so gaps are visible, not silent (spec: Configuration review, 'Better options').",
+  "about": "Every configurable subsystem the spec names, with the Better options that cover it. A subsystem with none is listed as not yet covered in the app's metrics reference, so gaps are visible, not silent (spec: Configuration review, 'Better options'). 'also' lists the findings that check a subsystem besides its options; 'phase' says when a subsystem's own analysis comes, for one the app does not cover yet.",
   "texts": {
     "question_action": {
       "en": "Answer it in the platform setup ({field}): the app then tells you which better options this aircraft can use.",
@@ -22,7 +22,9 @@
       ],
       "also": [
         "filter.better_source",
-        "filter.better_settings"
+        "filter.better_settings",
+        "filter.no_notch",
+        "filter.peak_unnotched"
       ]
     },
     "rpm_sources": {
@@ -43,6 +45,23 @@
         "dshot_output"
       ]
     },
+    "esc_health": {
+      "title": {
+        "en": "ESC health and telemetry",
+        "uk": "Стан і телеметрія ESC"
+      },
+      "options": [
+        "edt_enable"
+      ],
+      "also": [
+        "esc.hot",
+        "esc.desync",
+        "esc.edt_status",
+        "esc.telemetry_errors",
+        "esc.telemetry_dropouts",
+        "esc.supply_drop"
+      ]
+    },
     "thrust_model": {
       "title": {
         "en": "Thrust model and hover throttle",
@@ -51,6 +70,26 @@
       "options": [
         "hover_learn",
         "battery_voltage_scaling"
+      ],
+      "also": [
+        "power.thst_hover_stale",
+        "power.hover_throttle_high",
+        "power.hover_throttle_low",
+        "params.motor_scaling_cells"
+      ]
+    },
+    "power_monitoring": {
+      "title": {
+        "en": "Power monitoring and the board's supply",
+        "uk": "Моніторинг живлення та живлення плати"
+      },
+      "options": [
+        "esc_battery_monitor"
+      ],
+      "also": [
+        "params.power_module_uncalibrated",
+        "power.monitor_vs_escs",
+        "power.board_voltage"
       ]
     },
     "control_loop": {
@@ -59,7 +98,24 @@
         "uk": "Таймінг контуру керування"
       },
       "options": [
-        "fast_rate_loop"
+        "fast_rate_loop",
+        "loop_rate_default"
+      ],
+      "also": [
+        "system.slow_loops",
+        "system.long_loop"
+      ]
+    },
+    "rate_tuning": {
+      "title": {
+        "en": "Rate tuning and AutoTune",
+        "uk": "Налаштування швидкості та AutoTune"
+      },
+      "options": [],
+      "also": [
+        "params.never_tuned",
+        "params.tuning_starting_values",
+        "params.gain_out_of_range"
       ]
     },
     "logging": {
@@ -72,7 +128,22 @@
       ],
       "also": [
         "logging.no_prefilter_gyro",
-        "logging.missing_messages"
+        "logging.missing_messages",
+        "logging.rate_limited",
+        "logging.dropouts",
+        "logging.notch_inputs_not_logged"
+      ]
+    },
+    "buses": {
+      "title": {
+        "en": "Buses and serial ports",
+        "uk": "Шини й послідовні порти"
+      },
+      "options": [],
+      "also": [
+        "bus.serial_drops",
+        "bus.errors",
+        "bus.gps_gaps"
       ]
     },
     "gyro_sampling": {
@@ -80,49 +151,98 @@
         "en": "Gyro sampling",
         "uk": "Вибірка гіроскопа"
       },
-      "options": []
+      "options": [],
+      "also": [
+        "filter.harmonics_above_nyquist"
+      ]
     },
     "estimator_sources": {
       "title": {
         "en": "Estimator and GNSS sources",
         "uk": "Джерела оцінювача та GNSS"
       },
-      "options": []
+      "options": [],
+      "also": [
+        "params.no_gnss_fallback",
+        "params.second_gnss_unset",
+        "params.ekf_failsafe_off",
+        "params.dead_reckoning_failsafe_off"
+      ]
     },
     "links_failsafes": {
       "title": {
         "en": "Links and failsafes",
         "uk": "Зв'язки та аварійні режими"
       },
-      "options": []
+      "options": [],
+      "also": [
+        "params.rc_failsafe_off",
+        "params.fs_thr_value",
+        "params.ekf_failsafe_report_only",
+        "params.crash_check_off",
+        "params.vibe_failsafe_off",
+        "params.dead_reckoning_failsafe_off",
+        "params.ekf_failsafe_off",
+        "params.gcs_failsafe_off",
+        "params.arming_checks_skipped"
+      ]
     },
     "battery_failsafe": {
       "title": {
         "en": "Battery failsafe",
         "uk": "Аварійний режим батареї"
       },
-      "options": []
+      "options": [],
+      "also": [
+        "params.battery_warn_only",
+        "params.battery_no_critical",
+        "params.battery_critical_warn_only",
+        "params.battery_threshold_cells",
+        "params.other_battery_warn_only",
+        "params.battery_capacity",
+        "params.battery_arm_unchecked",
+        "params.battery_no_low"
+      ]
+    },
+    "navigation_ops": {
+      "title": {
+        "en": "Navigation and operations",
+        "uk": "Навігація та експлуатація"
+      },
+      "options": [],
+      "also": [
+        "params.fence_off",
+        "params.arming_checks_skipped"
+      ]
     },
     "compass": {
       "title": {
         "en": "Compass",
         "uk": "Компас"
       },
-      "options": []
+      "options": [],
+      "also": [
+        "params.compassmot_not_done"
+      ]
     },
     "plane": {
       "title": {
         "en": "Plane and QuadPlane",
         "uk": "Літак і QuadPlane"
       },
-      "options": []
+      "options": [],
+      "phase": 3
     },
     "heli": {
       "title": {
         "en": "Traditional helicopter",
         "uk": "Класичний гелікоптер"
       },
-      "options": []
+      "options": [],
+      "phase": 4,
+      "also": [
+        "filter.heli_throttle"
+      ]
     }
   }
 }

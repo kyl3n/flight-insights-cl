@@ -18,8 +18,18 @@ from flight_insights.knowledge import load_pack
 from flight_insights.params import Dialect, parse_params
 from flight_insights.platforms.records import create_platform, platform_view, save_answers
 from flight_insights.platforms.schema import load_schema
-from flight_insights.recommend import ExportError, build_plan, export_step, flight_plan, to_json
+from flight_insights.recommend import (
+    ExportError,
+    build_plan,
+    export_card,
+    export_revert,
+    export_step,
+    export_undo,
+    flight_plan,
+    to_json,
+)
 from flight_insights.recommend.plan import Plan, Recommendation
+from flight_insights.recommend.procedure import procedure, session
 from flight_insights.store import StoreKeys, open_store
 from flight_insights.store.cache import ColumnCache
 
@@ -247,18 +257,131 @@ def test_a_switched_off_feature_is_enabled_first(reg: Registry) -> None:
 
 def test_parameters_that_appear_once_enabled_come_a_step_later(reg: Registry) -> None:
     p = plan(reg, finding("filter.better_settings", ("FFT_MINHZ", 60.0), ("FFT_MAXHZ", 300.0)))
+    # FFT_ENABLE hides the FFT's other parameters until it is set (a refresh shows them),
+    # and the FFT itself starts only after a reboot. The filter test flight's logging
+    # goes in the file loaded last.
     assert [(s.params, s.after) for s in p.steps] == [
         (("FFT_ENABLE",), "refresh"),
-        (("FFT_MAXHZ", "FFT_MINHZ"), "fly"),
+        (("FFT_MAXHZ", "FFT_MINHZ", "INS_RAW_LOG_OPT", "LOG_BITMASK"), "reboot"),
     ]
     text = export_step(p, reg, 1, "mission planner")["text"]
     assert "FFT_ENABLE,1" in text and "FFT_MINHZ" not in text and "refresh" in text
+    assert "reboot" not in text.split("FFT_ENABLE")[0]  # a refresh is enough between steps
+
+
+def test_a_backend_parameter_waits_for_a_reboot_after_its_type(reg: Registry) -> None:
+    # The firmware creates a battery monitor's backend at boot, so its own parameters
+    # appear only after a reboot; its common ones on a refresh.
+    p = plan(
+        reg,
+        finding(
+            "params.battery_warn_only",
+            ("BATT2_MONITOR", 4.0), ("BATT2_AMP_PERVLT", 36.0), ("BATT2_LOW_VOLT", 21.0),
+        ),
+    )  # fmt: skip
+    assert [(s.params, s.after) for s in p.steps] == [
+        (("BATT2_MONITOR",), "reboot_refresh"),
+        (("BATT2_AMP_PERVLT", "BATT2_LOW_VOLT"), "reboot"),
+    ]
+    text = export_step(p, reg, 1, "mission planner")["text"]
+    assert "reboot the flight controller and refresh" in text
+
+
+def test_a_gate_that_names_a_device_is_left_to_a_person(reg: Registry) -> None:
+    p = plan(reg, finding("params.battery_warn_only", ("BATT2_LOW_VOLT", 21.0)))
+    rec = one(p, "BATT2_LOW_VOLT")
+    assert rec.status == "blocked" and note(rec) == "needs_choice"
+    assert not [r for r in p.recommendations if r.param == "BATT2_MONITOR"]
+
+
+def test_gates_behind_gates_come_in_order(reg: Registry) -> None:
+    # ARSPD_ENABLE shows ARSPD_TYPE, which shows ARSPD_PIN: three steps, refreshing between.
+    p = plan(reg, finding("params.out_of_range", ("ARSPD_TYPE", 2.0), ("ARSPD_PIN", 15.0)))
+    assert [(s.params, s.after) for s in p.steps] == [
+        (("ARSPD_ENABLE",), "refresh"),
+        (("ARSPD_TYPE",), "refresh"),
+        (("ARSPD_PIN",), "fly"),
+    ]
 
 
 def test_a_reboot_parameter_says_so(reg: Registry) -> None:
     p = plan(reg, finding("option.dshot_output.available", ("MOT_PWM_TYPE", 6.0), severity="info"))
     rec = one(p, "MOT_PWM_TYPE")
     assert rec.reboot and "reboot" in rec.requires and p.steps[-1].after == "reboot"
+
+
+def test_a_parameter_read_only_at_start_up_gets_a_reboot(reg: Registry) -> None:
+    # LOG_FILE_BUFSIZE carries no reboot flag in the metadata, but the logger sizes its
+    # buffer once, at start-up (rules/recommend.json boot_only)
+    p = plan(reg, finding("logging.dropouts", ("LOG_FILE_BUFSIZE", 80.0)))
+    rec = one(p, "LOG_FILE_BUFSIZE")
+    assert rec.reboot and p.steps[-1].after == "reboot"
+
+
+def test_one_log_per_flight_ends_with_a_reboot(reg: Registry) -> None:
+    # Switched on in a log left open, LOG_FILE_DSRMROT stops parameter changes being
+    # logged, so the next flight starts a fresh log (rules/recommend.json boot_only)
+    p = plan(reg, finding("option.log_per_flight.available", ("LOG_FILE_DSRMROT", 1.0)))
+    rec = one(p, "LOG_FILE_DSRMROT")
+    assert rec.reboot and p.steps[-1].after == "reboot"
+
+
+def test_every_boot_only_parameter_is_real_and_sourced(reg: Registry) -> None:
+    meta = reg.pack.metadata("4.7.0", "copter")
+    for name, source in reg.rules["recommend"]["boot_only"]["params"].items():
+        assert name in meta and not meta[name].get("reboot_required") and source
+    for name, rule in reg.rules["recommend"]["processor"]["changes"].items():
+        assert name in meta and (rule.get("up") or rule.get("bits")), name
+
+
+def test_a_filter_test_flight_lifts_the_logging_cap(reg: Registry) -> None:
+    p = plan(
+        reg,
+        finding("filter.better_source", ("INS_HNTCH_MODE", 3.0)),
+        LOG_FILE_RATEMAX=50.0,
+    )
+    rec = one(p, "LOG_FILE_RATEMAX")
+    assert rec.proposed == 0.0 and rec.temporary and rec.revert == 50.0
+
+
+def test_processor_heavy_changes_come_one_finding_at_a_time(reg: Registry) -> None:
+    fast = finding("option.fast_rate_loop.available", ("FSTRATE_ENABLE", 1.0), severity="info")
+    loop = finding("option.notch_loop_rate.available", ("INS_HNTCH_OPTS", 4.0), severity="info")
+    loop["params"] = {"rank": 9}  # ranked above the fast-rate loop
+    gyro = finding(
+        "filter.harmonics_above_nyquist", ("INS_GYRO_RATE", 1.0), ("INS_FAST_SAMPLE", 1.0)
+    )
+    p = plan(reg, fast, loop, gyro, FSTRATE_ENABLE=0.0, INS_GYRO_RATE=0.0, INS_FAST_SAMPLE=0.0)
+    # the filter finding (a problem, not an option) goes first, both its changes together
+    assert (one(p, "INS_GYRO_RATE").status, one(p, "INS_FAST_SAMPLE").status) == ("next", "next")
+    for param in ("FSTRATE_ENABLE", "INS_HNTCH_OPTS"):
+        rec = one(p, param)
+        assert rec.status == "waiting" and rec.notes[-1].reason == "processor"
+    # between options of one stage, the higher rank goes first
+    rate = finding(
+        "option.loop_rate_default.available", ("SCHED_LOOP_RATE", 400.0), severity="info"
+    )
+    rate["params"] = {"rank": 9}
+    q = plan(reg, fast, rate, FSTRATE_ENABLE=0.0, SCHED_LOOP_RATE=300.0)
+    assert (one(q, "SCHED_LOOP_RATE").status, one(q, "FSTRATE_ENABLE").status) == (
+        "next", "waiting",
+    )  # fmt: skip
+
+
+def test_changes_that_free_processor_time_never_wait(reg: Registry) -> None:
+    gyro = finding("filter.harmonics_above_nyquist", ("INS_GYRO_RATE", 1.0))
+    lower = finding("filter.better_settings", ("INS_HNTCH_OPTS", 0.0), severity="info")
+    p = plan(reg, gyro, lower, INS_GYRO_RATE=0.0, INS_HNTCH_OPTS=4.0)
+    # clearing bits costs nothing, so both go out together
+    assert (one(p, "INS_GYRO_RATE").status, one(p, "INS_HNTCH_OPTS").status) == ("next", "next")
+
+
+def test_starting_values_fly_before_autotune(reg: Registry) -> None:
+    start = finding("params.tuning_starting_values", ("INS_GYRO_FILTER", 42.0))
+    p = plan(reg, start, finding("params.never_tuned"), INS_GYRO_FILTER=20.0)
+    assert p.stage == "setup" and one(p, "INS_GYRO_FILTER").status == "next"
+    [tune] = [r for r in p.recommendations if r.param is None]
+    assert tune.status == "waiting" and tune.notes[-1].reason == "waiting"
 
 
 def test_changes_from_one_finding_require_each_other(reg: Registry) -> None:
@@ -299,6 +422,27 @@ def test_a_mechanical_problem_holds_back_tuning_but_not_safety(reg: Registry) ->
     assert p.recommendations[0].kind == "safety"
 
 
+def test_failsafes_found_off_are_offered_at_any_stage(reg: Registry) -> None:
+    # Back to the firmware's default touches no tuning, and it protects the tuning
+    # flights themselves (rules/recommend.json any_stage)
+    p = plan(
+        reg,
+        finding("filter.better_settings", ("INS_GYRO_FILTER", 40.0)),
+        finding("params.vibe_failsafe_off", ("FS_VIBE_ENABLE", 1.0)),
+        finding("params.fence_off", severity="info"),
+        FS_VIBE_ENABLE=0.0,
+    )
+    assert p.stage == "filters"
+    assert one(p, "INS_GYRO_FILTER").status == one(p, "FS_VIBE_ENABLE").status == "next"
+    [fence] = [r for r in p.recommendations if r.param is None]
+    assert fence.lead.code == "params.fence_off" and fence.status == "waiting"
+
+
+def test_every_any_stage_finding_is_known(reg: Registry) -> None:
+    codes = reg.rules["recommend"]["any_stage"]["codes"]
+    assert codes and all(c in reg.findings for c in codes)
+
+
 def test_a_better_option_never_holds_back_a_fix(reg: Registry) -> None:
     p = plan(
         reg,
@@ -319,7 +463,8 @@ def test_a_change_set_answers_the_findings_it_explains(reg: Registry) -> None:
     p = plan(reg, flag, better)
     rec = one(p, "INS_HNTCH_MODE")
     assert rec.kind == "stability" and rec.lead.code == "filter.not_tracking"
-    assert [r.param for r in p.recommendations] == ["INS_HNTCH_MODE"]  # no separate action
+    lasting = [r.param for r in p.recommendations if not r.temporary]
+    assert lasting == ["INS_HNTCH_MODE"]  # no separate action
 
 
 def test_info_findings_without_changes_are_not_actions(reg: Registry) -> None:
@@ -343,7 +488,7 @@ def test_the_file_reads_back_as_the_changed_values_only(reg: Registry, kind: Any
     assert parsed.problems == []
     assert parsed.values() == {"MOT_HOVER_LEARN": 2.0, "MOT_BAT_VOLT_MAX": 25.2}
     assert out["filename"].endswith(".param" if kind == "mission planner" else ".params")
-    assert "Перевірка:" in out["text"]  # the header and reasons are in the chosen language
+    assert "Наступний журнал має показати:" in out["text"]  # in the chosen language
     if kind == "mission planner":
         line = next(e for e in parsed.entries if e.name == "MOT_HOVER_LEARN")
         assert line.comment  # the reason rides on the line
@@ -440,4 +585,151 @@ def test_the_plan_and_its_file_over_rpc(tmp_path: Path) -> None:
     wrong = call(server, out, 18, "recommend.export", flight_id=flight, kind="mission planner",
                  path=str(tmp_path / "x.txt"))  # fmt: skip
     assert wrong["error"]["code"] == -32602
+    # The procedure: the session card, and the file that takes the test-flight logging out.
+    assert p["session"] and all(r["procedure"] for r in p["recommendations"] if r["param"])
+    card = call(
+        server, out, 19, "recommend.export", flight_id=flight, file="card", lang="uk",
+        accepted_only=False,
+    )["result"]  # fmt: skip
+    assert card["filename"].endswith("-card.txt") and "\n1. " in card["text"]
+    revert = call(
+        server, out, 20, "recommend.export", flight_id=flight, file="revert",
+        kind="mission planner", accepted_only=False,
+    )["result"]  # fmt: skip
+    assert "INS_RAW_LOG_OPT" in parse_params(revert["text"]).values()
+    other = call(server, out, 21, "recommend.export", flight_id=flight, file="log")
+    assert other["error"]["code"] == -32602
     call(server, out, 15, "engine.shutdown")
+
+
+# --- procedures ---------------------------------------------------------------------------------
+
+
+def test_a_filter_change_brings_its_test_flight_logging_and_takes_it_out_again(
+    reg: Registry,
+) -> None:
+    p = plan(
+        reg,
+        finding("filter.better_settings", ("INS_HNTCH_BW", 30.0)),
+        INS_RAW_LOG_OPT=0.0,
+    )
+    bitmask, raw = one(p, "LOG_BITMASK"), one(p, "INS_RAW_LOG_OPT")
+    assert bitmask.temporary and raw.temporary
+    assert int(bitmask.proposed or 0) == 176126 | 1 << 19 | 1 << 21  # raw IMU, fast notch logging
+    assert (raw.proposed, raw.revert) == (9.0, 0.0)  # primary gyro, before and after the filters
+    assert bitmask.revert == 176126.0
+    assert not one(p, "INS_HNTCH_BW").requires  # test-flight settings tie nothing together
+    revert = parse_params(export_revert(p, reg, "mission planner")["text"]).values()
+    assert revert == {"LOG_BITMASK": 176126.0, "INS_RAW_LOG_OPT": 0.0}
+    # INS_HNTCH_BW had no value in this flight's parameters, so there is nothing to put back
+    undo = parse_params(export_undo(p, reg, "mission planner")["text"]).values()
+    assert undo == {"LOG_BITMASK": 176126.0, "INS_RAW_LOG_OPT": 0.0}
+
+
+def test_a_lasting_bit_stays_when_the_test_flight_logging_comes_out(reg: Registry) -> None:
+    p = plan(
+        reg,
+        finding("filter.better_settings", ("INS_HNTCH_BW", 30.0)),
+        finding("logging.missing_messages", ("LOG_BITMASK", float(176126 | 1 << 12))),
+        INS_RAW_LOG_OPT=9.0,
+    )
+    rec = one(p, "LOG_BITMASK")
+    assert not rec.temporary  # a lasting bit is asked for too
+    assert int(rec.proposed or 0) == 176126 | 1 << 12 | 1 << 19 | 1 << 21
+    assert rec.revert == float(176126 | 1 << 12)  # only the test flight's bits come out
+
+
+def test_blocked_changes_bring_no_test_flight_logging(reg: Registry) -> None:
+    p = plan(reg, finding("filter.better_settings", ("INS_GYRO_FILTER", 300.0)))
+    assert [r.param for r in p.recommendations] == ["INS_GYRO_FILTER"]
+
+
+def test_the_session_card_is_in_order(reg: Registry) -> None:
+    p = plan(
+        reg,
+        finding("filter.better_source", ("INS_HNTCH_MODE", 3.0), ("INS_HNTCH_REF", 1.0)),
+        INS_RAW_LOG_OPT=0.0,
+    )
+    card = session(p, reg)
+    kinds = [s.kind for s in card]
+    assert kinds[0] == "set" and "reboot" in kinds  # REF needs a reboot in 4.7
+    order = [
+        "set",
+        "reboot",
+        "temporary",
+        "ground_check",
+        "fly",
+        "abort",
+        "verify",
+        "revert",
+        "undo",
+    ]
+    assert [k for k in order if k in kinds] == sorted(dict.fromkeys(kinds), key=order.index)
+    motor_test = next(s for s in card if s.kind == "ground_check")
+    assert "propellers off" in motor_test.text["en"]  # ESC RPM: every motor must report it
+    aborts = [s.text["en"] for s in card if s.kind == "abort"]
+    assert any("oscillates" in a for a in aborts)
+    text = export_card(p, reg, "uk")["text"]
+    assert text.splitlines()[0].startswith("Flight Insights") and "1. " in text
+
+
+def test_a_step_that_does_not_apply_is_left_out(reg: Registry) -> None:
+    # The motor test that proves ESC RPM is only for a notch following ESC RPM.
+    p = plan(reg, finding("filter.better_settings", ("INS_HNTCH_BW", 30.0)))  # throttle mode
+    assert not [s for s in session(p, reg) if s.kind == "ground_check"]
+
+
+def test_a_better_option_that_needs_new_firmware_is_an_action_with_steps(reg: Registry) -> None:
+    p = plan(reg, finding("option.bdshot_enable.hardware", severity="info"))
+    [action] = p.recommendations
+    assert action.param is None and action.kind == "performance"
+    steps = procedure(p, reg, action)
+    assert [s.kind for s in steps][:2] == ["firmware", "hardware"]
+    assert "Bluejay" in steps[0].text["en"]
+
+
+def test_every_procedure_renders_in_both_languages(reg: Registry) -> None:
+    for code, template in reg.procedures.items():
+        for s in template["steps"]:
+            assert set(s["text"]) == {"en", "uk"}, code
+    for key in (
+        "set",
+        "refresh",
+        "reboot_refresh",
+        "reboot",
+        "temporary",
+        "revert",
+        "undo",
+        "card_header",
+    ):
+        assert set(reg.procedure_texts[key]) == {"en", "uk"}
+
+
+def test_test_flight_settings_name_real_bits(reg: Registry) -> None:
+    meta = reg.pack.metadata("4.7.0", "copter")
+    for code, template in reg.procedures.items():
+        for add in template["add_temporary"]:
+            assert add["param"] in meta, code
+            bits: dict[str, str] = meta[add["param"]].get("bitmask") or {}
+            assert all(str(b) in bits for b in add.get("set_bits", ())), code
+    names = meta["LOG_BITMASK"]["bitmask"]
+    assert (names["19"], names["21"]) == ("Raw IMU", "Fast harmonic notch logging")
+
+
+def test_each_step_is_worded_with_its_own_findings_values(reg: Registry) -> None:
+    lead = finding("filter.better_source", ("INS_HNTCH_MODE", 3.0))
+    lead["params"] = {
+        "current": "throttle",
+        "better": "ESC telemetry",
+        "explains": ["filter.better_settings"],
+    }
+    settings = finding("filter.better_settings", severity="info")
+    settings["params"] = {"lag_new": 12.5, "lag_hz": 20, "lag_now": 18.0}
+    checks = [s.text["en"] for s in session(plan(reg, lead, settings), reg) if s.kind == "verify"]
+    assert any("12.5° at 20 Hz" in c for c in checks)  # from the settings finding, not the lead
+    assert any("following ESC telemetry" in c for c in checks)
+    bare = [
+        s.text["en"]
+        for s in session(plan(reg, finding("filter.better_settings", ("INS_HNTCH_BW", 30.0))), reg)
+    ]
+    assert not any("{" in line for line in bare)  # a finding without the values leaves the step out

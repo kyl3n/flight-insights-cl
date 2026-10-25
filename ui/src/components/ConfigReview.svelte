@@ -27,6 +27,7 @@
   import { engineCall } from "../lib/shell";
   import { STATUS } from "../lib/status";
   import AirframePicker from "./AirframePicker.svelte";
+  import ProcedureSteps from "./ProcedureSteps.svelte";
   import StatusBadge from "./StatusBadge.svelte";
 
   type Category = "errors" | "optimal" | "minor";
@@ -243,6 +244,12 @@
                     </tbody>
                   </table>
                 {/if}
+                {#if rec?.procedure?.length}
+                  <details>
+                    <summary>{t("plan.steps", { count: rec.procedure.length })}</summary>
+                    <ProcedureSteps steps={rec.procedure} />
+                  </details>
+                {/if}
                 {#if rec?.param && !file}
                   <div class="actions">
                     {#if rec.record_status === "accepted"}
@@ -260,6 +267,32 @@
         </section>
       {/if}
     {/each}
+  {/if}
+
+  {#if reg?.coverage && !file}
+    <section class="panel" aria-labelledby="coverage-title">
+      <h2 id="coverage-title">{t("review.coverage")}</h2>
+      <p class="faint">{t("review.coverage.about")}</p>
+      <ul class="coverage">
+        {#each Object.entries(reg.coverage) as [id, c] (id)}
+          <li class:gap={!c.covered}>
+            <span>{text(c.title, app.locale)}</span>
+            <span class="faint">
+              {#if c.covered}
+                {[
+                  c.options.length ? t("review.coverage.options", { count: c.options.length }) : "",
+                  c.also?.length ? t("review.coverage.checks", { count: c.also.length }) : "",
+                ]
+                  .filter(Boolean)
+                  .join(" · ")}
+              {:else}
+                {t("review.coverage.none")}{c.phase && c.phase > 1 ? ` · ${t("review.coverage.phase", { phase: c.phase })}` : ""}
+              {/if}
+            </span>
+          </li>
+        {/each}
+      </ul>
+    </section>
   {/if}
 </main>
 
@@ -323,6 +356,31 @@
     display: flex;
     justify-content: space-between;
     align-items: baseline;
+  }
+  details summary {
+    cursor: pointer;
+    font-size: 13px;
+    color: var(--link);
+  }
+  details[open] summary {
+    margin-bottom: 6px;
+  }
+  .coverage {
+    list-style: none;
+    margin: 0;
+    padding: 0;
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(240px, 1fr));
+    gap: 6px 16px;
+    font-size: 13px;
+  }
+  .coverage li {
+    display: flex;
+    flex-direction: column;
+    gap: 1px;
+  }
+  .coverage li.gap span:first-child {
+    color: var(--text-muted);
   }
   dl {
     display: grid;

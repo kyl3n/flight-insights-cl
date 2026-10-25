@@ -3,8 +3,9 @@ flight"; Platform setup, step 10 "First parameter file").
 
 A `.param` or `.params` file is reviewed as a flight with no log behind it: its
 parameters, read in the firmware's own dialect, and the setup answers of the airframe it
-is for. Only the analyzers that judge parameters run (the parameter audit and Better
-options); what only a log can show stays unknown, so it is asked about, never assumed.
+is for. Only the analyzers that judge parameters run (the parameter audit, Better
+options, and the logging settings: messages LOG_BITMASK leaves out and rate caps); what
+only a log can show stays unknown, so it is asked about, never assumed.
 The result is the same findings and staged plan a flight gets. Nothing is stored and
 nothing is sent to the aircraft.
 """
@@ -16,6 +17,7 @@ from pathlib import Path
 from typing import Any
 
 from flight_insights.analyzers.flight import FlightData, build_answers
+from flight_insights.analyzers.log_adequacy import LOG_ADEQUACY
 from flight_insights.analyzers.model import Analyzer, Evidence
 from flight_insights.analyzers.options import OPTIONS
 from flight_insights.analyzers.params_audit import PARAMS_AUDIT
@@ -30,7 +32,7 @@ from flight_insights.platforms.detect import vehicle_of_params
 from flight_insights.recommend.plan import build_plan, to_json
 from flight_insights.store.db import Store
 
-FILE_ANALYZERS: tuple[Analyzer, ...] = (OPTIONS, PARAMS_AUDIT)
+FILE_ANALYZERS: tuple[Analyzer, ...] = (OPTIONS, PARAMS_AUDIT, LOG_ADEQUACY)
 
 
 class ReviewError(ValueError):

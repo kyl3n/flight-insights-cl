@@ -145,6 +145,113 @@ def test_the_fft_notch_on_an_f4_board(reg: Registry) -> None:
     assert f.severity == "out" and changes(f)["INS_HNTCH_MODE"] == (4.0, 1.0)
 
 
+def test_a_resonance_away_from_the_motors_gets_a_static_notch_on_a_free_set(
+    reg: Registry,
+) -> None:
+    # 97 Hz is far from every harmonic of the 150 Hz motors: a frame or payload resonance
+    # the motor notch never reaches. The second set is off, so it takes a static notch.
+    tones = [(5.0, 2.0), (150.0, 4.0), (97.0, 2.0)]
+    params = NOTCH | {"INS_HNTCH_OPTS": 32 | 8, "INS_HNTC2_ENABLE": 0}
+    found = run({"GYR": gyr(tones), "ESC": MOTORS}, reg, **params)
+    f = next(x for x in found if x.code == "filter.peak_unnotched")
+    assert f.params == {"hz": 97.0, "set": "INS_HNTC2"} and f.confidence == "high"
+    assert changes(f) == {
+        "INS_HNTC2_ENABLE": (0.0, 1.0),
+        "INS_HNTC2_MODE": (None, 0.0),  # fixed
+        "INS_HNTC2_FREQ": (None, 97.0),
+        "INS_HNTC2_BW": (None, 24.0),
+        "INS_HNTC2_HMNCS": (None, 1.0),
+        "INS_HNTC2_OPTS": (None, 8.0),  # on every IMU, as the motor notch is
+    }
+    unnotched = next(e for e in f.evidence if e.id == "filters:unnotched")
+    assert unnotched.values["motor_hz"] == [150.0, 150.0]
+
+
+def test_a_resonance_with_no_free_set_is_still_reported(reg: Registry) -> None:
+    tones = [(5.0, 2.0), (150.0, 4.0), (97.0, 2.0)]
+    found = run({"GYR": gyr(tones), "ESC": MOTORS}, reg, **NOTCH)  # the board has one set
+    f = next(x for x in found if x.code == "filter.peak_unnotched")
+    assert f.params == {"hz": 97.0, "set": ""} and f.changes == ()
+
+
+def test_a_resonance_the_filters_already_remove_is_left_alone(reg: Registry) -> None:
+    tones = [(5.0, 2.0), (150.0, 4.0), (97.0, 0.02)]
+    found = run({"GYR": gyr(tones), "ESC": MOTORS}, reg, **(NOTCH | {"INS_GYRO_FILTER": 40}))
+    assert not [f for f in found if f.code == "filter.peak_unnotched"]
+
+
+def test_an_fft_notch_on_a_large_aircraft_opens_the_fft_band_to_its_motors(reg: Registry) -> None:
+    # No ESC RPM on an H7: the notch moves onto the in-flight FFT, which must be switched on
+    # and must search down to the notch's floor, below the 60 Hz motors (its default minimum
+    # is 50 Hz).
+    fp = {"board": {"hal": "ChibiOS", "family": "H7"}}
+    found = run({"GYR": gyr([(5.0, 2.0), (60.0, 4.0)])}, reg, fp, INS_HNTCH_ENABLE=0)
+    changed = {c.param: (c.current, c.proposed) for f in found for c in f.changes}
+    assert changed["INS_HNTCH_MODE"][1] == 4.0
+    assert changed["FFT_ENABLE"] == (None, 1.0)
+    floor = changed["INS_HNTCH_FREQ"][1]
+    assert floor is not None and floor < 50
+    assert changed["FFT_MINHZ"] == (None, floor) and "FFT_MAXHZ" not in changed
+
+
+def test_the_fft_band_is_raised_above_fast_motors(reg: Registry) -> None:
+    fp = {"board": {"hal": "ChibiOS", "family": "H7"}}
+    params = {"INS_HNTCH_ENABLE": 0, "FFT_ENABLE": 1, "FFT_MINHZ": 50, "FFT_MAXHZ": 300}
+    found = run({"GYR": gyr([(5.0, 2.0), (250.0, 4.0)])}, reg, fp, **params)
+    changed = {c.param: (c.current, c.proposed) for f in found for c in f.changes}
+    assert changed["INS_HNTCH_MODE"][1] == 4.0 and "FFT_ENABLE" not in changed
+    assert changed["FFT_MAXHZ"] == (300.0, 380.0)  # 1.5 times the motors, to the next 10 Hz
+
+
+ICM42688_SPI = (0x34 << 16) | 2  # devtype 0x34 on an SPI bus (AP_HAL::Device bus ID)
+BMI088_SPI = (0x2B << 16) | 2  # no fast sampling in its 4.7.0 driver
+FAST = {  # 300 Hz motors on a 1 kHz gyro: the second harmonic, 600 Hz, is past 480 Hz
+    **NOTCH, "INS_HNTCH_FREQ": 220, "INS_HNTCH_BW": 110, "INS_HNTCH_HMNCS": 3,
+    "INS_GYRO_RATE": 0, "INS_FAST_SAMPLE": 0, "INS_GYR_ID": ICM42688_SPI,
+}  # fmt: skip
+
+
+def test_a_harmonic_past_the_gyro_rate_brings_a_faster_gyro_on_an_h7(reg: Registry) -> None:
+    fp = {"board": {"hal": "ChibiOS", "family": "H7"}}
+    found = run({"GYR": gyr([(300.0, 4.0)]), "ESC": esc(18000)}, reg, fp, **FAST)
+    f = next(x for x in found if x.code == "filter.harmonics_above_nyquist")
+    assert f.severity == "caution"
+    assert f.params == {"harmonics": [2], "hz": 600.0, "limit_hz": 480.0, "gyro_hz": 1000}
+    assert changes(f) == {"INS_GYRO_RATE": (0.0, 1.0), "INS_FAST_SAMPLE": (0.0, 1.0)}
+
+
+@pytest.mark.parametrize(
+    ("family", "gyro_id"), [("F4", ICM42688_SPI), ("H7", BMI088_SPI), ("H7", 0)]
+)
+def test_elsewhere_a_harmonic_past_the_gyro_rate_comes_out_of_the_mask(
+    reg: Registry, family: str, gyro_id: int
+) -> None:
+    # An F4 board, or a gyro that cannot sample fast (or whose type is not known).
+    fp = {"board": {"hal": "ChibiOS", "family": family}}
+    params = FAST | {"INS_GYR_ID": gyro_id}
+    found = run({"GYR": gyr([(300.0, 4.0)]), "ESC": esc(18000)}, reg, fp, **params)
+    f = next(x for x in found if x.code == "filter.harmonics_above_nyquist")
+    assert f.severity == "info" and changes(f) == {"INS_HNTCH_HMNCS": (3.0, 1.0)}
+
+
+def test_a_faster_gyro_survives_the_search_proposing_a_better_set(reg: Registry) -> None:
+    # A bandwidth wider than its frequency brings the search's whole set; the gyro rate is
+    # no part of that set, so its change stays with its own finding.
+    fp = {"board": {"hal": "ChibiOS", "family": "H7"}}
+    params = FAST | {"INS_HNTCH_BW": 400}
+    found = run({"GYR": gyr([(300.0, 4.0)]), "ESC": esc(18000)}, reg, fp, **params)
+    codes = {f.code for f in found}
+    assert {"filter.better_settings", "filter.harmonics_above_nyquist"} <= codes
+    f = next(x for x in found if x.code == "filter.harmonics_above_nyquist")
+    assert changes(f)["INS_GYRO_RATE"] == (0.0, 1.0)
+
+
+def test_harmonics_under_the_gyro_limit_are_left_alone(reg: Registry) -> None:
+    fp = {"board": {"hal": "ChibiOS", "family": "H7"}}
+    found = run({"GYR": gyr([(150.0, 4.0)]), "ESC": MOTORS}, reg, fp, **(FAST | NOTCH))
+    assert not [f for f in found if f.code == "filter.harmonics_above_nyquist"]
+
+
 def test_no_pre_filter_gyro_is_left_to_the_logging_analyzer(reg: Registry) -> None:
     r = FILTERS.run(hover_flight({"ESC": MOTORS}, {}), reg)
     assert r.skipped and not r.findings
@@ -176,9 +283,13 @@ def test_the_planted_throttle_notch_on_the_heavy_lift(tmp_path: Path) -> None:
     assert search["best"]["notch"]["MODE"] == 3.0  # the planted throttle notch becomes ESC RPM
 
 
-def test_the_raw_imu_quad_is_set_up_well(tmp_path: Path) -> None:
+def test_the_raw_imu_quad_is_set_up_well_but_for_its_third_harmonic(tmp_path: Path) -> None:
+    # Its notch covers harmonics 1 and 3 (HMNCS 5) of 193 Hz motors on a 1 kHz gyro:
+    # the third, near 578 Hz, is past the firmware's 480 Hz limit and is never filtered.
     out = analysed(tmp_path, "copter-quad-rawimu.bin")
-    assert not [f for f in out["findings"] if f["analyzer"] == "filters"]
+    [f] = [f for f in out["findings"] if f["analyzer"] == "filters"]
+    assert f["code"] == "filter.harmonics_above_nyquist" and f["params"]["harmonics"] == [3]
+    assert [(c["param"], c["proposed"]) for c in f["changes"]] == [("INS_HNTCH_HMNCS", 1.0)]
 
 
 def test_the_light_flight_only_needs_the_source_switch(tmp_path: Path) -> None:
@@ -208,6 +319,19 @@ def test_notching_the_motors_frees_room_to_raise_the_low_pass() -> None:
     assert out.best is not None
     assert out.best.setting.gyro_filter > 20  # the payoff
     assert out.best.noise_db <= out.current.noise_db and out.best.lag_deg < out.current.lag_deg
+
+
+def test_the_search_keeps_every_other_set_as_flown() -> None:
+    # The search tunes the first set; fixed notches in the second and third sets stay in
+    # every candidate's noise, lag and notch count.
+    tables = {"GYR": gyr([(5.0, 2.0), (150.0, 4.0)]), "ESC": MOTORS}
+    fixed = {"ENABLE": 1, "MODE": 0, "BW": 20, "ATT": 40, "HMNCS": 1, "REF": 0, "OPTS": 0}
+    two = {f"INS_HNTC2_{k}": float(v) for k, v in (fixed | {"FREQ": 60}).items()}
+    three = {f"INS_HNTC3_{k}": float(v) for k, v in (fixed | {"FREQ": 75}).items()}
+    alone = screen_for(tables, INS_HNTCH_ENABLE=0, **two)
+    both = screen_for(tables, INS_HNTCH_ENABLE=0, **two, **three)
+    assert both.other_count == 2 * alone.other_count > 0
+    assert both.other_lag > alone.other_lag > 0
 
 
 def test_a_busy_processor_gets_no_more_notches() -> None:

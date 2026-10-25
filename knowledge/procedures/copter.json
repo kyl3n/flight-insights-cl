@@ -1,0 +1,1078 @@
+{
+  "about": "Step-by-step procedures for Copter findings and Better options (spec: Recommendation engine, 'Procedures'). A procedure is assembled from the plan's own parameter files and refreshes or reboots, these steps, and the stage's defaults in rules/recommend.json (fly, abort, verify) for any kind a procedure leaves out. 'temporary' marks a finding's own changes as for the test flight only; 'add_temporary' adds settings for the test flight (set_bits on a bitmask, or a value), validated like every other change. 'use' pulls in shared parts. A step's 'when' keeps it only when a parameter, as it will be after the plan, is one of the listed values. Verify 'checks' are what the app tests on the next flight.",
+  "version": 1,
+  "texts": {
+    "set": {
+      "en": "Load the step {step} file and write its parameters: {params}.",
+      "uk": "Завантажте файл кроку {step} і запишіть його параметри: {params}."
+    },
+    "refresh": {
+      "en": "Refresh the parameter list in the ground station, so the next step's parameters appear.",
+      "uk": "Оновіть список параметрів у наземній станції, щоб з'явилися параметри наступного кроку."
+    },
+    "reboot_refresh": {
+      "en": "Reboot the flight controller, reconnect and refresh the parameter list, so the next step's parameters appear.",
+      "uk": "Перезавантажте польотний контролер, під'єднайтеся знову й оновіть список параметрів, щоб з'явилися параметри наступного кроку."
+    },
+    "reboot": {
+      "en": "Reboot the flight controller, so the new values take effect.",
+      "uk": "Перезавантажте польотний контролер, щоб нові значення набули чинності."
+    },
+    "temporary": {
+      "en": "For the test flight only: {params}. The revert file takes these out again once the next log has confirmed the change.",
+      "uk": "Лише для тестового польоту: {params}. Файл повернення прибере їх, щойно наступний журнал підтвердить зміну."
+    },
+    "revert": {
+      "en": "Once the next log has confirmed the change, load the revert file: it puts {params} back as before the test flight.",
+      "uk": "Щойно наступний журнал підтвердить зміну, завантажте файл повернення: він поверне {params} до значень, що були до тестового польоту."
+    },
+    "undo": {
+      "en": "If the test goes wrong, land and load the undo file: it puts back every value this plan changed ({params}).",
+      "uk": "Якщо тест піде не так, сідайте й завантажте файл скасування: він поверне кожне значення, змінене цим планом ({params})."
+    },
+    "card_header": {
+      "en": "Test card. Do the steps in order. Nothing is written to the aircraft automatically: every value goes in through a file you review and load.",
+      "uk": "Тестова картка. Виконуйте кроки по порядку. Ніщо не записується в апарат автоматично: кожне значення потрапляє через файл, який ви переглядаєте й завантажуєте."
+    }
+  },
+  "shared": {
+    "filter_test": {
+      "about": "A filter test flight: raw gyro data of the primary gyro before and after the filters, and the notch's inputs at every update, for this flight only (LOG_BITMASK bit 19 Raw IMU and bit 21 fast harmonic notch logging; INS_RAW_LOG_OPT bits 0 primary gyro only and 3 pre and post filter, which the logging analyzer also recommends), with no logging rate cap (LOG_FILE_RATEMAX 0), which would thin both.",
+      "add_temporary": [
+        {
+          "param": "LOG_BITMASK",
+          "set_bits": [
+            19,
+            21
+          ]
+        },
+        {
+          "param": "INS_RAW_LOG_OPT",
+          "set_bits": [
+            0,
+            3
+          ]
+        },
+        {
+          "param": "LOG_FILE_RATEMAX",
+          "value": 0
+        }
+      ],
+      "steps": [
+        {
+          "kind": "verify",
+          "checks": [
+            {
+              "check": "has_message",
+              "message": "GYR"
+            }
+          ],
+          "text": {
+            "en": "The next log holds gyro data before and after the filters and the notch's inputs at every update, so the app checks the filters exactly. On an F4 board or a slow SD card, the app also checks the log for dropped messages.",
+            "uk": "Наступний журнал містить дані гіроскопа до і після фільтрів та входи режекторного фільтра на кожному оновленні, тож застосунок точно перевіряє фільтри. На платі F4 або з повільною SD-карткою застосунок також перевірить журнал на відкинуті повідомлення."
+          }
+        }
+      ]
+    },
+    "esc_rpm_check": {
+      "about": "Before trusting ESC RPM: every motor must report it.",
+      "steps": [
+        {
+          "kind": "ground_check",
+          "when": {
+            "param": "INS_HNTCH_MODE",
+            "in": [
+              3
+            ]
+          },
+          "text": {
+            "en": "With the propellers off, run the ground station's motor test on each motor and check that every motor reports its RPM (ESC telemetry).",
+            "uk": "Зі знятими пропелерами запустіть тест моторів у наземній станції для кожного мотора й перевірте, що кожен мотор повідомляє свої оберти (телеметрія ESC)."
+          }
+        }
+      ]
+    },
+    "fft_check": {
+      "about": "A notch on the in-flight FFT: the FFT logs what it found (FTN1, with the control tuning messages or fast harmonic notch logging), so the next log shows whether it locked onto the motors.",
+      "steps": [
+        {
+          "kind": "verify",
+          "when": {
+            "param": "INS_HNTCH_MODE",
+            "in": [
+              4
+            ]
+          },
+          "checks": [
+            {
+              "check": "has_message",
+              "message": "FTN1"
+            }
+          ],
+          "text": {
+            "en": "The next log holds the FFT's measurements (FTN1), so the app checks that it found the motors' peak and the notch followed it.",
+            "uk": "Наступний журнал містить вимірювання FFT (FTN1), тож застосунок перевірить, що FFT знайшло пік моторів, а режекторний фільтр стежив за ним."
+          }
+        }
+      ]
+    },
+    "power_calibration": {
+      "about": "Calibrating an analog power module: voltage against a multimeter, current against what the charger puts back (ArduPilot's power module calibration).",
+      "steps": [
+        {
+          "kind": "ground_check",
+          "text": {
+            "en": "With the propellers off and the pack connected, measure the pack's voltage with a multimeter and read the ground station's. Set BATT_VOLT_MULT to its value times the meter's reading divided by the ground station's.",
+            "uk": "Зі знятими пропелерами й підключеною батареєю виміряйте її напругу мультиметром і прочитайте напругу в наземній станції. Встановіть BATT_VOLT_MULT як його значення, помножене на показ мультиметра й поділене на показ наземної станції."
+          }
+        },
+        {
+          "kind": "ground_check",
+          "text": {
+            "en": "After the next flight, recharge the pack and note the mAh the charger put back. Set BATT_AMP_PERVLT to its value times the charger's mAh divided by the mAh the log counted (BAT.CurrTot at landing).",
+            "uk": "Після наступного польоту зарядіть батарею й запишіть, скільки мА·год повернув зарядний пристрій. Встановіть BATT_AMP_PERVLT як його значення, помножене на мА·год зарядного й поділене на мА·год, пораховані журналом (BAT.CurrTot при посадці)."
+          }
+        }
+      ]
+    }
+  },
+  "procedures": {
+    "logging.no_prefilter_gyro": {
+      "temporary": [
+        "INS_RAW_LOG_OPT"
+      ],
+      "add_temporary": [
+        {
+          "param": "LOG_BITMASK",
+          "set_bits": [
+            19
+          ]
+        }
+      ],
+      "steps": [
+        {
+          "kind": "fly",
+          "text": {
+            "en": "Fly at least 30 s of normal flight with stick inputs on every axis, not only a gentle hover, so the gyro spectrum shows the motors across their range.",
+            "uk": "Виконайте щонайменше 30 с звичайного польоту з рухами стіків по всіх осях, а не лише плавне зависання, щоб спектр гіроскопа показав мотори в усьому діапазоні."
+          }
+        },
+        {
+          "kind": "verify",
+          "checks": [
+            {
+              "check": "has_message",
+              "message": "GYR"
+            }
+          ],
+          "text": {
+            "en": "The next log holds raw gyro data (GYR) and the filter analysis runs. On an F4 board or a slow SD card, the app also checks the log for dropped messages.",
+            "uk": "Наступний журнал містить сирі дані гіроскопа (GYR), і аналіз фільтрів виконується. На платі F4 або з повільною SD-карткою застосунок також перевірить журнал на відкинуті повідомлення."
+          }
+        }
+      ]
+    },
+    "logging.no_postfilter_gyro": {
+      "temporary": [
+        "INS_RAW_LOG_OPT"
+      ],
+      "add_temporary": [
+        {
+          "param": "LOG_BITMASK",
+          "set_bits": [
+            19
+          ]
+        }
+      ],
+      "steps": [
+        {
+          "kind": "verify",
+          "checks": [
+            {
+              "check": "has_message",
+              "message": "GYR"
+            }
+          ],
+          "text": {
+            "en": "The next log holds gyro data both before and after the filters, so the app can check its filter model against what the autopilot did.",
+            "uk": "Наступний журнал містить дані гіроскопа до і після фільтрів, тож застосунок може перевірити свою модель фільтрів за тим, що зробив автопілот."
+          }
+        }
+      ]
+    },
+    "logging.notch_inputs_not_logged": {
+      "temporary": [
+        "LOG_BITMASK"
+      ],
+      "add_temporary": [
+        {
+          "param": "LOG_BITMASK",
+          "set_bits": [
+            19
+          ]
+        },
+        {
+          "param": "INS_RAW_LOG_OPT",
+          "set_bits": [
+            0,
+            3
+          ]
+        }
+      ],
+      "steps": [
+        {
+          "kind": "fly",
+          "text": {
+            "en": "Fly a steady hover of at least 30 s, then some gentle climbs and turns.",
+            "uk": "Виконайте стабільне зависання щонайменше 30 с, потім кілька плавних наборів висоти й поворотів."
+          }
+        },
+        {
+          "kind": "verify",
+          "checks": [
+            {
+              "check": "metric",
+              "metric": "filter.model_error",
+              "below": 0.1
+            }
+          ],
+          "text": {
+            "en": "The next log holds the notch's inputs at every update, and the app replays every notch exactly: the filter model error is under 0.1 dB.",
+            "uk": "Наступний журнал містить входи режекторного фільтра на кожному оновленні, і застосунок точно відтворює кожен фільтр: похибка моделі фільтрів менша за 0,1 дБ."
+          }
+        }
+      ]
+    },
+    "filter.no_notch": {
+      "use": [
+        "esc_rpm_check",
+        "filter_test",
+        "fft_check"
+      ],
+      "steps": []
+    },
+    "filter.better_source": {
+      "use": [
+        "esc_rpm_check",
+        "filter_test"
+      ],
+      "steps": [
+        {
+          "kind": "verify",
+          "checks": [
+            {
+              "check": "finding_clears"
+            }
+          ],
+          "text": {
+            "en": "The next log shows the notch following {better}, and its centre on the motor peak.",
+            "uk": "Наступний журнал показує, що режекторний фільтр стежить за: {better}, а його центр на піку моторів."
+          }
+        }
+      ]
+    },
+    "filter.better_settings": {
+      "use": [
+        "esc_rpm_check",
+        "filter_test",
+        "fft_check"
+      ],
+      "steps": [
+        {
+          "kind": "verify",
+          "checks": [
+            {
+              "check": "finding_clears"
+            }
+          ],
+          "text": {
+            "en": "The next log shows phase lag near {lag_new}° at {lag_hz} Hz and gyro noise near the prediction.",
+            "uk": "Наступний журнал показує фазову затримку близько {lag_new}° на {lag_hz} Гц і шум гіроскопа близький до прогнозу."
+          }
+        }
+      ]
+    },
+    "filter.not_tracking": {
+      "use": [
+        "esc_rpm_check",
+        "filter_test"
+      ],
+      "steps": []
+    },
+    "filter.harmonic_uncovered": {
+      "use": [
+        "filter_test"
+      ],
+      "steps": []
+    },
+    "filter.freq_above_hover": {
+      "use": [
+        "filter_test"
+      ],
+      "steps": []
+    },
+    "filter.bandwidth_wide": {
+      "use": [
+        "filter_test"
+      ],
+      "steps": []
+    },
+    "esc.rpm_mismatch": {
+      "steps": [
+        {
+          "kind": "ground_check",
+          "text": {
+            "en": "Count the magnets on one motor's bell (not the stator's teeth): the pole count is the number of magnets, usually 12 or 14 on small motors and more on large ones.",
+            "uk": "Порахуйте магніти на дзвоні одного мотора (не зубці статора): кількість полюсів дорівнює кількості магнітів, зазвичай 12 або 14 на малих моторах і більше на великих."
+          }
+        },
+        {
+          "kind": "ground_check",
+          "text": {
+            "en": "With the propellers off, run the motor test and compare the reported RPM with a tachometer, if you have one.",
+            "uk": "Зі знятими пропелерами запустіть тест моторів і порівняйте повідомлені оберти з тахометром, якщо він є."
+          }
+        },
+        {
+          "kind": "verify",
+          "checks": [
+            {
+              "check": "finding_clears"
+            }
+          ],
+          "text": {
+            "en": "The next log shows ESC RPM landing on the gyro's motor peak.",
+            "uk": "Наступний журнал показує, що оберти з ESC збігаються з піком моторів на гіроскопі."
+          }
+        }
+      ]
+    },
+    "vibration.high": {
+      "steps": [
+        {
+          "kind": "hardware",
+          "text": {
+            "en": "Check every propeller for damage and balance them; check each motor's bearings and that every motor, arm and propeller is tight.",
+            "uk": "Перевірте кожен пропелер на пошкодження й збалансуйте їх; перевірте підшипники кожного мотора і те, що кожен мотор, промінь і пропелер затягнуто."
+          }
+        },
+        {
+          "kind": "hardware",
+          "text": {
+            "en": "Check the flight controller's mounting: nothing should touch it, and soft-mounting it (or a board with isolated IMUs) helps when the frame itself vibrates.",
+            "uk": "Перевірте кріплення польотного контролера: ніщо не повинно його торкатися, а м'яке кріплення (або плата з ізольованими IMU) допомагає, коли вібрує сама рама."
+          }
+        },
+        {
+          "kind": "verify",
+          "checks": [
+            {
+              "check": "finding_clears"
+            }
+          ],
+          "text": {
+            "en": "Vibration stays under 30 m/s/s on every axis (VIBE), with no clipping.",
+            "uk": "Вібрація лишається нижчою за 30 м/с/с по всіх осях (VIBE), без обмеження сигналу."
+          }
+        }
+      ]
+    },
+    "vibration.clipping": {
+      "steps": [
+        {
+          "kind": "hardware",
+          "text": {
+            "en": "Find what shakes the accelerometers past their range: a damaged or unbalanced propeller, a loose motor or arm, or a hard-mounted flight controller.",
+            "uk": "Знайдіть, що трясе акселерометри понад їхній діапазон: пошкоджений чи незбалансований пропелер, незатягнутий мотор чи промінь, або жорстко закріплений польотний контролер."
+          }
+        },
+        {
+          "kind": "verify",
+          "checks": [
+            {
+              "check": "finding_clears"
+            }
+          ],
+          "text": {
+            "en": "The next log shows no accelerometer clipping.",
+            "uk": "Наступний журнал не показує обмеження сигналу акселерометрів."
+          }
+        }
+      ]
+    },
+    "esc.hot": {
+      "steps": [
+        {
+          "kind": "hardware",
+          "text": {
+            "en": "Check the hot ESC's cooling and airflow, and that its motor and propeller match the others.",
+            "uk": "Перевірте охолодження й обдув гарячого ESC і те, що його мотор і пропелер такі самі, як інші."
+          }
+        },
+        {
+          "kind": "hardware",
+          "text": {
+            "en": "Swap the hot ESC with a sibling: if the heat follows the ESC, the ESC is at fault; if it stays with the motor, check the motor and propeller.",
+            "uk": "Поміняйте гарячий ESC місцями з сусіднім: якщо нагрів переходить разом з ESC, несправний ESC; якщо лишається з мотором, перевірте мотор і пропелер."
+          }
+        }
+      ]
+    },
+    "esc.desync": {
+      "steps": [
+        {
+          "kind": "firmware",
+          "text": {
+            "en": "In the ESC configurator, check that motor timing, start-up power and demag compensation are the same on every ESC and suit the motor, as the ESC firmware's documentation recommends.",
+            "uk": "У конфігураторі ESC перевірте, що випередження, потужність старту й компенсація demag однакові на всіх ESC і підходять мотору, як рекомендує документація прошивки ESC."
+          }
+        },
+        {
+          "kind": "ground_check",
+          "text": {
+            "en": "With the propellers off, run each motor through the motor test from low to high throttle and listen for stutters.",
+            "uk": "Зі знятими пропелерами проженіть кожен мотор тестом моторів від малого до великого газу й прислухайтеся до заїдань."
+          }
+        }
+      ]
+    },
+    "esc.telemetry_errors": {
+      "steps": [
+        {
+          "kind": "hardware",
+          "text": {
+            "en": "Check the motor signal wires and their ground return: bidirectional DShot carries the telemetry on the signal wire, so long runs or runs beside power wiring corrupt it.",
+            "uk": "Перевірте сигнальні дроти моторів і їхній зворотний провід землі: двонаправлений DShot передає телеметрію сигнальним дротом, тож довгі дроти або дроти поруч із силовими її псують."
+          }
+        }
+      ]
+    },
+    "esc.telemetry_dropouts": {
+      "steps": [
+        {
+          "kind": "hardware",
+          "text": {
+            "en": "Check the motor signal wires and their ground return: bidirectional DShot carries the telemetry on the signal wire, so long runs or runs beside power wiring corrupt it.",
+            "uk": "Перевірте сигнальні дроти моторів і їхній зворотний провід землі: двонаправлений DShot передає телеметрію сигнальним дротом, тож довгі дроти або дроти поруч із силовими її псують."
+          }
+        }
+      ]
+    },
+    "option.bdshot_enable.available": {
+      "steps": [
+        {
+          "kind": "firmware",
+          "text": {
+            "en": "Check the board's documentation: bidirectional DShot works only on the outputs it lists, and some boards need their '-bdshot' firmware build from the ArduPilot firmware server.",
+            "uk": "Перевірте документацію плати: двонаправлений DShot працює лише на виходах, які вона перелічує, а деяким платам потрібна збірка прошивки '-bdshot' з сервера прошивок ArduPilot."
+          }
+        },
+        {
+          "kind": "ground_check",
+          "text": {
+            "en": "With the propellers off, run the ground station's motor test on each motor and check that every motor reports its RPM (ESC telemetry).",
+            "uk": "Зі знятими пропелерами запустіть тест моторів у наземній станції для кожного мотора й перевірте, що кожен мотор повідомляє свої оберти (телеметрія ESC)."
+          }
+        },
+        {
+          "kind": "verify",
+          "checks": [
+            {
+              "check": "has_message",
+              "message": "ESC"
+            },
+            {
+              "check": "finding_clears"
+            }
+          ],
+          "text": {
+            "en": "The next log holds RPM for every motor with under 1% errors, landing on the gyro's motor peak. The app then proposes moving the notch onto ESC RPM.",
+            "uk": "Наступний журнал містить оберти кожного мотора з помилками менше 1%, що збігаються з піком моторів на гіроскопі. Тоді застосунок запропонує перевести режекторний фільтр на оберти з ESC."
+          }
+        }
+      ]
+    },
+    "option.bdshot_enable.hardware": {
+      "steps": [
+        {
+          "kind": "firmware",
+          "text": {
+            "en": "Flash the ESCs with firmware that has bidirectional DShot, with the propellers off: Bluejay on BLHeli_S ESCs, AM32 on ESCs it supports. BLHeli_32 ESCs have it already.",
+            "uk": "Прошийте ESC прошивкою з двонаправленим DShot, зі знятими пропелерами: Bluejay на ESC з BLHeli_S, AM32 на ESC, які він підтримує. ESC з BLHeli_32 вже його мають."
+          }
+        },
+        {
+          "kind": "hardware",
+          "text": {
+            "en": "Or fit ESCs that support bidirectional DShot. Then answer the ESC firmware question in the platform setup, and the app gives the steps to turn it on.",
+            "uk": "Або встановіть ESC з підтримкою двонаправленого DShot. Потім дайте відповідь на питання про прошивку ESC у налаштуванні платформи, і застосунок дасть кроки, щоб його увімкнути."
+          }
+        },
+        {
+          "kind": "hardware",
+          "text": {
+            "en": "Where bidirectional DShot is not possible, BLHeli_32 and AM32 ESCs with a telemetry pad can send their RPM over a wire: join the pads to a free serial port's RX and set that port's SERIALn_PROTOCOL to 16 (ESC telemetry). It reports less often than bidirectional DShot, but it can steer the notch.",
+            "uk": "Де двонаправлений DShot неможливий, ESC з BLHeli_32 та AM32 з контактом телеметрії можуть передавати оберти дротом: з'єднайте контакти з RX вільного послідовного порту й встановіть SERIALn_PROTOCOL цього порту в 16 (телеметрія ESC). Вона оновлюється рідше, ніж двонаправлений DShot, але може керувати режекторним фільтром."
+          }
+        }
+      ]
+    },
+    "option.dshot_output.available": {
+      "steps": [
+        {
+          "kind": "ground_check",
+          "text": {
+            "en": "With the propellers off, run the motor test: every motor should spin in its right place and direction at the same low throttle. DShot needs no ESC calibration.",
+            "uk": "Зі знятими пропелерами запустіть тест моторів: кожен мотор має обертатися на своєму місці й у правильному напрямку на однаковому малому газі. DShot не потребує калібрування ESC."
+          }
+        },
+        {
+          "kind": "verify",
+          "checks": [
+            {
+              "check": "finding_clears"
+            }
+          ],
+          "text": {
+            "en": "The next log shows the motors driven by DShot and the hover throttle unchanged.",
+            "uk": "Наступний журнал показує мотори під керуванням DShot і незмінний газ зависання."
+          }
+        }
+      ]
+    },
+    "option.dshot_output.hardware": {
+      "steps": [
+        {
+          "kind": "hardware",
+          "text": {
+            "en": "Fit ESCs that understand DShot (BLHeli_S, BLHeli_32, AM32 or Bluejay), on outputs the board drives with DShot.",
+            "uk": "Встановіть ESC, що розуміють DShot (BLHeli_S, BLHeli_32, AM32 або Bluejay), на виходи, які плата керує через DShot."
+          }
+        }
+      ]
+    },
+    "option.hover_learn.available": {
+      "steps": [
+        {
+          "kind": "fly",
+          "text": {
+            "en": "Hover steadily in AltHold or Loiter for at least 30 s: the autopilot learns the hover throttle, and saves it with MOT_HOVER_LEARN 2.",
+            "uk": "Стабільно зависніть в AltHold або Loiter щонайменше 30 с: автопілот вивчить газ зависання і збереже його з MOT_HOVER_LEARN 2."
+          }
+        }
+      ]
+    },
+    "option.log_per_flight.available": {
+      "steps": [
+        {
+          "kind": "verify",
+          "checks": [
+            {
+              "check": "finding_clears"
+            }
+          ],
+          "text": {
+            "en": "Each flight's log starts at arming and ends at disarming.",
+            "uk": "Журнал кожного польоту починається з увімкнення моторів і закінчується їх вимкненням."
+          }
+        }
+      ]
+    },
+    "option.notch_loop_rate.available": {
+      "use": [
+        "filter_test"
+      ],
+      "steps": [
+        {
+          "kind": "verify",
+          "checks": [
+            {
+              "check": "finding_clears"
+            }
+          ],
+          "text": {
+            "en": "The next log shows the notch updated at loop rate, and the processor still keeping up (no rise in slow loops).",
+            "uk": "Наступний журнал показує, що режекторний фільтр оновлюється з частотою циклу, а процесор усе ще встигає (без зростання запізнілих циклів)."
+          }
+        }
+      ]
+    },
+    "option.notch_all_imus.available": {
+      "steps": [
+        {
+          "kind": "verify",
+          "checks": [
+            {
+              "check": "finding_clears"
+            }
+          ],
+          "text": {
+            "en": "The next log shows the processor still keeping up with the notch on every IMU (no rise in slow loops).",
+            "uk": "Наступний журнал показує, що процесор усе ще встигає з режекторним фільтром на кожному IMU (без зростання запізнілих циклів)."
+          }
+        }
+      ]
+    },
+    "option.fast_rate_loop.available": {
+      "steps": [
+        {
+          "kind": "verify",
+          "checks": [
+            {
+              "check": "finding_clears"
+            }
+          ],
+          "text": {
+            "en": "The next log shows the rate loop in its own thread and the processor still keeping up (no rise in slow loops).",
+            "uk": "Наступний журнал показує контур кутових швидкостей в окремому потоці, а процесор усе ще встигає (без зростання запізнілих циклів)."
+          }
+        }
+      ]
+    },
+    "filter.peak_unnotched": {
+      "use": [
+        "filter_test"
+      ],
+      "steps": [
+        {
+          "kind": "hardware",
+          "text": {
+            "en": "Look for the source first, with the battery out: tighten the arms, motor mounts, landing gear and payload mount, and look for a cracked, loose or flexing part. A fix at the source beats any filter, and the next log shows whether the notch is still needed.",
+            "uk": "Спершу пошукайте джерело, з від'єднаною батареєю: затягніть промені, кріплення моторів, шасі й кріплення вантажу та пошукайте тріснуту, ослаблену або гнучку деталь. Усунення джерела краще за будь-який фільтр, а наступний журнал покаже, чи режекторний фільтр ще потрібен."
+          }
+        },
+        {
+          "kind": "verify",
+          "checks": [
+            {
+              "check": "finding_clears"
+            }
+          ],
+          "text": {
+            "en": "After the filters, the {hz} Hz peak is gone or far below the control band.",
+            "uk": "Після фільтрів пік на {hz} Гц зник або значно нижчий за смугу керування."
+          }
+        }
+      ]
+    },
+    "filter.harmonics_above_nyquist": {
+      "use": [
+        "filter_test"
+      ],
+      "steps": [
+        {
+          "kind": "verify",
+          "checks": [
+            {
+              "check": "finding_clears"
+            }
+          ],
+          "text": {
+            "en": "The next log shows every harmonic in the notch's mask below the gyro's limit, and the processor still keeping up: no rise in slow loops or CPU load.",
+            "uk": "Наступний журнал показує, що всі гармоніки в масці режекторного фільтра нижчі за межу гіроскопа, а процесор усе ще встигає: без зростання запізнілих циклів чи завантаження процесора."
+          }
+        }
+      ]
+    },
+    "logging.rate_limited": {
+      "steps": [
+        {
+          "kind": "verify",
+          "checks": [
+            {
+              "check": "finding_clears"
+            }
+          ],
+          "text": {
+            "en": "The next log holds the rate and attitude messages at the loop rate, and raw gyro data without holes, so every check sees the whole flight.",
+            "uk": "Наступний журнал містить повідомлення швидкості й положення з частотою циклу та сирі дані гіроскопа без пропусків, тож кожна перевірка бачить увесь політ."
+          }
+        }
+      ]
+    },
+    "logging.dropouts": {
+      "steps": [
+        {
+          "kind": "hardware",
+          "text": {
+            "en": "Fit a fast, genuine SD card, freshly formatted, with plenty of free space; a worn or counterfeit card stalls on writes.",
+            "uk": "Встановіть швидку оригінальну SD-картку, щойно відформатовану, з великим запасом вільного місця; зношена чи підроблена картка зависає під час запису."
+          }
+        },
+        {
+          "kind": "verify",
+          "checks": [
+            {
+              "check": "finding_clears"
+            }
+          ],
+          "text": {
+            "en": "The next log shows no dropped messages (DSF), with the same logging as this flight.",
+            "uk": "Наступний журнал не показує відкинутих повідомлень (DSF) за того самого запису, що й у цьому польоті."
+          }
+        }
+      ]
+    },
+    "system.slow_loops": {
+      "steps": [
+        {
+          "kind": "verify",
+          "checks": [
+            {
+              "check": "finding_clears"
+            }
+          ],
+          "text": {
+            "en": "The next log shows few late loops and the processor with time to spare (PM: long loops and load).",
+            "uk": "Наступний журнал показує мало запізнілих циклів і процесор із запасом часу (PM: довгі цикли й завантаження)."
+          }
+        }
+      ]
+    },
+    "option.loop_rate_default.available": {
+      "use": [
+        "filter_test"
+      ],
+      "steps": [
+        {
+          "kind": "verify",
+          "checks": [
+            {
+              "check": "finding_clears"
+            }
+          ],
+          "text": {
+            "en": "The next log shows the main loop at 400 Hz with few late loops and the processor still keeping up. The filters and rate gains were set at the old rate: the app checks both on this flight.",
+            "uk": "Наступний журнал показує головний цикл на 400 Гц з малою кількістю запізнілих циклів, а процесор усе ще встигає. Фільтри й коефіцієнти швидкості налаштовано на старій частоті: застосунок перевірить обидва в цьому польоті."
+          }
+        }
+      ]
+    },
+    "params.power_module_uncalibrated": {
+      "use": [
+        "power_calibration"
+      ],
+      "steps": []
+    },
+    "power.monitor_vs_escs": {
+      "use": [
+        "power_calibration"
+      ],
+      "steps": [
+        {
+          "kind": "verify",
+          "checks": [
+            {
+              "check": "finding_clears"
+            }
+          ],
+          "text": {
+            "en": "In the next log the battery monitor and the ESCs agree: no more current into the ESCs than the monitor reports, and the same voltage while little current flows.",
+            "uk": "У наступному журналі монітор батареї й ESC узгоджуються: струм в ESC не більший, ніж показує монітор, і однакова напруга при малому струмі."
+          }
+        }
+      ]
+    },
+    "params.battery_arm_unchecked": {
+      "steps": [
+        {
+          "kind": "ground_check",
+          "text": {
+            "en": "With a pack below the new arming voltage and the propellers off, check that the ground station refuses to arm and says why.",
+            "uk": "З батареєю, нижчою за нову напругу зведення, і знятими пропелерами перевірте, що наземна станція відмовляє у зведенні й пояснює чому."
+          }
+        }
+      ]
+    },
+    "power.thst_hover_stale": {
+      "steps": [
+        {
+          "kind": "verify",
+          "checks": [
+            {
+              "check": "finding_clears"
+            }
+          ],
+          "text": {
+            "en": "In the next log the hover throttle sits near MOT_THST_HOVER, and take-off into altitude hold has no jump.",
+            "uk": "У наступному журналі газ зависання близький до MOT_THST_HOVER, а зліт в утриманні висоти без ривка."
+          }
+        }
+      ]
+    },
+    "power.board_voltage": {
+      "steps": [
+        {
+          "kind": "hardware",
+          "text": {
+            "en": "Check the power module or BEC that feeds the flight controller, and its connector. Give servos, a gripper, a camera or the payload their own supply, and, where the board allows, add a second supply for the flight controller.",
+            "uk": "Перевірте модуль живлення або BEC, що живить польотний контролер, і його роз'єм. Дайте сервам, захвату, камері чи навантаженню окреме живлення і, якщо плата дозволяє, додайте друге джерело живлення для польотного контролера."
+          }
+        },
+        {
+          "kind": "verify",
+          "checks": [
+            {
+              "check": "finding_clears"
+            }
+          ],
+          "text": {
+            "en": "In the next log the board's supply (POWR.Vcc) stays steady through the whole flight.",
+            "uk": "У наступному журналі живлення плати (POWR.Vcc) стабільне протягом усього польоту."
+          }
+        }
+      ]
+    },
+    "option.edt_enable.available": {
+      "steps": [
+        {
+          "kind": "firmware",
+          "text": {
+            "en": "Check the ESCs' firmware supports Extended DShot Telemetry (a recent Bluejay, AM32 or BLHeli_32 release says so in its notes) and update it with the propellers off if not: with EDT set and firmware that lacks it, RPM telemetry is not read correctly.",
+            "uk": "Перевірте, що прошивка ESC підтримує розширену телеметрію DShot (свіжі випуски Bluejay, AM32 чи BLHeli_32 зазначають це в примітках), і оновіть її зі знятими пропелерами, якщо ні: з увімкненим EDT і прошивкою без нього телеметрія обертів читається неправильно."
+          }
+        },
+        {
+          "kind": "ground_check",
+          "text": {
+            "en": "With the propellers off, run the motor test and check every motor shows its RPM and its ESC's temperature.",
+            "uk": "Зі знятими пропелерами запустіть тест моторів і перевірте, що кожен мотор показує оберти й температуру свого ESC."
+          }
+        },
+        {
+          "kind": "verify",
+          "checks": [
+            {
+              "check": "has_message",
+              "message": "ESC"
+            }
+          ],
+          "text": {
+            "en": "The next log holds each ESC's temperature beside its RPM.",
+            "uk": "Наступний журнал містить температуру кожного ESC поряд з обертами."
+          }
+        }
+      ]
+    },
+    "option.esc_battery_monitor.available": {
+      "steps": [
+        {
+          "kind": "ground_check",
+          "text": {
+            "en": "After the reboot, check the ground station shows a second battery with a voltage close to the first.",
+            "uk": "Після перезавантаження перевірте, що наземна станція показує другу батарею з напругою, близькою до першої."
+          }
+        }
+      ]
+    },
+    "bus.serial_drops": {
+      "steps": [
+        {
+          "kind": "hardware",
+          "text": {
+            "en": "Check what is connected to SERIAL{port}: its own baud rate must match SERIAL{port}_BAUD, and if the device can go faster, raise both together. For a telemetry radio wired with RTS and CTS, turn on flow control (BRD_SER{port}_RTSCTS). For a GPS, let ArduPilot set its rate and baud (GPS_AUTO_CONFIG 1).",
+            "uk": "Перевірте, що під'єднано до SERIAL{port}: власна швидкість пристрою має збігатися з SERIAL{port}_BAUD, а якщо пристрій може швидше, підвищте обидві разом. Для радіомодема телеметрії з під'єднаними RTS і CTS увімкніть керування потоком (BRD_SER{port}_RTSCTS). Для GPS дозвольте ArduPilot самому задати частоту й швидкість (GPS_AUTO_CONFIG 1)."
+          }
+        },
+        {
+          "kind": "verify",
+          "checks": [
+            {
+              "check": "finding_clears"
+            }
+          ],
+          "text": {
+            "en": "In the next log SERIAL{port} drops no incoming data.",
+            "uk": "У наступному журналі SERIAL{port} не відкидає вхідних даних."
+          }
+        }
+      ]
+    },
+    "bus.errors": {
+      "steps": [
+        {
+          "kind": "hardware",
+          "text": {
+            "en": "With the battery out, reseat and inspect the connectors of the bus that reported errors, and route its cable away from motor and ESC power wires. On CAN, check there is one terminator at each end: with the power off, CAN_H to CAN_L reads about 60 ohms.",
+            "uk": "З від'єднаною батареєю перепідключіть і огляньте роз'єми шини, що повідомляла про помилки, і прокладіть її кабель подалі від силових проводів моторів і ESC. На CAN перевірте, що на кожному кінці є по одному термінатору: при вимкненому живленні між CAN_H і CAN_L близько 60 Ом."
+          }
+        },
+        {
+          "kind": "verify",
+          "checks": [
+            {
+              "check": "finding_clears"
+            }
+          ],
+          "text": {
+            "en": "The next log shows no new bus or sensor errors in flight.",
+            "uk": "Наступний журнал не показує нових помилок шин чи датчиків у польоті."
+          }
+        }
+      ]
+    },
+    "bus.gps_gaps": {
+      "steps": [
+        {
+          "kind": "hardware",
+          "text": {
+            "en": "Check the GPS cable and connector, and that the GPS's serial port drops no data; let ArduPilot configure the receiver (GPS_AUTO_CONFIG 1) unless it was set up by hand on purpose.",
+            "uk": "Перевірте кабель і роз'єм GPS і те, що його послідовний порт не відкидає даних; дозвольте ArduPilot налаштувати приймач (GPS_AUTO_CONFIG 1), якщо його не налаштовували вручну навмисно."
+          }
+        },
+        {
+          "kind": "verify",
+          "checks": [
+            {
+              "check": "finding_clears"
+            }
+          ],
+          "text": {
+            "en": "In the next log GPS updates arrive without gaps.",
+            "uk": "У наступному журналі оновлення GPS надходять без пропусків."
+          }
+        }
+      ]
+    },
+    "params.arming_checks_skipped": {
+      "steps": [
+        {
+          "kind": "ground_check",
+          "text": {
+            "en": "With the propellers off, try to arm: if a check now fails, the ground station names it. Fix that cause rather than skipping the check again.",
+            "uk": "Зі знятими пропелерами спробуйте звести: якщо якась перевірка не проходить, наземна станція назве її. Усуньте причину, а не пропускайте перевірку знову."
+          }
+        }
+      ]
+    },
+    "params.gcs_failsafe_off": {
+      "steps": [
+        {
+          "kind": "ground_check",
+          "text": {
+            "en": "With the propellers off and the aircraft armed in a safe place, disconnect the ground station and check the failsafe action starts after FS_GCS_TIMEOUT.",
+            "uk": "Зі знятими пропелерами, звівши апарат у безпечному місці, від'єднайте наземну станцію й перевірте, що дія аварійного режиму починається через FS_GCS_TIMEOUT."
+          }
+        }
+      ]
+    },
+    "params.never_tuned": {
+      "steps": [
+        {
+          "kind": "hardware",
+          "text": {
+            "en": "Remove the camera gimbal and anything else that could wobble in flight, and make sure the aircraft flies steadily in AltHold.",
+            "uk": "Зніміть підвіс камери та все, що може хитатися в польоті, і переконайтеся, що апарат стабільно летить в AltHold."
+          }
+        },
+        {
+          "kind": "ground_check",
+          "text": {
+            "en": "Put AltHold on one flight-mode switch position and AutoTune on a spare switch (RCn_OPTION 17), and leave that switch LOW. Choose the axes in AUTOTUNE_AXES (1 roll, 2 pitch, 4 yaw: one at a time if a battery cannot finish them all) and keep AUTOTUNE_AGGR at its default 0.1.",
+            "uk": "Призначте AltHold на одне положення перемикача режимів, а AutoTune — на вільний перемикач (RCn_OPTION 17) і залиште його в нижньому положенні. Оберіть осі в AUTOTUNE_AXES (1 крен, 2 тангаж, 4 рискання: по одній, якщо батареї не вистачає на всі) і залиште AUTOTUNE_AGGR стандартним 0.1."
+          }
+        },
+        {
+          "kind": "fly",
+          "text": {
+            "en": "On a calm day in a large open area, take off and hold AltHold at a comfortable height. Face the aircraft so it twitches across the wind (into the wind when tuning roll), then switch AutoTune HIGH. It twitches about 20 degrees each way for a few minutes per axis; reposition with the sticks whenever it drifts. When it finishes it flies on the old gains: switch LOW then HIGH to try the new ones.",
+            "uk": "У тихий день на великому відкритому майданчику злетіть і тримайте AltHold на зручній висоті. Розверніть апарат так, щоб він смикався поперек вітру (носом проти вітру для крену), потім перемкніть AutoTune вгору. Він смикається приблизно на 20 градусів у кожен бік кілька хвилин на вісь; повертайте його стіками, коли зноситься. Після завершення він летить на старих коефіцієнтах: перемкніть вниз і вгору, щоб спробувати нові."
+          }
+        },
+        {
+          "kind": "abort",
+          "text": {
+            "en": "If it oscillates, or the wind pushes it hard, switch AutoTune LOW: the original gains come back and nothing is saved.",
+            "uk": "Якщо апарат розгойдується або вітер сильно зносить, перемкніть AutoTune вниз: повернуться початкові коефіцієнти, і нічого не збережеться."
+          }
+        },
+        {
+          "kind": "verify",
+          "checks": [
+            {
+              "check": "finding_clears"
+            }
+          ],
+          "text": {
+            "en": "If you like the new gains, land and disarm with the switch HIGH to save them: the ground station says the gains were saved. The next log shows the rate gains changed.",
+            "uk": "Якщо нові коефіцієнти подобаються, сядьте й вимкніть двигуни з перемикачем угорі, щоб зберегти їх: наземна станція повідомить про збереження. Наступний журнал покаже змінені коефіцієнти швидкості."
+          }
+        }
+      ]
+    },
+    "params.tuning_starting_values": {
+      "steps": [
+        {
+          "kind": "verify",
+          "checks": [
+            {
+              "check": "finding_clears"
+            }
+          ],
+          "text": {
+            "en": "The next flight holds steady in AltHold, ready for AutoTune.",
+            "uk": "Наступний політ стабільний в AltHold і готовий до AutoTune."
+          }
+        }
+      ]
+    },
+    "params.compassmot_not_done": {
+      "steps": [
+        {
+          "kind": "ground_check",
+          "text": {
+            "en": "CompassMot needs the current monitor working. Flip each propeller over and move it one position around the frame so they push the aircraft down, and tie the aircraft down: the propellers will spin.",
+            "uk": "Для CompassMot потрібен робочий монітор струму. Переверніть кожен пропелер і перемістіть на одну позицію по рамі, щоб вони притискали апарат донизу, і прив'яжіть апарат: пропелери обертатимуться."
+          }
+        },
+        {
+          "kind": "ground_check",
+          "text": {
+            "en": "Start Compass/Motor calibration in the ground station, raise the throttle slowly to 50-75% for 5-10 seconds, bring it back to zero quickly and finish. Read the interference: under 30% is good, above 60% needs the compass moved or an external one.",
+            "uk": "Запустіть у наземній станції калібрування компаса й моторів, плавно підніміть газ до 50-75% на 5-10 секунд, швидко зменште до нуля й завершіть. Прочитайте рівень завад: до 30% добре, понад 60% — потрібно перемістити компас або встановити зовнішній."
+          }
+        },
+        {
+          "kind": "hardware",
+          "text": {
+            "en": "Put the propellers back in their right places and the right way up before flying.",
+            "uk": "Поверніть пропелери на свої місця правильною стороною перед польотом."
+          }
+        }
+      ]
+    },
+    "params.no_gnss_fallback": {
+      "steps": [
+        {
+          "kind": "ground_check",
+          "text": {
+            "en": "On the bench, switch between source sets with the RCn_OPTION 90 switch: the ground station shows a message for each change, the EKF stays healthy for 10 seconds after it, and position, altitude and heading stay sensible.",
+            "uk": "На стенді перемикайте набори джерел перемикачем RCn_OPTION 90: наземна станція показує повідомлення для кожної зміни, EKF лишається справним 10 секунд після неї, а позиція, висота й курс лишаються правдоподібними."
+          }
+        }
+      ]
+    },
+    "params.fence_off": {
+      "steps": [
+        {
+          "kind": "ground_check",
+          "text": {
+            "en": "Before take-off, check the ground station shows the fence enabled and arming is allowed once the aircraft has its position.",
+            "uk": "Перед зльотом перевірте, що наземна станція показує ввімкнену геозону, а зведення дозволено, щойно апарат має позицію."
+          }
+        }
+      ]
+    },
+    "params.second_gnss_unset": {
+      "steps": [
+        {
+          "kind": "ground_check",
+          "text": {
+            "en": "After the reboot, check the ground station shows both receivers with a fix.",
+            "uk": "Після перезавантаження перевірте, що наземна станція показує обидва приймачі з фіксацією."
+          }
+        }
+      ]
+    }
+  }
+}

@@ -26,6 +26,7 @@ from flight_insights.fingerprint.devices import (
     from_json,
     to_json,
 )
+from flight_insights.history.persist import load_snapshot
 from flight_insights.imports import (
     ConfirmedChange,
     Decision,
@@ -525,6 +526,64 @@ def test_a_parameter_file_is_kept_once_per_airframe(
         _, _, (r,) = run(store, pack, cache, [param], {"f1": {"airframe_id": aid}})
         assert r.status == status
     assert count(store, "SELECT count(*) FROM param_snapshot WHERE airframe_id = ?", aid) == 1
+
+
+def two_flights(tmp_path: Path, arming_logged: bool = True) -> Path:
+    """One log, two flights: LOG_DISARMED 0 without LOG_FILE_DSRMROT, so the file stays
+    open between them. The roll rate gain was changed in between, logged while disarmed.
+    Without `arming_logged`, the second arming left no record, as when LOG_FILE_DSRMROT
+    is switched on between the flights."""
+    b = LogBuilder()
+    b.fmt(0x90, "VER", "QBBBIZ", "TimeUS,Maj,Min,Pat,GH,FWS")
+    b.fmt(0x91, "PARM", "QNff", "TimeUS,Name,Value,Default")
+    b.fmt(0x92, "ARM", "QB", "TimeUS,ArmState")
+    b.fmt(0x93, "EV", "QB", "TimeUS,Id")
+    b.fmt(0x9A, "ATT", "Qff", "TimeUS,Roll,Pitch")
+    b.write("VER", 1_000_000, 4, 7, 2, 0xFB773567, b"ArduCopter V4.7.2")
+    for name, value in (("LOG_DISARMED", 0.0), ("LOG_FILE_DSRMROT", 0.0), ("ATC_RAT_RLL_P", 0.135)):
+        b.write("PARM", 1_000_000, name.encode(), value, value)
+
+    def streaming(start: int, end: int) -> None:
+        for t in range(start, end, 20_000):
+            b.write("ATT", t, 0.0, 0.0)
+
+    streaming(1_000_000, 30_000_000)
+    b.write("ARM", 30_000_000, 0)
+    b.write("EV", 30_000_000, 11)
+    streaming(30_000_000, 45_000_000)  # logging carries on for a while after disarming
+    b.write("PARM", 60_000_000, b"ATC_RAT_RLL_P", 0.15, 0.135)
+    if arming_logged:
+        b.write("ARM", 80_000_000, 1)
+        b.write("EV", 80_000_000, 10)
+    streaming(80_000_000, 120_000_000)
+    b.write("ARM", 120_000_000, 0)
+    b.write("EV", 120_000_000, 11)
+    path = tmp_path / "two.bin"
+    path.write_bytes(b.bytes())
+    return path
+
+
+@pytest.mark.parametrize("arming_logged", [True, False])
+def test_each_flight_of_a_log_has_the_parameters_it_armed_with(
+    tmp_path: Path, pack: Pack, store: Store, cache: ColumnCache, arming_logged: bool
+) -> None:
+    aid = airframe(store, pack)
+    path = two_flights(tmp_path, arming_logged)
+    _, _, (r,) = run(store, pack, cache, [path], {"f1": {"airframe_id": aid}})
+    assert r.status == "imported" and len(r.flights) == 2
+    first, second = (store.get("flight", f) for f in r.flights)
+    assert first is not None and second is not None and second["arm_us"] == 80_000_000
+    before = load_snapshot(store, first["param_snapshot_id"])
+    after = load_snapshot(store, second["param_snapshot_id"])
+    assert before.values["ATC_RAT_RLL_P"] == pytest.approx(0.135)
+    assert [(c.name, c.new) for c in before.changes] == [("ATC_RAT_RLL_P", pytest.approx(0.15))]
+    assert after.values["ATC_RAT_RLL_P"] == pytest.approx(0.15) and not after.changes
+    # what changed between them is the second flight's change set
+    sql = "SELECT count(*) FROM change_set WHERE before_flight_id = ? AND after_flight_id = ?"
+    assert count(store, sql, first["id"], second["id"]) == 1
+    # the file grows no new flight when imported again
+    _, _, (again,) = run(store, pack, cache, [path], {"f1": {"airframe_id": aid}})
+    assert again.status == "duplicate"
 
 
 def test_an_older_log_is_compared_with_the_flight_before_it(

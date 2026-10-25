@@ -90,5 +90,34 @@
       "generator": "knowledge/tools/build_log_messages.py",
       "file": "logs/4.7.2.json.gz"
     }
+  },
+  "gates": {
+    "4.7.0": {
+      "ardupilot_commit": "1511f27194f1dcc3728270883047bdf022b3fd53",
+      "generator": "knowledge/tools/build_param_gates.py",
+      "file": "params/4.7.0/gates.json.gz",
+      "counts": {
+        "copter": 3313,
+        "plane": 3345
+      }
+    },
+    "4.7.1": {
+      "ardupilot_commit": "dbe792162d06cab66c3475fd5556bf7a120f119e",
+      "generator": "knowledge/tools/build_param_gates.py",
+      "file": "params/4.7.1/gates.json.gz",
+      "counts": {
+        "copter": 3313,
+        "plane": 3345
+      }
+    },
+    "4.7.2": {
+      "ardupilot_commit": "fb773567896014da007bca58358704d4a0d8516f",
+      "generator": "knowledge/tools/build_param_gates.py",
+      "file": "params/4.7.2/gates.json.gz",
+      "counts": {
+        "copter": 3313,
+        "plane": 3345
+      }
+    }
   }
 }

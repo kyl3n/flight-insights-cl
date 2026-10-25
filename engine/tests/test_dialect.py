@@ -143,3 +143,49 @@ def test_class_rules_are_well_formed(pack: Pack) -> None:
         assert r.get("why"), r
         for pattern in r.get("names", []):
             assert fnmatch.translate(pattern)
+
+
+# --- gates: what switches a parameter into view ---------------------------------------------
+
+
+def test_every_release_has_a_gates_table_of_real_parameters(pack: Pack) -> None:
+    for version in pack.versions:
+        for vehicle in ("copter", "plane"):
+            gates = pack.gates(version, vehicle)
+            meta = pack.metadata(version, vehicle)
+            assert len(gates) > 3000
+            assert all(name in meta and g["gate"] in meta for name, g in gates.items())
+            assert {g["after"] for g in gates.values()} == {"refresh", "reboot"}
+
+
+@pytest.mark.parametrize(
+    ("name", "gate", "after"),
+    [
+        ("INS_HNTCH_FREQ", "INS_HNTCH_ENABLE", "refresh"),  # AP_PARAM_FLAG_ENABLE
+        ("INS_HNTC3_BW", "INS_HNTC3_ENABLE", "refresh"),
+        ("FFT_MINHZ", "FFT_ENABLE", "refresh"),
+        ("BATT2_LOW_VOLT", "BATT2_MONITOR", "refresh"),
+        ("BATT2_AMP_PERVLT", "BATT2_MONITOR", "reboot"),  # the analog backend's own
+        ("RNGFND1_MAX", "RNGFND1_TYPE", "refresh"),
+        ("ARSPD_PIN", "ARSPD_TYPE", "refresh"),  # behind ARSPD_TYPE, itself behind ENABLE
+        ("ARSPD_TYPE", "ARSPD_ENABLE", "refresh"),
+    ],
+)
+def test_gates_are_read_from_the_source(pack: Pack, name: str, gate: str, after: str) -> None:
+    assert Dialect(pack, "copter", "4.7.0").gate(name) == (gate, after)
+
+
+def test_always_visible_parameters_have_no_gate(pack: Pack) -> None:
+    dialect = Dialect(pack, "copter", "4.7.0")
+    for name in ("INS_HNTCH_ENABLE", "ATC_RAT_RLL_P", "MOT_PWM_TYPE", "LOG_BITMASK"):
+        assert dialect.gate(name) is None
+
+
+@pytest.mark.parametrize("log", FIXTURE_LOGS, ids=lambda p: str(p.relative_to(FIXTURES)))
+def test_no_logged_parameter_sits_behind_a_gate_that_is_off(pack: Pack, log: Path) -> None:
+    # The firmware leaves hidden parameters out of the log (AP_Param::next_scalar), so a
+    # logged parameter whose gate is 0 would mean the table is wrong.
+    params = logged_params(log)
+    gates = pack.gates(log.parent.name, vehicle_of(log))  # type: ignore[arg-type]
+    wrong = [name for name in params if name in gates and params.get(gates[name]["gate"], 1) == 0]
+    assert wrong == []

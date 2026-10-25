@@ -113,5 +113,36 @@
       "copter": "ArduCopter/defines.h MASK_LOG_FTN_FAST (1<<21) and AP::ins().write_notch_log_messages() in ArduCopter/Copter.cpp and rate_thread.cpp, at Copter-4.7.0 (1511f27)",
       "plane": "ArduPlane/defines.h MASK_LOG_NOTCH_FULLRATE (1<<22) and ArduPlane/Log.cpp, at Plane-4.7.0"
     }
+  },
+  "rate_limit": {
+    "about": "LOG_FILE_RATEMAX and LOG_BLK_RATEMAX cap every streaming message of their backend at that many a second; 0 turns the cap off. Streaming messages are those whose log structure is marked so, or written with WriteStreaming: raw IMU (GYR, ACC), IMU, VIBE, RATE, ATT, PIDR/P/Y, ESC, RCOU, MOTB, CTUN, BAT, and the notch inputs FTN and FTNS. The rate, attitude and PID messages are logged every loop, raw IMU at the gyro rate, so a cap below either thins the data the analyzers need.",
+    "source": "libraries/AP_Logger/AP_Logger_Backend.cpp AP_Logger_RateLimiter::should_log and LogStructure streaming flags; LOG_*_RATEMAX in libraries/AP_Logger/AP_Logger.cpp (default 0), at 4.7.0",
+    "backends": [
+      {"bit": 0, "param": "LOG_FILE_RATEMAX"},
+      {"bit": 2, "param": "LOG_BLK_RATEMAX"}
+    ],
+    "backend_default": 1,
+    "loop_rate_default": 400,
+    "raw_gyro_hz": 1000,
+    "messages": ["GYR", "IMU", "RATE", "ATT", "PIDR", "PIDP", "PIDY", "VIBE", "ESC", "RCOU", "MOTB", "FTN", "FTNS"]
+  },
+  "buffer": {
+    "about": "A logger that drops messages may keep up with a bigger write buffer (LOG_FILE_BUFSIZE, KiB, 4 to 200; read at start-up). The app raises it by at most step_kib, only while the flight's lowest free memory (PM.Mem) leaves keep_free_kib to spare. App rules, uncalibrated.",
+    "max_kib": 200,
+    "step_kib": 64,
+    "min_step_kib": 8,
+    "keep_free_kib": 32
+  },
+  "filter_settings": {
+    "about": "What a filter check depends on: once a flight of the airframe has been checked with raw gyro data, the raw-gyro and fast-notch diagnostics are not proposed again while these parameters and the airframe's build stay the same. Learned values (MOT_THST_HOVER) are left out: they change on every flight.",
+    "names": [
+      "INS_HNTCH_*", "INS_HNTC2_*", "INS_HNTC3_*", "INS_HNTC4_*", "INS_GYRO_FILTER",
+      "INS_GYRO_RATE", "INS_FAST_SAMPLE", "SCHED_LOOP_RATE", "FSTRATE_*", "FFT_*",
+      "MOT_PWM_TYPE", "SERVO_BLH_BDMASK", "SERVO_BLH_POLES", "SERVO_FTW_POLES", "ESC_HW_POLES",
+      "SERVO_DSHOT_RATE"
+    ],
+    "diagnostics": [
+      "logging.no_prefilter_gyro", "logging.no_postfilter_gyro", "logging.notch_inputs_not_logged"
+    ]
   }
 }

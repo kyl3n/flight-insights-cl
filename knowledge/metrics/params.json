@@ -143,6 +143,182 @@
         "en": "Nothing is wrong with a changed value. Record why each was changed, such as a loaded file or a tuning session, so later changes can be traced.",
         "uk": "Змінене значення саме по собі не помилка. Зафіксуйте, чому кожне змінили, наприклад завантажений файл чи сеанс налаштування, щоб наступні зміни можна було відстежити."
       }
+    },
+    "params.other_battery_warn_only": {
+      "stage": "operations",
+      "title": {
+        "en": "Battery monitor {monitor} has a {level} threshold but its failsafe only warns ({param} 0)",
+        "uk": "Монітор батареї {monitor} має поріг ({level}), але його аварійний режим лише попереджає ({param} 0)"
+      },
+      "action": {
+        "en": "If this monitor watches a battery the aircraft flies on, give {param} an action such as RTL or Land. If it only reports (a sum, an avionics battery), clear its thresholds so a warning from it means something.",
+        "uk": "Якщо цей монітор стежить за батареєю, від якої летить апарат, задайте {param} дію на кшталт RTL чи Land. Якщо він лише показує дані (сума, батарея авіоніки), очистьте його пороги, щоб його попередження щось означало."
+      }
+    },
+    "params.battery_capacity": {
+      "stage": "operations",
+      "title": {
+        "en": "BATT_CAPACITY is {value} mAh, but the platform's pack holds {capacity} mAh",
+        "uk": "BATT_CAPACITY дорівнює {value} мА·год, але батарея платформи має {capacity} мА·год"
+      },
+      "action": {
+        "en": "Set it to the pack's capacity: the remaining percentage, the mAh failsafes and the arming check all count from it.",
+        "uk": "Встановіть ємність батареї: від неї рахуються залишок у відсотках, аварійні режими за мА·год і перевірка перед зведенням."
+      }
+    },
+    "params.battery_arm_unchecked": {
+      "stage": "operations",
+      "title": {
+        "en": "Arming never checks the pack's charge (BATT_ARM_VOLT and BATT_ARM_MAH are 0)",
+        "uk": "Перед зведенням заряд батареї не перевіряється (BATT_ARM_VOLT і BATT_ARM_MAH дорівнюють 0)"
+      },
+      "action": {
+        "en": "Set BATT_ARM_VOLT to the resting voltage of the emptiest pack you would still take off with, comfortably above the low-battery threshold, so a half-used pack cannot be flown by mistake. BATT_ARM_MAH alone is not enough: a reboot resets the remaining estimate.",
+        "uk": "Встановіть BATT_ARM_VOLT як напругу спокою найбільш розрядженої батареї, з якою ви ще злетіли б, з запасом над порогом низького заряду, щоб напіврозряджену батарею не можна було помилково використати. Лише BATT_ARM_MAH недостатньо: перезавантаження скидає оцінку залишку."
+      }
+    },
+    "params.power_module_uncalibrated": {
+      "stage": "operations",
+      "title": {
+        "en": "The power module was never calibrated: battery voltage, current and mAh may all be off",
+        "uk": "Модуль живлення не калібрували: напруга, струм і мА·год батареї можуть бути неточними"
+      },
+      "action": {
+        "en": "Calibrate it against a multimeter and the charger: every battery failsafe, the remaining capacity and the power analysis rely on these readings.",
+        "uk": "Відкалібруйте його за мультиметром і зарядним пристроєм: на цих вимірюваннях ґрунтуються всі аварійні режими батареї, залишок ємності та аналіз живлення."
+      }
+    },
+    "params.battery_no_low": {
+      "stage": "operations",
+      "title": {
+        "en": "There is no low-battery failsafe: BATT_LOW_VOLT and BATT_LOW_MAH are both 0",
+        "uk": "Немає аварійного режиму низького заряду: BATT_LOW_VOLT і BATT_LOW_MAH обидва 0"
+      },
+      "action": {
+        "en": "Set a low threshold with an action such as RTL, so the aircraft comes home while it still has the energy to. The proposed voltage is Mission Planner's starting value for this pack (0.3 V a cell above empty); check it leaves enough for the trip home at the heaviest payload.",
+        "uk": "Встановіть низький поріг із дією на кшталт RTL, щоб апарат повертався, поки ще має на це енергію. Запропонована напруга — стартове значення Mission Planner для цієї батареї (0.3 В на елемент вище за розряджену); перевірте, що її вистачає на повернення з найважчим вантажем."
+      }
+    },
+    "params.vibe_failsafe_off": {
+      "stage": "operations",
+      "title": {
+        "en": "The vibration failsafe is off (FS_VIBE_ENABLE 0)",
+        "uk": "Аварійний режим вібрації вимкнено (FS_VIBE_ENABLE 0)"
+      },
+      "action": {
+        "en": "Turn it back on: under heavy vibration it switches to an altitude estimate and control that cope with clipping accelerometers, instead of climbing away.",
+        "uk": "Увімкніть його знову: за сильної вібрації він перемикає на оцінку й керування висотою, що витримують обмеження акселерометрів, замість некерованого набору висоти."
+      }
+    },
+    "params.dead_reckoning_failsafe_off": {
+      "stage": "operations",
+      "title": {
+        "en": "Losing the position source does nothing (FS_DR_ENABLE 0)",
+        "uk": "Втрата джерела позиції нічого не викликає (FS_DR_ENABLE 0)"
+      },
+      "action": {
+        "en": "Choose an action for dead reckoning, such as RTL: when the estimator loses its position and velocity source it flies on wind estimates alone for a short time, and the aircraft should head home or land while it still can.",
+        "uk": "Оберіть дію для навігації за рахунком, наприклад RTL: коли оцінювач втрачає джерело позиції й швидкості, він недовго летить лише на оцінках вітру, і апарат має повертатися чи сідати, поки може."
+      }
+    },
+    "params.ekf_failsafe_off": {
+      "stage": "operations",
+      "title": {
+        "en": "The EKF failsafe and its arming check are off (FS_EKF_THRESH 0)",
+        "uk": "Аварійний режим EKF і його перевірку перед зведенням вимкнено (FS_EKF_THRESH 0)"
+      },
+      "action": {
+        "en": "Set the variance threshold back to its default (0.8): with it at 0 a failing position estimate neither stops arming nor triggers the failsafe.",
+        "uk": "Поверніть поріг дисперсії до типового (0.8): при 0 неправильна оцінка позиції не заважає зведенню й не запускає аварійний режим."
+      }
+    },
+    "params.gcs_failsafe_off": {
+      "stage": "operations",
+      "title": {
+        "en": "The aircraft is flown from the ground station alone, but losing that link does nothing (FS_GCS_ENABLE 0)",
+        "uk": "Апарат керується лише з наземної станції, але втрата цього зв'язку нічого не викликає (FS_GCS_ENABLE 0)"
+      },
+      "action": {
+        "en": "RC_OPTIONS ignores the receiver, so the telemetry link is the only control link. Set FS_GCS_ENABLE to an action such as RTL, and check FS_GCS_TIMEOUT suits the link.",
+        "uk": "RC_OPTIONS ігнорує приймач, тож канал телеметрії — єдиний канал керування. Встановіть FS_GCS_ENABLE на дію на кшталт RTL і перевірте, що FS_GCS_TIMEOUT підходить для цього зв'язку."
+      }
+    },
+    "params.arming_checks_skipped": {
+      "stage": "operations",
+      "title": {
+        "en": "Arming skips these checks: {checks}",
+        "uk": "Перед зведенням пропускаються ці перевірки: {checks}"
+      },
+      "action": {
+        "en": "Each skipped check hides a problem it would have caught. Clear ARMING_SKIPCHK and fix whatever made a check fail at its cause instead (for example, no safety switch fitted: BRD_SAFETY_DEFLT 0).",
+        "uk": "Кожна пропущена перевірка приховує проблему, яку вона виявила б. Очистьте ARMING_SKIPCHK і усуньте причину, через яку перевірка не проходила (наприклад, немає перемикача безпеки: BRD_SAFETY_DEFLT 0)."
+      }
+    },
+    "params.tuning_starting_values": {
+      "stage": "setup",
+      "title": {
+        "en": "{count} settings are still the firmware's defaults: starting values for {prop} inch propellers",
+        "uk": "{count} параметрів досі стандартні: стартові значення для пропелерів {prop} дюймів"
+      },
+      "action": {
+        "en": "Before the first tune, set the filters, acceleration limits and thrust curve for this propeller size, from ArduPilot's tuning guide and Mission Planner's Initial Parameter Setup. Only values still at their defaults are offered, acceleration limits are only ever lowered, and the gyro low-pass comes from the measured spectrum wherever the log has one. A thrust stand gives a better MOT_THST_EXPO than any rule of thumb.",
+        "uk": "Перед першим налаштуванням встановіть фільтри, межі прискорень і криву тяги для цього розміру пропелерів за посібником ArduPilot і початковими параметрами Mission Planner. Пропонуються лише значення, що досі стандартні, межі прискорень лише знижуються, а фільтр низьких частот гіроскопа береться з виміряного спектра, де журнал його містить. Стенд тяги дає кращий MOT_THST_EXPO, ніж будь-яке емпіричне правило."
+      }
+    },
+    "params.second_gnss_unset": {
+      "stage": "navigation",
+      "title": {
+        "en": "The aircraft carries two GNSS receivers, but the second is not set up (GPS2_TYPE 0)",
+        "uk": "Апарат має два приймачі GNSS, але другий не налаштовано (GPS2_TYPE 0)"
+      },
+      "action": {
+        "en": "Set GPS2_TYPE to the receiver's type (AUTO for most serial receivers, DroneCAN for CAN ones) and give its serial port the GPS protocol, so ArduPilot can switch to the better receiver (GPS_AUTO_SWITCH) when one degrades.",
+        "uk": "Встановіть GPS2_TYPE відповідно до типу приймача (AUTO для більшості послідовних, DroneCAN для CAN) і задайте його послідовному порту протокол GPS, щоб ArduPilot міг перемикатися на кращий приймач (GPS_AUTO_SWITCH), коли один погіршується."
+      }
+    },
+    "params.compassmot_not_done": {
+      "stage": "navigation",
+      "title": {
+        "en": "The compass is on the flight controller and its interference from the power wiring was never measured",
+        "uk": "Компас на польотному контролері, а завади від силової проводки не вимірювали"
+      },
+      "action": {
+        "en": "Run CompassMot to measure and compensate the interference from the power wires, ESCs and motors. Under 30% is acceptable, 31-60% may be; above 60%, move the flight controller away from the power wiring or fit an external compass.",
+        "uk": "Запустіть CompassMot, щоб виміряти й компенсувати завади від силових проводів, ESC і моторів. До 30% прийнятно, 31-60% може бути прийнятно; понад 60% — відсуньте польотний контролер від силової проводки або встановіть зовнішній компас."
+      }
+    },
+    "params.no_gnss_fallback": {
+      "stage": "navigation",
+      "title": {
+        "en": "The aircraft flies without GNSS, but no second position source is set (EK3_SRC2_*)",
+        "uk": "Апарат літає без GNSS, але другого джерела позиції не задано (EK3_SRC2_*)"
+      },
+      "action": {
+        "en": "Configure EKF source set 2 for the non-GNSS sensor fitted (optical flow, visual odometry or beacons, from that sensor's setup page), with a switch to change sets (RCn_OPTION 90), and test the switch on the bench before flying.",
+        "uk": "Налаштуйте набір джерел EKF 2 для встановленого датчика без GNSS (оптичний потік, візуальна одометрія чи маяки, за сторінкою налаштування цього датчика) з перемикачем наборів (RCn_OPTION 90) і перевірте перемикання на стенді перед польотом."
+      }
+    },
+    "params.fence_off": {
+      "stage": "operations",
+      "title": {
+        "en": "The geofence is off (FENCE_ENABLE 0)",
+        "uk": "Геозону вимкнено (FENCE_ENABLE 0)"
+      },
+      "action": {
+        "en": "Set a fence for the flying site: a maximum altitude and a circle around home at least (FENCE_TYPE, FENCE_ALT_MAX, FENCE_RADIUS), with an action such as RTL or Land, so a flyaway or a mistake stops at the boundary.",
+        "uk": "Задайте геозону для місця польотів: щонайменше максимальну висоту й коло навколо точки старту (FENCE_TYPE, FENCE_ALT_MAX, FENCE_RADIUS) з дією на кшталт RTL чи Land, щоб некерований політ або помилка зупинялися на межі."
+      }
+    },
+    "params.undefined_bits": {
+      "stage": "setup",
+      "title": {
+        "en": "Bitmasks set bits firmware {firmware} does not define: {names}",
+        "uk": "Бітові маски вмикають біти, яких прошивка {firmware} не визначає: {names}"
+      },
+      "action": {
+        "en": "The firmware ignores these bits, so they change nothing; often a mask set to 'everything' or carried over from another version. Clearing them keeps the setting honest about what it does.",
+        "uk": "Прошивка ігнорує ці біти, тож вони нічого не змінюють; часто це маска «усе» або перенесена з іншої версії. Їх очищення робить налаштування чесним щодо того, що воно робить."
+      }
     }
   }
 }

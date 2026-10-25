@@ -3,7 +3,7 @@
 // and ConfigReview). The engine decides stages, conflicts and validity; the views
 // only show them and send a person's decisions back.
 
-import type { Locale } from "./i18n";
+import type { MessageKey } from "./i18n";
 import { STAGES, type Severity, type Text } from "./report";
 
 export type RecStatus = "next" | "waiting" | "blocked" | "disputed";
@@ -26,6 +26,17 @@ export interface RecSource {
   origin?: "measured" | "ai";
 }
 
+/** One step of a procedure, in the order a person does it. */
+export interface ProcedureStep {
+  kind:
+    | "task" | "hardware" | "firmware" | "set" | "refresh" | "reboot_refresh" | "reboot"
+    | "temporary" | "ground_check" | "fly" | "abort" | "verify" | "revert" | "undo";
+  text: Text;
+  params: string[]; // the firmware's own names it loads or names
+  step: number | null; // the plan's file, for "set"
+  checks: Record<string, unknown>[]; // what the app tests on the next flight
+}
+
 export interface PlanRec {
   param: string | null; // the firmware's own name; null for an action
   canonical: string | null;
@@ -44,7 +55,10 @@ export interface PlanRec {
   risk: string;
   requires: string[];
   reboot: boolean;
+  temporary?: boolean; // for the test flight only
+  revert?: number | null; // what a test-flight setting goes back to, the firmware's units
   verify: Text | null;
+  procedure?: ProcedureStep[];
   source: string;
   sources: RecSource[];
   notes: Note[];
@@ -60,7 +74,9 @@ export interface Plan {
   firmware: string;
   stage: string | null;
   recommendations: PlanRec[];
-  steps: { number: number; params: string[]; after: "refresh" | "reboot" | "fly" }[];
+  steps: { number: number; params: string[]; after: "refresh" | "reboot_refresh" | "reboot" | "fly" }[];
+  session?: ProcedureStep[]; // everything on offer, as one procedure
+  held_back?: { code: string; flight: string; text: Text }[]; // diagnostics not proposed again
 }
 
 export interface HistoryRow {
@@ -71,7 +87,13 @@ export interface HistoryRow {
   flight_id: string | null;
   graded_flight_id: string | null;
   updated_hlc: string;
-  detail: { why?: Text; code?: string; param?: string | null; proposed?: number | null };
+  detail: {
+    why?: Text;
+    code?: string;
+    param?: string | null;
+    proposed?: number | null;
+    grade?: { checks?: (Record<string, unknown> & { passed: boolean | null })[] };
+  };
 }
 
 export type StageState = "clear" | "now" | "later";
@@ -136,13 +158,59 @@ export function decisionCounts(plan: Plan): { accepted: number; open: number } {
   };
 }
 
-/** What the test flight checks: each stage's verification once, and every action a
- * person must do first. */
-export function testCard(plan: Plan, locale: Locale): { first: string[]; checks: string[] } {
-  const now = plan.recommendations.filter((r) => r.status === "next");
-  const first = now.filter((r) => r.param === null).map((r) => r.why[locale]);
-  const checks = [...new Set(now.flatMap((r) => (r.verify ? [r.verify[locale]] : [])))];
-  return { first, checks };
+/** Steps a person ticks off as they go: work on the aircraft and on the bench, and
+ * the files they load. What to fly and check is read, not ticked. */
+const TICKED = new Set<ProcedureStep["kind"]>([
+  "task", "hardware", "firmware", "set", "refresh", "reboot_refresh", "reboot",
+  "temporary", "ground_check", "revert",
+]);
+
+export function tickable(step: ProcedureStep): boolean {
+  return TICKED.has(step.kind);
+}
+
+/** A step's label: what kind of step it is, in a few words. */
+export function stepLabel(kind: ProcedureStep["kind"]): MessageKey {
+  return `step.${kind}` as MessageKey;
+}
+
+/** The checks the next flight ran for a graded recommendation: how many passed, of
+ * those it could judge; null when it ran none. */
+export function checksPassed(row: HistoryRow): { passed: number; total: number } | null {
+  const judged = (row.detail.grade?.checks ?? []).filter((c) => c.passed !== null);
+  if (!judged.length) return null;
+  return { passed: judged.filter((c) => c.passed).length, total: judged.length };
+}
+
+/** Whether any accepted change is for the test flight only, so a revert file exists. */
+export function hasRevert(plan: Plan): boolean {
+  return plan.recommendations.some(
+    (r) => r.status === "next" && r.record_status === "accepted" && r.revert !== null && r.revert !== undefined,
+  );
+}
+
+/** Ticked steps of a session card, kept on this laptop only. Storage can be missing or
+ * refuse (private windows, previews); the card then simply starts unticked. */
+export function loadTicks(key: string, store: Pick<Storage, "getItem"> | undefined = globalThis.localStorage): Set<number> {
+  try {
+    const raw = store?.getItem(key);
+    const parsed: unknown = raw ? JSON.parse(raw) : [];
+    return new Set(Array.isArray(parsed) ? parsed.filter((n): n is number => typeof n === "number") : []);
+  } catch {
+    return new Set();
+  }
+}
+
+export function saveTicks(
+  key: string,
+  ticks: Set<number>,
+  store: Pick<Storage, "setItem"> | undefined = globalThis.localStorage,
+): void {
+  try {
+    store?.setItem(key, JSON.stringify([...ticks].sort((a, b) => a - b)));
+  } catch {
+    // ticks are a convenience; nothing depends on them being kept
+  }
 }
 
 /** The plan's recommendation that carries a finding, if any (for "Add to plan"). */

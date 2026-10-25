@@ -20,6 +20,7 @@ from flight_insights.platforms.schema import load_schema
 from flight_insights.recommend import (
     RecommendationConflict,
     RecommendationError,
+    flight_plan,
     grade_flight,
     history,
     plan_and_record,
@@ -181,3 +182,110 @@ def test_a_new_value_supersedes_an_untouched_proposal(fleet: Fleet) -> None:
     assert ("LOG_FILE_DSRMROT", "accepted") in rows  # a person's decision is never overridden
     old = fleet.store.get("recommendation", learn["id"])
     assert old is not None and '"superseded_by_flight"' in old["detail_json"]
+
+
+# --- procedures on the next flight ---------------------------------------------------------
+
+NOTCH = {  # the earlier flight's plan: its notch onto ESC RPM
+    "INS_HNTCH_BW": 70.0, "INS_HNTCH_FREQ": 140.0, "INS_HNTCH_MODE": 3.0,
+    "INS_HNTCH_OPTS": 32.0, "INS_HNTCH_REF": 1.0,
+}  # fmt: skip
+TEST_LOGGING = 180222 | 1 << 19 | 1 << 21  # raw IMU and fast notch logging, for the test flight
+
+
+def without(f: Fleet, *codes: str) -> dict[str, Any]:
+    """The later flight's real analysis, with these findings cleared."""
+    out = run_analysis(f.store, f.cache, f.pack, f.later, force=True)
+    out["findings"] = [x for x in out["findings"] if x["code"] not in codes]
+    return out
+
+
+def messages(f: Fleet) -> list[str]:
+    row = f.store.get("flight", f.later)
+    assert row is not None
+    return f.cache.names(row["flight_key"])
+
+
+def statuses(f: Fleet) -> dict[str, str]:
+    return {h["param"]: h["status"] for h in history(f.store, f.airframe) if h["param"]}
+
+
+def test_a_confirmed_filter_test_brings_the_revert_of_its_logging(fleet: Fleet) -> None:
+    earlier = plan_and_record(fleet.store, fleet.cache, fleet.pack, fleet.earlier)
+    assert rec(earlier, "LOG_BITMASK")["temporary"]
+    fly_with(fleet, fleet.later, **NOTCH, LOG_BITMASK=float(TEST_LOGGING))
+    analysis = without(fleet, "filter.better_source", "logging.notch_inputs_not_logged")
+    grade_flight(fleet.store, fleet.pack, fleet.later, analysis, messages(fleet))
+    assert statuses(fleet)["INS_HNTCH_MODE"] == statuses(fleet)["LOG_BITMASK"] == "confirmed"
+    [mode] = [h for h in history(fleet.store, fleet.airframe) if h["param"] == "INS_HNTCH_MODE"]
+    assert {"check": "has_message", "message": "GYR", "passed": True} in mode["detail"]["grade"][
+        "checks"
+    ]
+    plan = flight_plan(fleet.store, fleet.cache, fleet.pack, fleet.later, analysis)
+    [revert] = [r for r in plan.recommendations if r.param == "LOG_BITMASK"]
+    assert revert.lead.code == "followup.revert_test_settings"
+    assert revert.proposed == 180222.0  # only the test flight's bits come out
+
+
+def test_the_revert_follows_when_a_later_plan_replaced_the_lasting_changes(
+    fleet: Fleet,
+) -> None:
+    # A plan waits on an earlier stage; the next plan, after another flight, proposes the
+    # same test-flight logging (it keeps its first record) but other notch values (new
+    # records, the old ones superseded). The test flight confirms the new ones.
+    earlier = plan_and_record(fleet.store, fleet.cache, fleet.pack, fleet.earlier)
+    again: dict[str, Any] = copy.deepcopy(earlier)
+    for r in again["recommendations"]:
+        if r["canonical"] in NOTCH and r["canonical"] != "INS_HNTCH_MODE":
+            r["proposed_canonical"] = float(r["proposed_canonical"]) + 5.0
+    record_plan(fleet.store, again)
+    replaced = {
+        h["param"]: h["proposed_value"]
+        for h in history(fleet.store, fleet.airframe)
+        if h["param"] in NOTCH and h["status"] == "proposed"
+    }
+    assert set(replaced) == set(NOTCH)
+    fly_with(fleet, fleet.later, **replaced, LOG_BITMASK=float(TEST_LOGGING))
+    analysis = without(fleet, "filter.better_source", "logging.notch_inputs_not_logged")
+    grade_flight(fleet.store, fleet.pack, fleet.later, analysis, messages(fleet))
+    assert statuses(fleet)["LOG_BITMASK"] == "confirmed"
+    plan = flight_plan(fleet.store, fleet.cache, fleet.pack, fleet.later, analysis)
+    [revert] = [r for r in plan.recommendations if r.param == "LOG_BITMASK"]
+    assert revert.lead.code == "followup.revert_test_settings"
+
+
+def test_a_check_that_fails_makes_a_cleared_finding_no_effect(fleet: Fleet) -> None:
+    plan_and_record(fleet.store, fleet.cache, fleet.pack, fleet.earlier)
+    fly_with(fleet, fleet.later, **NOTCH, LOG_BITMASK=float(TEST_LOGGING))
+    analysis = without(fleet, "filter.better_source", "logging.notch_inputs_not_logged")
+    grade_flight(fleet.store, fleet.pack, fleet.later, analysis, messages=[])  # no GYR logged
+    assert statuses(fleet)["INS_HNTCH_MODE"] == "no effect"
+    plan = flight_plan(fleet.store, fleet.cache, fleet.pack, fleet.later, analysis)
+    assert not [r for r in plan.recommendations if r.lead.code == "followup.revert_test_settings"]
+
+
+def test_a_filter_diagnostic_is_not_proposed_again_while_nothing_changed(fleet: Fleet) -> None:
+    run_analysis(fleet.store, fleet.cache, fleet.pack, fleet.earlier)  # checked with raw gyro
+    analysis = run_analysis(fleet.store, fleet.cache, fleet.pack, fleet.later)
+    analysis["findings"] = [
+        *analysis["findings"],
+        {
+            "id": "diag", "analyzer": "logging", "code": "logging.no_prefilter_gyro",
+            "severity": "caution", "confidence": "high", "params": {"proposed": 9},
+            "evidence": ["log:gyro"], "stage": "evidence",
+            "changes": [{"param": "INS_RAW_LOG_OPT", "current": 0, "proposed": 9.0,
+                         "stage": "evidence"}],
+        },
+    ]  # fmt: skip
+    plan = flight_plan(fleet.store, fleet.cache, fleet.pack, fleet.later, analysis)
+    assert {"code": "logging.no_prefilter_gyro", "flight": fleet.earlier} in plan.held_back
+
+    def proposed(plan: Any) -> bool:
+        return any(
+            s.code == "logging.no_prefilter_gyro" for r in plan.recommendations for s in r.sources
+        )
+
+    assert not proposed(plan)
+    fly_with(fleet, fleet.later, INS_HNTCH_BW=60.0)  # a filter setting changed since
+    plan = flight_plan(fleet.store, fleet.cache, fleet.pack, fleet.later, analysis)
+    assert not plan.held_back and proposed(plan)

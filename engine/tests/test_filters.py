@@ -178,6 +178,51 @@ def test_a_tracked_tone_is_removed_as_the_firmware_would() -> None:
     assert 20 * math.log10(rms_out / rms_in) < -25  # the notch follows the tone down
 
 
+def fixed_set(prefix: str, freq: float) -> dict[str, float]:
+    return {
+        f"{prefix}ENABLE": 1, f"{prefix}MODE": 0, f"{prefix}FREQ": freq, f"{prefix}BW": 40,
+        f"{prefix}ATT": 40, f"{prefix}HMNCS": 1, f"{prefix}REF": 0, f"{prefix}OPTS": 0,
+        f"{prefix}FM_RAT": 1.0,
+    }  # fmt: skip
+
+
+def test_every_notch_set_the_board_has_is_modelled_in_the_firmware_order() -> None:
+    # 4.7.0 builds three sets on boards with more than 1 MB of flash, and the parameters
+    # describe four; each one the log has is part of the chain, applied in index order.
+    p = params(**fixed_set("INS_HNTCH_", 100), **fixed_set("INS_HNTC3_", 150))
+    p |= {k: float(v) for k, v in fixed_set("INS_HNTC4_", 210).items()}
+    c = chain(p, RATE, "H7", {}, 0, 1)
+    assert [s.notch.p.prefix for s in c.sets] == ["INS_HNTCH_", "INS_HNTC3_", "INS_HNTC4_"]
+    assert not c.missing
+
+
+def test_a_tone_under_the_third_set_is_removed_as_under_the_first() -> None:
+    t = np.arange(10_000) / RATE
+    x = np.column_stack([np.sin(2 * np.pi * 150.0 * t)] * 3)
+    times = (np.arange(len(t)) * 1000).astype(np.int64)
+    p = params(INS_HNTCH_ENABLE=0) | {k: float(v) for k, v in fixed_set("INS_HNTC3_", 150).items()}
+    out = simulate(
+        chain(p, RATE, "H7", {}, 0, int(times[-1])), Run(0, int(times[-1]), RATE, x, times)
+    )
+    rms_in, rms_out = np.sqrt((x[2000:] ** 2).mean()), np.sqrt((out.samples[2000:] ** 2).mean())
+    assert 20 * math.log10(rms_out / rms_in) < -25
+
+
+def test_logged_notch_inputs_belong_to_their_own_set() -> None:
+    # FTNS rows carry the set's index (I): the third set's rows drive the third set only.
+    times = [k * 5_000 for k in range(40)]
+    ftns = table(
+        [t for t in times for _ in (0, 2)],
+        {
+            "I": (pa.uint8(), [i for _ in times for i in (0, 2)]),
+            "NF": (pa.float32(), [f for _ in times for f in (100.0, 180.0)]),
+        },
+    )
+    third = logged_inputs({"FTNS": ftns}, 2, 5_000, 0, times[-1])
+    assert third is not None and set(third.freqs[:, 0].tolist()) == {180.0}
+    assert logged_inputs({"FTNS": ftns}, 3, 5_000, 0, times[-1]) is None
+
+
 # --- the model against the simulator's own post-filter data ---------------------------------------
 
 

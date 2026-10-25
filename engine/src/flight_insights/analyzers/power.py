@@ -8,7 +8,11 @@ From the battery monitor (BAT), the board's own supply (POWR) and ESC telemetry:
   ArduPilot estimates), and with real ESC telemetry the propulsion share, what is
   left for avionics and payload, and the loss in the wiring between battery and ESCs;
 - the battery's resistance and its sag under load;
-- hover throttle against ArduPilot's usual band;
+- hover throttle against ArduPilot's usual band, and against MOT_THST_HOVER where hover
+  learning is off;
+- the battery monitor against real ESC telemetry: more current into the ESCs than the
+  monitor reports, or a voltage apart from theirs while little current flows, means the
+  monitor needs calibrating;
 - the board's supply voltage: its lowest value and its dips under load.
 
 Hover power and battery resistance have no universal range: they are judged against
@@ -27,6 +31,7 @@ from flight_insights.analyzers.flight import FlightData
 from flight_insights.analyzers.model import (
     SEVERITY_OF_ZONE,
     Analyzer,
+    CandidateChange,
     Evidence,
     Finding,
     MetricValue,
@@ -38,6 +43,17 @@ from flight_insights.dataflash import si
 
 Floats = np.ndarray[tuple[int], np.dtype[np.float64]]
 STEADY_ENOUGH_S = 10.0
+# The battery monitor disagrees with ESC telemetry when the ESCs draw this much more
+# current than it reports (they cannot: the battery feeds them and the avionics), or
+# their voltage differs from its by this share while at most QUIET_SHARE of the hover
+# current flows (harness drop negligible). App rules, uncalibrated: ESC sensors have
+# errors of their own, so the finding asks for a calibration, never a guessed scale.
+ESC_CURRENT_OVER = 0.10
+VOLTAGE_APART = 0.03
+QUIET_SHARE = 0.2
+NEAR_US = 100_000  # ESC rows this close to a quiet battery row count as read with it
+# MOT_THST_HOVER counts as stale this far from the measured hover throttle.
+HOVER_STALE = 0.05
 
 
 def _times(t: pa.Table) -> np.ndarray[tuple[int], np.dtype[np.int64]]:
@@ -185,6 +201,74 @@ def _escs(
         MetricValue("power.avionics", kind, max(total_w - propulsion, 0.0), None, ev.id)
     )
     out.metrics.append(MetricValue("power.harness_loss", kind, harness, None, ev.id))
+    _monitor_vs_escs(flight, esc, sum(per_a), bat_a, ev, out)
+
+
+def _monitor_vs_escs(
+    flight: FlightData, esc: pa.Table, esc_a: float, bat_a: float, split: Evidence, out: Result
+) -> None:
+    """The battery monitor against what the ESCs report: in hover, current; while little
+    current flows, voltage."""
+    bat = flight.table("BAT")
+    assert bat is not None
+    t, et = _times(bat), _times(esc)
+    inst = (
+        np.asarray(bat.column("Inst").to_numpy(), np.int64)
+        if "Inst" in bat.column_names
+        else np.zeros(len(t), np.int64)
+    )
+    primary = inst == int(np.min(inst))
+    volt, curr = si.values(bat, "Volt"), si.values(bat, "Curr")
+    quiet = primary & (t >= flight.arm_us) & (t <= flight.disarm_us)
+    quiet &= curr <= QUIET_SHARE * bat_a
+    bat_v = esc_v = None
+    if quiet.sum() >= 5:
+        qt = np.sort(t[quiet])
+        # the ESC rows within NEAR_US of a quiet battery row
+        k = np.clip(np.searchsorted(qt, et), 1, len(qt) - 1)
+        gap = np.minimum(np.abs(et - qt[k - 1]), np.abs(et - qt[k]))
+        ev_volt = si.values(esc, "Volt")[gap <= NEAR_US]
+        ev_volt = ev_volt[ev_volt > 0]
+        if len(ev_volt):
+            bat_v, esc_v = float(np.median(volt[quiet])), float(np.median(ev_volt))
+    current_over = esc_a > (1 + ESC_CURRENT_OVER) * bat_a
+    voltage_apart = (
+        bat_v is not None and esc_v is not None and abs(bat_v - esc_v) > VOLTAGE_APART * esc_v
+    )
+    if not (current_over or voltage_apart):
+        return
+    ev = Evidence(
+        id="power:monitor",
+        kind="metric",
+        summary=(
+            (f"ESCs draw {esc_a:.1f} A in hover, the battery monitor reports {bat_a:.1f} A; "
+             if current_over else "")
+            + (f"at low current the battery monitor reads {bat_v:.2f} V, the ESCs {esc_v:.2f} V"
+               if voltage_apart and bat_v is not None and esc_v is not None else "")
+        ).strip("; "),
+        messages=("BAT", "ESC"),
+        fields=("Volt", "Curr"),
+        segment=split.segment,
+        values={
+            "esc_current_a": round(esc_a, 2), "battery_current_a": round(bat_a, 2),
+            "battery_voltage_v": None if bat_v is None else round(bat_v, 3),
+            "esc_voltage_v": None if esc_v is None else round(esc_v, 3),
+        },
+    )  # fmt: skip
+    out.evidence.append(ev)
+    out.findings.append(
+        Finding(
+            code="power.monitor_vs_escs",
+            severity="caution",
+            confidence="medium",
+            evidence=(ev, split),
+            params={
+                "what": " and ".join(
+                    w for w, on in (("current", current_over), ("voltage", voltage_apart)) if on
+                ),
+            },
+        )
+    )
 
 
 def _hover_throttle(flight: FlightData, reg: Registry, out: Result) -> None:
@@ -206,6 +290,22 @@ def _hover_throttle(flight: FlightData, reg: Registry, out: Result) -> None:
     )
     out.evidence.append(ev)
     out.metrics.append(MetricValue("power.hover_throttle", "hover", throttle, zone, ev.id))
+    learned = flight.params.get("MOT_THST_HOVER")
+    if (
+        flight.params.get("MOT_HOVER_LEARN") == 0
+        and learned is not None
+        and abs(learned - throttle) > HOVER_STALE
+    ):
+        out.findings.append(
+            Finding(
+                code="power.thst_hover_stale",
+                severity="caution",
+                confidence="high" if seconds >= STEADY_ENOUGH_S else "medium",
+                evidence=(ev,),
+                params={"value": round(learned, 3), "throttle": round(throttle, 3)},
+                changes=(CandidateChange("MOT_THST_HOVER", learned, round(throttle, 3), "setup"),),
+            )
+        )
     if zone in ("caution", "out"):
         out.findings.append(
             Finding(
@@ -275,7 +375,7 @@ def _power(flight: FlightData, reg: Registry) -> Result:
 
 POWER = Analyzer(
     name="power",
-    version=1,
+    version=2,
     run=_power,
     metrics=(
         "power.hover_power", "power.energy_per_minute", "power.peak_current",
@@ -283,5 +383,8 @@ POWER = Analyzer(
         "power.harness_loss", "power.hover_throttle", "power.board_voltage_min",
         "power.board_voltage_dip",
     ),
-    findings=("power.hover_throttle_high", "power.hover_throttle_low", "power.board_voltage"),
+    findings=(
+        "power.hover_throttle_high", "power.hover_throttle_low", "power.board_voltage",
+        "power.thst_hover_stale", "power.monitor_vs_escs",
+    ),
 )  # fmt: skip
