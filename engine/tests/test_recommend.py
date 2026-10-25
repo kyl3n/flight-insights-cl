@@ -619,3 +619,22 @@ def test_test_flight_settings_name_real_bits(reg: Registry) -> None:
             assert all(str(b) in bits for b in add.get("set_bits", ())), code
     names = meta["LOG_BITMASK"]["bitmask"]
     assert (names["19"], names["21"]) == ("Raw IMU", "Fast harmonic notch logging")
+
+
+def test_each_step_is_worded_with_its_own_findings_values(reg: Registry) -> None:
+    lead = finding("filter.better_source", ("INS_HNTCH_MODE", 3.0))
+    lead["params"] = {
+        "current": "throttle",
+        "better": "ESC telemetry",
+        "explains": ["filter.better_settings"],
+    }
+    settings = finding("filter.better_settings", severity="info")
+    settings["params"] = {"lag_new": 12.5, "lag_hz": 20, "lag_now": 18.0}
+    checks = [s.text["en"] for s in session(plan(reg, lead, settings), reg) if s.kind == "verify"]
+    assert any("12.5° at 20 Hz" in c for c in checks)  # from the settings finding, not the lead
+    assert any("following ESC telemetry" in c for c in checks)
+    bare = [
+        s.text["en"]
+        for s in session(plan(reg, finding("filter.better_settings", ("INS_HNTCH_BW", 30.0))), reg)
+    ]
+    assert not any("{" in line for line in bare)  # a finding without the values leaves the step out

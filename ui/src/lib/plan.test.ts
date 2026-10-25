@@ -7,10 +7,16 @@ import {
   partition,
   recFor,
   stageStates,
-  testCard,
+  checksPassed,
+  hasRevert,
+  loadTicks,
+  saveTicks,
+  stepLabel,
+  tickable,
   type HistoryRow,
   type Plan,
   type PlanRec,
+  type ProcedureStep,
 } from "./plan";
 
 const t = (en: string) => ({ en, uk: `uk ${en}` });
@@ -59,9 +65,39 @@ describe("plan", () => {
     expect(decisionCounts(PLAN)).toEqual({ accepted: 1, open: 1 });
   });
 
-  it("builds the test flight card: actions first, each check once", () => {
-    expect(testCard(PLAN, "en")).toEqual({ first: ["check motor 3"], checks: ["hover"] });
-    expect(testCard(PLAN, "uk").first).toEqual(["uk check motor 3"]);
+  it("ticks the work, not what to fly or check", () => {
+    const step = (kind: ProcedureStep["kind"]): ProcedureStep => ({ kind, text: t(kind), params: [], step: null, checks: [] });
+    expect(["task", "hardware", "set", "reboot", "ground_check", "revert"].every((k) => tickable(step(k as ProcedureStep["kind"])))).toBe(true);
+    expect(["fly", "abort", "verify", "undo"].some((k) => tickable(step(k as ProcedureStep["kind"])))).toBe(false);
+    expect(stepLabel("ground_check")).toBe("step.ground_check");
+  });
+
+  it("counts the checks the next flight could judge", () => {
+    const row = (checks: { passed: boolean | null }[]): HistoryRow => ({
+      id: "r", param: "P", proposed_value: 1, status: "confirmed", flight_id: "a", graded_flight_id: "b",
+      updated_hlc: "1", detail: { grade: { checks } },
+    });
+    expect(checksPassed(row([{ passed: true }, { passed: false }, { passed: null }]))).toEqual({ passed: 1, total: 2 });
+    expect(checksPassed(row([{ passed: null }]))).toBeNull();
+  });
+
+  it("offers a revert file only for an accepted test-flight setting", () => {
+    expect(hasRevert(PLAN)).toBe(false);
+    const withTest: Plan = {
+      ...PLAN,
+      recommendations: [...PLAN.recommendations, rec({ param: "LOG_BITMASK", revert: 176126, record_status: "accepted" })],
+    };
+    expect(hasRevert(withTest)).toBe(true);
+  });
+
+  it("keeps ticks on this laptop and starts clean when storage refuses", () => {
+    const kept = new Map<string, string>();
+    const store = { getItem: (k: string) => kept.get(k) ?? null, setItem: (k: string, v: string) => void kept.set(k, v) };
+    saveTicks("card", new Set([3, 1]), store);
+    expect([...loadTicks("card", store)]).toEqual([1, 3]);
+    const refusing = { getItem: () => { throw new Error("blocked"); }, setItem: () => { throw new Error("blocked"); } };
+    expect(loadTicks("card", refusing).size).toBe(0);
+    expect(() => saveTicks("card", new Set([1]), refusing)).not.toThrow();
   });
 
   it("finds the plan's recommendation for a finding, as lead or as a source", () => {

@@ -30,10 +30,22 @@ export interface FindingInfo {
   stage: string;
 }
 
+/** A configurable subsystem, with what covers it (spec: Configuration review, "Better
+ * options"): its better options, the other findings that check it, and for one the app
+ * does not cover yet, the phase its own analysis comes in. */
+export interface CoverageInfo {
+  title: Text;
+  options: string[];
+  also?: string[];
+  phase?: number | null;
+  covered: boolean;
+}
+
 export interface Registry {
   version: string;
   metrics: Record<string, MetricInfo>;
   findings: Record<string, FindingInfo>;
+  coverage?: Record<string, CoverageInfo>;
 }
 
 export interface MetricValue {

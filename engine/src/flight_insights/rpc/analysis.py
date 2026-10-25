@@ -348,7 +348,9 @@ def add_analysis_methods(server: Server, state: EngineState, guarded: Callable[[
                 sid: {
                     "title": dict(sub["title"]),
                     "options": list(sub["options"]),
-                    "covered": bool(sub["options"]),
+                    "also": list(sub.get("also", ())),
+                    "phase": sub.get("phase"),
+                    "covered": bool(sub["options"] or sub.get("also")),
                 }
                 for sid, sub in reg.coverage.items()
             },
