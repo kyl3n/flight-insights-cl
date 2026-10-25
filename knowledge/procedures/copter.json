@@ -115,6 +115,25 @@
           }
         }
       ]
+    },
+    "power_calibration": {
+      "about": "Calibrating an analog power module: voltage against a multimeter, current against what the charger puts back (ArduPilot's power module calibration).",
+      "steps": [
+        {
+          "kind": "ground_check",
+          "text": {
+            "en": "With the propellers off and the pack connected, measure the pack's voltage with a multimeter and read the ground station's. Set BATT_VOLT_MULT to its value times the meter's reading divided by the ground station's.",
+            "uk": "Зі знятими пропелерами й підключеною батареєю виміряйте її напругу мультиметром і прочитайте напругу в наземній станції. Встановіть BATT_VOLT_MULT як його значення, помножене на показ мультиметра й поділене на показ наземної станції."
+          }
+        },
+        {
+          "kind": "ground_check",
+          "text": {
+            "en": "After the next flight, recharge the pack and note the mAh the charger put back. Set BATT_AMP_PERVLT to its value times the charger's mAh divided by the mAh the log counted (BAT.CurrTot at landing).",
+            "uk": "Після наступного польоту зарядіть батарею й запишіть, скільки мА·год повернув зарядний пристрій. Встановіть BATT_AMP_PERVLT як його значення, помножене на мА·год зарядного й поділене на мА·год, пораховані журналом (BAT.CurrTot при посадці)."
+          }
+        }
+      ]
     }
   },
   "procedures": {
@@ -725,6 +744,123 @@
           "text": {
             "en": "The next log shows the main loop at 400 Hz with few late loops and the processor still keeping up. The filters and rate gains were set at the old rate: the app checks both on this flight.",
             "uk": "Наступний журнал показує головний цикл на 400 Гц з малою кількістю запізнілих циклів, а процесор усе ще встигає. Фільтри й коефіцієнти швидкості налаштовано на старій частоті: застосунок перевірить обидва в цьому польоті."
+          }
+        }
+      ]
+    },
+    "params.power_module_uncalibrated": {
+      "use": [
+        "power_calibration"
+      ],
+      "steps": []
+    },
+    "power.monitor_vs_escs": {
+      "use": [
+        "power_calibration"
+      ],
+      "steps": [
+        {
+          "kind": "verify",
+          "checks": [
+            {
+              "check": "finding_clears"
+            }
+          ],
+          "text": {
+            "en": "In the next log the battery monitor and the ESCs agree: no more current into the ESCs than the monitor reports, and the same voltage while little current flows.",
+            "uk": "У наступному журналі монітор батареї й ESC узгоджуються: струм в ESC не більший, ніж показує монітор, і однакова напруга при малому струмі."
+          }
+        }
+      ]
+    },
+    "params.battery_arm_unchecked": {
+      "steps": [
+        {
+          "kind": "ground_check",
+          "text": {
+            "en": "With a pack below the new arming voltage and the propellers off, check that the ground station refuses to arm and says why.",
+            "uk": "З батареєю, нижчою за нову напругу зведення, і знятими пропелерами перевірте, що наземна станція відмовляє у зведенні й пояснює чому."
+          }
+        }
+      ]
+    },
+    "power.thst_hover_stale": {
+      "steps": [
+        {
+          "kind": "verify",
+          "checks": [
+            {
+              "check": "finding_clears"
+            }
+          ],
+          "text": {
+            "en": "In the next log the hover throttle sits near MOT_THST_HOVER, and take-off into altitude hold has no jump.",
+            "uk": "У наступному журналі газ зависання близький до MOT_THST_HOVER, а зліт в утриманні висоти без ривка."
+          }
+        }
+      ]
+    },
+    "power.board_voltage": {
+      "steps": [
+        {
+          "kind": "hardware",
+          "text": {
+            "en": "Check the power module or BEC that feeds the flight controller, and its connector. Give servos, a gripper, a camera or the payload their own supply, and, where the board allows, add a second supply for the flight controller.",
+            "uk": "Перевірте модуль живлення або BEC, що живить польотний контролер, і його роз'єм. Дайте сервам, захвату, камері чи навантаженню окреме живлення і, якщо плата дозволяє, додайте друге джерело живлення для польотного контролера."
+          }
+        },
+        {
+          "kind": "verify",
+          "checks": [
+            {
+              "check": "finding_clears"
+            }
+          ],
+          "text": {
+            "en": "In the next log the board's supply (POWR.Vcc) stays steady through the whole flight.",
+            "uk": "У наступному журналі живлення плати (POWR.Vcc) стабільне протягом усього польоту."
+          }
+        }
+      ]
+    },
+    "option.edt_enable.available": {
+      "steps": [
+        {
+          "kind": "firmware",
+          "text": {
+            "en": "Check the ESCs' firmware supports Extended DShot Telemetry (a recent Bluejay, AM32 or BLHeli_32 release says so in its notes) and update it with the propellers off if not: with EDT set and firmware that lacks it, RPM telemetry is not read correctly.",
+            "uk": "Перевірте, що прошивка ESC підтримує розширену телеметрію DShot (свіжі випуски Bluejay, AM32 чи BLHeli_32 зазначають це в примітках), і оновіть її зі знятими пропелерами, якщо ні: з увімкненим EDT і прошивкою без нього телеметрія обертів читається неправильно."
+          }
+        },
+        {
+          "kind": "ground_check",
+          "text": {
+            "en": "With the propellers off, run the motor test and check every motor shows its RPM and its ESC's temperature.",
+            "uk": "Зі знятими пропелерами запустіть тест моторів і перевірте, що кожен мотор показує оберти й температуру свого ESC."
+          }
+        },
+        {
+          "kind": "verify",
+          "checks": [
+            {
+              "check": "has_message",
+              "message": "ESC"
+            }
+          ],
+          "text": {
+            "en": "The next log holds each ESC's temperature beside its RPM.",
+            "uk": "Наступний журнал містить температуру кожного ESC поряд з обертами."
+          }
+        }
+      ]
+    },
+    "option.esc_battery_monitor.available": {
+      "steps": [
+        {
+          "kind": "ground_check",
+          "text": {
+            "en": "After the reboot, check the ground station shows a second battery with a voltage close to the first.",
+            "uk": "Після перезавантаження перевірте, що наземна станція показує другу батарею з напругою, близькою до першої."
           }
         }
       ]

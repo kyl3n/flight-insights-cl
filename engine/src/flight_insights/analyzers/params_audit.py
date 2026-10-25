@@ -14,8 +14,10 @@ A parameter whose default the source did not record is counted apart, as is one 
 firmware does not know (a custom build adds its own: unknown, not wrong).
 
 Findings report what needs a person: values outside the documented range, failsafes
-with no action, FS_THR_VALUE breaking the arming rule, battery and voltage-scaling
-settings made for another pack, and rate gains never tuned.
+with no action (on every battery monitor), FS_THR_VALUE breaking the arming rule, battery
+and voltage-scaling settings made for another pack, a capacity that is not the pack's,
+arming that never checks the pack's charge, a power module never calibrated, and rate
+gains never tuned.
 """
 
 from __future__ import annotations
@@ -25,7 +27,7 @@ import re
 from collections.abc import Mapping
 from typing import Any, cast
 
-from flight_insights.analyzers.facts import CELL_VOLTS
+from flight_insights.analyzers.facts import CELL_VOLTS, MONITORS
 from flight_insights.analyzers.flight import FlightData
 from flight_insights.analyzers.model import Analyzer, CandidateChange, Evidence, Finding, Result
 from flight_insights.analyzers.registry import Registry
@@ -142,6 +144,8 @@ def _audit(flight: FlightData, reg: Registry) -> Result:
     if vehicle == "copter":
         contradicted |= _failsafes(flight, rules, out)
         contradicted |= _battery(flight, rules, out)
+        contradicted |= _other_monitors(flight, out)
+        contradicted |= _power_setup(flight, rules, out)
         _never_tuned(flight, rules, out)
 
     # --- the four verdicts ----------------------------------------------------------------
@@ -227,6 +231,100 @@ def _failsafes(flight: FlightData, rules: Mapping[str, Any], out: Result) -> set
         add("params.ekf_failsafe_report_only", "caution", ["FS_EKF_ACTION"], {})
     if p.get("FS_CRASH_CHECK") == 0:
         add("params.crash_check_off", "caution", ["FS_CRASH_CHECK"], {})
+    return flagged
+
+
+def _other_monitors(flight: FlightData, out: Result) -> set[str]:
+    """A further battery monitor with a threshold whose failsafe only warns. Whether it
+    watches a battery the aircraft flies on is the owner's to say, so no change."""
+    p = flight.params
+    flagged: set[str] = set()
+    for m in MONITORS[1:]:
+        if not p.get(f"{m}_MONITOR"):
+            continue
+        for level, thresholds, action in (
+            ("low", (f"{m}_LOW_VOLT", f"{m}_LOW_MAH"), f"{m}_FS_LOW_ACT"),
+            ("critical", (f"{m}_CRT_VOLT", f"{m}_CRT_MAH"), f"{m}_FS_CRT_ACT"),
+        ):
+            if any(p.get(t) for t in thresholds) and p.get(action) == 0:
+                values = {n: p.get(n) for n in (f"{m}_MONITOR", *thresholds, action)}
+                out.findings.append(
+                    Finding(
+                        code="params.other_battery_warn_only",
+                        severity="caution",
+                        confidence="high",
+                        evidence=(ev(f"params:battery:{action}", "the battery monitor", values),),
+                        params={"monitor": m, "param": action, "level": level},
+                    )
+                )
+                flagged.add(action)
+    return flagged
+
+
+def _power_setup(flight: FlightData, rules: Mapping[str, Any], out: Result) -> set[str]:
+    """The first battery monitor against the setup answers: its capacity, whether arming
+    checks the pack's charge, and whether the power module was ever calibrated."""
+    p, answers = flight.params, flight.answers
+    flagged: set[str] = set()
+    if not p.get("BATT_MONITOR"):
+        return flagged
+    capacity = answers.get("capacity_mah")
+    current = p.get("BATT_CAPACITY")
+    share = float(rules["capacity_share"])
+    if (
+        capacity
+        and current is not None
+        and abs(current - float(capacity)) > share * float(capacity)
+    ):
+        out.findings.append(
+            Finding(
+                code="params.battery_capacity",
+                severity="caution",
+                confidence="high",
+                evidence=(
+                    ev(
+                        "params:battery:capacity",
+                        "BATT_CAPACITY against the pack in the platform setup",
+                        {"BATT_CAPACITY": current, "capacity_mah": capacity},
+                    ),
+                ),
+                params={"value": format_value(current), "capacity": format_value(float(capacity))},
+                changes=(CandidateChange("BATT_CAPACITY", current, float(capacity), "operations"),),
+            )
+        )
+        flagged.add("BATT_CAPACITY")
+    if p.get("BATT_ARM_VOLT") == 0 and p.get("BATT_ARM_MAH") == 0:
+        out.findings.append(
+            Finding(
+                code="params.battery_arm_unchecked",
+                severity="info",
+                confidence="high",
+                evidence=(
+                    ev(
+                        "params:battery:arming",
+                        "the arming checks on the battery",
+                        {"BATT_ARM_VOLT": 0.0, "BATT_ARM_MAH": 0.0},
+                    ),
+                ),
+            )
+        )
+    analog = int(p.get("BATT_MONITOR", 0)) in (3, 4)  # the analog monitors have scales
+    if analog and answers.get("power_module_calibrated") is False:
+        names = ("BATT_VOLT_MULT", "BATT_AMP_PERVLT", "BATT_AMP_OFFSET")
+        out.findings.append(
+            Finding(
+                code="params.power_module_uncalibrated",
+                severity="caution",
+                confidence="high",
+                evidence=(
+                    ev(
+                        "params:battery:calibration",
+                        "the analog battery monitor's scales, never calibrated (platform setup)",
+                        {n: p.get(n) for n in names} | {"power_module_calibrated": False},
+                    ),
+                ),
+            )
+        )
     return flagged
 
 
@@ -319,7 +417,7 @@ def _never_tuned(flight: FlightData, rules: Mapping[str, Any], out: Result) -> N
 
 PARAMS_AUDIT = Analyzer(
     name="params",
-    version=1,
+    version=2,
     run=_audit,
     metrics=(),
     findings=(
@@ -329,5 +427,7 @@ PARAMS_AUDIT = Analyzer(
         "params.battery_critical_warn_only", "params.battery_threshold_cells",
         "params.motor_scaling_cells", "params.ekf_failsafe_report_only",
         "params.crash_check_off", "params.never_tuned", "params.unexplained",
+        "params.other_battery_warn_only", "params.battery_capacity",
+        "params.battery_arm_unchecked", "params.power_module_uncalibrated",
     ),
 )  # fmt: skip

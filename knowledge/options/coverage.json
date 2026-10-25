@@ -45,6 +45,23 @@
         "dshot_output"
       ]
     },
+    "esc_health": {
+      "title": {
+        "en": "ESC health and telemetry",
+        "uk": "Стан і телеметрія ESC"
+      },
+      "options": [
+        "edt_enable"
+      ],
+      "also": [
+        "esc.hot",
+        "esc.desync",
+        "esc.edt_status",
+        "esc.telemetry_errors",
+        "esc.telemetry_dropouts",
+        "esc.supply_drop"
+      ]
+    },
     "thrust_model": {
       "title": {
         "en": "Thrust model and hover throttle",
@@ -53,6 +70,26 @@
       "options": [
         "hover_learn",
         "battery_voltage_scaling"
+      ],
+      "also": [
+        "power.thst_hover_stale",
+        "power.hover_throttle_high",
+        "power.hover_throttle_low",
+        "params.motor_scaling_cells"
+      ]
+    },
+    "power_monitoring": {
+      "title": {
+        "en": "Power monitoring and the board's supply",
+        "uk": "Моніторинг живлення та живлення плати"
+      },
+      "options": [
+        "esc_battery_monitor"
+      ],
+      "also": [
+        "params.power_module_uncalibrated",
+        "power.monitor_vs_escs",
+        "power.board_voltage"
       ]
     },
     "control_loop": {
@@ -125,7 +162,10 @@
         "params.battery_warn_only",
         "params.battery_no_critical",
         "params.battery_critical_warn_only",
-        "params.battery_threshold_cells"
+        "params.battery_threshold_cells",
+        "params.other_battery_warn_only",
+        "params.battery_capacity",
+        "params.battery_arm_unchecked"
       ]
     },
     "compass": {
