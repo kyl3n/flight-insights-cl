@@ -86,7 +86,7 @@
             airframe_id: flight.airframe_id,
             metric,
             segment,
-            payload: flight.payload,
+            flight_id: flight.id, // its own payload group
           }).then((s) => s.baseline),
         );
       }

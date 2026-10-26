@@ -249,7 +249,7 @@ Each step can start from a template or another platform, and pre-fills from a pa
 
 1. **Airframe.** The app proposes an airframe for each log from the board's ID and the parameters, with its confidence. The user confirms it, picks another, or creates a new airframe, which opens setup from its platform.
 2. **Changes.** "Has anything changed since this airframe's last flight?" Detected changes, such as a new board, IMU or compass, different firmware or CAN nodes, a shift in motor noise frequency or a step in battery resistance, are listed with their evidence for confirmation, followed by a checklist of every part category for anything else. Each confirmed change creates a new build version.
-3. **Batteries and payload** and the ground station for each flight, as quick picks. The ground station fills in automatically when logs are imported on the ground station computer itself.
+3. **Batteries and payload** and the ground station for each flight, as quick picks, with the take-off weight in kilograms where the aircraft was weighed before the flight (above 0 and up to 1000 kg; a decimal comma is read as a point). The ground station fills in automatically when logs are imported on the ground station computer itself.
 
 A log that the app cannot match, for example a new board whose parameters look like an existing airframe's, is held until the user decides whether the flight controller was replaced or this is a different aircraft.
 
@@ -1384,6 +1384,8 @@ Each band shows its source on hover. Changing a platform's targets is an enginee
 
 **Like with like.** Trends are filtered by flight phase and payload band by default, so a heavy hover is never plotted against a light one. Where physics allows, metrics are normalized, for example hover power per unit mass using the hover-thrust ratio.
 
+**Payload bands.** A flight's band comes from its hover thrust at standard air (`payload.hover_thrust`, see Vehicle fingerprinting), not from the text it was labelled with, so the same label on two loads splits and two labels for one load join. The reference is the airframe's lightest flights: the median of those within 5% of the lightest one, so one light outlier does not move every band. Band k holds the flights within half a step of the reference times 1.1^k: band 0 is the lightest, band 2 about 21% heavier (`band_step` and `lightest_within` in `rules/payload.json`). A flight with no hover thrust (too little steady hover, or no motor outputs in the log) keeps its payload label as its group. The dashboard, a metric's series, the fleet's key metrics and a flight report's baselines each compare within the flight's own group; the picker lists the bands lightest first, with the labels their flights were imported with, then the label groups. A flight weighed at import gives the airframe's kilograms per percent of hover thrust (the median over its weighed flights), which turns every band and flight into kilograms. With two or more weighed, each one's weight is also estimated from the others' and shown beside the scale's, so the estimate is checked on the aircraft itself (`trend.payloads`).
+
 | Metric | Unit | Better | Range source |
 | --- | --- | --- | --- |
 | Hover vibration, 95th percentile | m/s/s | Lower | ArduPilot: target below 30, caution to 60 |
@@ -1534,7 +1536,7 @@ The airframe, not the log, is the unit the app reasons about: every flight, para
 | Ground station | Name, current version, the airframes it has flown |
 | Ground station version | Computer specs, software and versions, radios and their settings, antennas and cables, effective date |
 | Session record | Ground station computer load, USB and serial errors and network status, per second during a flight |
-| Flight | Log content keys (.bin and tlogs), airframe, build version, ground station version, parameter snapshot, firmware version, packs and payload used, duration, segments, data-quality flags |
+| Flight | Log content keys (.bin and tlogs), airframe, build version, ground station version, parameter snapshot, firmware version, packs and payload used, take-off weight where weighed, duration, segments, data-quality flags |
 | Weather record | Model and reanalysis values at the flight's time and height band, aircraft-measured wind, ground measurement, space weather, source and quality tags |
 | System snapshot | The flight controller's system files saved at download: threads, tasks, serial ports, memory, CAN statistics |
 | Parameter snapshot | Full set per flight in its dialect, plus the diff from the previous flight |
