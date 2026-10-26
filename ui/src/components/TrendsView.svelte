@@ -14,7 +14,6 @@
     subsystem,
     subsystemName,
     zoneLook,
-    type FlightRow,
     type Registry,
   } from "../lib/report";
   import { engineCall } from "../lib/shell";
@@ -23,9 +22,11 @@
   import {
     cardKey,
     changeTone,
-    payloads,
+    groupOption,
     placeEvents,
     sparkPath,
+    worstCheck,
+    type PayloadGroups,
     type Series,
     type TrendCard,
     type TrendEvent,
@@ -38,12 +39,12 @@
   let airframe = $state<AirframeView | null>(null);
   let cards = $state<TrendCard[]>([]);
   let events = $state<TrendEvent[]>([]);
-  let flights = $state<FlightRow[]>([]);
+  let payloadGroups = $state<PayloadGroups | null>(null);
   let series = $state<Series | null>(null);
   let siblings = $state<Series[]>([]); // the platform's airframes, this one included
   let names = $state<Record<string, string>>({});
   let key = $state<string | null>(null); // the card shown: metric@segment
-  let payload = $state<string | null | "*">(null); // "*": every payload
+  let payloadGroup = $state<string | null>(null); // 'band:<n>' or 'label:<text>'; "*": every payload
   let compare = $state(false);
   let picked = $state<number | null>(null);
   let pickedEvent = $state<number | null>(null); // the flight index whose changes are open
@@ -51,7 +52,7 @@
   let loading = $state(false);
   let error = $state("");
 
-  // The airframe in scope: its cards, changes and flights.
+  // The airframe in scope: its cards, changes and payload groups.
   $effect(() => {
     const id = app.scope.airframe;
     if (app.shell.engine !== "ready" || id === null) return;
@@ -61,19 +62,19 @@
       engineCall<AirframeView>("airframe.get", { id }),
       engineCall<TrendCard[]>("trend.overview", { airframe_id: id }),
       engineCall<TrendEvent[]>("trend.events", { airframe_id: id }),
-      engineCall<FlightRow[]>("flight.list", { airframe_id: id }),
+      engineCall<PayloadGroups>("trend.payloads", { airframe_id: id }),
     ])
-      .then(([reg, af, c, ev, fl]) => {
+      .then(([reg, af, c, ev, pg]) => {
         registry = reg;
         airframe = af;
         cards = c;
         events = ev;
-        flights = fl;
+        payloadGroups = pg;
         const wanted = app.trendCard;
         const first = c.find((x) => x.drift) ?? c[0];
         const card = c.find((x) => cardKey(x) === wanted) ?? first;
         key = card ? cardKey(card) : null;
-        payload = card?.payload ?? null;
+        payloadGroup = card?.group ?? pg.latest;
         app.trendCard = null;
         error = "";
       })
@@ -92,7 +93,7 @@
       return;
     }
     const params = { airframe_id: id, metric: c.metric, segment: c.segment };
-    const which = payload === "*" ? { any_payload: true } : { payload };
+    const which = payloadGroup === "*" ? { any_payload: true } : { group: payloadGroup };
     picked = null;
     pickedEvent = null;
     engineCall<Series>("trend.series", { ...params, ...which })
@@ -184,7 +185,7 @@
           <h2>{subsystemName(group, app.locale)}</h2>
           {#each list as c (cardKey(c))}
             {@const look = STATUS[zoneLook(c.zone).status]}
-            <button type="button" class="card" aria-pressed={cardKey(c) === key} onclick={() => ((key = cardKey(c)), (payload = c.payload))}>
+            <button type="button" class="card" aria-pressed={cardKey(c) === key} onclick={() => ((key = cardKey(c)), (payloadGroup = c.group))}>
               <span class="row">
                 <span class="cname">{name(c.metric)}</span>
                 <span class="faint">{t(`segment.${c.segment}` as MessageKey)}</span>
@@ -220,13 +221,16 @@
             {/if}
             <label>
               {t("trends.payload")}
-              <select bind:value={payload}>
-                {#each payloads(flights) as p (p ?? "")}
-                  <option value={p}>{p ?? t("trends.payload.none")}</option>
+              <select bind:value={payloadGroup}>
+                {#each payloadGroups?.groups ?? [] as g (g.group)}
+                  <option value={g.group}>{groupOption(g, app.locale)}</option>
                 {/each}
                 <option value="*">{t("trends.payload.any")}</option>
               </select>
             </label>
+            {#if payloadGroups && worstCheck(payloadGroups.check) !== null}
+              <span class="faint">{t("trends.payload.check", { error: formatNumber(worstCheck(payloadGroups.check) ?? 0, app.locale), count: payloadGroups.check.length })}</span>
+            {/if}
             {#if airframe}
               <label class="check"><input type="checkbox" bind:checked={compare} /> {t("trends.compare")}</label>
             {/if}
@@ -302,6 +306,8 @@
               <span class="mono" style:color="var({look.tone})">{look.glyph} {value(point.value, series.unit)}</span>
               · {t(zoneLook(point.zone).label)}
               {#if point.payload}· {point.payload}{/if}
+              {#if point.takeoff_kg !== null}· {t("trends.point.weighed", { kg: formatNumber(point.takeoff_kg, app.locale) })}
+              {:else if point.kg !== null}· {t("trends.point.kg", { kg: formatNumber(point.kg, app.locale) })}{/if}
             </p>
             {#if delta !== null}
               <p class:better={tone === "better"} class:worse={tone === "worse"}>
@@ -332,7 +338,7 @@
             <div class="multiples">
               {#each related as c (cardKey(c))}
                 {@const tone = changeTone(c.since_previous, registry.metrics[c.metric]?.direction ?? "band")}
-                <button type="button" class="multiple" onclick={() => ((key = cardKey(c)), (payload = c.payload))}>
+                <button type="button" class="multiple" onclick={() => ((key = cardKey(c)), (payloadGroup = c.group))}>
                   <span class="cname">{name(c.metric)}</span>
                   <span class="mono">{value(c.value, c.unit)}</span>
                   <svg viewBox="0 0 120 28" width="100%" height="28" aria-hidden="true" preserveAspectRatio="none">

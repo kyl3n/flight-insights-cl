@@ -165,17 +165,19 @@ def series(
     segment: str,
     group: str | None = None,
     any_payload: bool = False,
+    flight_id: str | None = None,
 ) -> dict[str, Any]:
     """One metric's series for one airframe, with its baseline, drift and zones.
-    `group` picks a payload group, 'band:<k>' or 'label:<text>' (None: the latest
-    flight's); `any_payload` mixes them."""
+    `group` picks a payload group, 'band:<k>' or 'label:<text>' (None: the group of
+    `flight_id`, else of the latest flight); `any_payload` mixes them."""
     metric = reg.metrics[metric_id]
     rules: Mapping[str, Any] = reg.rules["trends"]
     flights = _flights(store, airframe_id)
     b = _bands(flights, reg)
     analysed = [f for f in flights if f.run_id is not None]
     if group is None and analysed:
-        group = group_of(analysed[-1], b)
+        chosen = next((f for f in analysed if f.id == flight_id), analysed[-1])
+        group = group_of(chosen, b)
     points: list[dict[str, Any]] = []
     for f in analysed:
         assert f.run_id is not None

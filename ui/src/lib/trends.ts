@@ -3,12 +3,38 @@
 // Trends): one point per flight, read against the metric's zones and against the
 // airframe's own baseline, with every change marked on the same axis.
 
-import type { Baseline, Interval, Zone } from "./report";
+import { translate, type Locale } from "./i18n";
+import { formatNumber, type Baseline, type Interval, type Zone } from "./report";
+
+/** A payload group as the engine describes it: a band by hover thrust, or the label of
+ * flights with no hover thrust (spec: Performance trends and ideal ranges, "Like with like"). */
+export type GroupInfo =
+  | { band: number; low: number; high: number; above_lightest: number; kg: [number, number] | null }
+  | { label: string | null };
+
+export type PayloadGroup = GroupInfo & { group: string; flights: number; labels: string[] };
+
+export interface WeightCheck {
+  flight: string;
+  weighed_kg: number;
+  estimated_kg: number;
+  error_pct: number;
+}
+
+export interface PayloadGroups {
+  airframe: string;
+  lightest: number | null;
+  kg_per_percent: number | null;
+  latest: string | null;
+  groups: PayloadGroup[];
+  check: WeightCheck[];
+}
 
 export interface TrendCard {
   metric: string;
   segment: string;
-  payload: string | null;
+  group: string; // 'band:<n>' or 'label:<text>'
+  payload: string | null; // the latest flight's label, for display
   unit: string;
   value: number;
   zone: Zone | null;
@@ -26,6 +52,9 @@ export interface TrendPoint {
   spread: Record<string, number>;
   zone: Zone | null;
   payload: string | null;
+  group: string;
+  kg: number | null; // estimated from hover thrust, once a flight was weighed
+  takeoff_kg: number | null; // as weighed
   good: boolean;
 }
 
@@ -33,7 +62,8 @@ export interface Series {
   airframe: string;
   metric: string;
   segment: string;
-  payload: string | null;
+  group: string | null;
+  payload: GroupInfo | null;
   unit: string;
   direction: "lower" | "higher" | "band";
   zones: Partial<Record<Zone, Interval[]>>;
@@ -144,11 +174,25 @@ export function sparkPath(values: number[], w = 120, h = 28): string {
     .join(" ");
 }
 
-/** The payload labels the airframe has flown with, for the payload picker. */
-export function payloads(flights: { payload: string | null }[]): (string | null)[] {
-  return [...new Set(flights.map((f) => f.payload))].sort((a, b) =>
-    a === null ? -1 : b === null ? 1 : a.localeCompare(b),
-  );
+/** How a payload group reads: its kilograms once a flight was weighed, else how much
+ * heavier than the airframe's lightest flights; flights with no hover thrust by their label. */
+export function groupName(g: GroupInfo, locale: Locale): string {
+  if (!("band" in g)) return g.label ?? translate(locale, "trends.payload.none");
+  if (g.kg) return translate(locale, "trends.payload.kg", { low: formatNumber(g.kg[0], locale), high: formatNumber(g.kg[1], locale) });
+  if (g.band === 0) return translate(locale, "trends.payload.lightest");
+  return translate(locale, "trends.payload.heavier", { percent: g.above_lightest });
+}
+
+/** A picker option: the group's name, then the labels its flights were imported with. */
+export function groupOption(g: PayloadGroup, locale: Locale): string {
+  const name = groupName(g, locale);
+  const labels = "band" in g ? g.labels : [];
+  return labels.length ? `${name} · ${labels.join(", ")}` : name;
+}
+
+/** The worst gap between a weighed flight and its weight estimated from the others'. */
+export function worstCheck(check: WeightCheck[]): number | null {
+  return check.length ? Math.max(...check.map((c) => Math.abs(c.error_pct))) : null;
 }
 
 /** A change since an earlier value, worse or better for this metric's direction. */

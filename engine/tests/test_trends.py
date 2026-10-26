@@ -165,8 +165,8 @@ def test_hover_thrust_bands_flights_whatever_their_label(store: Store, reg: Regi
     af = airframe(store)
     plan = [(30.0, "none"), (30.6, "camera"), (33.1, "camera"), (37.6, "camera"),
             (29.7, None), (33.0, "10 percent"), (37.4, "heavy"), (30.2, "none")]  # fmt: skip
-    for n, (thrust, label) in enumerate(plan):
-        fly(store, af, n, hover(10 + n), payload=label, thrust=thrust)
+    flights = [fly(store, af, n, hover(10 + n), payload=label, thrust=thrust)
+               for n, (thrust, label) in enumerate(plan)]  # fmt: skip
     groups = payloads(store, reg, af)
     assert [g["group"] for g in groups["groups"]] == ["band:0", "band:1", "band:2"]
     by = {g["group"]: g for g in groups["groups"]}
@@ -181,6 +181,8 @@ def test_hover_thrust_bands_flights_whatever_their_label(store: Store, reg: Regi
     assert s["payload"]["band"] == 0 and s["payload"]["low"] < 30.0 < s["payload"]["high"]
     heavy = series(store, reg, af, VIBE, "hover", "band:2")
     assert [p["value"] for p in heavy["points"]] == [13, 16]
+    third = series(store, reg, af, VIBE, "hover", flight_id=flights[3])  # the report's view
+    assert third["group"] == "band:2" and third["points"] == heavy["points"]
 
 
 def test_one_weighed_flight_turns_bands_into_kilograms(store: Store, reg: Registry) -> None:

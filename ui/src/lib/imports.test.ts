@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import {
+  badWeights,
   declined,
   decisions,
   detectedApplies,
@@ -11,6 +12,7 @@ import {
   partKey,
   resultCounts,
   undecided,
+  weightKg,
   whenText,
   withStations,
   type LogChoices,
@@ -89,6 +91,7 @@ describe("decisions for import.commit", () => {
     c.otherReason = "failure";
     c.packs = "B-12, B-14, B-12";
     c.payload = " camera ";
+    c.takeoffKg = " 24,5 "; // a decimal comma reads as a point
     const [d] = decisions([f], { f1: c }, partKey, "gsv-1");
     expect(d).toEqual({
       log: "f1",
@@ -101,7 +104,22 @@ describe("decisions for import.commit", () => {
       ],
       packs: ["B-12", "B-14"],
       payload: "camera",
+      takeoff_kg: 24.5,
     });
+  });
+
+  it("reads a take-off weight, and holds the import while one can't be read", () => {
+    expect(weightKg("")).toBeNull();
+    expect(weightKg(" 32.5 ")).toBe(32.5);
+    expect(weightKg("40,5")).toBe(40.5);
+    for (const bad of ["0", "-3", "1001", "12 kg", "1e2", "abc"]) expect(weightKg(bad)).toBe("invalid");
+    const f = file();
+    const c = initialChoices(f);
+    c.takeoffKg = "heavy";
+    expect(badWeights([f], { f1: c })).toEqual([f]);
+    expect(decisions([f], { f1: c }, partKey, null)[0]).not.toHaveProperty("takeoff_kg");
+    c.choice = { kind: "skip" };
+    expect(badWeights([f], { f1: c })).toEqual([]); // a skipped log needs no weight
   });
 
   it("skips undecided and skipped files, holds without an airframe, creates new airframes", () => {

@@ -300,9 +300,12 @@ def add_analysis_methods(server: Server, state: EngineState, guarded: Callable[[
                 ) from None
         if not isinstance(any_payload, bool):
             raise RpcError(INVALID_PARAMS, "any_payload must be true or false")
+        flight = params.get("flight_id")
+        if flight is not None and not isinstance(flight, str):
+            raise RpcError(INVALID_PARAMS, "flight_id must be text or null")
         return trends.series(
             state.require_store(), reg, _id(params, "airframe_id"), metric, segment,
-            group, any_payload,
+            group, any_payload, flight,
         )  # fmt: skip
 
     @server.method("trend.payloads")
