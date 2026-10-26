@@ -40,6 +40,7 @@ PURPOSES = ("analysis", "chat", "explain")
 KEY = re.compile(r"^[a-z][a-z0-9_]{0,40}$")
 ANSWER_KINDS = ("choice", "number", "integer", "boolean")
 SUMMARY_MAX = 200
+WITHHELD = "withheld: it read a field that can reveal where the aircraft flew"
 
 
 def number(x: float) -> float | int:
@@ -154,17 +155,28 @@ def _segment(segment: Any, arm_us: int) -> dict[str, Any] | None:
     }
 
 
+def _clear(e: Mapping[str, Any], policy: Policy) -> bool:
+    return policy.evidence_clear(str(e["kind"]), tuple(e["messages"]), tuple(e["fields"]))
+
+
 def _evidence(e: Mapping[str, Any], ref: str, arm_us: int, policy: Policy) -> dict[str, Any]:
+    """One piece of evidence. When it read a field the location policy does not allow
+    whole (a magnetic field, a GPS week, an absolute altitude, a rounded pressure), its
+    summary and values are withheld: they may carry that field's value. The reference
+    stays, so the finding still says what it rests on."""
     messages = [m for m in e["messages"] if re.fullmatch(r"[A-Z0-9]{2,4}", m)]
     fields = [x for x in e["fields"] if re.fullmatch(r"[A-Za-z0-9_]{1,16}", x)]
+    clear = _clear(e, policy)
+    if not clear:
+        fields = [f for f in fields if policy.evidence_clear(str(e["kind"]), messages, (f,))]
     return {
         "ref": ref,
         "kind": e["kind"],
-        "summary": str(e["summary"])[:SUMMARY_MAX],
+        "summary": str(e["summary"])[:SUMMARY_MAX] if clear else WITHHELD,
         "messages": messages[:16],
         "fields": fields[:32],
         "segment": _segment(e.get("segment"), arm_us),
-        "values": _keyed(e.get("values") or {}, policy),
+        "values": _keyed(e.get("values") or {}, policy) if clear else {},
     }
 
 
@@ -173,13 +185,15 @@ def _analysis(
 ) -> tuple[list[dict[str, Any]], list[dict[str, Any]], list[dict[str, Any]]]:
     """Metrics, findings and the evidence they cite; `keys` gets which finding or
     evidence each packet-local reference stands for."""
+    known = {e["id"]: e for e in analysis["evidence"]}
+    # a metric measured from evidence the policy withholds is withheld with it
     metrics = [
         {"metric": m["metric"], "segment": m["segment"], "value": number(float(m["value"])),
          "zone": m["zone"]}
         for m in analysis["metrics"]
         if isinstance(m["value"], int | float) and math.isfinite(m["value"])
+        and m.get("evidence") in known and _clear(known[m["evidence"]], policy)
     ][:512]  # fmt: skip
-    known = {e["id"]: e for e in analysis["evidence"]}
     refs: dict[str, str] = {}
     evidence: list[dict[str, Any]] = []
     findings: list[dict[str, Any]] = []

@@ -12,7 +12,7 @@ from __future__ import annotations
 
 import math
 import re
-from collections.abc import Mapping
+from collections.abc import Mapping, Sequence
 from dataclasses import dataclass
 from typing import Any, Literal
 
@@ -94,6 +94,33 @@ class Policy:
         if step is not None:
             return Decision("coarsen", "ambient pressure or temperature, rounded", float(step))
         return Decision("allow", "not location-revealing")
+
+    def defines(self, message: str, field: str) -> bool:
+        definition = self.messages.get(message)
+        return definition is not None and field in definition["fields"]
+
+    def evidence_clear(self, kind: str, messages: Sequence[str], fields: Sequence[str]) -> bool:
+        """Whether what one piece of analyzer evidence read may reach the AI path whole.
+        Parameter evidence names parameters, not log fields: none may be a removed one.
+        Otherwise each field must be defined by a message it cites, and allowed in every
+        one that defines it; a coarsened field is not clear, since which values come from
+        it is not known. Evidence that names no fields is judged by its messages: every
+        field of each must be allowed. Deny by default: anything unknown is not clear."""
+        if kind == "parameter":
+            return not any(self.parameter_removed(f) for f in fields)
+        if fields:
+            for f in fields:
+                verdicts = [self.field(m, f).verdict for m in messages if self.defines(m, f)]
+                if not verdicts or any(v != "allow" for v in verdicts):
+                    return False
+            return True
+        for m in messages:
+            definition = self.messages.get(m)
+            if definition is None or any(
+                self.field(m, f).verdict != "allow" for f in definition["fields"]
+            ):
+                return False
+        return True
 
     def value(self, decision: Decision, value: float) -> float:
         """A readable field's value as the AI path may see it."""
