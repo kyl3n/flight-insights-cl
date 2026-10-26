@@ -1,0 +1,33 @@
+{
+  "about": "How heavy the aircraft flew (spec: Vehicle fingerprinting, 'Payload estimation without a scale').",
+  "metrics": {
+    "payload.hover_thrust": {
+      "name": {
+        "en": "Hover thrust at standard air",
+        "uk": "Тяга висіння за стандартного повітря"
+      },
+      "unit": "%",
+      "direction": "band",
+      "definition": {
+        "en": "The thrust the motors made in steady hover, as a share of their full thrust at a full battery and in standard air. It follows the aircraft's weight: two flights' values give their mass ratio, so a flight 20% higher carried 20% more, and one known take-off weight turns the ratios into kilograms. It is the same whatever the battery's charge, the air's temperature or the field's height. A rise at the same payload means the aircraft got heavier or its propulsion weaker: damaged props, worn motors or a sagging pack.",
+        "uk": "Тяга, яку мотори створювали під час стабільного зависання, як частка їхньої повної тяги за повної батареї і стандартного повітря. Вона відповідає масі апарата: значення двох польотів дають відношення їхніх мас, тож політ на 20% вищий ніс на 20% більше, а одна відома злітна маса переводить відношення в кілограми. Вона не залежить від заряду батареї, температури повітря чи висоти майданчика. Зростання за того самого навантаження означає, що апарат став важчим або його силова установка слабшою: пошкоджені гвинти, зношені мотори чи батарея, що просідає."
+      },
+      "method": {
+        "en": "In the fingerprint's steady-hover windows 3 m or more above take-off, with stick inputs taken out and samples left out where a motor sits within 1% of either end of its range: each motor's output u between MOT_SPIN_MIN and MOT_SPIN_MAX (from RCOU through MOT_PWM_MIN and MOT_PWM_MAX), times the measured battery voltage over MOT_BAT_VOLT_MAX (4.2 V a cell when it is 0), gives x; its thrust is (1 - e) x + e x^2 with e = MOT_THST_EXPO, ArduPilot's own thrust curve. The mean over the motors, times cos(roll) cos(pitch) from ATT, is scaled to standard air by the density from BARO pressure and temperature over 1.225 kg/m3. The value is the median over the samples; it needs 10 s of such hover.",
+        "uk": "У вікнах стабільного зависання з відбитка на висоті від 3 м над точкою зльоту, без рухів стіків і без моментів, коли мотор у межах 1% від краю свого діапазону: вихід кожного мотора u між MOT_SPIN_MIN і MOT_SPIN_MAX (з RCOU через MOT_PWM_MIN і MOT_PWM_MAX), помножений на виміряну напругу батареї, поділену на MOT_BAT_VOLT_MAX (4,2 В на банку, якщо він 0), дає x; його тяга — (1 - e) x + e x^2, де e = MOT_THST_EXPO, власна крива тяги ArduPilot. Середнє за моторами, помножене на cos(крену) cos(тангажу) з ATT, зводиться до стандартного повітря за густиною з тиску й температури BARO, поділеною на 1,225 кг/м3. Значення — медіана за вибірками; потрібно 10 с такого зависання."
+      },
+      "messages": [
+        "RCOU",
+        "BAT",
+        "ATT",
+        "BARO",
+        "CTUN"
+      ],
+      "source": {
+        "kind": "baseline",
+        "title": "No universal range: it follows the payload, so it is read against this airframe's own flights"
+      }
+    }
+  },
+  "findings": {}
+}

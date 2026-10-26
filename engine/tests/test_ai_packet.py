@@ -93,10 +93,14 @@ def test_each_fixture_makes_a_packet_that_may_leave(
     assert reply["engine"] == {"ok": True, "reasons": []}, reply["engine"]
     packet = json.loads(reply["packet_json"])
     assert validate(packet) == [] and packet["findings"] and packet["parameters"]
-    # Nothing is withheld here, so every metric the run measured is in the packet.
+    # Every metric the run measured is in the packet but the payload estimate: it is
+    # scaled by the air's density from the barometer's pressure, which stays here.
     run = rpc(engine, "analysis.get", flight_id=flight)["result"]
     measured = [m for m in run["metrics"] if math.isfinite(m["value"])]
-    assert measured and len(packet["metrics"]) == len(measured)
+    held = [m for m in measured if m["metric"].startswith("payload.")]
+    assert measured and len(packet["metrics"]) == len(measured) - len(held)
+    assert not [m for m in packet["metrics"] if m["metric"].startswith("payload.")]
+    assert "density" not in reply["packet_json"]
     assert packet["aircraft"]["simulated"] and packet["aircraft"]["vehicle"] == vehicle
     # Today's analyzers read nothing the location policy holds back.
     assert not [e["ref"] for e in packet["evidence"] if e["summary"] == WITHHELD]
