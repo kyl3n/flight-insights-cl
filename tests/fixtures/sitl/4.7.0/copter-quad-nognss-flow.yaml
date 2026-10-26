@@ -1,0 +1,40 @@
+source: sitl
+vehicle: copter
+frame: quad +
+firmware: 4.7.0
+ardupilot_commit: 1511f27194f1dcc3728270883047bdf022b3fd53
+scenario: copter-quad-nognss-flow
+description: 'GUIDED take-off to 10 m, LOITER in a 6 m/s wind with optical flow and
+  a rangefinder as EKF source set 2: set 2 on its switch (aux 90), GNSS off (aux 65)
+  for 30 s, GNSS back, then set 1.'
+parameters_set:
+  LOG_DISARMED: 0
+  SIM_ESC_TELEM: 0
+  LOG_FILE_RATEMAX: 10
+  RC7_OPTION: 65
+  RC8_OPTION: 90
+  SIM_FLOW_ENABLE: 1
+  FLOW_TYPE: 10
+  RNGFND1_TYPE: 1
+  RNGFND1_MIN: 0
+  RNGFND1_MAX: 40.0
+  RNGFND1_PIN: 0
+  RNGFND1_SCALING: 12.12
+  EK3_SRC2_POSXY: 0
+  EK3_SRC2_VELXY: 5
+  EK3_SRC2_POSZ: 1
+  EK3_SRC2_VELZ: 0
+  EK3_SRC2_YAW: 1
+  RC_OVERRIDE_TIME: -1
+  SIM_WIND_SPD: 6
+  SIM_WIND_DIR: 90
+  SIM_WIND_TURB: 1
+faults:
+- kind: gnss
+  description: GNSS switched off for a drill
+expected:
+- Using EKF Source Set 2; EKF3 fusing optical flow
+- XKF4.SS keeps the relative position all through the drill; no failsafe
+- within about a metre of GNSS when it returns
+- 'the no-GNSS analyzer: a drill, the position kept'
+- 'steady hover windows: 63 s in LOITER'

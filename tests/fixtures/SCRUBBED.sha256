@@ -50,6 +50,14 @@ a21750997fa0acd80bca9fbd667bf63a932938cc9cbfa531dd399141a1b55f92  sitl/4.7.0/cop
 d18ae307d14a3a5ea229e838c1ef2de29e5d0bc6f4ad9f8d5316e93b57fc0a01  sitl/4.7.0/copter-quad-hover.param
 435387d443e1a7e3e87cb6aa7ed0cc28651159e6fc58d133e5684388a172a19c  sitl/4.7.0/copter-quad-hover.params
 3779117308dbe5731330cdc9491aedc44722f2418c3b89bef03eb774d457c30a  sitl/4.7.0/copter-quad-hover.tlog
+8d50d5e29c1fe48a7214189049d685c05140925803d1f6539fcf0e4e73350815  sitl/4.7.0/copter-quad-nognss-drill.bin
+89a6bcc78639daeff544f041f8248f7431088d1870ac5ca15afa2183a5001cb2  sitl/4.7.0/copter-quad-nognss-drill.param
+a32366339fce30aad0a13da59d9dffbe3ef319ca269343033a97bb73bf085f92  sitl/4.7.0/copter-quad-nognss-drill.params
+f348f80e13475a6e33ea3dd630d486852bd048dbc276627dfabd664cb367437b  sitl/4.7.0/copter-quad-nognss-drill.tlog
+901db9a5b969f5eb7f8577c21262fd55df5c8dda466c40040b3fc05e500bbe73  sitl/4.7.0/copter-quad-nognss-flow.bin
+01d9b5f4e7334169b90c4859e8df755a4d2b9634e511e27e2e9001bc290c494a  sitl/4.7.0/copter-quad-nognss-flow.param
+18a0af864c05dd4bfa2526cbda11c8710e3774c20eed1204e7f00775d15f7505  sitl/4.7.0/copter-quad-nognss-flow.params
+61460a6e4436f3c94eeef567d281440062fbc9b88eb9821140f8ee4855116687  sitl/4.7.0/copter-quad-nognss-flow.tlog
 85e7e5d4324a1a6923d80f0cfa82c35bb2846632910eb4d059faf34084486abc  sitl/4.7.0/copter-quad-rawimu.bin
 d71e7af90d7991bd59327bab1d1d0c57910e234ec1b1a5c7f5aaaaacd3d3733b  sitl/4.7.0/copter-quad-rawimu.param
 ca554bcce8c55b6e9a283f618b5dbebc77af7e8271821f24c841282efa7069c7  sitl/4.7.0/copter-quad-rawimu.params
