@@ -29,6 +29,7 @@ SAFE = {  # failsafes and battery set up properly, for a 4-cell pack
     "MOT_BAT_VOLT_MIN": 13.2,
 }  # fmt: skip
 CELLS = {"cells": {"value": 4, "source": "BAT.Volt, MOT_BAT_VOLT_MAX"}}
+DRAG = {"EK3_DRAG_BCOEF_X": 70.0, "EK3_DRAG_BCOEF_Y": 66.0, "EK3_DRAG_MCOEF": 0.2}
 
 
 @pytest.fixture(scope="module")
@@ -280,11 +281,20 @@ LIPO = {"battery_chemistry": "LiPo"}
 def test_a_failsafe_switched_off_goes_back_to_the_firmwares_value(
     reg: Registry, name: str, code: str, default: float
 ) -> None:
-    found, ev = audit(reg, {name: 0.0}, {name: default})
+    found, ev = audit(reg, DRAG | {name: 0.0}, {name: default})
     assert [(c.param, c.current, c.proposed) for c in found[code].changes] == [(name, 0.0, default)]
     assert name in ev["inconsistent"]
-    unknown, _ = audit(reg, {name: 0.0})  # no recorded default: nothing to propose
+    unknown, _ = audit(reg, DRAG | {name: 0.0})  # no recorded default: nothing to propose
     assert unknown[code].changes == ()
+
+
+def test_the_dead_reckoning_failsafe_matters_only_with_drag_fusion(reg: Registry) -> None:
+    """Without the wind from drag fusion the estimator never dead-reckons, so FS_DR_ENABLE
+    never acts; the readiness review asks for drag fusion instead."""
+    off = DRAG | {"EK3_DRAG_BCOEF_X": 0.0, "EK3_DRAG_BCOEF_Y": 0.0, "EK3_DRAG_MCOEF": 0.0}
+    for params in (off, {}):  # drag fusion off, or not in this build
+        found, _ = audit(reg, params | {"FS_DR_ENABLE": 0.0}, {"FS_DR_ENABLE": 2.0})
+        assert "params.dead_reckoning_failsafe_off" not in found
 
 
 def test_flown_from_the_ground_station_alone_needs_a_gcs_failsafe(reg: Registry) -> None:
@@ -381,3 +391,8 @@ def test_navigation_settings_against_the_setup(reg: Registry) -> None:
     )
     assert not [c for c in quiet if "gnss" in c or "compass" in c]
     assert "params.fence_off" in quiet
+    # a third set on visual odometry is a fallback too; a second set on GNSS is not
+    third, _ = audit(reg, params | {"EK3_SRC3_POSXY": 6.0}, answers=answers)
+    assert "params.no_gnss_fallback" not in third
+    gnss, _ = audit(reg, params | {"EK3_SRC2_POSXY": 3.0, "EK3_SRC2_VELXY": 3.0}, answers=answers)
+    assert "params.no_gnss_fallback" in gnss

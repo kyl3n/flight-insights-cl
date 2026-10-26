@@ -213,12 +213,12 @@
     "params.dead_reckoning_failsafe_off": {
       "stage": "operations",
       "title": {
-        "en": "Losing the position source does nothing (FS_DR_ENABLE 0)",
-        "uk": "Втрата джерела позиції нічого не викликає (FS_DR_ENABLE 0)"
+        "en": "Dead reckoning on the wind estimate does nothing (FS_DR_ENABLE 0)",
+        "uk": "Навігація за рахунком на оцінці вітру нічого не викликає (FS_DR_ENABLE 0)"
       },
       "action": {
-        "en": "Choose an action for dead reckoning, such as RTL: when the estimator loses its position and velocity source it flies on wind estimates alone for a short time, and the aircraft should head home or land while it still can.",
-        "uk": "Оберіть дію для навігації за рахунком, наприклад RTL: коли оцінювач втрачає джерело позиції й швидкості, він недовго летить лише на оцінках вітру, і апарат має повертатися чи сідати, поки може."
+        "en": "Choose an action for dead reckoning, such as RTL: with drag fusion on, when the estimator loses its position and velocity sources it flies on its wind estimate alone for a short time (FS_DR_TIMEOUT), and the aircraft should head home or land while it still can.",
+        "uk": "Оберіть дію для навігації за рахунком, наприклад RTL: з увімкненим злиттям аеродинамічного опору, коли оцінювач втрачає джерела позиції й швидкості, він недовго (FS_DR_TIMEOUT) летить лише на оцінці вітру, і апарат має повертатися чи сідати, поки може."
       }
     },
     "params.ekf_failsafe_off": {
@@ -290,8 +290,8 @@
     "params.no_gnss_fallback": {
       "stage": "navigation",
       "title": {
-        "en": "The aircraft flies without GNSS, but no second position source is set (EK3_SRC2_*)",
-        "uk": "Апарат літає без GNSS, але другого джерела позиції не задано (EK3_SRC2_*)"
+        "en": "The aircraft flies without GNSS, but no estimator source set keeps a position without it (EK3_SRCn_*)",
+        "uk": "Апарат літає без GNSS, але жоден набір джерел оцінювача не зберігає позицію без нього (EK3_SRCn_*)"
       },
       "action": {
         "en": "Configure EKF source set 2 for the non-GNSS sensor fitted (optical flow, visual odometry or beacons, from that sensor's setup page), with a switch to change sets (RCn_OPTION 90), and test the switch on the bench before flying.",

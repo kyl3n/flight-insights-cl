@@ -34,6 +34,7 @@ from flight_insights.analyzers.model import Analyzer, Evidence, Result
 from flight_insights.analyzers.motor_out import MOTOR_OUT
 from flight_insights.analyzers.motors_health import MOTORS_HEALTH
 from flight_insights.analyzers.no_gnss import NO_GNSS
+from flight_insights.analyzers.no_gnss_readiness import NO_GNSS_READINESS
 from flight_insights.analyzers.options import OPTIONS
 from flight_insights.analyzers.params_audit import PARAMS_AUDIT
 from flight_insights.analyzers.payload import PAYLOAD
@@ -54,7 +55,7 @@ log = logging.getLogger(__name__)
 
 ANALYZERS: tuple[Analyzer, ...] = (
     LOG_ADEQUACY, SYSTEM, FAILSAFES, LINKS, PRECURSORS, COMMANDS, INCIDENT, GNSS, NO_GNSS,
-    VIBRATION,
+    NO_GNSS_READINESS, VIBRATION,
     ESC_RPM, FILTER_MODEL, FILTERS, POWER, MOTORS_HEALTH, BUSES, PAYLOAD, MOTOR_OUT, TUNE,
     RATE_TUNE,
     RATE_HEALTH, AUTOTUNE, OPTIONS, PARAMS_AUDIT,
