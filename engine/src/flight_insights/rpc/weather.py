@@ -5,8 +5,9 @@ flies.
 | Method | What it does |
 | --- | --- |
 | weather.tiles | Every tile to download, when this laptop first listed it, each grid's step |
-| weather.store | Keeps one download the shell received, as it came |
+| weather.store | Keeps one download the shell received, as it came (or gzipped, as shared) |
 | weather.held | Which downloads of a source are kept, by tile and period |
+| weather.export | Writes one kept download, gzipped, to a file for the shell to share |
 """
 
 from __future__ import annotations
@@ -57,10 +58,13 @@ def add_weather_methods(server: Server, state: EngineState, guarded: Callable[[A
             raise RpcError(BAD_INPUT, "no such file")
         if path.stat().st_size > downloads.MAX_BYTES:
             raise RpcError(BAD_INPUT, "the download is larger than any reply the schedule asks for")
+        gz = params.get("gzip", False)
+        if not isinstance(gz, bool):
+            raise RpcError(INVALID_PARAMS, "gzip must be true or false")
         try:
             size = downloads.keep(
                 state.require_store(), _text(params, "source"), _text(params, "tile"),
-                _text(params, "period"), path.read_bytes(), _now_ms(),
+                _text(params, "period"), path.read_bytes(), _now_ms(), gzipped=gz,
             )  # fmt: skip
         except downloads.DownloadError as e:
             raise RpcError(BAD_INPUT, str(e)) from None
@@ -76,3 +80,18 @@ def add_weather_methods(server: Server, state: EngineState, guarded: Callable[[A
         except downloads.DownloadError as e:
             raise RpcError(INVALID_PARAMS, str(e)) from None
         return {"held": [[t, p] for t, p in got]}
+
+    @server.method("weather.export")
+    @guarded
+    def weather_export(_ctx: Context, params: dict[str, Any]) -> dict[str, Any]:
+        path = Path(_text(params, "path"))
+        if not path.is_absolute() or not path.parent.is_dir() or path.exists():
+            raise RpcError(BAD_INPUT, "path must be a new file in a folder that exists")
+        kept = downloads.packed(
+            state.require_store(), _text(params, "source"), _text(params, "tile"),
+            _text(params, "period"),
+        )  # fmt: skip
+        if kept is None:
+            raise RpcError(BAD_INPUT, "that download is not kept here")
+        path.write_bytes(kept)
+        return {"bytes": len(kept)}

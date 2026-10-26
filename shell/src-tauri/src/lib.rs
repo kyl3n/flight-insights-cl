@@ -657,7 +657,12 @@ async fn ai_chat_cancel(app: AppHandle, packet_id: String) -> Result<(), String>
 }
 
 /// One slot's weather downloads, when a key is set and the engine is running.
-fn weather_round(shell: &Shell, schedule: &weather::plan::Schedule, slot: i64) {
+fn weather_round(
+    shell: &Shell,
+    schedule: &weather::plan::Schedule,
+    slot: i64,
+    fleet: Option<&fleet::WeatherFleet>,
+) {
     let now = weather::now_ms();
     let keychain = shell.keychain.lock().expect("keychain").clone();
     let key = keychain.and_then(|k| weather::key(k.as_ref()).ok().flatten());
@@ -671,6 +676,14 @@ fn weather_round(shell: &Shell, schedule: &weather::plan::Schedule, slot: i64) {
             .weather
             .record(serde_json::json!({"state": "no engine"}), schedule, now);
     };
+    let staging = weather::share::staging(&shell.data_dir);
+    let shared = fleet.map(|f| weather::share::Fleet {
+        drive: f.drive.as_ref(),
+        registry: &f.registry,
+        keyring: &f.keyring,
+        identity: f.identity.as_ref(),
+        staging: staging.clone(),
+    });
     let outcome = net::client(Duration::from_secs(120))
         .map_err(weather::fetch::Stop::Failed)
         .and_then(|http| {
@@ -681,8 +694,9 @@ fn weather_round(shell: &Shell, schedule: &weather::plan::Schedule, slot: i64) {
                 &key,
                 schedule,
                 slot,
-                &shell.data_dir.join("weather-staging"),
+                &staging,
                 &mut |_| {},
+                shared.as_ref().map(|s| s as &dyn weather::fetch::Share),
             )
         });
     shell
@@ -754,9 +768,30 @@ fn start_up(app: &AppHandle) {
         .spawn(move || {
             loop {
                 let shell = weatherer.state::<Shell>();
-                let schedule = weather::load_schedule(&shell.data_dir);
+                // in a fleet, the fleet's schedule, so its laptops take turns at one slot
+                let fleet = fleet::weather_fleet(&shell);
+                let schedule = match &fleet {
+                    Some(f) => weather::share::fleet_schedule(&f.keyring.object_keys()),
+                    None => weather::load_schedule(&shell.data_dir),
+                };
                 if let Some(slot) = shell.weather.take_slot(&schedule, weather::now_ms()) {
-                    weather_round(&shell, &schedule, slot);
+                    if let Some(f) = &fleet {
+                        let members: Vec<String> = f
+                            .registry
+                            .members
+                            .iter()
+                            .filter(|(_, m)| m.revoked_after.is_none())
+                            .map(|(id, _)| id.clone())
+                            .collect();
+                        let wait = weather::share::turn_wait_ms(
+                            &f.keyring.object_keys(),
+                            slot,
+                            &f.identity.laptop_id_hex(),
+                            &members,
+                        );
+                        std::thread::sleep(Duration::from_millis(wait as u64));
+                    }
+                    weather_round(&shell, &schedule, slot, fleet.as_ref());
                 }
                 let now = weather::now_ms();
                 let wait = (schedule.next_instant(now) - now).clamp(1_000, weather::WAKE_MS);

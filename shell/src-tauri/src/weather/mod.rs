@@ -20,6 +20,7 @@ use zeroize::Zeroizing;
 
 pub mod fetch;
 pub mod plan;
+pub mod share;
 
 use crate::identity::SecretStore;
 

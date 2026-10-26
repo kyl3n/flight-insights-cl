@@ -61,6 +61,18 @@ pub struct Round {
     pub tiles: usize,
     pub due: usize,
     pub kept: usize,
+    /// Of those kept: found on the fleet's drive, and fetched here and shared.
+    pub taken: usize,
+    pub given: usize,
+}
+
+/// The fleet's shared downloads, when this laptop is in one.
+pub trait Share {
+    /// Keeps a download another laptop shared, when there is one that holds; whether
+    /// it did.
+    fn take(&self, engine: &dyn Engine, r: &Request) -> Result<bool, String>;
+    /// Shares a download kept here.
+    fn give(&self, engine: &dyn Engine, r: &Request) -> Result<(), String>;
 }
 
 fn tiles_and_grids(engine: &dyn Engine) -> Result<(Vec<Tile>, Grids), Stop> {
@@ -174,6 +186,7 @@ pub fn round(
     slot: i64,
     staging: &Path,
     sent: &mut dyn FnMut(&Request),
+    share: Option<&dyn Share>,
 ) -> Result<Round, Stop> {
     let (tiles, grids) = tiles_and_grids(engine)?;
     let mut have = Held::new();
@@ -194,10 +207,18 @@ pub fn round(
     let mut out = Round {
         tiles: tiles.len(),
         due: due.len(),
-        kept: 0,
+        ..Round::default()
     };
     fs::create_dir_all(staging).map_err(|e| Stop::Failed(e.to_string()))?;
+    let unshared = |e: String| Stop::Failed(format!("the fleet's drive: {e}"));
     for r in &due {
+        if let Some(fleet) = share
+            && fleet.take(engine, r).map_err(unshared)?
+        {
+            out.kept += 1;
+            out.taken += 1;
+            continue;
+        }
         let who = if r.source == Source::Kp {
             "NOAA SWPC"
         } else {
@@ -219,6 +240,10 @@ pub fn round(
         let _ = fs::remove_file(&file);
         stored.map_err(|e| Stop::Failed(format!("{who}'s reply was not kept: {e}")))?;
         out.kept += 1;
+        if let Some(fleet) = share {
+            fleet.give(engine, r).map_err(unshared)?;
+            out.given += 1;
+        }
     }
     Ok(out)
 }
@@ -226,7 +251,10 @@ pub fn round(
 /// For the status line: the round's outcome without anything that names a place.
 pub fn summary(result: &Result<Round, Stop>) -> Value {
     match result {
-        Ok(r) => json!({"state": "done", "tiles": r.tiles, "kept": r.kept}),
+        Ok(r) => json!({
+            "state": "done", "tiles": r.tiles, "kept": r.kept,
+            "from_fleet": r.taken, "shared": r.given,
+        }),
         Err(Stop::Offline) => json!({"state": "offline"}),
         Err(Stop::KeyRefused) => json!({"state": "key refused"}),
         Err(e @ Stop::Busy(_)) => json!({"state": "busy", "why": e.to_string()}),
@@ -235,7 +263,7 @@ pub fn summary(result: &Result<Round, Stop>) -> Value {
 }
 
 #[cfg(test)]
-mod tests {
+pub(crate) mod tests {
     use super::*;
     use std::collections::HashMap;
     use std::io::{BufRead, BufReader, Write};
@@ -245,17 +273,17 @@ mod tests {
 
     use crate::weather::plan::{DAY_MS, HOUR_MS, SLOT_MS, days};
 
-    const KEY: &str = "om-test-key-0123456789";
+    pub(crate) const KEY: &str = "om-test-key-0123456789";
 
     /// A local stand-in for Open-Meteo and NOAA: answers every request with a canned
     /// reply by path, or `status`, and keeps each request line.
-    struct FakeWeather {
-        url: String,
-        seen: Arc<Mutex<Vec<String>>>,
-        status: Arc<Mutex<u16>>,
+    pub(crate) struct FakeWeather {
+        pub url: String,
+        pub seen: Arc<Mutex<Vec<String>>>,
+        pub status: Arc<Mutex<u16>>,
     }
 
-    fn fake_weather() -> FakeWeather {
+    pub(crate) fn fake_weather() -> FakeWeather {
         let listener = TcpListener::bind("127.0.0.1:0").unwrap();
         let url = format!("http://{}", listener.local_addr().unwrap());
         let seen: Arc<Mutex<Vec<String>>> = Arc::default();
@@ -295,9 +323,9 @@ mod tests {
 
     /// The engine's side: a tile list, and what it keeps.
     #[derive(Default)]
-    struct FakeEngine {
-        tiles: Vec<(String, i64)>,
-        kept: Mutex<HashMap<(String, String, String), Vec<u8>>>,
+    pub(crate) struct FakeEngine {
+        pub tiles: Vec<(String, i64)>,
+        pub kept: Mutex<HashMap<(String, String, String), Vec<u8>>>,
     }
 
     impl Engine for FakeEngine {
@@ -332,12 +360,21 @@ mod tests {
                         .insert((key("source"), key("tile"), key("period")), body);
                     Ok(json!({"bytes": 1}))
                 }
+                "weather.export" => {
+                    let key = |k: &str| params[k].as_str().unwrap().to_owned();
+                    let kept = self.kept.lock().unwrap();
+                    let body = kept
+                        .get(&(key("source"), key("tile"), key("period")))
+                        .ok_or("that download is not kept here")?;
+                    fs::write(params["path"].as_str().unwrap(), body).map_err(|e| e.to_string())?;
+                    Ok(json!({"bytes": body.len()}))
+                }
                 other => Err(format!("unexpected {other}")),
             }
         }
     }
 
-    fn hosts(base: &str) -> Hosts {
+    pub(crate) fn hosts(base: &str) -> Hosts {
         Hosts {
             forecast: base.into(),
             archive: base.into(),
@@ -352,7 +389,7 @@ mod tests {
         }
     }
 
-    fn staging() -> std::path::PathBuf {
+    pub(crate) fn staging() -> std::path::PathBuf {
         std::env::temp_dir().join(format!(
             "fi-weather-{}",
             hex::encode(crate::sync::sodium::random::<6>().as_ref())
@@ -400,6 +437,7 @@ mod tests {
                 slot,
                 &dir,
                 &mut |_| {},
+                None,
             )
             .unwrap();
         }
@@ -506,6 +544,7 @@ mod tests {
                 &mut |r| {
                     named |= r.tile == "N50E030";
                 },
+                None,
             )
             .unwrap();
             if named && first_named.is_none() {
@@ -560,6 +599,7 @@ mod tests {
             slot,
             &staging(),
             &mut |_| {},
+            None,
         );
         assert_eq!(got, Err(Stop::Offline));
     }
@@ -582,6 +622,7 @@ mod tests {
             slot,
             &staging(),
             &mut |_| {},
+            None,
         );
         assert!(matches!(got, Err(Stop::Failed(m)) if m.contains("not an endpoint")));
         for host in [

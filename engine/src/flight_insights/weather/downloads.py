@@ -17,6 +17,7 @@ from __future__ import annotations
 import gzip
 import json
 import re
+import zlib
 from collections.abc import Iterable
 from typing import Any, cast
 
@@ -56,12 +57,30 @@ def _check(source: str, tile: str, period: str) -> None:
         raise DownloadError("period must be a month, a day or a 6-hour slot, in UTC")
 
 
+def _unpack(packed: bytes) -> bytes:
+    """A gzipped reply opened, refusing one that opens to more than any reply could be."""
+    opener = zlib.decompressobj(wbits=31)  # gzip framing
+    try:
+        body = opener.decompress(packed, MAX_BYTES + 1)
+    except zlib.error:
+        raise DownloadError("the download is not gzip") from None
+    if len(body) > MAX_BYTES or opener.unconsumed_tail:
+        raise DownloadError("the download is larger than any reply the schedule asks for")
+    if not opener.eof:
+        raise DownloadError("the download is cut off")
+    return body
+
+
 def keep(
-    store: Store, source: str, tile: str, period: str, body: bytes, now_ms: int
+    store: Store, source: str, tile: str, period: str, body: bytes, now_ms: int,
+    gzipped: bool = False,
 ) -> int:  # fmt: skip
-    """Keeps one download as it came; returns its size compressed. A body that is not
-    JSON, or is the provider's error reply, is refused."""
+    """Keeps one download as it came; returns its size compressed. `gzipped`: the body
+    is already gzipped, as another laptop shared it. A body that is not JSON, or is the
+    provider's error reply, is refused."""
     _check(source, tile, period)
+    if gzipped:
+        body = _unpack(body)
     if len(body) > MAX_BYTES:
         raise DownloadError("the download is larger than any reply the schedule asks for")
     try:
@@ -93,10 +112,16 @@ def held(store: Store, source: str, since: str = "") -> list[tuple[str, str]]:
     return [(str(t), str(p)) for t, p in rows]
 
 
-def body(store: Store, source: str, tile: str, period: str) -> bytes | None:
-    """One download as it came, or None."""
+def packed(store: Store, source: str, tile: str, period: str) -> bytes | None:
+    """One download gzipped as it is kept, for sharing, or None."""
     row = store.conn.execute(
         "SELECT body FROM weather_download WHERE source = ? AND tile = ? AND period = ?",
         (source, tile, period),
     ).fetchone()
-    return None if row is None else gzip.decompress(row[0])
+    return None if row is None else bytes(row[0])
+
+
+def body(store: Store, source: str, tile: str, period: str) -> bytes | None:
+    """One download as it came, or None."""
+    kept = packed(store, source, tile, period)
+    return None if kept is None else gzip.decompress(kept)
