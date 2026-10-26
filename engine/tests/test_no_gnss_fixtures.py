@@ -1,0 +1,76 @@
+"""The no-GNSS analyzer on ArduCopter 4.7.0 SITL flights (tests/fixtures/sitl/4.7.0/
+copter-quad-nognss-*): a GNSS-off drill in wind with no other position source, and one
+on optical flow as source set 2."""
+
+from __future__ import annotations
+
+from pathlib import Path
+
+import pytest
+from test_imports import airframe
+
+from flight_insights.analyzers import FlightData, Registry
+from flight_insights.analyzers.gnss import GNSS
+from flight_insights.analyzers.model import Result
+from flight_insights.analyzers.no_gnss import NO_GNSS
+from flight_insights.imports.commit import Decision, commit
+from flight_insights.imports.propose import propose
+from flight_insights.imports.scan import scan
+from flight_insights.knowledge import load_pack
+from flight_insights.store.cache import ColumnCache
+from flight_insights.store.db import open_store
+from flight_insights.store.keys import StoreKeys
+
+FIXTURES = Path(__file__).resolve().parents[2] / "tests/fixtures/sitl/4.7.0"
+NAMES = ("copter-quad-nognss-drill", "copter-quad-nognss-flow")
+
+
+@pytest.fixture(scope="module")
+def judged(tmp_path_factory: pytest.TempPathFactory) -> dict[str, tuple[Result, Result]]:
+    """Each flight's no-GNSS result, and its GNSS result."""
+    pack = load_pack()
+    reg = Registry.load(pack)
+    keys = StoreKeys.generate()
+    folder = tmp_path_factory.mktemp("no_gnss")
+    out: dict[str, tuple[Result, Result]] = {}
+    with open_store(folder / "no_gnss.db", keys, "e" * 32) as store:
+        cache = ColumnCache(folder / "cache", keys)
+        for name in NAMES:
+            batch = scan(store, pack, bytes(32), [FIXTURES / f"{name}.bin"])
+            af = airframe(store, pack, name)
+            [res] = commit(store, pack, cache, batch, propose(store, pack, batch),
+                           [Decision(batch[0].id, airframe_id=af)])  # fmt: skip
+            flight = FlightData.load(store, cache, pack, res.flights[0])
+            out[name] = (NO_GNSS.run(flight, reg), GNSS.run(flight, reg))
+    return out
+
+
+def test_a_drill_with_no_other_source_gives_the_position_up(
+    judged: dict[str, tuple[Result, Result]],
+) -> None:
+    r, gnss = judged["copter-quad-nognss-drill"]
+    [f] = r.findings
+    assert (f.code, f.params["what"]) == ("no_gnss.position_lost", "GNSS-off drill")
+    ev = r.evidence[0].values
+    assert ev["drill"] is True and 3 <= ev["detection_s"] <= 5 and 5 <= ev["absolute_s"] <= 9
+    assert ev["mode"] == "LAND" and ev["mode_reason"] == "EKF_FAILSAFE"
+    assert "FAILSAFE_EKFINAV" in ev["failsafes"]
+    assert not any(e.id.endswith(":drift") for e in r.evidence)  # it claimed no position
+    assert {m.metric: m.zone for m in r.metrics}["no_gnss.hold_s"] == "out"
+    assert gnss.findings == []  # a drill is not a disturbance
+
+
+def test_a_drill_on_optical_flow_keeps_a_position(
+    judged: dict[str, tuple[Result, Result]],
+) -> None:
+    r, gnss = judged["copter-quad-nognss-flow"]
+    [f] = r.findings
+    assert (f.code, f.params["what"]) == ("no_gnss.position_held", "GNSS-off drill")
+    ev = r.evidence[0].values
+    assert ev["source_set"] == 2 and ev["using_gnss_at_start"] is False
+    assert ev["kept_relative"] is True and ev["failsafes"] == [] and ev["mode"] is None
+    drift = next(e for e in r.evidence if e.id == "no_gnss:outage:1:drift")
+    assert drift.values["drift_m"] < 3  # optical flow held it in a 6 m/s wind
+    metrics = {m.metric: (m.value, m.zone) for m in r.metrics}
+    assert metrics["no_gnss.hold_s"][0] >= 30 and metrics["no_gnss.hold_s"][1] == "target"
+    assert gnss.findings == []

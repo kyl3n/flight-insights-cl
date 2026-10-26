@@ -367,6 +367,45 @@ def gnss_ramp(v: Vehicle) -> None:
     land_and_disarm(v)
 
 
+def nognss_takeoff(v: Vehicle, altitude: float) -> None:
+    """GUIDED take-off, then LOITER with the sticks centred. SITL's channel 8 rests
+    mid-stick, which selects EKF source set 2, so the GPS-disable (7) and source-set (8)
+    switches go low before arming."""
+    v.rc(ch7=1000, ch8=1000)
+    v.hold(5)
+    v.mode("GUIDED")
+    v.arm()
+    v.command(ML.MAV_CMD_NAV_TAKEOFF, 0, 0, 0, 0, 0, 0, altitude)
+    v.wait_altitude(altitude - 0.5)
+    v.rc(ch1=1500, ch2=1500, ch3=1500, ch4=1500)
+    v.mode("LOITER")
+    v.hold(10)
+
+
+def nognss_drill(v: Vehicle) -> None:
+    """GNSS switched off with the GPS-disable switch for 20 s, then on again."""
+    nognss_takeoff(v, 15)
+    v.rc(ch7=2000)
+    v.hold(20)
+    v.rc(ch7=1000)
+    v.hold(15)
+    land_and_disarm(v)
+
+
+def nognss_flow(v: Vehicle) -> None:
+    """Source set 2 (optical flow) on its switch, GNSS off for 30 s, GNSS back, set 1."""
+    nognss_takeoff(v, 10)
+    v.rc(ch8=1500)
+    v.hold(5)
+    v.rc(ch7=2000)
+    v.hold(30)
+    v.rc(ch7=1000)
+    v.hold(5)
+    v.rc(ch8=1000)
+    v.hold(10)
+    land_and_disarm(v)
+
+
 COPTER = dict(binary="arducopter", model="+", defaults=["default_params/copter.parm"])
 
 # Motor vibration and ESC telemetry as ArduPilot's DynamicRpmNotches autotest simulates
@@ -439,6 +478,19 @@ HEAVY_LIFT_FAULTS = [
 # Failsafe flights log at no more than 10 Hz (LOG_FILE_RATEMAX): what the failsafe
 # analyzers read is logged at 10 Hz or slower (BAT, RCIN, RCI2, CTUN) or as events.
 FAILSAFE_LOGGING = {"LOG_DISARMED": 0, "SIM_ESC_TELEM": 0, "LOG_FILE_RATEMAX": 10}
+
+# GPS-disable on switch 7 and the EKF source set on switch 8 (aux functions 65 and 90),
+# as a drill would be set up; they take effect at boot
+NO_GNSS_SWITCHES = FAILSAFE_LOGGING | {"RC7_OPTION": 65, "RC8_OPTION": 90}
+# Optical flow and a rangefinder as ArduPilot's autotest simulates them
+# (Tools/autotest/default_params/copter-optflow.parm), as source set 2
+OPTICAL_FLOW = {
+    "SIM_FLOW_ENABLE": 1, "FLOW_TYPE": 10, "RNGFND1_TYPE": 1, "RNGFND1_MIN": 0,
+    "RNGFND1_MAX": 40.0, "RNGFND1_PIN": 0, "RNGFND1_SCALING": 12.12,
+    "EK3_SRC2_POSXY": 0, "EK3_SRC2_VELXY": 5, "EK3_SRC2_POSZ": 1, "EK3_SRC2_VELZ": 0,
+    "EK3_SRC2_YAW": 1,
+}  # fmt: skip
+WIND = {"SIM_WIND_SPD": 6, "SIM_WIND_DIR": 90, "SIM_WIND_TURB": 1}
 
 HEAVY_LIFT_EXPECTED = [
     "one armed period with about 14 s of steady hover at 5 m",
@@ -886,6 +938,49 @@ SCENARIOS: dict[str, Scenario] = {
                     "parameters": ["SIM_GPS1_GLTCH_X"],
                 }
             ],
+            **COPTER,  # type: ignore[arg-type]
+        ),
+        Scenario(
+            name="copter-quad-nognss-drill",
+            vehicle="copter",
+            frame="quad +",
+            description=(
+                "GUIDED take-off to 15 m, LOITER in a 6 m/s wind, then GNSS switched off with"
+                " the GPS-disable switch (aux 65) for 20 s, with no other position source."
+            ),
+            expected=[
+                "AUXF 65 high, GPS.Status 1 while it is",
+                "XKF4.SS: using GPS clears about 4 s in, the absolute position about 7 s in",
+                "ERR FAILSAFE_EKFINAV and MODE LAND by EKF_FAILSAFE; the aircraft drifts downwind",
+                "the no-GNSS analyzer: a drill, the position given up; the GNSS analyzer: nothing",
+                "steady hover windows: 22 s in LOITER",
+            ],
+            fly=nognss_drill,
+            params={"RC_OVERRIDE_TIME": -1} | WIND,
+            boot_params=NO_GNSS_SWITCHES,
+            faults=[{"kind": "gnss", "description": "GNSS switched off for a drill"}],
+            **COPTER,  # type: ignore[arg-type]
+        ),
+        Scenario(
+            name="copter-quad-nognss-flow",
+            vehicle="copter",
+            frame="quad +",
+            description=(
+                "GUIDED take-off to 10 m, LOITER in a 6 m/s wind with optical flow and a"
+                " rangefinder as EKF source set 2: set 2 on its switch (aux 90), GNSS off"
+                " (aux 65) for 30 s, GNSS back, then set 1."
+            ),
+            expected=[
+                "Using EKF Source Set 2; EKF3 fusing optical flow",
+                "XKF4.SS keeps the relative position all through the drill; no failsafe",
+                "within about a metre of GNSS when it returns",
+                "the no-GNSS analyzer: a drill, the position kept",
+                "steady hover windows: 63 s in LOITER",
+            ],
+            fly=nognss_flow,
+            params={"RC_OVERRIDE_TIME": -1} | WIND,
+            boot_params=NO_GNSS_SWITCHES | OPTICAL_FLOW,
+            faults=[{"kind": "gnss", "description": "GNSS switched off for a drill"}],
             **COPTER,  # type: ignore[arg-type]
         ),
     ]

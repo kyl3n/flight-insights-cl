@@ -1177,7 +1177,7 @@ The app assumes every aircraft will lose GNSS at some point, through jamming, sp
   - the longest detection;
   - the worst drift per minute.
 - **What leaves the laptop:** times, flags, the source set and words. Drift stays in evidence that cites the position fields.
-- **Checked on** local SITL flights at 4.7.0, LOITER at 15 m:
+- **Checked on** committed SITL fixtures with golden tests (`copter-quad-nognss-drill`: a windy drill with no other source; `copter-quad-nognss-flow`: a windy drill on optical flow), and local SITL flights at 4.7.0, LOITER at 15 m:
   - **A GNSS-off drill and a simulated receiver loss:** the estimator stopped using GNSS 3.9 s after the loss and gave up its position at 6.9 s; the EKF failsafe landed the aircraft.
   - **The same drill in a 6 m/s wind:** the same timing; the aircraft blew 27 m downwind.
   - **On optical flow and a rangefinder (source set 2):** a 30 s drill kept a relative position throughout, 1.1 m from GNSS on its return, and 0.2 m in the same wind.
