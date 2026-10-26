@@ -759,6 +759,12 @@ The defaults are starting points that the team can change for each platform.
 
 **How it is computed.** From the frame's motor positions and spin directions, the thrust model (`MOT_THST_EXPO`, spin limits, measured hover throttle at each payload) and battery sag, the app works out for each motor in turn what the others must deliver to keep the aircraft level and holding height with that motor stopped. The worst motor sets the margin. The result shows the output needed from the busiest remaining motor, whether yaw can still be held, and the heaviest payload at which the target is met. On coaxial frames it allows for the lower propeller working in the upper one's wash, using the airframe's own measured data for each pair where ESC telemetry provides it.
 
+**The frame's geometry comes from the firmware.** `knowledge/frames/<version>.json` holds every frame ArduPilot's matrix mixer sets up, by `FRAME_CLASS` and `FRAME_TYPE`: each motor's roll, pitch, yaw and throttle factors. The values are exactly what the mixer leaves after its own normalisation, with roll, pitch and yaw at a largest magnitude of 0.5 and throttle at a largest of 1.
+
+- **How the table is made.** `knowledge/tools/build_motor_frames.py` reads each release's `AP_MotorsMatrix.cpp` and replays every case as the firmware runs it: angles become cos(angle + 90) for roll and cos(angle) for pitch, raw factors are taken as given, and a co-rotating X8 scales its top layer by 0.9. The generator refuses any construct it does not know, so a change in a later release is read by a person.
+- **Plane-only frames.** Frames only Plane builds (QuadPlane's no-yaw-torque frames) are marked.
+- **Checked in CI.** The fixtures workflow regenerates the table from the release's source and fails on any difference. The 4.7.0, 4.7.1 and 4.7.2 tables are identical.
+
 **From the logs.** The margin is tracked per flight, so it shows the effect of rising hover throttle from payload, battery ageing or wear. Real motor or ESC failures (telemetry stopping, RPM collapsing, stall flags, thrust-loss events) are compared with the prediction: which motor, how the others responded, how high they went, and whether yaw held. When ArduPilot's thrust-loss check fires, it logs the event and may favour altitude over yaw ([log messages](https://ardupilot.org/copter/docs/logmessages.html)).
 
 **When the margin falls short,** the app recommends a lower maximum payload, larger props or motors, or keeping hover throttle down, and adds the motor-loss procedure to the airframe's recovery card.
