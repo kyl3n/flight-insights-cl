@@ -11,7 +11,9 @@ Whether the log holds what the other analyzers need, and whether the logger kept
   the notch moves, so the filters cannot be replayed exactly (fast harmonic notch
   logging, for a filter test flight);
 - a logging rate cap (LOG_FILE_RATEMAX, LOG_BLK_RATEMAX) that thins the messages logged
-  every loop or at the gyro rate.
+  every loop or at the gyro rate;
+- the rate loop (RATE and the rate PIDs) logged too slowly for the tune check to measure
+  it, with the bits that log it every loop, for the tune-check flight.
 
 Which bit logs which message, and the INS_RAW_LOG_OPT bits, come from the knowledge
 pack's rules (knowledge/rules/logging.json); the bit names from the release's own
@@ -36,6 +38,7 @@ from flight_insights.analyzers.model import (
     Result,
 )
 from flight_insights.analyzers.registry import Registry
+from flight_insights.analyzers.tune import needed_hz
 from flight_insights.filters.harmonic import ESC, FFT, FIXED, RPM, RPM2, SETS, THROTTLE, NotchParams
 from flight_insights.filters.tracking import logged_inputs, update_period_us
 
@@ -421,11 +424,78 @@ def _notch_inputs(flight: FlightData, reg: Registry, out: Result) -> None:
     )
 
 
+def _tune_evidence(flight: FlightData, reg: Registry, out: Result) -> None:
+    """The rate loop logged too slowly for the tune check, with the bits that log it
+    every loop. Bits on already, with the rate still thin, leave it to a rate cap
+    (logging.rate_limited) or to AutoTune, which writes its own messages."""
+    rules: Mapping[str, Any] = reg.rules["logging"]["tune"]
+    bits = rules["bits"].get(flight.vehicle)
+    if bits is None or "LOG_BITMASK" not in flight.params:
+        return
+    bitmask = int(flight.params["LOG_BITMASK"])
+    off = [int(b) for b in bits if not _bit(bitmask, int(b))]
+    if not off:
+        return
+    needed = needed_hz(flight, reg)
+    rates: dict[str, float] = {}
+    if flight.logged:
+        for name in rules["messages"]:
+            t = flight.table(name, ["TimeUS"])
+            times = np.asarray(t.column("TimeUS").to_numpy(), np.int64) if t is not None else None
+            armed = times[_armed(flight, times)] if times is not None else np.zeros(0, np.int64)
+            rates[name] = round(1e6 / float(np.median(np.diff(armed))), 1) if len(armed) > 2 else 0
+        if all(hz >= needed for hz in rates.values()):
+            return
+    proposed = bitmask
+    for b in off:
+        proposed |= 1 << b
+    meta = reg.pack.metadata(reg.pack.choose(flight.firmware or "0").version, flight.vehicle)
+    names: Mapping[str, str] = meta.get("LOG_BITMASK", {}).get("bitmask", {})
+    if rates:
+        slowest = min(rates.values())
+    else:  # a parameter file: what the bitmask would log them at
+        slow: Mapping[str, Any] = rules["slow"][flight.vehicle]
+        slowest = float(slow["hz"]) if _bit(bitmask, int(slow["bit"])) else 0.0
+    ev = Evidence(
+        id="log:tune",
+        kind="parameter",
+        summary=(
+            f"RATE and the rate PIDs logged at {slowest:g} Hz at the slowest while armed, "
+            f"under the {needed:g} Hz the tune check needs; LOG_BITMASK {bitmask} leaves "
+            if flight.logged
+            else f"LOG_BITMASK {bitmask} leaves "
+        )
+        + ", ".join(f"{names.get(str(b), 'bit')} (bit {b})" for b in off)
+        + " off",
+        messages=tuple(rules["messages"]),
+        fields=("LOG_BITMASK",),
+        segment=flight.armed if flight.logged else None,
+        values={"LOG_BITMASK": bitmask, "needed_hz": needed, "rows_per_s": rates},
+    )
+    out.findings.append(
+        Finding(
+            code="logging.tune_evidence",
+            severity="info",
+            confidence="high",
+            evidence=(ev,),
+            params={
+                "hz": slowest,
+                "needed": needed,
+                "bits": ", ".join(f"{names.get(str(b), 'bit')} (bit {b})" for b in off),
+                "current": bitmask,
+                "proposed": proposed,
+            },
+            changes=(CandidateChange("LOG_BITMASK", bitmask, proposed, "rate tune"),),
+        )
+    )
+
+
 def _log_adequacy(flight: FlightData, reg: Registry) -> Result:
     out = Result()
     if not flight.logged:  # a parameter file: what its logging settings will leave out
         _missing(flight, reg, out)
         _rate_limited(flight, reg, out)
+        _tune_evidence(flight, reg, out)
         return out
     _gyro(flight, reg, out)
     _dropouts(flight, reg, out)
@@ -433,12 +503,13 @@ def _log_adequacy(flight: FlightData, reg: Registry) -> Result:
     _missing(flight, reg, out)
     _notch_inputs(flight, reg, out)
     _rate_limited(flight, reg, out)
+    _tune_evidence(flight, reg, out)
     return out
 
 
 LOG_ADEQUACY = Analyzer(
     name="logging",
-    version=4,
+    version=5,
     run=_log_adequacy,
     metrics=("logging.imu_sample_loss", "logging.dropped_messages"),
     findings=(
@@ -450,5 +521,6 @@ LOG_ADEQUACY = Analyzer(
         "logging.missing_messages",
         "logging.notch_inputs_not_logged",
         "logging.rate_limited",
+        "logging.tune_evidence",
     ),
 )

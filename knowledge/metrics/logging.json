@@ -110,6 +110,17 @@
         "uk": "{params} обмежує кожне потокове повідомлення, тож проріджує повідомлення швидкості, положення й PID, що записуються щоциклу, і сирі дані гіроскопа: перевірки фільтрів, вібрації й налаштування бачать лише частину польоту. Встановіть 0 (без обмеження). Якщо журнали надто великі, рішення — більша SD-картка; обмеження жертвує даними."
       }
     },
+    "logging.tune_evidence": {
+      "stage": "rate tune",
+      "title": {
+        "en": "The rate loop is logged too slowly to measure how well it tracks ({hz} Hz; the tune check needs {needed})",
+        "uk": "Контур швидкості записується надто рідко, щоб виміряти, наскільки точно він відстежує ({hz} Гц; перевірці налаштування потрібно {needed})"
+      },
+      "action": {
+        "en": "Before and after any tuning change, fly the tune-check profile with {bits} on in LOG_BITMASK ({proposed}) for that flight only: RATE and the rate PIDs are then logged every loop, and the app measures each axis's tracking error with an interval a later flight can be compared with.",
+        "uk": "До і після кожної зміни налаштувань виконайте профіль перевірки налаштування з увімкненими {bits} у LOG_BITMASK ({proposed}) лише для цього польоту: тоді RATE і PID швидкості записуються щоциклу, і застосунок вимірює похибку відстеження кожної осі з інтервалом, з яким можна порівняти пізніший політ."
+      }
+    },
     "logging.gap": {
       "stage": "evidence",
       "title": {

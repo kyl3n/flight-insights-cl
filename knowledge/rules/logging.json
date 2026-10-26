@@ -114,6 +114,13 @@
       "plane": "ArduPlane/defines.h MASK_LOG_NOTCH_FULLRATE (1<<22) and ArduPlane/Log.cpp, at Plane-4.7.0"
     }
   },
+  "tune": {
+    "about": "The tune check measures the rate loop from RATE and the rate PIDs (PIDR, PIDP, PIDY). With LOG_BITMASK bit 0 (fast attitude) RATE is logged every loop, and the PIDs too with bit 12; without bit 0 both are logged at 10 Hz. Copter's default bitmask sets bits 1 and 12 but not 0. Bits 0 and 12 are proposed for the tune-check flight only, with raw IMU logging (bit 19) off for it to keep the logging bandwidth for them, and no logging rate cap.",
+    "bits": {"copter": [0, 12]},
+    "slow": {"copter": {"bit": 1, "hz": 10}},
+    "messages": ["RATE", "PIDR", "PIDP", "PIDY"],
+    "source": "ArduCopter/defines.h MASK_LOG_ATTITUDE_FAST (1<<0), MASK_LOG_ATTITUDE_MED (1<<1), MASK_LOG_PID (1<<12); ArduCopter/Copter.cpp loop_rate_logging and ten_hz_logging_loop; ArduCopter/config.h DEFAULT_LOG_BITMASK; at Copter-4.7.0 (1511f27)"
+  },
   "rate_limit": {
     "about": "LOG_FILE_RATEMAX and LOG_BLK_RATEMAX cap every streaming message of their backend at that many a second; 0 turns the cap off. Streaming messages are those whose log structure is marked so, or written with WriteStreaming: raw IMU (GYR, ACC), IMU, VIBE, RATE, ATT, PIDR/P/Y, ESC, RCOU, MOTB, CTUN, BAT, and the notch inputs FTN and FTNS. The rate, attitude and PID messages are logged every loop, raw IMU at the gyro rate, so a cap below either thins the data the analyzers need.",
     "source": "libraries/AP_Logger/AP_Logger_Backend.cpp AP_Logger_RateLimiter::should_log and LogStructure streaming flags; LOG_*_RATEMAX in libraries/AP_Logger/AP_Logger.cpp (default 0), at 4.7.0",

@@ -639,6 +639,61 @@ def test_a_lasting_bit_stays_when_the_test_flight_logging_comes_out(reg: Registr
     assert rec.revert == float(176126 | 1 << 12)  # only the test flight's bits come out
 
 
+RAW_ON = 176126 | 1 << 19  # raw IMU logging left on, as on the heavy lifts
+
+
+def _tune_check(stage: str | None = None) -> dict[str, Any]:
+    proposed = float(RAW_ON | 1 | 1 << 12)  # fast attitude and PID
+    return finding("logging.tune_evidence", ("LOG_BITMASK", proposed), severity="info", stage=stage)
+
+
+def test_the_tune_check_logs_the_rate_loop_and_puts_raw_imu_back_after(reg: Registry) -> None:
+    p = plan(reg, _tune_check(), LOG_BITMASK=float(RAW_ON), LOG_FILE_RATEMAX=50.0)
+    assert p.stage == "rate tune"
+    bitmask, cap = one(p, "LOG_BITMASK"), one(p, "LOG_FILE_RATEMAX")
+    assert bitmask.status == cap.status == "next" and bitmask.temporary and cap.temporary
+    # Fast attitude and PID on, raw IMU off, for the test flight only; then all as before.
+    assert int(bitmask.proposed or 0) == 176126 | 1 | 1 << 12
+    assert bitmask.revert == float(RAW_ON)
+    assert (cap.proposed, cap.revert) == (0.0, 50.0)
+    card = session(p, reg)
+    [temporary] = [s for s in card if s.kind == "temporary"]
+    assert "- Raw IMU" in temporary.text["en"]
+    fly = "\n".join(s.text["en"] for s in card if s.kind == "fly")
+    assert "AltHold" in fly and "8 doublets" in fly
+    [verify] = [s for s in card if s.kind == "verify" and s.checks]
+    assert {"check": "has_metric", "metric": "tune.tracking_error_roll"} in verify.checks
+    revert = parse_params(export_revert(p, reg, "mission planner")["text"]).values()
+    assert revert == {"LOG_BITMASK": float(RAW_ON), "LOG_FILE_RATEMAX": 50.0}
+
+
+def test_raw_imu_stays_on_while_another_test_on_offer_needs_it(reg: Registry) -> None:
+    p = plan(
+        reg,
+        finding("filter.better_settings", ("INS_HNTCH_BW", 30.0)),
+        _tune_check(stage="filters"),  # both on offer at once
+        LOG_BITMASK=float(RAW_ON),
+        INS_RAW_LOG_OPT=9.0,
+    )
+    rec = one(p, "LOG_BITMASK")
+    assert int(rec.proposed or 0) == RAW_ON | 1 | 1 << 12 | 1 << 21
+    assert rec.revert == float(RAW_ON)
+
+
+def test_a_later_stages_test_flight_logging_waits_for_its_stage(reg: Registry) -> None:
+    # The filters are on offer; the tune check is for the rate-tune stage after them.
+    p = plan(
+        reg, finding("filter.better_settings", ("INS_HNTCH_BW", 30.0)), _tune_check(),
+        INS_RAW_LOG_OPT=0.0,
+    )  # fmt: skip
+    assert p.stage == "filters"
+    rec = one(p, "LOG_BITMASK")
+    assert int(rec.proposed or 0) == 176126 | 1 << 19 | 1 << 21  # the filter test's alone
+    assert all(s.code != "logging.tune_evidence" for s in rec.sources)
+    [tune] = [r for r in p.recommendations if r.lead.code == "logging.tune_evidence"]
+    assert (tune.param, tune.status, tune.stage) == (None, "waiting", "rate tune")
+
+
 def test_blocked_changes_bring_no_test_flight_logging(reg: Registry) -> None:
     p = plan(reg, finding("filter.better_settings", ("INS_GYRO_FILTER", 300.0)))
     assert [r.param for r in p.recommendations] == ["INS_GYRO_FILTER"]
@@ -711,7 +766,8 @@ def test_test_flight_settings_name_real_bits(reg: Registry) -> None:
         for add in template["add_temporary"]:
             assert add["param"] in meta, code
             bits: dict[str, str] = meta[add["param"]].get("bitmask") or {}
-            assert all(str(b) in bits for b in add.get("set_bits", ())), code
+            named = [*add.get("set_bits", ()), *add.get("clear_bits", ())]
+            assert all(str(b) in bits for b in named), code
     names = meta["LOG_BITMASK"]["bitmask"]
     assert (names["19"], names["21"]) == ("Raw IMU", "Fast harmonic notch logging")
 

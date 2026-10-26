@@ -1,0 +1,20 @@
+source: sitl
+vehicle: copter
+frame: quad +
+firmware: 4.7.0
+ardupilot_commit: 1511f27194f1dcc3728270883047bdf022b3fd53
+scenario: copter-quad-tune-default
+description: 'The tune-check profile on the default quad, shortened to keep the log
+  small: AltHold at 5 m, 6 doublets on roll and 6 on pitch at 40% stick, with RATE
+  and the rate PIDs logged every loop during them.'
+parameters_set:
+  LOG_DISARMED: 0
+  SIM_ESC_TELEM: 0
+faults: []
+expected:
+- 'LOG_BITMASK bits 0 and 12 during the doublets: RATE and PIDR/P/Y at 400 Hz'
+- 6 doublets on roll and on pitch in ALT_HOLD, 0.4 s each way and 1 s centred
+- 'every doublet counted: no saturation, no mode change, well above 2 m'
+- roll and pitch tracking error from 6 inputs each, with intervals; no yaw inputs
+- 'about 41 s of steady hover in ALT_HOLD: the short doublets stay inside the hover
+  limits (under 10 degrees of tilt and 1 m/s)'

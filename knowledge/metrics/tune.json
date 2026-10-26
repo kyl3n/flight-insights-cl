@@ -1,0 +1,99 @@
+{
+  "about": "The tune check (spec: Copter analyzers, 'Rate-loop tune'): how closely each axis's rate follows its target through the pilot's stick inputs.",
+  "metrics": {
+    "tune.tracking_error_roll": {
+      "name": {
+        "en": "Roll rate tracking error",
+        "uk": "Похибка відстеження швидкості крену"
+      },
+      "unit": "%",
+      "direction": "lower",
+      "definition": {
+        "en": "How far the measured roll rate strays from the rate the controller asked for while the pilot moves the roll stick, as a share of what it asked for. A well-tuned rate loop follows closely; slow, overshooting or oscillating response all raise it. It compares flights of the same tune-check profile, before and after a tuning change, light and loaded.",
+        "uk": "Наскільки виміряна швидкість крену відхиляється від швидкості, яку задав регулятор, поки пілот рухає стік крену, як частка заданого. Добре налаштований контур швидкості відстежує близько; повільна відповідь, перерегулювання чи коливання збільшують її. Вона порівнює польоти за однаковим профілем перевірки налаштування, до і після зміни налаштувань, з вантажем і без."
+      },
+      "method": {
+        "en": "Each stick input on this axis (RATE.RDes past 10 deg/s, a doublet's two lobes joined, from 0.2 s before to 1 s after) counts unless the log has a gap in it, it was flown outside Stabilize, Acro, AltHold or Sport or across a mode change, under 2 m above take-off, with the rate controller saturated (PIDR.Flags bit 0), or with the stick still. Its error is RMS(RATE.RDes - RATE.R) / RMS(RATE.RDes). The value is the mean over the counted inputs, with a seeded 95% bootstrap interval over them; it needs 6 counted inputs and RATE logged at 200 Hz or more (LOG_BITMASK bit 0).",
+        "uk": "Кожен рух стіка за цією віссю (RATE.RDes понад 10 град/с, обидві половини дублета разом, від 0,2 с до і до 1 с після) враховується, якщо в журналі немає пропуску, політ був у Stabilize, Acro, AltHold чи Sport без зміни режиму, вище 2 м над точкою зльоту, регулятор швидкості не був у насиченні (PIDR.Flags біт 0) і стік рухався. Його похибка — RMS(RATE.RDes - RATE.R) / RMS(RATE.RDes). Значення — середнє за врахованими рухами з відтворюваним 95% бутстреп-інтервалом; потрібно 6 врахованих рухів і RATE із частотою від 200 Гц (LOG_BITMASK біт 0)."
+      },
+      "messages": [
+        "RATE",
+        "PIDR",
+        "MODE",
+        "CTUN",
+        "RCIN"
+      ],
+      "source": {
+        "kind": "baseline",
+        "title": "No universal range: judged against this airframe's own flights of the same tune-check profile and payload"
+      }
+    },
+    "tune.tracking_error_pitch": {
+      "name": {
+        "en": "Pitch rate tracking error",
+        "uk": "Похибка відстеження швидкості тангажу"
+      },
+      "unit": "%",
+      "direction": "lower",
+      "definition": {
+        "en": "How far the measured pitch rate strays from the rate the controller asked for while the pilot moves the pitch stick, as a share of what it asked for. A well-tuned rate loop follows closely; slow, overshooting or oscillating response all raise it. It compares flights of the same tune-check profile, before and after a tuning change, light and loaded.",
+        "uk": "Наскільки виміряна швидкість тангажу відхиляється від швидкості, яку задав регулятор, поки пілот рухає стік тангажу, як частка заданого. Добре налаштований контур швидкості відстежує близько; повільна відповідь, перерегулювання чи коливання збільшують її. Вона порівнює польоти за однаковим профілем перевірки налаштування, до і після зміни налаштувань, з вантажем і без."
+      },
+      "method": {
+        "en": "Each stick input on this axis (RATE.PDes past 10 deg/s, a doublet's two lobes joined, from 0.2 s before to 1 s after) counts unless the log has a gap in it, it was flown outside Stabilize, Acro, AltHold or Sport or across a mode change, under 2 m above take-off, with the rate controller saturated (PIDP.Flags bit 0), or with the stick still. Its error is RMS(RATE.PDes - RATE.P) / RMS(RATE.PDes). The value is the mean over the counted inputs, with a seeded 95% bootstrap interval over them; it needs 6 counted inputs and RATE logged at 200 Hz or more (LOG_BITMASK bit 0).",
+        "uk": "Кожен рух стіка за цією віссю (RATE.PDes понад 10 град/с, обидві половини дублета разом, від 0,2 с до і до 1 с після) враховується, якщо в журналі немає пропуску, політ був у Stabilize, Acro, AltHold чи Sport без зміни режиму, вище 2 м над точкою зльоту, регулятор швидкості не був у насиченні (PIDP.Flags біт 0) і стік рухався. Його похибка — RMS(RATE.PDes - RATE.P) / RMS(RATE.PDes). Значення — середнє за врахованими рухами з відтворюваним 95% бутстреп-інтервалом; потрібно 6 врахованих рухів і RATE із частотою від 200 Гц (LOG_BITMASK біт 0)."
+      },
+      "messages": [
+        "RATE",
+        "PIDP",
+        "MODE",
+        "CTUN",
+        "RCIN"
+      ],
+      "source": {
+        "kind": "baseline",
+        "title": "No universal range: judged against this airframe's own flights of the same tune-check profile and payload"
+      }
+    },
+    "tune.tracking_error_yaw": {
+      "name": {
+        "en": "Yaw rate tracking error",
+        "uk": "Похибка відстеження швидкості рискання"
+      },
+      "unit": "%",
+      "direction": "lower",
+      "definition": {
+        "en": "How far the measured yaw rate strays from the rate the controller asked for while the pilot moves the yaw stick, as a share of what it asked for. A well-tuned rate loop follows closely; slow, overshooting or oscillating response all raise it. It compares flights of the same tune-check profile, before and after a tuning change, light and loaded.",
+        "uk": "Наскільки виміряна швидкість рискання відхиляється від швидкості, яку задав регулятор, поки пілот рухає стік рискання, як частка заданого. Добре налаштований контур швидкості відстежує близько; повільна відповідь, перерегулювання чи коливання збільшують її. Вона порівнює польоти за однаковим профілем перевірки налаштування, до і після зміни налаштувань, з вантажем і без."
+      },
+      "method": {
+        "en": "Each stick input on this axis (RATE.YDes past 10 deg/s, a doublet's two lobes joined, from 0.2 s before to 1 s after) counts unless the log has a gap in it, it was flown outside Stabilize, Acro, AltHold or Sport or across a mode change, under 2 m above take-off, with the rate controller saturated (PIDY.Flags bit 0), or with the stick still. Its error is RMS(RATE.YDes - RATE.Y) / RMS(RATE.YDes). The value is the mean over the counted inputs, with a seeded 95% bootstrap interval over them; it needs 6 counted inputs and RATE logged at 200 Hz or more (LOG_BITMASK bit 0).",
+        "uk": "Кожен рух стіка за цією віссю (RATE.YDes понад 10 град/с, обидві половини дублета разом, від 0,2 с до і до 1 с після) враховується, якщо в журналі немає пропуску, політ був у Stabilize, Acro, AltHold чи Sport без зміни режиму, вище 2 м над точкою зльоту, регулятор швидкості не був у насиченні (PIDY.Flags біт 0) і стік рухався. Його похибка — RMS(RATE.YDes - RATE.Y) / RMS(RATE.YDes). Значення — середнє за врахованими рухами з відтворюваним 95% бутстреп-інтервалом; потрібно 6 врахованих рухів і RATE із частотою від 200 Гц (LOG_BITMASK біт 0)."
+      },
+      "messages": [
+        "RATE",
+        "PIDY",
+        "MODE",
+        "CTUN",
+        "RCIN"
+      ],
+      "source": {
+        "kind": "baseline",
+        "title": "No universal range: judged against this airframe's own flights of the same tune-check profile and payload"
+      }
+    }
+  },
+  "findings": {
+    "tune.few_inputs": {
+      "stage": "rate tune",
+      "title": {
+        "en": "Too few stick inputs could be measured for the tune check: roll {roll}, pitch {pitch}, yaw {yaw}, of {needed} needed on each axis",
+        "uk": "Для перевірки налаштування вдалося виміряти замало рухів стіка: крен {roll}, тангаж {pitch}, рискання {yaw} із {needed} потрібних на кожну вісь"
+      },
+      "action": {
+        "en": "Of the inputs flown, {saturated} drove the motors to their limit, {low} were under 2 m, {mode_change} crossed a mode change, {gaps} had a gap in the log and {no_stick} had the stick still. Fly the tune-check profile again in AltHold at 10 to 15 m, with smaller inputs if the motors reached their limit.",
+        "uk": "З виконаних рухів {saturated} довели мотори до межі, {low} були нижче 2 м, {mode_change} припали на зміну режиму, {gaps} мали пропуск у журналі, а в {no_stick} стік не рухався. Повторіть профіль перевірки налаштування в AltHold на висоті 10–15 м, з меншими рухами, якщо мотори досягали межі."
+      }
+    }
+  }
+}

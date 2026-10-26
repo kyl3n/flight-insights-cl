@@ -134,6 +134,44 @@
           }
         }
       ]
+    },
+    "tune_test": {
+      "about": "A tune-check flight: RATE and the rate PIDs logged every loop (LOG_BITMASK bits 0 fast attitude and 12 PID, the finding's own change), raw IMU logging off for this flight (bit 19) to keep the logging bandwidth for them, and no logging rate cap (LOG_FILE_RATEMAX 0), which would thin them. Raw IMU stays on when another change in the same plan keeps it. Then the same profile every time, so flights compare: before and after a tuning change, light and loaded.",
+      "add_temporary": [
+        {
+          "param": "LOG_BITMASK",
+          "clear_bits": [
+            19
+          ]
+        },
+        {
+          "param": "LOG_FILE_RATEMAX",
+          "value": 0
+        }
+      ],
+      "steps": [
+        {
+          "kind": "ground_check",
+          "text": {
+            "en": "Put AltHold on a flight-mode switch position. Fly with the propellers, battery type, payload and mount the flights you will compare it with use: before and after a tuning change, light and loaded.",
+            "uk": "Призначте AltHold на положення перемикача режимів. Літайте з тими самими пропелерами, типом батареї, вантажем і кріпленням, що й польоти, з якими порівнюватимете: до і після зміни налаштувань, без вантажу і з вантажем."
+          }
+        },
+        {
+          "kind": "fly",
+          "text": {
+            "en": "Tune-check profile, in wind under 4 m/s with gusts under 6 m/s: take off in AltHold and climb to 10 to 15 m, nose into the wind. Hold 30 s hands-off. Roll: 8 doublets at about 40% stick (1 s one way, 1 s the other, then 3 s centred), then 4 at about 70%. Pitch: the same. Yaw: 8 doublets at about 40%. Hover 20 s, then land.",
+            "uk": "Профіль перевірки налаштування, за вітру до 4 м/с і поривів до 6 м/с: злетіть в AltHold і наберіть 10–15 м, носом проти вітру. 30 с не торкайтеся стіків. Крен: 8 дублетів приблизно на 40% ходу стіка (1 с в один бік, 1 с в інший, потім 3 с у центрі), потім 4 приблизно на 70%. Тангаж: так само. Рискання: 8 дублетів приблизно на 40%. Зависніть на 20 с і сідайте."
+          }
+        },
+        {
+          "kind": "abort",
+          "text": {
+            "en": "Stop the inputs, centre the sticks and land if the aircraft oscillates, its attitude has not settled within 2 s of centring the sticks, an ESC temperature warning shows, or the battery reaches its caution level.",
+            "uk": "Припиніть рухи, поставте стіки в центр і сідайте, якщо апарат розгойдується, його положення не встановлюється за 2 с після центрування стіків, з'являється попередження про температуру ESC або батарея досягає рівня попередження."
+          }
+        }
+      ]
     }
   },
   "procedures": {
@@ -1070,6 +1108,67 @@
           "text": {
             "en": "After the reboot, check the ground station shows both receivers with a fix.",
             "uk": "Після перезавантаження перевірте, що наземна станція показує обидва приймачі з фіксацією."
+          }
+        }
+      ]
+    },
+    "logging.tune_evidence": {
+      "use": [
+        "tune_test"
+      ],
+      "temporary": [
+        "LOG_BITMASK"
+      ],
+      "steps": [
+        {
+          "kind": "verify",
+          "checks": [
+            {
+              "check": "finding_clears"
+            },
+            {
+              "check": "has_metric",
+              "metric": "tune.tracking_error_roll"
+            },
+            {
+              "check": "has_metric",
+              "metric": "tune.tracking_error_pitch"
+            },
+            {
+              "check": "has_metric",
+              "metric": "tune.tracking_error_yaw"
+            }
+          ],
+          "text": {
+            "en": "The next log holds RATE and the rate PIDs every loop and at least 6 counted stick inputs on each axis, so the app gives each axis's tracking error with its 95% interval. Fly the same profile after each tuning change, and light and loaded, to compare.",
+            "uk": "Наступний журнал містить RATE і PID швидкості щоциклу та щонайменше 6 врахованих рухів стіка на кожну вісь, тож застосунок дає похибку відстеження кожної осі з її 95% інтервалом. Для порівняння виконайте той самий профіль після кожної зміни налаштувань, а також без вантажу і з вантажем."
+          }
+        }
+      ]
+    },
+    "tune.few_inputs": {
+      "use": [
+        "tune_test"
+      ],
+      "steps": [
+        {
+          "kind": "verify",
+          "checks": [
+            {
+              "check": "finding_clears"
+            },
+            {
+              "check": "has_metric",
+              "metric": "tune.tracking_error_roll"
+            },
+            {
+              "check": "has_metric",
+              "metric": "tune.tracking_error_pitch"
+            }
+          ],
+          "text": {
+            "en": "The next log has at least 6 counted stick inputs on roll and pitch, so the app gives their tracking error with its 95% interval.",
+            "uk": "Наступний журнал має щонайменше 6 врахованих рухів стіка за креном і тангажем, тож застосунок дає їхню похибку відстеження з 95% інтервалом."
           }
         }
       ]

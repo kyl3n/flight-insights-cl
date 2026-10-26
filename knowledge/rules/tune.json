@@ -1,0 +1,62 @@
+{
+  "about": "How the tune check finds the stick inputs a rate loop can be measured on, and how it measures tracking (spec: Copter analyzers, 'Rate-loop tune'). Starting values, not yet calibrated against the fleet's logs.",
+  "calibrated": false,
+  "excitation": {
+    "about": "An event is a run of samples where the axis's rate target (RATE.RDes, PDes, YDes, deg/s) is at least the threshold, runs closer than merge_s joined (the two lobes of a doublet), kept when the joined run lasts min_active_s, widened by before_s and after_s to take in the start and the settling. The thresholds sit well above the targets a steady hover makes and well below what a 40% stick input in AltHold asks for.",
+    "threshold_dps": {
+      "roll": 10.0,
+      "pitch": 10.0,
+      "yaw": 10.0
+    },
+    "merge_s": 0.6,
+    "min_active_s": 0.3,
+    "before_s": 0.2,
+    "after_s": 1.0,
+    "gap_periods": 5,
+    "min_height_m": 2.0,
+    "stick_fraction": 0.05,
+    "stick_modes": [
+      "STABILIZE",
+      "ACRO",
+      "ALT_HOLD",
+      "SPORT"
+    ],
+    "stick_modes_about": "Modes whose sticks command lean angle or rate directly, so the rate target follows the pilot. AutoTune makes its own twitches; Loiter, PosHold and the autopilot modes shape their own targets and brake on their own.",
+    "limit_flag": 0,
+    "limit_flag_about": "PID Flags bit 0 (LIMIT): the controller's output is saturated and the I term's anti-windup is active, set from the motors' own limit flags (AC_AttitudeControl_Multi.cpp rate_controller_run passes _motors.limit.roll, .pitch, .yaw to AC_PID::update_all).",
+    "sticks": {
+      "roll": "RCMAP_ROLL",
+      "pitch": "RCMAP_PITCH",
+      "yaw": "RCMAP_YAW"
+    },
+    "stick_defaults": {
+      "RCMAP_ROLL": 1,
+      "RCMAP_PITCH": 2,
+      "RCMAP_YAW": 4,
+      "MIN": 1100,
+      "TRIM": 1500,
+      "MAX": 1900,
+      "DZ": 20
+    }
+  },
+  "tracking": {
+    "about": "Tracking error of one event: the RMS of (target - actual) over the RMS of the target, in percent. An axis's value is the mean over its counted events, with a 95% percentile bootstrap interval over the events, seeded so every laptop gets the same interval. Below min_events counted events the value is not given: the interval would be too wide to compare flights.",
+    "min_events": 6,
+    "min_rate_hz": 200,
+    "loop_share": 0.9,
+    "level": 0.95,
+    "resamples": 2000,
+    "seed": {
+      "roll": 1,
+      "pitch": 2,
+      "yaw": 3
+    }
+  },
+  "sources": [
+    "ArduCopter/Copter.cpp loop_rate_logging and ten_hz_logging_loop at Copter-4.7.0 (1511f27): with LOG_BITMASK bit 0 (MASK_LOG_ATTITUDE_FAST) RATE is written every loop, and PIDR, PIDP and PIDY too with bit 12 (MASK_LOG_PID); with bit 1 alone RATE is written at 10 Hz. ModeAutoTune::logs_attitude() is true, so AutoTune writes its own messages instead.",
+    "ArduCopter/rate_thread.cpp at Copter-4.7.0: with the fast rate thread, RATE and the PIDs are written at the thread's fast logging rate (up to 1 kHz) with bit 0.",
+    "libraries/AP_Logger/LogFile.cpp AP_Logger::Write_PID at 4.7.0: Flags bit 0 LIMIT (output saturated, I-term anti-windup active), bit 1 PD_SUM_LIMIT, bit 2 RESET, bit 3 I_TERM_SET.",
+    "ArduCopter/Log.cpp Log_Write_Control_Tuning at 4.7.0: CTUN.Alt is the position estimate's height above the EKF origin; heights here are taken from it relative to the moment of arming.",
+    "libraries/RC_Channel/RC_Channel.cpp at 4.7.0: RCn_MIN 1100, RCn_TRIM 1500, RCn_MAX 1900 by default; ArduCopter/radio.cpp sets the roll and pitch dead zones to 20 and yaw's to 15 or 20. The log's own values are used; the defaults stand in only where a value is missing."
+  ]
+}
