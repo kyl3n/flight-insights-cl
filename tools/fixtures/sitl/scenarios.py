@@ -486,10 +486,12 @@ SCENARIOS: dict[str, Scenario] = {
             expected=[
                 "EV AUTOTUNE_INITIALISED, then AUTOTUNE_SUCCESS and AUTOTUNE_SAVEDGAINS",
                 "ATUN rows for roll only (AUTOTUNE_AXES 1), from rate D up to angle P up",
-                "roll rate P about doubled from the soft 0.054 (to about 0.118); rate D lowered to about 0.0004, under AUTOTUNE_MIN_D after the 25% back-off",
+                "roll rate P about doubled from the soft 0.054 (to about 0.118); rate D lowered"
+                " to about 0.0004, under AUTOTUNE_MIN_D after the 25% back-off",
                 "no ESC telemetry (SIM_ESC_TELEM 0): the desync check has nothing to read",
                 "LOG_FILE_RATEMAX 25 for a small log: streamed messages at 25 Hz",
-                "steady hover windows: 5 s in ALT_HOLD; 8 s in AUTOTUNE; 8 s in AUTOTUNE (between twitches)",
+                "steady hover windows: 5 s in ALT_HOLD; 8 s in AUTOTUNE; 8 s in AUTOTUNE"
+                " (between twitches)",
             ],
             fly=autotune(finish=True),
             boot_params=AUTOTUNE_LOGGING | {"AUTOTUNE_AXES": 1} | SOFT_RATE_GAINS,
