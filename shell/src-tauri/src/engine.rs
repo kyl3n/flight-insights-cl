@@ -320,7 +320,12 @@ pub const SYNC_SHELL_ONLY: &[&str] = &[
 
 /// Weather's engine methods, the shell's alone: the tiles the fleet flies in are for the
 /// downloader, and the interface has no use for them or for the replies kept.
-pub const WEATHER_SHELL_ONLY: &[&str] = &["weather.tiles", "weather.store", "weather.held"];
+pub const WEATHER_SHELL_ONLY: &[&str] = &[
+    "weather.tiles",
+    "weather.store",
+    "weather.held",
+    "weather.export",
+];
 
 #[cfg(test)]
 mod tests {
