@@ -1,5 +1,5 @@
 {
-  "about": "How the payload estimate weighs an aircraft from its steady hover (spec: Vehicle fingerprinting, 'Payload estimation without a scale'). Starting values, not yet calibrated against the fleet's logs.",
+  "about": "How the payload estimate weighs an aircraft from its steady hover, and how flights are grouped into payload bands by it (spec: Vehicle fingerprinting, 'Payload estimation without a scale'; Performance trends, 'Like with like'). Starting values, not yet calibrated against the fleet's logs.",
   "calibrated": false,
   "min_height_m": 3.0,
   "min_hover_s": 10.0,
@@ -12,6 +12,10 @@
     "libraries/AP_Motors/AP_MotorsMulticopter.cpp at Copter-4.7.0: MOT_PWM_MIN and MOT_PWM_MAX of 0 fall back to the throttle channel's RC3_MIN and RC3_MAX.",
     "ICAO Doc 7488, Manual of the ICAO Standard Atmosphere: sea-level density 1.225 kg/m3; specific gas constant of dry air 287.05 J/(kg K).",
     "Cheeseman and Bennett, The effect of the ground on a helicopter rotor in forward flight, ARC R&M 3021 (1955): in hover, thrust rises by 1/(1 - (R/4z)^2) near the ground, under 0.3% at 3 m for a 30-inch rotor.",
-    "min_hover_s and saturated: app starting values. A motor within 1% of either end of its range no longer shows what it was asked for."
-  ]
+    "min_hover_s and saturated: app starting values. A motor within 1% of either end of its range no longer shows what it was asked for.",
+    "band_step, lightest_within and max_takeoff_kg: app starting values. A 10% step is about three times the estimate's error on the simulator's light/loaded pair, so a flight seldom lands in the wrong band; ArduPilot has flown aircraft up to 500 kg, so a weight over 1000 kg is a typing error."
+  ],
+  "band_step": 0.1,
+  "lightest_within": 0.05,
+  "max_takeoff_kg": 1000.0
 }

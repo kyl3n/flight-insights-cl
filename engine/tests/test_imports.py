@@ -661,6 +661,10 @@ def test_import_over_rpc(tmp_path: Path, pack: Pack) -> None:
     assert files["f1"]["flights"][0]["arm_us"] > 0  # take-off is boot UTC plus this
     assert files["f2"]["proposal"]["status"] == "ready"
     assert "bid1-" not in json.dumps(scanned)  # the board's hash stays in the engine
+    for weight in (0, -3, 1500, "12", True):  # a weight above 0 and up to 1000 kg
+        heavy = [{"log": "f1", "airframe_id": af["id"], "takeoff_kg": weight}]
+        wrong = call(server, out, 11, "import.commit", batch=scanned["batch"], decisions=heavy)
+        assert wrong["error"]["code"] == -32602, weight
     done = call(
         server,
         out,

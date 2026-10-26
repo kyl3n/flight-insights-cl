@@ -11,6 +11,7 @@
 | recommend.history | An airframe's recommendations, with what happened to each |
 | trend.overview | The airframe dashboard: each metric's latest value, zone, change and drift |
 | trend.series | One metric's series for an airframe, with its zones, baseline and drift |
+| trend.payloads | An airframe's payload bands by hover thrust, in kg once a flight is weighed |
 | trend.events | What changed on an airframe, placed at the flight it first applies to |
 | trend.platform | One metric for every airframe of a platform, on shared axes |
 | flight.list | Flights, newest first, with a summary of each one's latest analysis |
@@ -285,15 +286,30 @@ def add_analysis_methods(server: Server, state: EngineState, guarded: Callable[[
     def trend_series(_ctx: Context, params: dict[str, Any]) -> dict[str, Any]:
         reg = analyzers.Registry.load(state.pack)
         metric, segment = _metric(params, reg)
-        payload, any_payload = params.get("payload"), params.get("any_payload", False)
-        if payload is not None and not isinstance(payload, str):
-            raise RpcError(INVALID_PARAMS, "payload must be a payload label or null")
+        group, any_payload = params.get("group"), params.get("any_payload", False)
+        if group is not None and (
+            not isinstance(group, str) or not group.startswith(("band:", "label:"))
+        ):
+            raise RpcError(INVALID_PARAMS, "group must be 'band:<n>', 'label:<text>' or null")
+        if isinstance(group, str) and group.startswith("band:"):
+            try:
+                int(group[5:])
+            except ValueError:
+                raise RpcError(
+                    INVALID_PARAMS, "a band group is 'band:' and a whole number"
+                ) from None
         if not isinstance(any_payload, bool):
             raise RpcError(INVALID_PARAMS, "any_payload must be true or false")
         return trends.series(
             state.require_store(), reg, _id(params, "airframe_id"), metric, segment,
-            payload, any_payload,
+            group, any_payload,
         )  # fmt: skip
+
+    @server.method("trend.payloads")
+    @guarded
+    def trend_payloads(_ctx: Context, params: dict[str, Any]) -> dict[str, Any]:
+        reg = analyzers.Registry.load(state.pack)
+        return trends.payloads(state.require_store(), reg, _id(params, "airframe_id"))
 
     @server.method("trend.events")
     @guarded

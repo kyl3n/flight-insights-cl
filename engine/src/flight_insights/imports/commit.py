@@ -68,6 +68,7 @@ class Decision:
     packs: list[str] = field(default_factory=list[str])
     payload: str | None = None
     station_version_id: str | None = None
+    takeoff_kg: float | None = None  # as weighed before the flight
 
 
 @dataclass
@@ -423,6 +424,7 @@ def _dataflash(
                     "hardware_json": json.dumps(to_json(item.hardware)),
                     "hold_json": hold,
                     "payload": (decision.payload or "").strip()[:200] or None,
+                    "takeoff_kg": decision.takeoff_kg,
                     "fingerprint_json": fingerprint_json,
                     "validation_json": _validation_json(check, f),
                 },

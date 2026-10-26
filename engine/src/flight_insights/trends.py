@@ -5,8 +5,10 @@ analysis, read against the metric's fixed zones and against the airframe's own
 baseline, with every change marked on the same time axis.
 
 - **Like with like.** A series holds one segment (hover, flight) and, by default, one
-  payload: the label the flight was imported with. A heavy hover is never plotted
-  against a light one.
+  payload band: flights whose hover thrust at standard air is within the same 10% step
+  of the airframe's lightest flights (payload_bands.py). A heavy hover is never plotted
+  against a light one, whatever the flights were labelled. A flight with no hover
+  thrust keeps its payload label as its group.
 - **The baseline** is the spread of the airframe's good flights in the same series:
   the 10th to 90th percentile of the most recent ones, once there are enough. A flight
   is good when its analysis is complete and raised nothing out of range or unsafe.
@@ -33,10 +35,12 @@ from flight_insights.analyzers.flight import FlightError
 from flight_insights.analyzers.registry import Metric, Registry
 from flight_insights.analyzers.run import analysis_results
 from flight_insights.knowledge import Pack
+from flight_insights.payload_bands import Bands, Flown, bands
 from flight_insights.recommend import flight_plan
 from flight_insights.store.db import Store
 
 BAD_SEVERITIES = ("out", "safety")
+THRUST = ("payload.hover_thrust", "hover")  # what payload bands are made from
 
 
 @dataclass(frozen=True)
@@ -48,6 +52,8 @@ class Flight:
     payload: str | None
     run_id: str | None  # its latest analysis
     good: bool  # may count towards the baseline
+    thrust: float | None = None  # its hover thrust at standard air, %
+    takeoff_kg: float | None = None  # as weighed before it flew
 
 
 def flight_order(row: Mapping[str, Any]) -> tuple[bool, int, str]:
@@ -62,7 +68,7 @@ def flight_order(row: Mapping[str, Any]) -> tuple[bool, int, str]:
 
 def _flights(store: Store, airframe_id: str) -> list[Flight]:
     cur = store.conn.execute(
-        "SELECT id, boot_utc_us, arm_us, created_hlc, firmware, payload FROM flight "
+        "SELECT id, boot_utc_us, arm_us, created_hlc, firmware, payload, takeoff_kg FROM flight "
         "WHERE airframe_id = ?",
         (airframe_id,),
     )
@@ -83,6 +89,7 @@ def _flights(store: Store, airframe_id: str) -> list[Flight]:
             ).fetchone()
         )
         utc = flight_order(r)
+        thrust = _value(store, run[0], *THRUST) if run else None
         out.append(
             Flight(
                 id=r["id"],
@@ -92,9 +99,29 @@ def _flights(store: Store, airframe_id: str) -> list[Flight]:
                 payload=r["payload"],
                 run_id=run[0] if run else None,
                 good=run is not None and run[1] == "complete" and not bad,
+                thrust=thrust[0] if thrust else None,
+                takeoff_kg=r["takeoff_kg"],
             )
         )
     return out
+
+
+def _bands(flights: Sequence[Flight], reg: Registry) -> Bands:
+    analysed = [Flown(f.id, f.thrust, f.takeoff_kg) for f in flights if f.run_id is not None]
+    return bands(analysed, reg.rules["payload"])
+
+
+def group_of(flight: Flight, b: Bands) -> str:
+    """The payload group a flight is compared within: its band, or its label without one."""
+    k = b.band.get(flight.id)
+    return f"band:{k}" if k is not None else f"label:{flight.payload or ''}"
+
+
+def _describe(group: str, b: Bands) -> dict[str, Any]:
+    kind, _, value = group.partition(":")
+    if kind == "band" and b.lightest is not None:
+        return b.describe(int(value))
+    return {"label": value or None}
 
 
 def _value(store: Store, run_id: str, metric: str, segment: str) -> tuple[float, Any] | None:
@@ -136,24 +163,34 @@ def series(
     airframe_id: str,
     metric_id: str,
     segment: str,
-    payload: str | None = None,
+    group: str | None = None,
     any_payload: bool = False,
 ) -> dict[str, Any]:
     """One metric's series for one airframe, with its baseline, drift and zones.
-    `payload` picks a payload label (None: flights with none); `any_payload` mixes them."""
+    `group` picks a payload group, 'band:<k>' or 'label:<text>' (None: the latest
+    flight's); `any_payload` mixes them."""
     metric = reg.metrics[metric_id]
     rules: Mapping[str, Any] = reg.rules["trends"]
+    flights = _flights(store, airframe_id)
+    b = _bands(flights, reg)
+    analysed = [f for f in flights if f.run_id is not None]
+    if group is None and analysed:
+        group = group_of(analysed[-1], b)
     points: list[dict[str, Any]] = []
-    for f in _flights(store, airframe_id):
-        if f.run_id is None or (not any_payload and f.payload != payload):
+    for f in analysed:
+        assert f.run_id is not None
+        if not any_payload and group_of(f, b) != group:
             continue
         found = _value(store, f.run_id, metric_id, segment)
         if found is None:
             continue
         value, (spread, zone) = found
+        kg = b.kg(f.thrust)
         points.append(
             {"flight": f.id, "utc_us": f.utc_us, "value": value, "spread": spread,
-             "zone": zone, "payload": f.payload, "good": f.good}
+             "zone": zone, "payload": f.payload, "group": group_of(f, b),
+             "kg": None if kg is None else round(kg, 1), "takeoff_kg": f.takeoff_kg,
+             "good": f.good}
         )  # fmt: skip
     drift_n = int(rules["drift_flights"])
     tail = points[-drift_n:] if len(points) > drift_n else []
@@ -172,7 +209,8 @@ def series(
         "airframe": airframe_id,
         "metric": metric_id,
         "segment": segment,
-        "payload": None if any_payload else payload,
+        "group": None if any_payload or group is None else group,
+        "payload": None if any_payload or group is None else _describe(group, b),
         "unit": metric.unit,
         "direction": metric.direction,
         "zones": {z: [list(i) for i in b] for z, b in metric.zones.items()},
@@ -186,12 +224,13 @@ def series(
 def overview(store: Store, reg: Registry, airframe_id: str) -> list[dict[str, Any]]:
     """The airframe dashboard: for each metric and segment its latest flight has, the
     latest value and zone, the change since the previous flight and since the
-    baseline, drift, and a sparkline, all within the latest flight's payload."""
+    baseline, drift, and a sparkline, all within the latest flight's payload group."""
     flights = [f for f in _flights(store, airframe_id) if f.run_id is not None]
     if not flights:
         return []
     latest = flights[-1]
     assert latest.run_id is not None
+    group = group_of(latest, _bands(flights, reg))
     keys = store.conn.execute(
         "SELECT metric, segment FROM metric_value WHERE run_id = ? ORDER BY metric, segment",
         (latest.run_id,),
@@ -201,7 +240,7 @@ def overview(store: Store, reg: Registry, airframe_id: str) -> list[dict[str, An
     for metric_id, segment in keys:
         if metric_id not in reg.metrics:
             continue
-        s = series(store, reg, airframe_id, metric_id, segment, latest.payload)
+        s = series(store, reg, airframe_id, metric_id, segment, group)
         points = s["points"]
         if not points:
             continue
@@ -210,8 +249,9 @@ def overview(store: Store, reg: Registry, airframe_id: str) -> list[dict[str, An
         base = s["baseline"]
         cards.append(
             {
-                "metric": metric_id, "segment": segment, "payload": latest.payload,
-                "unit": s["unit"], "value": last["value"], "zone": last["zone"],
+                "metric": metric_id, "segment": segment, "group": group,
+                "payload": latest.payload, "unit": s["unit"], "value": last["value"],
+                "zone": last["zone"],
                 "since_previous": None if previous is None else last["value"] - previous,
                 "since_baseline": None if base is None else last["value"] - base["median"],
                 "baseline": base, "drift": s["drift"] is not None,
@@ -219,6 +259,35 @@ def overview(store: Store, reg: Registry, airframe_id: str) -> list[dict[str, An
             }
         )  # fmt: skip
     return cards
+
+
+def payloads(store: Store, reg: Registry, airframe_id: str) -> dict[str, Any]:
+    """The airframe's payload groups for the picker, lightest first: each band with its
+    hover-thrust range, how much heavier than the lightest flights it is, its kilograms
+    when a flight was weighed, its flights and the labels they were imported with; then
+    the label groups of flights with no hover thrust. With two or more flights weighed,
+    each one's weight estimated from the others' (the check against the scale)."""
+    flights = [f for f in _flights(store, airframe_id) if f.run_id is not None]
+    b = _bands(flights, reg)
+    groups: dict[str, dict[str, Any]] = {}
+    for f in flights:
+        g = group_of(f, b)
+        entry = groups.setdefault(g, {"group": g, **_describe(g, b), "flights": 0, "labels": []})
+        entry["flights"] += 1
+        if f.payload and f.payload not in entry["labels"]:
+            entry["labels"].append(f.payload)
+    ordered = sorted(
+        groups.values(),
+        key=lambda e: (0, e["band"], "") if "band" in e else (1, 0, e["label"] or ""),
+    )
+    return {
+        "airframe": airframe_id,
+        "lightest": None if b.lightest is None else round(b.lightest, 2),
+        "kg_per_percent": b.kg_per_percent,
+        "latest": group_of(flights[-1], b) if flights else None,
+        "groups": ordered,
+        "check": b.check,
+    }
 
 
 def events(store: Store, airframe_id: str) -> list[dict[str, Any]]:
@@ -303,7 +372,7 @@ def flight_list(
         where, args = "WHERE a.platform_id = ?", [platform_id]
     cur = store.conn.execute(
         "SELECT f.id, f.airframe_id, a.name AS airframe, f.boot_utc_us, f.arm_us, f.disarm_us, "
-        "f.created_hlc, f.firmware, f.payload, f.fingerprint_json "
+        "f.created_hlc, f.firmware, f.payload, f.takeoff_kg, f.fingerprint_json "
         f"FROM flight f JOIN airframe a ON a.id = f.airframe_id {where}",
         args,
     )
@@ -336,7 +405,7 @@ def flight_list(
         out.append(
             {"id": r["id"], "airframe_id": r["airframe_id"], "airframe": r["airframe"],
              "utc_us": None if order[0] else order[1], "duration_s": duration,
-             "firmware": r["firmware"], "payload": r["payload"],
+             "firmware": r["firmware"], "payload": r["payload"], "takeoff_kg": r["takeoff_kg"],
              "modes": sorted(fp.get("mode_s", {})), "analysis": analysis}
         )  # fmt: skip
     return out
@@ -346,7 +415,7 @@ SEVERITY_RANK = {"safety": 0, "out": 1, "caution": 2}
 
 
 def _key_metrics(
-    store: Store, reg: Registry, airframe_id: str, run_id: str, vehicle: str, payload: str | None
+    store: Store, reg: Registry, airframe_id: str, run_id: str, vehicle: str, group: str
 ) -> list[dict[str, Any]]:
     """The airframe's key metrics on its latest flight, each in the first segment the
     flight has from the preferred order, with its zone and whether it is drifting."""
@@ -366,7 +435,7 @@ def _key_metrics(
         segment, value, zone = min(
             rows, key=lambda r: (order.index(r[0]) if r[0] in order else len(order), r[0])
         )
-        s = series(store, reg, airframe_id, metric_id, segment, payload)
+        s = series(store, reg, airframe_id, metric_id, segment, group)
         out.append(
             {"metric": metric_id, "segment": segment, "unit": reg.metrics[metric_id].unit,
              "value": float(value), "zone": zone, "drift": s["drift"] is not None}
@@ -400,7 +469,8 @@ def fleet_overview(store: Store, reg: Registry, pack: Pack) -> dict[str, Any]:
             planned = True
         except FlightError:  # no parameters on the flight: no plan to read a stage from
             stage, planned = None, False
-        metrics = _key_metrics(store, reg, airframe_id, latest.run_id, vehicle, latest.payload)
+        group = group_of(latest, _bands(flights, reg))
+        metrics = _key_metrics(store, reg, airframe_id, latest.run_id, vehicle, group)
         worst = min((SEVERITY_RANK.get(f["severity"], 9) for f in findings), default=9)
         drifting = [c for c in overview(store, reg, airframe_id) if c["drift"]]
         status = "fix" if worst <= 1 else "inspect" if worst == 2 or drifting else "ok"

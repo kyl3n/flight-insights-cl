@@ -16,6 +16,7 @@ stops; the interface holds only its id.
 
 from __future__ import annotations
 
+import math
 import secrets
 import uuid
 from collections.abc import Callable
@@ -102,7 +103,23 @@ def _new_airframe(value: Any) -> tuple[str, str] | None:
     return platform, name
 
 
-def _decision(value: Any) -> Decision:
+def _weight(value: Any, most_kg: float) -> float | None:
+    """A take-off weight in kilograms, as weighed before the flight."""
+    if value is None:
+        return None
+    if (
+        isinstance(value, bool)
+        or not isinstance(value, int | float)
+        or not math.isfinite(value)
+        or not 0 < value <= most_kg
+    ):
+        raise RpcError(
+            INVALID_PARAMS, f"takeoff_kg must be a weight above 0 and up to {most_kg:g} kg"
+        )
+    return float(value)
+
+
+def _decision(value: Any, most_kg: float) -> Decision:
     if not isinstance(value, dict):
         raise RpcError(INVALID_PARAMS, "each decision must be an object")
     d = cast(dict[str, Any], value)
@@ -126,6 +143,7 @@ def _decision(value: Any) -> Decision:
         _strings(d.get("packs"), "packs"),
         payload,
         station,
+        _weight(d.get("takeoff_kg"), most_kg),
     )
 
 
@@ -163,7 +181,8 @@ def add_import_methods(server: Server, state: EngineState, guarded: Callable[[An
         raw: Any = params.get("decisions") or []
         if not isinstance(raw, list):
             raise RpcError(INVALID_PARAMS, "decisions must be a list")
-        decisions = [_decision(d) for d in cast(list[Any], raw)]
+        most_kg = float(state.pack.json("rules/payload.json")["max_takeoff_kg"])
+        decisions = [_decision(d, most_kg) for d in cast(list[Any], raw)]
         store, cache = state.require_store(), state.cache
         assert cache is not None
         station = None
