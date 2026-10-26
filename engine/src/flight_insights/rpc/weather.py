@@ -8,6 +8,7 @@ flies.
 | weather.store | Keeps one download the shell received, as it came (or gzipped, as shared) |
 | weather.held | Which downloads of a source are kept, by tile and period |
 | weather.export | Writes one kept download, gzipped, to a file for the shell to share |
+| flight.weather | A flight's weather record: values only, no place (made when missing or stale) |
 """
 
 from __future__ import annotations
@@ -18,7 +19,7 @@ from pathlib import Path
 from typing import TYPE_CHECKING, Any
 
 from flight_insights.rpc.server import BAD_INPUT, INVALID_PARAMS, Context, RpcError, Server
-from flight_insights.weather import downloads, tiles
+from flight_insights.weather import downloads, record, tiles
 
 if TYPE_CHECKING:
     from flight_insights.rpc.methods import EngineState
@@ -95,3 +96,14 @@ def add_weather_methods(server: Server, state: EngineState, guarded: Callable[[A
             raise RpcError(BAD_INPUT, "that download is not kept here")
         path.write_bytes(kept)
         return {"bytes": len(kept)}
+
+    @server.method("flight.weather")
+    @guarded
+    def flight_weather(_ctx: Context, params: dict[str, Any]) -> dict[str, Any]:
+        flight = _text(params, "flight_id")
+        store, cache = state.require_store(), state.cache
+        assert cache is not None
+        if store.get("flight", flight) is None:
+            raise RpcError(BAD_INPUT, "no such flight")
+        tiles.scan(store, cache, tiles.TileRules.load(state.pack))
+        return {"record": record.current(store, cache, state.pack, flight)}

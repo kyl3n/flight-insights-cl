@@ -416,6 +416,19 @@ Every flight gets a weather record from an accurate numerical weather model, che
 - The aircraft-measured wind profile, and the difference between it and each model.
 - Source, model run and quality tag for every value, so a forecast-grade record is visibly different from a reanalysis-grade one.
 
+**How the record is made now** (`weather/record.py`, rules in `knowledge/rules/weather.json`, "record"). The record is worked out on the laptop, and it holds values only: no coordinate and no tile.
+- **Sampling:** the flight is sampled along its own track every 10 s, from arming to disarming, from the estimator's positions. Height is taken above take-off.
+- **Space and time:** at each sample, each model field is read bilinearly from the grid points around it. Each reply's points are matched to grid nodes by the order the request asked for them, and nodes in neighbouring tiles are used where the sample lies near an edge. Values are taken linearly between the hours around the sample, across forecast windows or reanalysis days.
+- **Which model:** ERA5 is used wherever it covers the sample, else the forecast. The record says which one (`reanalysis`, `forecast` or `mixed`), and the share of samples covered.
+- **Wind:**
+  - It is carried as east and north components, so averages never wrap round north.
+  - Up to the flight's height it follows the log law between the model's levels (10, 100 and 200 m). Below 10 m it uses a roughness length of 0.03 m (open flat terrain), and above the top level it keeps the top value.
+  - The record gives the mean and largest wind at the flight's height, the direction it blows from, the 10 m wind, and the largest 10 m gust.
+- **At take-off:** temperature, dew point and pressure are carried from the model's ground to the take-off elevation by the standard lapse rate and the hypsometric equation. Open-Meteo gives each point's values at that point's ground. Density altitude is then worked out from virtual temperature, at take-off and at the top of the flight, and cloud base from the dew-point spread.
+- **Also recorded:** mean precipitation, cloud cover and boundary-layer height, and the highest planetary K-index of the 3-hour intervals the flight overlaps.
+- **Kept and remade:** each flight's record is kept locally (`flight_weather`, never synced). It is made again when the downloads that could cover the flight's tiles and hours change, for instance when ERA5 arrives after the forecast. The engine method `flight.weather` returns it.
+- **Not yet:** the aircraft-measured wind and its difference from each model, and using the record in trends, attribution and AI packets.
+
 **What the app does with it**
 
 - **Normalizes performance.** Power, position-hold error, tune metrics and link quality are compared at matched wind and density, so a windy day is never mistaken for a regression; attribution already lists weather as a possible cause, and now has real values for it.
@@ -2082,7 +2095,7 @@ devices/<laptop-id>/<sequence>-<object-key>.fio
 | Records | laptop, platform, build_version, airframe, component, battery_pack, ground_station, ground_station_version, source_file, param_snapshot, flight, change_set, recommendation, ai_packet, ai_exchange | A new record whole, with each field's clock; a changed record as its changed fields |
 | Links | flight_source, flight_battery, build_component | Added once, never changed |
 | Children | param_value and param_change, with their parameter snapshot | Sent with the snapshot when it is new |
-| Local only | analysis_run, finding, metric_value (recomputed); tlog_session, flight_tiles (derived from the logs); weather_tile, weather_download (this laptop's weather, shared as drive objects); station_folder, ignored_file, source_location (this laptop's paths); the sync tables themselves | Never sent |
+| Local only | analysis_run, finding, metric_value (recomputed); tlog_session, flight_tiles, flight_weather (derived from the logs); weather_tile, weather_download (this laptop's weather, shared as drive objects); station_folder, ignored_file, source_location (this laptop's paths); the sync tables themselves | Never sent |
 
 A few fields of synced records name a row that exists only on the laptop that wrote them, and stay there: `recommendation.finding_id` and `ai_packet.run_id`. Each record also carries a **portable reference** to the same thing:
 
