@@ -199,6 +199,70 @@ def test_a_failed_transaction_leaves_nothing(tmp_path: Path, keys: StoreKeys) ->
         assert store.conn.execute("SELECT count(*) FROM platform").fetchone() == (0,)
 
 
+def test_threads_share_the_store_one_statement_at_a_time(tmp_path: Path, keys: StoreKeys) -> None:
+    """The engine's request threads share one connection. Reads stepping at the same
+    time as other reads and writes once corrupted its statement cache (a KeyError naming
+    the SQL); every statement now runs under the store's lock."""
+    import threading
+
+    errors: list[BaseException] = []
+    with open_store(tmp_path / "fleet.db", keys, LAPTOP) as store:
+        start = threading.Barrier(8)
+
+        def work(n: int) -> None:
+            try:
+                start.wait()
+                for k in range(150):
+                    if n % 2:
+                        store.insert("platform", {"name": f"P{n}-{k}", "vehicle": "copter"})
+                    # distinct statements, so the connection's statement cache (128)
+                    # keeps evicting, as the engine's many queries do
+                    rows = store.conn.execute(
+                        f"SELECT id, name, {n * 1000 + k} FROM platform WHERE name LIKE "
+                        f"'P{n % 3}%' ORDER BY name"
+                    ).fetchall()
+                    assert all(len(r) == 3 for r in rows)
+                    for (count,) in store.conn.execute("SELECT count(*) FROM platform"):
+                        assert count >= 0
+            except BaseException as e:
+                errors.append(e)
+
+        threads = [threading.Thread(target=work, args=(n,)) for n in range(8)]
+        for t in threads:
+            t.start()
+        for t in threads:
+            t.join()
+        assert errors == []
+        assert store.conn.execute("SELECT count(*) FROM platform").fetchone() == (4 * 150,)
+
+
+def test_no_thread_reads_another_threads_open_transaction(tmp_path: Path, keys: StoreKeys) -> None:
+    import threading
+
+    seen: list[int] = []
+    with open_store(tmp_path / "fleet.db", keys, LAPTOP) as store:
+        opened, done = threading.Event(), threading.Event()
+
+        def writer() -> None:
+            with contextlib.suppress(RuntimeError), store.transaction():
+                store.insert("platform", {"name": "never kept", "vehicle": "copter"})
+                opened.set()
+                done.wait(0.3)
+                raise RuntimeError("rolled back")
+
+        def reader() -> None:
+            opened.wait()
+            seen.append(store.conn.execute("SELECT count(*) FROM platform").fetchone()[0])
+            done.set()
+
+        threads = [threading.Thread(target=writer), threading.Thread(target=reader)]
+        for t in threads:
+            t.start()
+        for t in threads:
+            t.join()
+    assert seen == [0]  # it waited for the rollback, and never saw the row
+
+
 def test_foreign_keys_and_checks_are_enforced(tmp_path: Path, keys: StoreKeys) -> None:
     with open_store(tmp_path / "fleet.db", keys, LAPTOP) as store:
         with pytest.raises(Exception, match="FOREIGN KEY"):

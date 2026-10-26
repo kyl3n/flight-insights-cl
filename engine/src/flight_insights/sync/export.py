@@ -20,12 +20,11 @@ The first export after sync starts also queues every record made before it.
 from __future__ import annotations
 
 import json
-import sqlite3
 from collections import defaultdict
 from typing import Any
 
 from flight_insights.store import synced
-from flight_insights.store.db import Store
+from flight_insights.store.db import Connection, Store
 from flight_insights.sync.codec import encode, row
 
 FORMAT = "fi.sync.records/1"
@@ -33,11 +32,11 @@ SOURCE_FORMAT = "fi.sync.source/1"
 MAX_ENTRIES = 2000  # records per object, so no object grows without bound
 
 
-def _schema(conn: sqlite3.Connection) -> int:
+def _schema(conn: Connection) -> int:
     return int(conn.execute("SELECT max(number) FROM schema_migrations").fetchone()[0])
 
 
-def _seed(store: Store, conn: sqlite3.Connection) -> None:
+def _seed(store: Store, conn: Connection) -> None:
     """Queue every record and link made before sync began, once."""
     if conn.execute("SELECT seeded FROM sync_state").fetchone()[0]:
         return
@@ -54,7 +53,7 @@ def _seed(store: Store, conn: sqlite3.Connection) -> None:
     conn.execute("UPDATE sync_state SET seeded = 1")
 
 
-def _clocks(conn: sqlite3.Connection, table: str, rid: str) -> dict[str, list[str | None]]:
+def _clocks(conn: Connection, table: str, rid: str) -> dict[str, list[str | None]]:
     return {
         f: [h, b]
         for f, h, b in conn.execute(
@@ -175,7 +174,7 @@ def export(store: Store) -> list[int]:
     return made
 
 
-def _enqueue(store: Store, conn: sqlite3.Connection, kind: str, payload: dict[str, Any]) -> int:
+def _enqueue(store: Store, conn: Connection, kind: str, payload: dict[str, Any]) -> int:
     seq = int(conn.execute("SELECT next_sequence FROM sync_state").fetchone()[0])
     conn.execute(
         "INSERT INTO sync_outbox (sequence, kind, payload_json, created_hlc) VALUES (?, ?, ?, ?)",
