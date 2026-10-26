@@ -1211,7 +1211,7 @@ The app assumes every aircraft will lose GNSS at some point, through jamming, sp
   - whether the aircraft got home;
   - trends per airframe;
   - readiness from the logs (compass health and interference, barometer error) and drag coefficients computed from the take-off weight and measured areas;
-  - the recovery card;
+  - the recovery card's radio-link and motor sections;
   - settings sized from the measured hold (`FS_DR_TIMEOUT`).
 
 ### Recommendations and recovery
@@ -1220,6 +1220,28 @@ The app assumes every aircraft will lose GNSS at some point, through jamming, sp
 - **Hardware and calibration ranked by measured benefit:** optical flow and rangefinder for low-altitude hold, visual odometry, a compass further from power wiring, and drag-fusion calibration flights.
 - **A recovery card per airframe:** what the aircraft will do on GNSS loss with its current settings, how long it can hold and how far it can travel on dead reckoning, and the operator's steps, from switching to the non-GNSS source set to flying home on a heading in AltHold.
 - **Loss and spoofing are handled differently.** On suspected spoofing the card says to reject GNSS manually first, because the estimator may still be trusting it.
+
+**Built now:** `recovery.py`, with the RPC `airframe.recovery_card`. The wording is in `knowledge/recovery/copter.json`, in English and Ukrainian. The card is built on the laptop from three things:
+
+- the airframe's latest parameters, through the readiness review;
+- its measured outages over all its flights' latest analyses: the shortest hold, the longest detection and the worst drift a minute;
+- the landing tolerance.
+
+It holds two sections; losing the radio link and losing a motor follow once their measurements exist.
+
+- **GNSS lost:**
+  - What the aircraft will do on its own, from the source sets, drag fusion and `FS_DR_ENABLE`, and the EKF failsafe.
+  - What was measured, and how long until the estimate is off by the landing tolerance.
+  - The operator's steps:
+    - with a usable source set on a switch: change to it, fly home in Loiter and land by sight;
+    - otherwise: take over in the fallback mode (AltHold first), turn to the home heading, fly home on it and land by sight;
+    - with a heading that goes with GNSS: fly by sight.
+- **Suspected spoofing:**
+  - Take over in the fallback mode first.
+  - Then reject GNSS with the GPS-disable switch or the non-GNSS source set. The card says when the EKF failsafe will then land it (`FS_EKF_ACTION` 3).
+  - Then follow "GNSS lost".
+
+The card carries times, modes, switches and distances from the measured drift, never a position. It is printed on the laptop and never sent.
 
 ## Recommendation engine
 

@@ -187,6 +187,7 @@ def _readiness(flight: FlightData, reg: Registry) -> Result:
              if coping else "no estimator source set keeps a position without GNSS")  # fmt: skip
     pos = out.area("position", status, words, {
         "sets": [s.n for s in coping],
+        "usable_sets": [s.n for s in usable],
         "sensors": sorted({x for s in coping for x in s.sensors(rules)}),
         "missing": [f"set {n}: {w} ({name})" for n, ms in gaps.items() for w, name in ms],
     }, [*src_names, "FLOW_TYPE", "EK3_FLOW_USE", "VISO_TYPE", "BCN_TYPE"])  # fmt: skip
@@ -302,7 +303,7 @@ def _readiness(flight: FlightData, reg: Registry) -> Result:
 
 NO_GNSS_READINESS = Analyzer(
     name="no_gnss_readiness",
-    version=1,
+    version=2,
     run=_readiness,
     metrics=(),
     findings=(
