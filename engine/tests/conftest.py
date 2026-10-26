@@ -1,5 +1,8 @@
 import os
 
+# The engine's own setting (flight_insights/__init__.py), before any test module loads NumPy.
+os.environ.setdefault("OPENBLAS_NUM_THREADS", "1")
+
 from hypothesis import settings
 
 # "ci" keeps the suite quick; HYPOTHESIS_PROFILE=deep runs a long fuzzing session.
