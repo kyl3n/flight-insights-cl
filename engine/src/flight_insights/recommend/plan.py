@@ -22,7 +22,8 @@ reviews before the next test flight:
    offered, plus anything safety-related; later stages wait.
 6. Settings a finding's procedure needs for the test flight only (raw IMU and fast
    notch logging, for example) are changes like any other, marked temporary with the
-   value they go back to once the next log has confirmed the change.
+   value they go back to once the next log has confirmed the change. A bit one switches
+   off for its test flight stays on while another finding's change keeps it.
 
 A finding at caution or worse with no change to offer (a loose mount, a hot ESC), or any
 finding with a procedure of its own (a better option that needs new ESC firmware),
@@ -35,7 +36,7 @@ import fnmatch
 import math
 import re
 from collections.abc import Iterable, Mapping, Sequence
-from dataclasses import dataclass, field
+from dataclasses import dataclass, field, replace
 from typing import Any, Literal, cast
 
 from flight_insights.analyzers.registry import LANGUAGES, STAGES, Registry
@@ -246,8 +247,10 @@ def _test_flight_changes(
         return changes
     for add in procedure.get("add_temporary", ()):
         current = params.get(add["param"])
-        if "set_bits" in add:
-            value = float(int(current or 0) | sum(1 << int(b) for b in add["set_bits"]))
+        if "set_bits" in add or "clear_bits" in add:
+            on = sum(1 << int(b) for b in add.get("set_bits", ()))
+            off = sum(1 << int(b) for b in add.get("clear_bits", ()))
+            value = float((int(current or 0) | on) & ~off)
         elif current is None:
             continue  # a value the flight does not show: nothing to set, nothing to go back to
         else:
@@ -263,6 +266,28 @@ def _set_bits(current: float | None, group: Iterable[_Candidate]) -> int:
     return sum({1 << b for c in group for b in range(32) if _bits(current, c.proposed)[0] >> b & 1})
 
 
+def _cleared_bits(current: float | None, group: Iterable[_Candidate]) -> int:
+    return sum({1 << b for c in group for b in range(32) if _bits(current, c.proposed)[1] >> b & 1})
+
+
+def _keep_bits(current: float | None, group: list[_Candidate]) -> list[_Candidate]:
+    """A bit a test-flight setting switches off stays on while another finding's change
+    to the same bitmask keeps it: switching logging off for one test never takes away
+    what another asks for."""
+    out: list[_Candidate] = []
+    for c in group:
+        cleared = _bits(current, c.proposed)[1]
+        if c.temporary and cleared:
+            kept = 0
+            for o in group:
+                if o.source.finding != c.source.finding:
+                    kept |= int(o.proposed)
+            if cleared & kept:
+                c = replace(c, proposed=float(int(c.proposed) | (cleared & kept)))
+        out.append(c)
+    return out
+
+
 def _mark_temporary(
     rec: Recommendation, current: float | None, group: list[_Candidate], bitmask: bool
 ) -> None:
@@ -273,8 +298,10 @@ def _mark_temporary(
         return
     if bitmask:
         only_test = _set_bits(current, group) & ~_set_bits(current, lasting)
-        if only_test:
-            rec.revert = float(int(rec.proposed) & ~only_test)
+        switched_off = _cleared_bits(current, group) & ~_cleared_bits(current, lasting)
+        switched_off &= ~int(rec.proposed)  # kept on for another finding: nothing to restore
+        if only_test or switched_off:
+            rec.revert = float(int(rec.proposed) & ~only_test | switched_off)
             rec.temporary = not lasting
     elif not lasting:
         rec.temporary, rec.revert = True, current  # unknown before: nothing to go back to
@@ -350,7 +377,47 @@ def build_plan(
     reg: Registry,
 ) -> Plan:
     """The staged plan for one flight's findings. `params` are the flight's own,
-    canonical; `findings` as analysis results hold them (with "changes")."""
+    canonical; `findings` as analysis results hold them (with "changes").
+
+    Test-flight settings are for the test flight on offer. Those a later stage's finding
+    asks for (logging the rate loop for a tune check, while the filters are still being
+    set) wait for their own stage, even where they share a parameter with one on offer:
+    the plan is made again with them held back, and their finding waits as an action."""
+    plan = _build_plan(flight, findings, params, dialect, reg, None)
+    if plan.stage is None or not _holds_back(plan.stage, findings, params, reg):
+        return plan
+    return _build_plan(flight, findings, params, dialect, reg, plan.stage)
+
+
+def _later(reg: Registry, stage: str, gate: str, source: Source) -> bool:
+    """A change of a stage after the one on offer, from a finding that waits for it."""
+    any_stage = set(reg.rules["recommend"]["any_stage"]["codes"])
+    return (
+        stage in STAGES
+        and STAGES.index(stage) > STAGES.index(gate)
+        and source.kind != "safety"
+        and source.code not in any_stage
+    )
+
+
+def _holds_back(
+    gate: str, findings: Sequence[Mapping[str, Any]], params: Mapping[str, float], reg: Registry
+) -> bool:
+    return any(
+        ch.get("temporary") and _later(reg, str(ch["stage"]), gate, source)
+        for source, f in _sources(findings)
+        for ch in _test_flight_changes(reg.procedures.get(source.code, {}), f, params)
+    )
+
+
+def _build_plan(
+    flight: str,
+    findings: Sequence[Mapping[str, Any]],
+    params: Mapping[str, float],
+    dialect: Dialect,
+    reg: Registry,
+    hold_after: str | None,
+) -> Plan:
     rules: Mapping[str, Any] = reg.rules["recommend"]
     boot_only: Mapping[str, str] = rules["boot_only"]["params"]  # read at start-up only
     firmware = dialect.firmware
@@ -384,6 +451,8 @@ def build_plan(
             proposed = float(proposed)
             current = params.get(param)
             temporary = bool(ch.get("temporary"))
+            if temporary and hold_after and _later(reg, str(ch["stage"]), hold_after, source):
+                continue  # for a later stage's test flight
             if not temporary:
                 lasting[source.finding] = True
             if current is not None and abs(current - proposed) < TOLERANCE:
@@ -407,6 +476,8 @@ def build_plan(
     for param, group in candidates.items():
         name, _ = native(param, None)
         bitmask = _is_bitmask(dialect.meta.get(name))
+        if bitmask:
+            group = _keep_bits(params.get(param), group)
         durable = [c for c in group if not c.temporary]
         # A test-flight value never competes with a lasting one; bits combine as usual.
         rec = _resolve(

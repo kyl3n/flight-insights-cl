@@ -102,14 +102,15 @@ def _still_on(
     current: float | None, proposed: float | None, revert: float, bitmask: bool
 ) -> float | None:
     """The value that takes a test-flight setting out of `current`, or None when it is
-    out already. On a bitmask, only the test flight's bits come out, whatever else
-    changed since."""
+    out already. On a bitmask, only the test flight's bits change back, whatever else
+    changed since: those it switched on go off, those it switched off come back on."""
     if current is None or proposed is None:
         return None
     if bitmask:
-        test_bits = int(proposed) & ~int(revert)
-        if test_bits and int(current) & test_bits == test_bits:
-            return float(int(current) & ~test_bits)
+        on = int(proposed) & ~int(revert)
+        off = int(revert) & ~int(proposed)
+        if (on and int(current) & on == on) or (off and not int(current) & off):
+            return float(int(current) & ~on | off)
         return None
     return revert if abs(current - proposed) < TOLERANCE else None
 

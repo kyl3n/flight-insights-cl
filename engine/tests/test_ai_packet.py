@@ -82,7 +82,8 @@ def test_numbers_are_rounded_to_what_reasoning_needs() -> None:
 @pytest.mark.parametrize(
     ("log", "vehicle"),
     [("copter-heavylift-loaded.bin", "copter"), ("plane-circuit.bin", "plane"),
-     ("heli-hover.bin", "copter"), ("quadplane-hover.bin", "plane")],
+     ("heli-hover.bin", "copter"), ("quadplane-hover.bin", "plane"),
+     ("copter-quad-tune-default.bin", "copter")],
 )  # fmt: skip
 def test_each_fixture_makes_a_packet_that_may_leave(
     engine: tuple[Any, Any, Path], log: str, vehicle: str

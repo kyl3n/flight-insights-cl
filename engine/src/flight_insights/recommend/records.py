@@ -213,6 +213,8 @@ def _check(
         if "below" in check:
             return all(v < float(check["below"]) for v in values)
         return all(v > float(check["above"]) for v in values) if "above" in check else None
+    if kind == "has_metric":  # measured at all: a metric needs enough data to be given
+        return any(m["metric"] == check["metric"] for m in analysis.get("metrics", ()))
     if kind == "param_is":
         value = params.get(str(check["param"]))
         return None if value is None else _same(value, float(check["value"]))

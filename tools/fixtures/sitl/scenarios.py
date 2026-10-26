@@ -33,6 +33,9 @@ LOG_IMU_RAW = SetBits(1 << 19, "default with bit 19 (raw IMU) set")
 LOG_IMU_RAW_FAST_NOTCH = SetBits(
     1 << 19 | 1 << 21, "default with bits 19 (raw IMU) and 21 (fast harmonic notch logging) set"
 )
+# Copter's bits 0 and 12 log RATE and the rate PIDs every loop (ArduCopter/Copter.cpp
+# loop_rate_logging), for a tune check.
+LOG_RATE_LOOP = SetBits(1 << 0 | 1 << 12, "default with bits 0 (fast attitude) and 12 (PID) set")
 
 
 @dataclass(frozen=True)
@@ -110,6 +113,61 @@ def copter_hover(
         v.hold(seconds)
         if raw_in_hover:
             v.set_param("LOG_BITMASK", bitmask)
+        land_and_disarm(v)
+
+    return fly
+
+
+def sticks(v: Vehicle, seconds: float, channels: dict[str, int]) -> None:
+    """Hold sticks for `seconds` of simulated time. The override is sent again every
+    0.2 s, well inside RC_OVERRIDE_TIME, so it never lapses to the simulated radio."""
+    from run_scenario import ScenarioFailed
+
+    start = last = None
+    while True:
+        m = v.conn.recv_match(type="ATTITUDE", blocking=True, timeout=10)
+        if m is None:
+            raise ScenarioFailed("no ATTITUDE messages")
+        now = m.time_boot_ms / 1000
+        if start is None:
+            start = now
+        if last is None or now - last >= 0.2:
+            v.rc(**channels)
+            last = now
+        if now - start >= seconds:
+            return
+
+
+def tune_check(
+    doublets: int,
+    axes: tuple[str, ...] = ("ch1", "ch2", "ch4"),
+    deflection: int = 160,
+    each_way: float = 0.4,
+    centred: float = 1.0,
+    altitude: float = 5,
+) -> Callable[[Vehicle], None]:
+    """The tune-check profile, shortened so the log stays small: take off, hold AltHold
+    hands-off, then doublets on each axis's stick (`deflection` µs from centre, 160 is 40%
+    of the throw), with the rate loop logged every loop during them only; then land."""
+
+    def fly(v: Vehicle) -> None:
+        v.mode("GUIDED")
+        v.arm()
+        v.command(ML.MAV_CMD_NAV_TAKEOFF, 0, 0, 0, 0, 0, 0, altitude)
+        v.wait_altitude(altitude - 0.5)
+        centre = {"ch1": 1500, "ch2": 1500, "ch3": 1500, "ch4": 1500}
+        v.rc(**centre)
+        v.mode("ALT_HOLD")
+        sticks(v, 3, centre)
+        bitmask = v.get_param("LOG_BITMASK")
+        v.set_param("LOG_BITMASK", LOG_RATE_LOOP(bitmask))
+        for ch in axes:
+            for _ in range(doublets):
+                sticks(v, each_way, centre | {ch: 1500 + deflection})
+                sticks(v, each_way, centre | {ch: 1500 - deflection})
+                sticks(v, centred, centre)
+        sticks(v, 2, centre)  # the last input settles with the rate loop still logged
+        v.set_param("LOG_BITMASK", bitmask)
         land_and_disarm(v)
 
     return fly
@@ -307,6 +365,28 @@ SCENARIOS: dict[str, Scenario] = {
                 "SIM_WIND_TURB": 2,
             },
             speedup=RAW_SPEEDUP,
+            **COPTER,  # type: ignore[arg-type]
+        ),
+        Scenario(
+            name="copter-quad-tune-default",
+            vehicle="copter",
+            frame="quad +",
+            description=(
+                "The tune-check profile on the default quad, shortened to keep the log small:"
+                " AltHold at 5 m, 6 doublets on roll and 6 on pitch at 40% stick, with RATE"
+                " and the rate PIDs logged every loop during them."
+            ),
+            expected=[
+                "LOG_BITMASK bits 0 and 12 during the doublets: RATE and PIDR/P/Y at 400 Hz",
+                "6 doublets on roll and on pitch in ALT_HOLD, 0.4 s each way and 1 s centred",
+                "every doublet counted: no saturation, no mode change, well above 2 m",
+                "roll and pitch tracking error from 6 inputs each, with intervals; no yaw inputs",
+                "about 41 s of steady hover in ALT_HOLD: the short doublets stay inside the"
+                " hover limits (under 10 degrees of tilt and 1 m/s)",
+            ],
+            fly=tune_check(6, axes=("ch1", "ch2")),
+            boot_params={"LOG_DISARMED": 0, "SIM_ESC_TELEM": 0},  # no ESC log: a smaller file
+            speedup=RAW_SPEEDUP,  # the logger drops the loop-rate messages at the default
             **COPTER,  # type: ignore[arg-type]
         ),
         Scenario(

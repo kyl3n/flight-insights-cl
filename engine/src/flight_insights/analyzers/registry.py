@@ -104,6 +104,7 @@ CHECKS: Mapping[str, tuple[str, ...]] = {
     "finding_clears": (),
     "has_message": ("message",),
     "metric": ("metric",),
+    "has_metric": ("metric",),
     "param_is": ("param", "value"),
 }
 
@@ -339,9 +340,10 @@ def _procedures(
                 _procedure_step(where, s, metrics) for part in parts for s in part.get("steps", ())
             ]
             for a in add:
-                if not isinstance(a.get("param"), str) or (("set_bits" in a) == ("value" in a)):
+                bits = "set_bits" in a or "clear_bits" in a
+                if not isinstance(a.get("param"), str) or bits == ("value" in a):
                     raise KnowledgeError(
-                        f"{where}: add_temporary needs a param and set_bits or a value"
+                        f"{where}: add_temporary needs a param and set_bits, clear_bits or a value"
                     )
             procedures[code] = {"temporary": temporary, "add_temporary": add, "steps": steps}
     return procedures, texts
@@ -359,7 +361,7 @@ def _procedure_step(
         needs = CHECKS.get(check.get("check"))
         if needs is None or any(k not in check for k in needs):
             raise KnowledgeError(f"{where}: unknown or incomplete check {check}")
-        if check["check"] == "metric" and check["metric"] not in metrics:
+        if check["check"] in ("metric", "has_metric") and check["metric"] not in metrics:
             raise KnowledgeError(f"{where}: no metric {check['metric']}")
     when = s.get("when")
     if when is not None and not (isinstance(when.get("param"), str) and when.get("in")):

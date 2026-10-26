@@ -27,7 +27,11 @@ from flight_insights.recommend import (
     record_plan,
     set_status,
 )
-from flight_insights.recommend.records import _when  # pyright: ignore[reportPrivateUsage]
+from flight_insights.recommend.followup import _still_on  # pyright: ignore[reportPrivateUsage]
+from flight_insights.recommend.records import (
+    _check,  # pyright: ignore[reportPrivateUsage]
+    _when,  # pyright: ignore[reportPrivateUsage]
+)
 from flight_insights.store import Store, StoreKeys, open_store
 from flight_insights.store.cache import ColumnCache
 
@@ -255,7 +259,11 @@ def test_the_revert_follows_when_a_later_plan_replaced_the_lasting_changes(
 
 
 def test_a_check_that_fails_makes_a_cleared_finding_no_effect(fleet: Fleet) -> None:
-    plan_and_record(fleet.store, fleet.cache, fleet.pack, fleet.earlier)
+    # With the hover throttle learned, the filter stage is on offer, and the test flight's
+    # logging serves the filter change as well as the logging diagnostic.
+    fly_with(fleet, fleet.earlier, MOT_THST_HOVER=0.376)
+    earlier = plan_and_record(fleet.store, fleet.cache, fleet.pack, fleet.earlier)
+    assert earlier["stage"] == "filters"
     fly_with(fleet, fleet.later, **NOTCH, LOG_BITMASK=float(TEST_LOGGING))
     analysis = without(fleet, "filter.better_source", "logging.notch_inputs_not_logged")
     grade_flight(fleet.store, fleet.pack, fleet.later, analysis, messages=[])  # no GYR logged
@@ -289,3 +297,19 @@ def test_a_filter_diagnostic_is_not_proposed_again_while_nothing_changed(fleet: 
     fly_with(fleet, fleet.later, INS_HNTCH_BW=60.0)  # a filter setting changed since
     plan = flight_plan(fleet.store, fleet.cache, fleet.pack, fleet.later, analysis)
     assert not plan.held_back and proposed(plan)
+
+
+def test_a_bit_switched_off_for_a_test_flight_comes_back_on() -> None:
+    raw_on = 180222 | 1 << 19
+    tune = 180222 | 1  # fast attitude on, raw IMU off, for the tune check
+    assert _still_on(float(tune), float(tune), float(raw_on), True) == float(raw_on)
+    # Raw IMU back on by hand, fast attitude still on: only that comes out.
+    assert _still_on(float(raw_on | 1), float(tune), float(raw_on), True) == float(raw_on)
+    assert _still_on(float(raw_on), float(tune), float(raw_on), True) is None  # all back
+
+
+def test_a_metric_given_at_all_passes_a_has_metric_check() -> None:
+    check = {"check": "has_metric", "metric": "tune.tracking_error_roll"}
+    given = {"metrics": [{"metric": "tune.tracking_error_roll", "value": 31.0}]}
+    assert _check(check, False, given, {}, None) is True
+    assert _check(check, False, {"metrics": []}, {}, None) is False

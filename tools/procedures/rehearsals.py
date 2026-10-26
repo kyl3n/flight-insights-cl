@@ -19,7 +19,6 @@ from pymavlink import mavutil
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "fixtures" / "sitl"))
 
-from run_scenario import ScenarioFailed
 from scenarios import (
     CALLISTO,
     COPTER,
@@ -30,6 +29,7 @@ from scenarios import (
     Scenario,
     copter_hover,
     land_and_disarm,
+    sticks,
 )
 
 if TYPE_CHECKING:
@@ -37,24 +37,6 @@ if TYPE_CHECKING:
 
 ML = mavutil.mavlink
 STICK = 125  # µs from centre: a quarter of full deflection, "moderate stick inputs"
-
-
-def sticks(v: Vehicle, seconds: float, channels: Mapping[str, int]) -> None:
-    """Hold sticks for `seconds` of simulated time. The override is sent again every
-    0.2 s, well inside RC_OVERRIDE_TIME, so it never lapses to the simulated radio."""
-    start = last = None
-    while True:
-        m = v.conn.recv_match(type="ATTITUDE", blocking=True, timeout=10)
-        if m is None:
-            raise ScenarioFailed("no ATTITUDE messages")
-        now = m.time_boot_ms / 1000
-        if start is None:
-            start = now
-        if last is None or now - last >= 0.2:
-            v.rc(**channels)
-            last = now
-        if now - start >= seconds:
-            return
 
 
 def hover_then_sticks(

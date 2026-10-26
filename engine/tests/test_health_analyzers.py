@@ -117,7 +117,7 @@ def test_messages_left_out_by_the_log_bitmask_get_their_bits(reg: Registry) -> N
     present["GYR"] = gyr([ARM + 1])
     params = {"INS_RAW_LOG_OPT": 9, "LOG_BITMASK": 1 | 2 | 128 | 512 | 1024 | 1 << 17}
     r = LOG_ADEQUACY.run(flight(present, ARM, DISARM, params), reg)
-    [f] = r.findings
+    [f] = [f for f in r.findings if f.code != "logging.tune_evidence"]
     assert f.code == "logging.missing_messages"
     assert f.params["messages"] == "PM" and "System Performance (bit 3)" in f.params["bits"]
     assert f.changes[0].proposed == params["LOG_BITMASK"] | 8
@@ -212,7 +212,9 @@ def test_a_parameter_file_gets_the_logging_settings_checks_only(reg: Registry) -
     f = flight({}, ARM, DISARM, {"LOG_FILE_RATEMAX": 25, "LOG_BITMASK": 0, "INS_RAW_LOG_OPT": 0})
     f = dataclasses.replace(f, cache=None)  # no log behind it
     found = codes(LOG_ADEQUACY.run(f, reg))
-    assert sorted(found) == ["logging.missing_messages", "logging.rate_limited"]
+    assert sorted(found) == [
+        "logging.missing_messages", "logging.rate_limited", "logging.tune_evidence",
+    ]  # fmt: skip
 
 
 def _ftn(rate_hz: float, start_us: int = ARM, end_us: int = DISARM) -> pa.Table:

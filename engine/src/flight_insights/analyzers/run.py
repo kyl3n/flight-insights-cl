@@ -31,6 +31,7 @@ from flight_insights.analyzers.params_audit import PARAMS_AUDIT
 from flight_insights.analyzers.power import POWER
 from flight_insights.analyzers.registry import Registry
 from flight_insights.analyzers.system import SYSTEM
+from flight_insights.analyzers.tune import TUNE
 from flight_insights.analyzers.vibration import VIBRATION
 from flight_insights.knowledge import Pack
 from flight_insights.store.cache import ColumnCache
@@ -40,7 +41,7 @@ log = logging.getLogger(__name__)
 
 ANALYZERS: tuple[Analyzer, ...] = (
     LOG_ADEQUACY, SYSTEM, VIBRATION, ESC_RPM, FILTER_MODEL, FILTERS, POWER, MOTORS_HEALTH,
-    BUSES, OPTIONS, PARAMS_AUDIT,
+    BUSES, TUNE, OPTIONS, PARAMS_AUDIT,
 )  # fmt: skip
 
 
