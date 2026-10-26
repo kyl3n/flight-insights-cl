@@ -268,7 +268,7 @@ def _axis(
         summary=_summary(axis, seconds, m, fig),
         messages=(PID_MESSAGES[axis], "ANG", "MODE", "CTUN"),
         fields=("Tar", "Act", ATTITUDE_TARGETS[axis]),
-        segment=Segment("stick flying", int(used[0]), int(used[-1])),
+        segment=Segment("inputs", int(used[0]), int(used[-1])),
         values=values,
     )
     out.evidence.append(ev)
@@ -279,7 +279,7 @@ def _axis(
         entry = reg.metrics[f"tune.{name}_{axis}"]
         out.metrics.append(
             MetricValue(
-                entry.id, "stick flying", value, entry.zone(value), ev.id,
+                entry.id, "inputs", value, entry.zone(value), ev.id,
                 spread={} if spread is None else {"low": spread[0], "high": spread[1]},
             )
         )  # fmt: skip

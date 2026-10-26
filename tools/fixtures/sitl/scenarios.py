@@ -414,6 +414,8 @@ SCENARIOS: dict[str, Scenario] = {
                 "roll and pitch tracking error clearly above the default quad's",
                 "roll and pitch rate-loop bandwidth near 2.5 Hz, measured with the step response;"
                 " the sensitivity peak lies above what the doublets measure",
+                "about 41 s of steady hover in ALT_HOLD: the short doublets stay inside the"
+                " hover limits (under 10 degrees of tilt and 1 m/s)",
             ],
             fly=tune_check(6, axes=("ch1", "ch2")),
             boot_params={"LOG_DISARMED": 0, "SIM_ESC_TELEM": 0} | SOFT_RATE_GAINS,
