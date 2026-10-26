@@ -1,6 +1,7 @@
 """The no-GNSS analyzer on ArduCopter 4.7.0 SITL flights (tests/fixtures/sitl/4.7.0/
 copter-quad-nognss-*): a GNSS-off drill in wind with no other position source, and one
-on optical flow as source set 2."""
+on optical flow as source set 2; and the readiness review of each flight's parameters,
+which must agree with what the flight did."""
 
 from __future__ import annotations
 
@@ -13,6 +14,7 @@ from flight_insights.analyzers import FlightData, Registry
 from flight_insights.analyzers.gnss import GNSS
 from flight_insights.analyzers.model import Result
 from flight_insights.analyzers.no_gnss import NO_GNSS
+from flight_insights.analyzers.no_gnss_readiness import NO_GNSS_READINESS
 from flight_insights.imports.commit import Decision, commit
 from flight_insights.imports.propose import propose
 from flight_insights.imports.scan import scan
@@ -26,13 +28,13 @@ NAMES = ("copter-quad-nognss-drill", "copter-quad-nognss-flow")
 
 
 @pytest.fixture(scope="module")
-def judged(tmp_path_factory: pytest.TempPathFactory) -> dict[str, tuple[Result, Result]]:
-    """Each flight's no-GNSS result, and its GNSS result."""
+def judged(tmp_path_factory: pytest.TempPathFactory) -> dict[str, tuple[Result, Result, Result]]:
+    """Each flight's no-GNSS result, its GNSS result and its readiness."""
     pack = load_pack()
     reg = Registry.load(pack)
     keys = StoreKeys.generate()
     folder = tmp_path_factory.mktemp("no_gnss")
-    out: dict[str, tuple[Result, Result]] = {}
+    out: dict[str, tuple[Result, Result, Result]] = {}
     with open_store(folder / "no_gnss.db", keys, "e" * 32) as store:
         cache = ColumnCache(folder / "cache", keys)
         for name in NAMES:
@@ -41,14 +43,15 @@ def judged(tmp_path_factory: pytest.TempPathFactory) -> dict[str, tuple[Result, 
             [res] = commit(store, pack, cache, batch, propose(store, pack, batch),
                            [Decision(batch[0].id, airframe_id=af)])  # fmt: skip
             flight = FlightData.load(store, cache, pack, res.flights[0])
-            out[name] = (NO_GNSS.run(flight, reg), GNSS.run(flight, reg))
+            out[name] = (NO_GNSS.run(flight, reg), GNSS.run(flight, reg),
+                         NO_GNSS_READINESS.run(flight, reg))  # fmt: skip
     return out
 
 
 def test_a_drill_with_no_other_source_gives_the_position_up(
-    judged: dict[str, tuple[Result, Result]],
+    judged: dict[str, tuple[Result, Result, Result]],
 ) -> None:
-    r, gnss = judged["copter-quad-nognss-drill"]
+    r, gnss, _ = judged["copter-quad-nognss-drill"]
     [f] = r.findings
     assert (f.code, f.params["what"]) == ("no_gnss.position_lost", "GNSS-off drill")
     ev = r.evidence[0].values
@@ -61,9 +64,9 @@ def test_a_drill_with_no_other_source_gives_the_position_up(
 
 
 def test_a_drill_on_optical_flow_keeps_a_position(
-    judged: dict[str, tuple[Result, Result]],
+    judged: dict[str, tuple[Result, Result, Result]],
 ) -> None:
-    r, gnss = judged["copter-quad-nognss-flow"]
+    r, gnss, _ = judged["copter-quad-nognss-flow"]
     [f] = r.findings
     assert (f.code, f.params["what"]) == ("no_gnss.position_held", "GNSS-off drill")
     ev = r.evidence[0].values
@@ -74,3 +77,26 @@ def test_a_drill_on_optical_flow_keeps_a_position(
     metrics = {m.metric: (m.value, m.zone) for m in r.metrics}
     assert metrics["no_gnss.hold_s"][0] >= 30 and metrics["no_gnss.hold_s"][1] == "target"
     assert gnss.findings == []
+
+
+def readiness(r: Result) -> dict[str, dict[str, object]]:
+    prefix = "no_gnss:readiness:"
+    return {e.id[len(prefix) :]: dict(e.values) for e in r.evidence if e.id.startswith(prefix)}
+
+
+def test_readiness_foresees_what_each_drill_did(
+    judged: dict[str, tuple[Result, Result, Result]],
+) -> None:
+    """The drill with no other source gave its position up: readiness finds no source
+    set for flying without GNSS. The flow flight kept one: readiness finds set 2 ready on
+    the RC8 switch. Neither has drag fusion, so neither could dead-reckon."""
+    *_, drill = judged["copter-quad-nognss-drill"]
+    areas = readiness(drill)
+    assert areas["position"]["status"] == "none"
+    assert areas["pilot_fallback"]["drill_switch_channels"] == [7]
+    *_, flow = judged["copter-quad-nognss-flow"]
+    areas = readiness(flow)
+    assert areas["position"]["status"] == "ready" and areas["position"]["sets"] == [2]
+    assert areas["switching"]["switch_channels"] == [8]
+    for r in (drill, flow):
+        assert [f.code for f in r.findings] == ["no_gnss.drag_fusion_off"]

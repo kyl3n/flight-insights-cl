@@ -1295,6 +1295,119 @@
           }
         }
       ]
+    },
+    "no_gnss.source_not_fitted": {
+      "steps": [
+        {
+          "kind": "hardware",
+          "text": {
+            "en": "Fit each sensor the set needs and connect it as its setup page says: optical flow with a downward rangefinder, a visual odometry camera, or beacons.",
+            "uk": "Встановіть кожен датчик, потрібний набору, і під'єднайте його за сторінкою налаштування: оптичний потік із далекоміром, спрямованим униз, камеру візуальної одометрії або маяки."
+          }
+        },
+        {
+          "kind": "ground_check",
+          "text": {
+            "en": "After the reboot, check the ground station shows each sensor's data: flow quality above zero when the aircraft is moved over a textured surface, and a rangefinder distance that follows the aircraft as it is lifted.",
+            "uk": "Після перезавантаження перевірте, що наземна станція показує дані кожного датчика: якість потоку більша за нуль, коли апарат рухають над текстурованою поверхнею, і відстань далекоміра, що змінюється, коли апарат піднімають."
+          }
+        },
+        {
+          "kind": "ground_check",
+          "text": {
+            "en": "On the bench, change source sets with the switch or the ground station's command: the station shows a message for each change, the EKF stays healthy for 10 seconds after it, and position, altitude and heading stay sensible.",
+            "uk": "На стенді змінюйте набори джерел перемикачем або командою наземної станції: станція показує повідомлення для кожної зміни, EKF лишається справним 10 секунд після неї, а позиція, висота й курс лишаються правдоподібними."
+          }
+        }
+      ]
+    },
+    "no_gnss.no_source_switch": {
+      "steps": [
+        {
+          "kind": "ground_check",
+          "text": {
+            "en": "On the bench, change source sets with the switch or the ground station's command: the station shows a message for each change, the EKF stays healthy for 10 seconds after it, and position, altitude and heading stay sensible.",
+            "uk": "На стенді змінюйте набори джерел перемикачем або командою наземної станції: станція показує повідомлення для кожної зміни, EKF лишається справним 10 секунд після неї, а позиція, висота й курс лишаються правдоподібними."
+          }
+        },
+        {
+          "kind": "fly",
+          "text": {
+            "en": "At a safe height in Loiter with GNSS good, change to the set for flying without GNSS for 20 seconds and back, ready to take over in AltHold.",
+            "uk": "На безпечній висоті в Loiter за доброго GNSS перемкніться на набір для польоту без GNSS на 20 секунд і назад, будучи готовими перебрати керування в AltHold."
+          }
+        },
+        {
+          "kind": "abort",
+          "text": {
+            "en": "If the aircraft starts to drift or the EKF reports a problem, change back to source set 1, or take over in AltHold and land.",
+            "uk": "Якщо апарат почне дрейфувати або EKF повідомить про проблему, поверніться на набір джерел 1 або перейдіть в AltHold і сідайте."
+          }
+        }
+      ]
+    },
+    "no_gnss.heading_needs_gnss": {
+      "steps": [
+        {
+          "kind": "ground_check",
+          "text": {
+            "en": "Calibrate the compass and run CompassMot, then point the aircraft at a known direction and check the ground station's heading agrees within a few degrees, on every source set.",
+            "uk": "Відкалібруйте компас і виконайте CompassMot, потім спрямуйте апарат у відомому напрямку й перевірте, що курс на наземній станції збігається з точністю до кількох градусів на кожному наборі джерел."
+          }
+        }
+      ]
+    },
+    "no_gnss.drag_fusion_off": {
+      "steps": [
+        {
+          "kind": "ground_check",
+          "text": {
+            "en": "Weigh the aircraft with its battery and usual payload. Photograph it square-on from the front and from the side a few metres away, and measure each area in square metres, propellers left out. EK3_DRAG_BCOEF_X is the mass in kg over the frontal area, EK3_DRAG_BCOEF_Y over the side area.",
+            "uk": "Зважте апарат з акумулятором і звичайним вантажем. Сфотографуйте його рівно спереду й збоку з кількох метрів і виміряйте кожну площу в квадратних метрах без пропелерів. EK3_DRAG_BCOEF_X — маса в кг, поділена на фронтальну площу, EK3_DRAG_BCOEF_Y — на бічну."
+          }
+        },
+        {
+          "kind": "fly",
+          "text": {
+            "en": "In light wind over open ground: take off in Loiter, change to AltHold and let it drift to find the wind, then face into the wind and give full forward pitch until it stops accelerating, release and let it drift back. Repeat facing across the wind each way and tail into the wind. The flight's log gives EK3_DRAG_MCOEF, normally 0.1 to 1.0.",
+            "uk": "У слабкий вітер над відкритою місцевістю: злетіть у Loiter, перейдіть в AltHold і дайте апарату дрейфувати, щоб визначити вітер, потім розверніться проти вітру й дайте повний тангаж уперед, доки апарат не перестане прискорюватися, відпустіть і дайте йому повернутися за вітром. Повторіть боком до вітру в обидва боки та хвостом до вітру. Журнал цього польоту дає EK3_DRAG_MCOEF, зазвичай 0,1–1,0."
+          }
+        },
+        {
+          "kind": "abort",
+          "text": {
+            "en": "Stop the test if the gusts are strong or the aircraft nears the edge of the open area: release the sticks and change to Loiter.",
+            "uk": "Припиніть тест, якщо пориви сильні або апарат наближається до краю відкритої ділянки: відпустіть стіки й перейдіть у Loiter."
+          }
+        },
+        {
+          "kind": "verify",
+          "checks": [
+            {
+              "check": "finding_clears"
+            },
+            {
+              "check": "has_message",
+              "message": "XKF2"
+            }
+          ],
+          "text": {
+            "en": "The next log holds the estimator's wind (XKF2 VWN and VWE): steady and close to the wind felt, not running away in calm air.",
+            "uk": "Наступний журнал містить оцінку вітру (XKF2 VWN і VWE): стабільну, близьку до відчутного вітру, без розбігання в безвітря."
+          }
+        }
+      ]
+    },
+    "no_gnss.no_pilot_fallback": {
+      "steps": [
+        {
+          "kind": "ground_check",
+          "text": {
+            "en": "Move the mode switch through every position, and any aux mode switch, and check the ground station shows AltHold (or Stabilize) on one of them.",
+            "uk": "Переведіть перемикач режимів через усі положення, а також допоміжний перемикач режиму, і перевірте, що наземна станція показує AltHold (або Stabilize) в одному з них."
+          }
+        }
+      ]
     }
   }
 }
