@@ -3,8 +3,8 @@
 //!
 //! Every HTTP client is built here, and every request's address is checked here first:
 //! HTTPS only, to a host on the allowlist, with no redirects. The allowlist grows one
-//! endpoint at a time as features that need one arrive: the Claude API and the Google
-//! Drive API now; the update server and the Open-Meteo API with their own work.
+//! endpoint at a time as features that need one arrive: the Claude API, the Google
+//! Drive API, the Open-Meteo API and NOAA SWPC now; the update server with its own work.
 
 use std::sync::Once;
 use std::time::Duration;
@@ -18,6 +18,13 @@ pub const ALLOWED_HOSTS: &[&str] = &[
     // the Google Drive API: sign-in tokens, and the Drive API with its uploads
     "oauth2.googleapis.com",
     "www.googleapis.com",
+    // the Open-Meteo commercial API: forecasts, and ERA5 reanalysis (customer- hosts take
+    // the key); whole regional tiles only, never a flight's position
+    "customer-api.open-meteo.com",
+    "customer-archive-api.open-meteo.com",
+    // NOAA's Space Weather Prediction Center: the planetary K-index, asked with no
+    // parameters at all
+    "services.swpc.noaa.gov",
 ];
 
 static TLS: Once = Once::new();
@@ -68,6 +75,18 @@ mod tests {
         assert!(!ok("https://api.anthropic.com.evil.example/v1/messages"));
         assert!(!ok("https://example.com/"));
         assert!(!ok("https://user@example.com@api.anthropic.com.example/"));
+        // the five endpoints, and nothing else: the free Open-Meteo API is not for
+        // commercial use and takes no key
+        assert!(ok("https://customer-api.open-meteo.com/v1/forecast"));
+        assert!(ok("https://customer-archive-api.open-meteo.com/v1/archive"));
+        assert!(ok(
+            "https://services.swpc.noaa.gov/products/noaa-planetary-k-index.json"
+        ));
+        assert!(!ok("https://api.open-meteo.com/v1/forecast"));
+        assert!(!ok("https://archive-api.open-meteo.com/v1/archive"));
+        assert!(!ok("https://open-meteo.com/"));
+        assert!(!ok("https://swpc.noaa.gov/"));
+        assert_eq!(ALLOWED_HOSTS.len(), 6);
     }
 
     #[test]
