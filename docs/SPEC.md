@@ -1267,6 +1267,12 @@ Claude is called on every analysis, but it only sees derived measurements and a 
 - **Location-revealing parameters removed:** AHRS origin, fence and rally settings, magnetic declination, system IDs, serial numbers and board unique IDs.
 - **Side channels coarsened:** altitudes made relative to take-off, timestamps relative to arming with GPS week and time dropped, magnetic field strength and inclination dropped, ambient temperature and pressure rounded. Position-controller data goes out as error statistics, never as trajectories.
 - **Location work stays on the laptop.** Everything that needs a position is computed locally: weather interpolation, distance and bearing to the ground station, GNSS event positions, wind envelope and drift measurements. Only results without coordinates can leave, such as distance bands, rounded wind values, and event class and timing.
+  - **The local track** (`analyzers/local_track.py`, `FlightData.local_track()`) is the one place analysis reads positions.
+    - **What it reads:** the estimator's position (`POS`), else the first GNSS receiver's, through the cache's positions key.
+    - **What it holds:** east, north and up metres from the first fix, converted exactly through Earth-centred coordinates on the WGS84 ellipsoid. It holds no latitude or longitude.
+    - **What it gives:** distances, heights, and east and north offsets.
+    - **What it refuses:** to be pickled, copied or turned into JSON. It shows only its size.
+    - **Evidence** refuses an array or a track as a value, so what leaves an analyzer is computed results such as a distance or a drift.
 - **Checked twice.** The Rust shell repeats the location check with a separate implementation just before a packet is sent, so one bug cannot let coordinates through. The shell's check has three layers, written independently of the engine's:
   1. **Its own copy of the packet's shape:** any key or text field it does not expect is refused.
   2. **Coordinate detectors:** decimal-degree pairs, degrees-minutes-seconds, hemisphere letters, UTM, MGRS, geohash, plus codes, "lat"/"lon" labels, integers in the form of a coordinate ×1e7, and degrees given to more decimals than a packet needs. Numbers written inside text are checked as well. It also refuses any parameter that reveals the place or the aircraft, from its own list.
