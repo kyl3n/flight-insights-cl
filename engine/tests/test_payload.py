@@ -69,19 +69,20 @@ def payload_flight(
     stuck: tuple[float, float] | None = None,
     vehicle: str = "copter",
     cells: int | None = None,
+    count: int = 4,
     **params: float,
 ) -> FlightData:
-    """A quad holding `weight` (its thrust at standard air, as a share of full thrust)
-    in steady hover, in air of (Pa, degC), rolled steadily, at a battery voltage. Motors 1
-    and 3 make `spread` more thrust than 2 and 4, as holding attitude would ask; motor 1
-    sits at the top of its range over the span `stuck` (seconds)."""
+    """A quad (or `count` motors) holding `weight` (its thrust at standard air, as a share
+    of full thrust) in steady hover, in air of (Pa, degC), rolled steadily, at a battery
+    voltage. Odd motors make `spread` more thrust than even ones, as holding attitude
+    would ask; motor 1 sits at the top of its range over the span `stuck` (seconds)."""
     t = np.arange(ARM, DISARM, int(1e6 / HZ), dtype=np.int64)
     s = (t - ARM) / 1e6
     density = air[0] / (287.05 * (air[1] + 273.15)) / 1.225
     needed = weight / (np.cos(np.radians(roll_deg)) * density)
     v = np.full(len(t), volts)
     pwm = [_pwm(np.full(len(t), needed + (spread if i % 2 == 0 else -spread)), v)
-           for i in range(4)]  # fmt: skip
+           for i in range(count)]  # fmt: skip
     if stuck is not None:
         pwm[0] = np.where((s >= stuck[0]) & (s < stuck[1]), 1000 + 1000 * SPIN_MAX, pwm[0])
     n = len(t)
@@ -92,8 +93,8 @@ def payload_flight(
 
     first = (pa.uint8(), [0] * n)
     tables = {
-        "RCOU": table(t.tolist(), {f"C{i + 1}": f32(pwm[i]) for i in range(4)},
-                      {f"C{i + 1}": UNIT["us"] for i in range(4)}),
+        "RCOU": table(t.tolist(), {f"C{i + 1}": f32(pwm[i]) for i in range(count)},
+                      {f"C{i + 1}": UNIT["us"] for i in range(count)}),
         "BAT": table(t.tolist(), {"Inst": first, "Volt": f32(v)}, {"Volt": UNIT["V"]}),
         "ATT": table(t.tolist(), {"Roll": f32(roll_deg), "Pitch": f32(0.0)},
                      {"Roll": UNIT["deg"], "Pitch": UNIT["deg"]}),
@@ -109,7 +110,8 @@ def payload_flight(
     }
     if cells is not None:
         fingerprint["cells"] = {"value": cells}
-    return flight(tables, ARM, DISARM, params=PARAMS | params, fingerprint=fingerprint)
+    servos = {f"SERVO{i}_FUNCTION": 32.0 + i for i in range(1, count + 1)}
+    return flight(tables, ARM, DISARM, params=PARAMS | servos | params, fingerprint=fingerprint)
 
 
 def thrust(out: Result) -> float:

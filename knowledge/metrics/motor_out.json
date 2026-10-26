@@ -1,0 +1,81 @@
+{
+  "about": "The motor-out margin: what losing one motor would ask of the others at the flight's weight (spec: Propulsion, 'Motor-out margin'). Rules and sources in knowledge/rules/motor_out.json.",
+  "metrics": {
+    "motor_out.margin": {
+      "name": {
+        "en": "Motor-out margin",
+        "uk": "Запас на випадок відмови мотора"
+      },
+      "unit": "%",
+      "direction": "higher",
+      "definition": {
+        "en": "The output the remaining motors may use after one is lost (90% on a hexa, 85% on an octo or X8), less what the busiest of them would need to hold the aircraft level at this flight's weight, for the worst motor to lose: points of output to spare. Negative means it would not hold.",
+        "uk": "Вихід, який можуть використати решта моторів після відмови одного (90% для гексакоптера, 85% для октокоптера чи X8), мінус те, що знадобиться найнавантаженішому з них, щоб утримати апарат рівно за ваги цього польоту, для найгіршого мотора: запас виходу у пунктах. Від'ємне значення означає, що апарат не втримається."
+      },
+      "method": {
+        "en": "From the hover thrust (motor outputs through the thrust curve at the measured voltage, times the tilt) the weight in full single-motor thrusts; for each motor in turn, a linear program finds the least thrust the busiest other motor must make to carry it with no roll or pitch moment (and no yaw torque where the heading must hold), using the frame's own mixer factors; that thrust is turned back into an output at the hover voltage.",
+        "uk": "З тяги в зависанні (виходи моторів через криву тяги за виміряної напруги, помножені на нахил) — вага в повних тягах одного мотора; для кожного мотора по черзі лінійна програма знаходить найменшу тягу, яку має дати найнавантаженіший інший мотор, щоб нести її без моменту крену й тангажу (і без моменту рискання, де курс має утримуватися), за власними коефіцієнтами мікшера рами; цю тягу переводять назад у вихід за напруги зависання."
+      },
+      "messages": ["RCOU", "BAT", "ATT", "CTUN"],
+      "zones": {
+        "target": [5, null],
+        "caution": [0, 5],
+        "out": [null, 0]
+      },
+      "source": {
+        "kind": "app",
+        "title": "The spec's motor-out targets (90% hexa, 85% octo and X8): at least 5 points to spare is the app's band for the variation in hover weight and voltage between flights"
+      }
+    },
+    "motor_out.weight_ratio": {
+      "name": {
+        "en": "Heaviest take-off for motor-out",
+        "uk": "Найбільша злітна вага для відмови мотора"
+      },
+      "unit": "×",
+      "direction": "higher",
+      "definition": {
+        "en": "The heaviest take-off weight at which losing any one motor still meets the target, as a multiple of this flight's weight.",
+        "uk": "Найбільша злітна вага, за якої відмова будь-якого одного мотора ще відповідає цілі, як кратне ваги цього польоту."
+      },
+      "method": {
+        "en": "The busiest remaining motor's thrust grows in proportion to the weight, so the target output's thrust at the hover voltage over the thrust needed now.",
+        "uk": "Тяга найнавантаженішого мотора зростає пропорційно вазі, тож це тяга цільового виходу за напруги зависання, поділена на потрібну зараз."
+      },
+      "messages": ["RCOU", "BAT", "ATT", "CTUN"],
+      "zones": {
+        "target": [1.1, null],
+        "caution": [1.0, 1.1],
+        "out": [null, 1.0]
+      },
+      "source": {
+        "kind": "app",
+        "title": "The app's bands: 10% heavier than this flight still meeting the target leaves room for the next payload"
+      }
+    }
+  },
+  "findings": {
+    "motor_out.short": {
+      "stage": "setup",
+      "title": {
+        "en": "Losing motor {motor} at this weight would need {needed}% output from motor {busiest}, above the {target}% target",
+        "uk": "Відмова мотора {motor} за цієї ваги вимагала б {needed}% виходу від мотора {busiest}, понад ціль {target}%"
+      },
+      "action": {
+        "en": "The heaviest take-off that meets the target is {ratio} times this flight's weight. Fly lighter, fit larger propellers or stronger motors, or bring the hover output down; and keep the motor-loss steps with the aircraft: stop any manoeuvre, let it level, descend at a steady rate and land at the nearest clear spot.",
+        "uk": "Найбільша злітна вага, що відповідає цілі, — {ratio} ваги цього польоту. Літайте легше, встановіть більші пропелери чи потужніші мотори або зменште вихід у зависанні; і тримайте кроки на випадок відмови мотора при апараті: припиніть маневр, дайте апарату вирівнятися, знижуйтеся з постійною швидкістю й сідайте на найближчому вільному місці."
+      }
+    },
+    "motor_out.no_balance": {
+      "stage": "setup",
+      "title": {
+        "en": "Losing motor {motor}, the other motors cannot balance the aircraft",
+        "uk": "У разі відмови мотора {motor} інші мотори не врівноважать апарат"
+      },
+      "action": {
+        "en": "On this frame no split of thrust between the remaining motors balances the aircraft once motor {motor} stops. Keep the motor-loss steps with the aircraft (descend at once, land at the nearest clear spot), watch the signs that come before a motor failure (ESC errors and temperature, desyncs, current per RPM squared), and consider a frame with more motors or coaxial pairs for heavy payloads.",
+        "uk": "На цій рамі жоден розподіл тяги між рештою моторів не врівноважить апарат після зупинки мотора {motor}. Тримайте кроки на випадок відмови мотора при апараті (знижуйтеся одразу, сідайте на найближчому вільному місці), стежте за ознаками, що передують відмові мотора (помилки й температура ESC, розсинхронізація, струм на квадрат обертів), і розгляньте раму з більшою кількістю моторів чи співвісними парами для важких вантажів."
+      }
+    }
+  }
+}

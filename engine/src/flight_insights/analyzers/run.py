@@ -31,6 +31,7 @@ from flight_insights.analyzers.incident import INCIDENT
 from flight_insights.analyzers.links import LINKS
 from flight_insights.analyzers.log_adequacy import LOG_ADEQUACY
 from flight_insights.analyzers.model import Analyzer, Evidence, Result
+from flight_insights.analyzers.motor_out import MOTOR_OUT
 from flight_insights.analyzers.motors_health import MOTORS_HEALTH
 from flight_insights.analyzers.no_gnss import NO_GNSS
 from flight_insights.analyzers.no_gnss_readiness import NO_GNSS_READINESS
@@ -55,7 +56,8 @@ log = logging.getLogger(__name__)
 ANALYZERS: tuple[Analyzer, ...] = (
     LOG_ADEQUACY, SYSTEM, FAILSAFES, LINKS, PRECURSORS, COMMANDS, INCIDENT, GNSS, NO_GNSS,
     NO_GNSS_READINESS, VIBRATION,
-    ESC_RPM, FILTER_MODEL, FILTERS, POWER, MOTORS_HEALTH, BUSES, PAYLOAD, TUNE, RATE_TUNE,
+    ESC_RPM, FILTER_MODEL, FILTERS, POWER, MOTORS_HEALTH, BUSES, PAYLOAD, MOTOR_OUT, TUNE,
+    RATE_TUNE,
     RATE_HEALTH, AUTOTUNE, OPTIONS, PARAMS_AUDIT,
 )  # fmt: skip
 

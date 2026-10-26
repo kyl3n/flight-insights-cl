@@ -765,6 +765,35 @@ The defaults are starting points that the team can change for each platform.
 - **Plane-only frames.** Frames only Plane builds (QuadPlane's no-yaw-torque frames) are marked.
 - **Checked in CI.** The fixtures workflow regenerates the table from the release's source and fails on any difference. The 4.7.0, 4.7.1 and 4.7.2 tables are identical.
 
+**Measured now:** `analyzers/motor_out.py`, with the solver in `motor_out.py` and `simplex.py`. Rules are in `knowledge/rules/motor_out.json`; the targets are the table's defaults, marked uncalibrated.
+
+- **The weight:** steady hover read as the payload estimate reads it. That is each motor's output through the thrust curve at the measured battery voltage, times the tilt, at the air the aircraft flew in. It is counted in full single-motor thrusts.
+- **For each motor in turn,** a linear program finds the least thrust the busiest remaining motor must make to carry that weight with no roll or pitch moment, and no yaw torque where the class must hold its heading.
+  - The arms are the frame table's factors over each motor's throttle factor, so a co-rotating X8's 0.9 control scaling is not taken for geometry.
+  - A propeller's yaw torque is taken in proportion to its thrust.
+  - The solver is a two-phase simplex in numpy, checked against vertex enumeration.
+- **The output:** that thrust goes back through the curve to an output at the hover voltage. The worst motor gives the margin: the target output less the output needed, in points.
+- **The heaviest take-off:** the take-off weight at which the target is still met, as a multiple of this flight's weight. The needed thrust grows in proportion to the weight.
+- **Findings:**
+  - short of the target (caution), with the motor lost, the busiest motor, the output needed and the heaviest take-off;
+  - no thrust split balancing the aircraft (caution).
+- **Skipped:** a quad, which has no margin; helicopters; frame types the mixer does not set up for Copter.
+- **What the solver shows:**
+  - A hexa X must stop the opposite motor too and carry on four at 1.5 times their hover thrust.
+  - An X8 carries on the others at about 1.33 times.
+  - A co-rotating X8 holding its heading needs twice its hover thrust from the busiest motor.
+- **Checked on** the SITL heavy-lift X8 (Callisto):
+  - Light, at 39% hover thrust, the busiest motor needs 66% output: 19 points of margin, and up to 1.42 times the weight.
+  - Loaded, the busiest motor needs 79%: 6 points of margin.
+  - Both flights' heaviest take-offs agree within 3% once the payload estimate's 1.25 between them is allowed for.
+- **Not yet:**
+  - the lower propeller of a coaxial pair working in the upper one's wash;
+  - battery sag at the higher output;
+  - real motor losses compared with the prediction;
+  - the margin by payload band in trends;
+  - the motor-loss section of the recovery card;
+  - kilograms from a weighed flight.
+
 **From the logs.** The margin is tracked per flight, so it shows the effect of rising hover throttle from payload, battery ageing or wear. Real motor or ESC failures (telemetry stopping, RPM collapsing, stall flags, thrust-loss events) are compared with the prediction: which motor, how the others responded, how high they went, and whether yaw held. When ArduPilot's thrust-loss check fires, it logs the event and may favour altitude over yaw ([log messages](https://ardupilot.org/copter/docs/logmessages.html)).
 
 **When the margin falls short,** the app recommends a lower maximum payload, larger props or motors, or keeping hover throttle down, and adds the motor-loss procedure to the airframe's recovery card.
