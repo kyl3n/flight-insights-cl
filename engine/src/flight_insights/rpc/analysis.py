@@ -37,7 +37,7 @@ from collections.abc import Callable
 from pathlib import Path
 from typing import TYPE_CHECKING, Any, cast
 
-from flight_insights import analyzers, recommend, review, trends, tune_view, views
+from flight_insights import analyzers, recommend, recovery, review, trends, tune_view, views
 from flight_insights.analyzers.registry import LANGUAGES
 from flight_insights.filters import workbench
 from flight_insights.history import attribution
@@ -232,6 +232,19 @@ def add_analysis_methods(server: Server, state: EngineState, guarded: Callable[[
     @guarded
     def flight_timeline(_ctx: Context, params: dict[str, Any]) -> dict[str, Any]:
         return _view(params, views.timeline)
+
+    @server.method("airframe.recovery_card")
+    @guarded
+    def airframe_recovery_card(_ctx: Context, params: dict[str, Any]) -> dict[str, Any]:
+        store, cache = state.require_store(), state.cache
+        assert cache is not None
+        airframe = _id(params, "airframe_id")
+        try:
+            return recovery.card(
+                store, cache, state.pack, analyzers.Registry.load(state.pack), airframe
+            )
+        except recovery.RecoveryError as e:
+            raise RpcError(BAD_INPUT, str(e)) from None
 
     @server.method("flight.tlogs")
     @guarded
