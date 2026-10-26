@@ -294,6 +294,7 @@ def test_planes_are_not_asked(reg: Registry) -> None:
     assert not [
         f for f in LOG_ADEQUACY.run(plane, reg).findings if f.code.startswith("logging.tune")
     ]
+    assert TUNE.run(plane, reg).skipped == "the tune check is for Copter"
 
 
 # --- the simulator flight ------------------------------------------------------------------------

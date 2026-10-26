@@ -130,6 +130,8 @@ def _counts(found: Sequence[Event]) -> dict[str, int]:
 def _tune(flight: FlightData, reg: Registry) -> Result:
     if not flight.logged:
         return Result(skipped="a parameter file has no flight to measure")
+    if flight.vehicle != "copter":  # Plane's and QuadPlane's rate loops: Phase 3
+        return Result(skipped="the tune check is for Copter")
     rate = flight.table("RATE")
     if rate is None or rate.num_rows == 0:
         return Result(skipped="the log has no RATE messages")
