@@ -27,8 +27,8 @@
       "uk": "Щойно наступний журнал підтвердить зміну, завантажте файл повернення: він поверне {params} до значень, що були до тестового польоту."
     },
     "undo": {
-      "en": "If the test goes wrong, land and load the undo file: it puts back every value this plan changed ({params}).",
-      "uk": "Якщо тест піде не так, сідайте й завантажте файл скасування: він поверне кожне значення, змінене цим планом ({params})."
+      "en": "If the test goes wrong, land and load the undo file: it puts back every value this plan changed, and what its work may change on its own, as this flight had them ({params}).",
+      "uk": "Якщо тест піде не так, сідайте й завантажте файл скасування: він поверне кожне значення, змінене цим планом, і те, що може змінити сама робота, як було в цьому польоті ({params})."
     },
     "card_header": {
       "en": "Test card. Do the steps in order. Nothing is written to the aircraft automatically: every value goes in through a file you review and load.",
@@ -1182,6 +1182,25 @@
         ]
       },
       "graded_by": "checks",
+      "undo_also": [
+        "ATC_RAT_RLL_P",
+        "ATC_RAT_RLL_I",
+        "ATC_RAT_RLL_D",
+        "ATC_RAT_PIT_P",
+        "ATC_RAT_PIT_I",
+        "ATC_RAT_PIT_D",
+        "ATC_RAT_YAW_P",
+        "ATC_RAT_YAW_I",
+        "ATC_RAT_YAW_D",
+        "ATC_RAT_YAW_FLTE",
+        "ATC_ANG_RLL_P",
+        "ATC_ANG_PIT_P",
+        "ATC_ANG_YAW_P",
+        "ATC_ACC_R_MAX",
+        "ATC_ACC_P_MAX",
+        "ATC_ACC_Y_MAX",
+        "ATC_RATE_FF_ENAB"
+      ],
       "steps": [
         {
           "kind": "hardware",
@@ -1216,15 +1235,35 @@
           "checks": [
             {
               "check": "metric_improves",
-              "metric": "tune.tracking_error_roll",
+              "metric": "tune.attitude_error_roll",
               "by": 0.2,
               "required": true
             },
             {
               "check": "metric_improves",
-              "metric": "tune.tracking_error_pitch",
+              "metric": "tune.attitude_error_pitch",
               "by": 0.2,
               "required": true
+            },
+            {
+              "check": "metric_not_worse",
+              "metric": "tune.tracking_error_roll",
+              "by": 0.2
+            },
+            {
+              "check": "metric_not_worse",
+              "metric": "tune.tracking_error_pitch",
+              "by": 0.2
+            },
+            {
+              "check": "metric",
+              "metric": "tune.sensitivity_peak_roll",
+              "below": 2.0
+            },
+            {
+              "check": "metric",
+              "metric": "tune.sensitivity_peak_pitch",
+              "below": 2.0
             },
             {
               "check": "metric_vs_lightest",
@@ -1248,8 +1287,8 @@
             }
           ],
           "text": {
-            "en": "The tune check after AutoTune, in each payload band flown before it, shows roll and pitch tracking error at least 20% lower than before, with the 95% intervals apart. Loaded, the rate loop may be slower, not less stable: rise time within 1.5 times the light flight's and the sensitivity peak within 0.2 of it, where they are measured.",
-            "uk": "Перевірка налаштування після AutoTune в кожному діапазоні навантаження, у якому літали раніше, показує похибку відстеження за креном і тангажем щонайменше на 20% меншу, ніж до того, з 95% інтервалами, що не перетинаються. З вантажем контур швидкості може бути повільнішим, але не менш стійким: час наростання не більше 1,5 від польоту без вантажу, а пік чутливості — не більше ніж на 0,2 вищий, де їх виміряно."
+            "en": "The tune check after AutoTune, in each payload band flown before it, shows roll and pitch attitude tracking error at least 20% lower than before, with the 95% intervals apart, and rate tracking error no worse. Where they are measured: the sensitivity peak under 2, and loaded, the rate loop may be slower, not less stable: rise time within 1.5 times the light flight's and the sensitivity peak within 0.2 of it.",
+            "uk": "Перевірка налаштування після AutoTune в кожному діапазоні навантаження, у якому літали раніше, показує похибку відстеження кута крену й тангажу щонайменше на 20% меншу, ніж до того, з 95% інтервалами, що не перетинаються, а похибку відстеження швидкості — не гіршу. Де їх виміряно: пік чутливості менше 2, а з вантажем контур швидкості може бути повільнішим, але не менш стійким: час наростання не більше 1,5 від польоту без вантажу, а пік чутливості — не більше ніж на 0,2 вищий."
           }
         }
       ]

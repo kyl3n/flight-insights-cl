@@ -303,8 +303,8 @@
       "uk": "Знахідка зникла, але перевірка з її процедури не пройшла в наступному польоті."
     },
     "undo_header": {
-      "en": "Undo file: load it if the test goes wrong. It puts back every value the plan changed; parameters the plan made appear are hidden again once their switch is back off.",
-      "uk": "Файл скасування: завантажте його, якщо тест піде не так. Він повертає кожне значення, змінене планом; параметри, що з'явилися через план, знову сховаються, щойно їхній перемикач вимкнено."
+      "en": "Undo file: load it if the test goes wrong. It puts back every value the plan changed, and the values the plan's work may change on its own (the gains AutoTune saves), as the flight had them; parameters the plan made appear are hidden again once their switch is back off.",
+      "uk": "Файл скасування: завантажте його, якщо тест піде не так. Він повертає кожне значення, змінене планом, і значення, які робота плану може змінити сама (коефіцієнти, що зберігає AutoTune), як було в польоті; параметри, що з'явилися через план, знову сховаються, щойно їхній перемикач вимкнено."
     }
   },
   "held_once_done": {

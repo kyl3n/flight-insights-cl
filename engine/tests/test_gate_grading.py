@@ -38,18 +38,23 @@ PARAMS = {
 
 @dataclass
 class Check:
-    """A tune check's measurements on roll and pitch: tracking error (%) with its 95%
-    interval, rise time (s) and sensitivity peak."""
+    """A tune check's measurements on roll and pitch: attitude tracking error (%) with
+    its 95% interval (the tune's measure), rate tracking error, rise time (s) and
+    sensitivity peak."""
 
     roll: tuple[float, float, float]
     pitch: tuple[float, float, float]
     rise: tuple[float, float] | None = (0.10, 0.11)
     peak: tuple[float, float] | None = (1.5, 1.5)
+    rate: tuple[float, float] = (26.0, 26.0)  # roll, pitch; intervals of +-0.5
 
     def metrics(self) -> dict[str, tuple[float, dict[str, float]]]:
         out: dict[str, tuple[float, dict[str, float]]] = {}
         for axis, (value, low, high) in (("roll", self.roll), ("pitch", self.pitch)):
-            out[f"tune.tracking_error_{axis}"] = (value, {"low": low, "high": high, "events": 12})
+            out[f"tune.attitude_error_{axis}"] = (value, {"low": low, "high": high, "events": 12})
+        for axis, value in zip(("roll", "pitch"), self.rate, strict=True):
+            spread = {"low": value - 0.5, "high": value + 0.5, "events": 12}
+            out[f"tune.tracking_error_{axis}"] = (value, spread)
         for name, pair in (("rise_time", self.rise), ("sensitivity_peak", self.peak)):
             if pair is not None:
                 out[f"tune.{name}_roll"], out[f"tune.{name}_pitch"] = (pair[0], {}), (pair[1], {})
@@ -187,7 +192,7 @@ def test_autotune_is_graded_on_both_payload_bands(gate: Gate) -> None:
     [graded] = grade_flight(gate.store, gate.pack, f5, a5)
     assert graded["status"] == "applied"  # the loaded band has not been flown again
     pending = gate.offer()["detail"]["grade_pending"]
-    roll = next(c for c in pending["checks"] if c["metric"] == "tune.tracking_error_roll")
+    roll = next(c for c in pending["checks"] if c["metric"] == "tune.attitude_error_roll")
     assert roll["passed"] is None
     assert [(b["group"], b["verdict"]) for b in roll["bands"]] == [
         ("band:0", "better"), ("band:2", "waiting")
@@ -207,11 +212,24 @@ def test_autotune_is_graded_on_both_payload_bands(gate: Gate) -> None:
     assert rec["status"] == "confirmed" and rec["graded_flight_id"] == f6
     assert "grade_pending" not in rec["detail"]
     checks = {c["metric"]: c for c in rec["detail"]["grade"]["checks"]}
-    pitch = checks["tune.tracking_error_pitch"]
+    pitch = checks["tune.attitude_error_pitch"]
     assert [b["verdict"] for b in pitch["bands"]] == ["better", "better"]
     assert pitch["bands"][1]["change"] == pytest.approx((48 - 35) / 48, abs=1e-4)
     rise = checks["tune.rise_time_roll"]
     assert rise["passed"] and (rise["light"], rise["heavy"]) == (0.09, 0.12)
+    assert checks["tune.tracking_error_roll"]["passed"]  # the rate loop no worse
+    assert checks["tune.sensitivity_peak_roll"]["passed"]  # under 2 on the graded flight
+
+
+def test_a_rate_loop_clearly_worse_is_regressed_whatever_the_attitude(gate: Gate) -> None:
+    """The attitude may follow better with a rate loop that got worse (gains pushed into
+    a slower, busier loop): the rate tracking error guards against it."""
+    baseline_and_autotune(gate)
+    gate.plan(*gate.fly(LIGHT, AFTER_LIGHT))
+    worse_rate = Check(AFTER_LOADED.roll, AFTER_LOADED.pitch, rise=(0.12, 0.13),
+                       peak=(1.5, 1.55), rate=(34.0, 26.0))  # fmt: skip
+    f6, a6 = gate.fly(LOADED, worse_rate)
+    assert grade_flight(gate.store, gate.pack, f6, a6)[0]["status"] == "regressed"
 
 
 def test_worse_in_one_band_is_regressed(gate: Gate) -> None:
@@ -353,6 +371,42 @@ def test_large_props_prepare_with_changes_and_still_track_the_autotune(gate: Gat
     assert kinds.count("abort") == len({s["text"]["en"] for s in plan["session"]
                                         if s["kind"] == "abort"})  # fmt: skip
     assert gate.offer()["detail"]["applied_when"]["finding"] == "autotune.saved"
+
+
+def test_changes_made_ready_for_autotune_are_graded_after_it(gate: Gate) -> None:
+    """The rate filters and back-off are flown on the AutoTune flights, which measure no
+    tracking: they wait for the AutoTune, then grade with it."""
+    prepared = {"ATC_RAT_RLL_FLTT": 10.0, "ATC_RAT_PIT_FLTT": 10.0, "AUTOTUNE_GMBK": 0.35}
+    changes = tuple(
+        {"param": p, "current": PARAMS[p], "proposed": v, "stage": "autotune"}
+        for p, v in prepared.items()
+    )
+    gate.plan(*gate.fly(LIGHT, BASE_LIGHT, changes=changes))
+    gate.plan(*gate.fly(LOADED, BASE_LOADED, changes=changes))
+    ready = save_snapshot(
+        gate.store, Snapshot(PARAMS | prepared, "copter", "4.7.0", "log start", "primary"),
+        gate.pack,
+    )  # fmt: skip
+
+    def prep() -> list[dict[str, Any]]:
+        return [
+            r for r in history(gate.store, gate.airframe)
+            if r["finding_code"] == OFFER and r["param"] is not None
+        ]  # fmt: skip
+
+    for axis in ("roll", "pitch"):  # one axis a pack, both with the changes loaded
+        f, a = gate.fly(LIGHT, saved=axis, snapshot=ready)
+        grade_flight(gate.store, gate.pack, f, a)
+        assert len(prep()) == 3 and all(r["status"] == "applied" for r in prep())
+        assert not any("grade" in r["detail"] or "grade_pending" in r["detail"] for r in prep())
+    assert gate.offer()["status"] == "applied"
+    f5, a5 = gate.fly(LIGHT, AFTER_LIGHT, snapshot=ready)
+    grade_flight(gate.store, gate.pack, f5, a5)
+    assert all("grade_pending" in r["detail"] for r in [*prep(), gate.offer()])
+    f6, a6 = gate.fly(LOADED, AFTER_LOADED, snapshot=ready)
+    graded = grade_flight(gate.store, gate.pack, f6, a6)
+    assert sorted(str(g["param"]) for g in graded) == [*sorted(prepared), "None"]
+    assert {g["status"] for g in graded} == {"confirmed"}
 
 
 # --- the measurements on their own -----------------------------------------------------

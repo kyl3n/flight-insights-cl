@@ -109,11 +109,16 @@ CHECKS: Mapping[str, tuple[str, ...]] = {
     # in every payload band flown before the change, flown again with it, the metric
     # better by at least `by` (a share) with 95% intervals apart
     "metric_improves": ("metric", "by"),
+    # the same bands, flown again with it: no band worse by `by` with intervals apart
+    "metric_not_worse": ("metric", "by"),
     # with the change, the heaviest band's value within max_ratio times, or max_above
     # over, the lightest band's
     "metric_vs_lightest": ("metric",),
 }
-METRIC_CHECKS = ("metric", "has_metric", "metric_improves", "metric_vs_lightest")
+METRIC_CHECKS = (
+    "metric", "has_metric", "metric_improves", "metric_not_worse", "metric_vs_lightest",
+)  # fmt: skip
+PARAM_NAME = re.compile(r"[A-Z][A-Z0-9_]{0,15}")
 
 
 @dataclass(frozen=True)
@@ -357,9 +362,19 @@ def _procedures(
                 raise KnowledgeError(f"{where}: applied_when names no finding the registry knows")
             if raw.get("graded_by", "findings") not in ("findings", "checks"):
                 raise KnowledgeError(f"{where}: graded_by is 'findings' or 'checks'")
+            # What the work itself may change (AutoTune saves gains): the undo file keeps
+            # the flight's values of these too.
+            undo_also: object = raw.get("undo_also", [])
+            if not isinstance(undo_also, list) or not all(
+                isinstance(n, str) and PARAM_NAME.fullmatch(n)
+                for n in cast(list[object], undo_also)
+            ):
+                raise KnowledgeError(f"{where}: undo_also lists parameter names")
+            undo_also = [str(n) for n in cast(list[str], undo_also)]
             procedures[code] = {
                 "temporary": temporary, "add_temporary": add, "steps": steps,
                 "applied_when": applied_when, "graded_by": raw.get("graded_by", "findings"),
+                "undo_also": tuple(undo_also),
             }  # fmt: skip
     return procedures, texts
 

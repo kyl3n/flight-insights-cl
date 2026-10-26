@@ -27,9 +27,11 @@ from scenarios import (
     SCENARIOS,
     VIBRATING,
     Scenario,
+    autotune,
     copter_hover,
     land_and_disarm,
     sticks,
+    tune_check,
 )
 
 if TYPE_CHECKING:
@@ -65,6 +67,17 @@ def hover_then_sticks(
 
 
 @dataclass(frozen=True)
+class Work:
+    """A flight an action's own work takes (AutoTune, one axis a pack), on a fresh pack,
+    with the settings its procedure's text has a person make for that flight only."""
+
+    name: str
+    params: Mapping[str, float]
+    fly: Callable[[Vehicle], None]
+    speedup: int | None = None
+
+
+@dataclass(frozen=True)
 class Rehearsal:
     name: str
     description: str
@@ -75,6 +88,12 @@ class Rehearsal:
     # Plans carried out, one test flight each, as a person works through the stages:
     # a problem in an earlier stage (logging dropouts, say) is fixed first.
     rounds: int = 3
+    # An action whose work is flights of its own (AutoTune): the airframe's earlier
+    # flights, the weaker setup and the test flight flown light and carrying `loaded_kg`
+    # (two payload bands), and the work between them. Its grade is the rehearsal's.
+    before: tuple[Callable[[Vehicle], None], ...] = ()
+    loaded_kg: float = 0.0
+    work: tuple[Work, ...] = ()
 
 
 # A quad with motor vibration and ESC telemetry, whose harmonic notch is off: the
@@ -106,6 +125,28 @@ QUAD_SETTINGS = Scenario(
     speedup=RAW_SPEEDUP,  # its plan logs raw IMU for the test flight
     **COPTER,  # type: ignore[arg-type]
 )
+
+# Callisto with its roll and pitch rate gains at 0.4 of the model's: a rate loop AutoTune
+# can improve. Otherwise set up as a person following the app would have it: hover
+# learning on (a payload that varies), and an earlier flight logging raw IMU, so the
+# filter checks have what they need and AutoTune is the stage on offer.
+SOFT_CALLISTO = {
+    f"ATC_RAT_{axis}_{term}": round(value * 0.4, 6)
+    for axis in ("RLL", "PIT")
+    for term, value in (("P", 0.455), ("I", 0.455), ("D", 0.00375))
+}
+HEAVYLIFT_SOFT = Scenario(
+    name="rehearse-heavylift-soft",
+    vehicle="copter",
+    frame="octo coaxial X8",
+    description="Heavy-lift X8 with soft roll and pitch rate gains, flown through the tune check.",
+    expected=["roll and pitch tracking measured; AutoTune offered"],
+    fly=tune_check(6, axes=("ch1", "ch2"), altitude=8, hands_off=15),
+    params=SOFT_CALLISTO | {"MOT_HOVER_LEARN": 2},
+    boot_params={"LOG_DISARMED": 0, "SIM_ESC_TELEM": 0},
+    **CALLISTO,  # type: ignore[arg-type]
+)
+AUTOTUNE_LOG = {"LOG_FILE_RATEMAX": 25}  # SITL's own SIM2 at loop rate would fill the log
 
 REHEARSALS: dict[str, Rehearsal] = {
     r.name: r
@@ -140,7 +181,25 @@ REHEARSALS: dict[str, Rehearsal] = {
             expects=("params.vibe_failsafe_off", "params.dead_reckoning_failsafe_off"),
             test_flight=copter_hover(30, altitude=10),
         ),
+        Rehearsal(
+            name="heavylift-autotune",
+            description=(
+                "The gate's flights on a heavy-lift X8 with soft rate gains: tune checks"
+                " light and loaded, the plan's rate filters and back-off loaded, AutoTune"
+                " roll then pitch on fresh packs, and the tune checks again."
+            ),
+            setup=HEAVYLIFT_SOFT,
+            answers={"payload": "variable", "prop_diameter_in": 30, "esc_firmware": "BLHeli_32"},
+            expects=("tune.autotune_offer",),
+            test_flight=HEAVYLIFT_SOFT.fly,
+            before=(copter_hover(15, altitude=5, raw_in_hover=True),),
+            loaded_kg=8.0,
+            work=(
+                Work("AutoTune roll", AUTOTUNE_LOG | {"AUTOTUNE_AXES": 1}, autotune(True), 5),
+                Work("AutoTune pitch", AUTOTUNE_LOG | {"AUTOTUNE_AXES": 2}, autotune(True), 5),
+            ),
+        ),
     ]
 }
 
-__all__ = ["CALLISTO", "REHEARSALS", "Rehearsal"]
+__all__ = ["CALLISTO", "REHEARSALS", "Rehearsal", "Work"]

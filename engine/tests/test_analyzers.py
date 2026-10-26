@@ -141,9 +141,11 @@ def test_an_incomplete_registry_entry_is_refused(pack: Pack, tmp_path: Path, cas
         Registry.load(load_pack(root))
 
 
-def _offer_verify(doc: dict[str, Any]) -> list[dict[str, Any]]:
+def _offer_verify(doc: dict[str, Any], kind: str = "metric_improves") -> dict[str, Any]:
+    """The AutoTune offer's first verify check of this kind."""
     steps = doc["procedures"]["tune.autotune_offer"]["steps"]
-    return next(s for s in steps if s["kind"] == "verify")["checks"]
+    checks = next(s for s in steps if s["kind"] == "verify")["checks"]
+    return next(c for c in checks if c["check"] == kind)
 
 
 BROKEN_PROCEDURES: dict[str, tuple[Callable[[dict[str, Any]], object], str]] = {
@@ -158,20 +160,28 @@ BROKEN_PROCEDURES: dict[str, tuple[Callable[[dict[str, Any]], object], str]] = {
         lambda d: d["procedures"]["tune.autotune_offer"].update(graded_by="feel"),
         "graded_by",
     ),
-    "an improvement with no size": (lambda d: _offer_verify(d)[0].pop("by"), "incomplete check"),
+    "an improvement with no size": (lambda d: _offer_verify(d).pop("by"), "incomplete check"),
+    "a guard with no size": (
+        lambda d: _offer_verify(d, "metric_not_worse").pop("by"),
+        "incomplete check",
+    ),
     "an improvement on a metric nobody measures": (
-        lambda d: _offer_verify(d)[0].update(metric="tune.feel"),
+        lambda d: _offer_verify(d).update(metric="tune.feel"),
         "no metric tune.feel",
     ),
     "light against loaded with no limit": (
-        lambda d: _offer_verify(d)[2].pop("max_ratio"),
+        lambda d: _offer_verify(d, "metric_vs_lightest").pop("max_ratio"),
         "max_ratio or max_above",
     ),
     "light against loaded with two limits": (
-        lambda d: _offer_verify(d)[2].update(max_above=0.1),
+        lambda d: _offer_verify(d, "metric_vs_lightest").update(max_above=0.1),
         "max_ratio or max_above",
     ),
-    "required as text": (lambda d: _offer_verify(d)[0].update(required="yes"), "true or false"),
+    "required as text": (lambda d: _offer_verify(d).update(required="yes"), "true or false"),
+    "undo also with something not a parameter": (
+        lambda d: d["procedures"]["tune.autotune_offer"]["undo_also"].append("rate gains"),
+        "undo_also lists parameter names",
+    ),
 }
 
 

@@ -96,6 +96,18 @@ def climbed(low: tuple[float, float] | None = None) -> tuple[list[int], list[flo
     return t.tolist(), alt.tolist()
 
 
+def ang_table(t: np.ndarray[Any, Any], follow: float = 0.8, trim_deg: float = 0.0) -> pa.Table:
+    """The attitude target from the rate doublets (their integral), held about a trim
+    angle, and an attitude that makes `follow` of each move away from the trim."""
+    deg = {b"unit": b"deg", b"multiplier": b"1"}
+    columns: dict[str, tuple[pa.DataType, Any]] = {}
+    for axis, name in (("R", "Roll"), ("P", "Pitch"), ("Y", "Yaw")):
+        move = np.cumsum(doublets(t, STARTS[axis])) / HZ
+        columns[f"Des{name}"] = (pa.float32(), trim_deg + move)
+        columns[name] = (pa.float32(), trim_deg + follow * move)
+    return table(t.tolist(), columns, {k: deg for k in columns})
+
+
 def tune_flight(
     rate: pa.Table | None = None,
     modes: list[tuple[int, int]] | None = None,
@@ -103,6 +115,7 @@ def tune_flight(
     flags: Mapping[str, list[tuple[float, float]]] | None = None,
     rcin: pa.Table | None = None,
     answers: Mapping[str, Any] | None = None,
+    ang: pa.Table | None = None,
     **params: float,
 ) -> Any:
     t = _times()
@@ -122,6 +135,7 @@ def tune_flight(
         "CTUN": table(ht, {"Alt": (pa.float32(), h)}, {"Alt": METRE}),
         "RCIN": rcin if rcin is not None else sticks(),
         **pids,
+        **({"ANG": ang} if ang is not None else {}),
     }
     return flight(tables, ARM, DISARM, params={"LOG_BITMASK": LOGGED} | params, answers=answers)
 
@@ -179,6 +193,30 @@ def test_each_axis_gets_its_tracking_error_with_an_interval(reg: Registry) -> No
         assert value.spread == pytest.approx({"low": 25.0, "high": 25.0, "events": 8.0}, abs=1e-6)
         assert value.zone is None and value.segment == "inputs"  # judged against its own flights
         assert value.evidence_id == f"tune:{axis}"
+
+
+@pytest.mark.parametrize("trim", [0.0, 6.0])
+def test_attitude_error_is_the_share_of_the_commanded_move_missed(
+    reg: Registry, trim: float
+) -> None:
+    """An attitude that makes 80% of each move misses 20% of it, whatever trim angle the
+    aircraft holds in the wind: the trim is not the pilot's command."""
+    r = TUNE.run(tune_flight(ang=ang_table(_times(), follow=0.8, trim_deg=trim)), reg)
+    values = {m.metric: m for m in r.metrics}
+    for axis in ("roll", "pitch"):
+        m = values[f"tune.attitude_error_{axis}"]
+        assert m.value == pytest.approx(20.0, abs=0.05)
+        assert m.spread["low"] <= m.value <= m.spread["high"] and m.spread["events"] == 8
+    assert "tune.attitude_error_yaw" not in values  # yaw's heading is held, not commanded
+    [offer] = r.findings
+    assert {e.id for e in offer.evidence} >= {"tune:attitude:roll", "tune:attitude:pitch"}
+
+
+def test_attitude_error_needs_the_attitude_logged_every_loop(reg: Registry) -> None:
+    slow = ang_table(_times(10.0))
+    r = TUNE.run(tune_flight(ang=slow), reg)
+    assert not any(m.metric.startswith("tune.attitude_error") for m in r.metrics)
+    assert any(m.metric == "tune.tracking_error_roll" for m in r.metrics)
 
 
 def test_the_interval_is_seeded_and_holds_the_mean() -> None:
