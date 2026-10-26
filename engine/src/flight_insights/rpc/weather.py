@@ -4,19 +4,34 @@ flies.
 
 | Method | What it does |
 | --- | --- |
-| weather.tiles | Every tile to download (each flight's and those around it), each grid's step |
+| weather.tiles | Every tile to download, when this laptop first listed it, each grid's step |
+| weather.store | Keeps one download the shell received, as it came |
+| weather.held | Which downloads of a source are kept, by tile and period |
 """
 
 from __future__ import annotations
 
+import time
 from collections.abc import Callable
+from pathlib import Path
 from typing import TYPE_CHECKING, Any
 
-from flight_insights.rpc.server import Context, Server
-from flight_insights.weather import tiles
+from flight_insights.rpc.server import BAD_INPUT, INVALID_PARAMS, Context, RpcError, Server
+from flight_insights.weather import downloads, tiles
 
 if TYPE_CHECKING:
     from flight_insights.rpc.methods import EngineState
+
+
+def _text(params: dict[str, Any], name: str) -> str:
+    value = params.get(name, "")
+    if not isinstance(value, str):
+        raise RpcError(INVALID_PARAMS, f"{name} must be text")
+    return value
+
+
+def _now_ms() -> int:
+    return int(time.time() * 1000)
 
 
 def add_weather_methods(server: Server, state: EngineState, guarded: Callable[[Any], Any]) -> None:
@@ -27,8 +42,37 @@ def add_weather_methods(server: Server, state: EngineState, guarded: Callable[[A
         assert cache is not None
         rules = tiles.TileRules.load(state.pack)
         tiles.scan(store, cache, rules, ctx.progress)
+        added = downloads.note_tiles(store, tiles.download_list(store, rules), _now_ms())
         return {
             "tile_deg": rules.tile_deg,
             "grids_deg": dict(rules.grids_deg),
-            "tiles": tiles.download_list(store, rules),
+            "tiles": [{"tile": t, "added_ms": ms} for t, ms in added.items()],
         }
+
+    @server.method("weather.store")
+    @guarded
+    def weather_store(_ctx: Context, params: dict[str, Any]) -> dict[str, Any]:
+        path = Path(_text(params, "path"))
+        if not path.is_file():
+            raise RpcError(BAD_INPUT, "no such file")
+        if path.stat().st_size > downloads.MAX_BYTES:
+            raise RpcError(BAD_INPUT, "the download is larger than any reply the schedule asks for")
+        try:
+            size = downloads.keep(
+                state.require_store(), _text(params, "source"), _text(params, "tile"),
+                _text(params, "period"), path.read_bytes(), _now_ms(),
+            )  # fmt: skip
+        except downloads.DownloadError as e:
+            raise RpcError(BAD_INPUT, str(e)) from None
+        return {"bytes": size}
+
+    @server.method("weather.held")
+    @guarded
+    def weather_held(_ctx: Context, params: dict[str, Any]) -> dict[str, Any]:
+        try:
+            got = downloads.held(
+                state.require_store(), _text(params, "source"), _text(params, "since")
+            )
+        except downloads.DownloadError as e:
+            raise RpcError(INVALID_PARAMS, str(e)) from None
+        return {"held": [[t, p] for t, p in got]}

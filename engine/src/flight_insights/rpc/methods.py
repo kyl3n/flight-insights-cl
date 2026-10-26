@@ -33,7 +33,7 @@
 | review.file | A parameter file's configuration review, with no flight: see rpc/analysis.py |
 | filter.workbench | Spectra and candidate filter predictions: see rpc/analysis.py |
 | ai.prepare / .record / .selftest | The AI path, shell only (never the UI): see rpc/ai.py |
-| weather.tiles | The weather tiles to download, shell only (never the UI): see rpc/weather.py |
+| weather.tiles / .store / .held | Weather downloads, shell only: see rpc/weather.py |
 
 Position columns are never written to an IPC file in Phase 0. Keys arrive over
 stdin, live in memory only, and are never logged or echoed in an error.

@@ -413,7 +413,7 @@ Every flight gets a weather record from an accurate numerical weather model, che
 - **Scores the models.** Over time the app learns which model best matches the wind your aircraft actually measured in your operating area, and weights it accordingly.
 - **Explains anomalies.** A GNSS or compass anomaly during elevated geomagnetic activity is shown with that context instead of being blamed on the aircraft.
 
-**Offline.** Each laptop keeps the region's data locally, so weather records fill in with no connection. A flight imported before its period was downloaded is completed at the next scheduled download, and upgraded to reanalysis about five days later.
+**Offline.** Each laptop keeps the region's data locally, so weather records fill in with no connection. Every reply is kept as it came, compressed, inside the encrypted store, under its source (forecast, reanalysis or space weather), tile and UTC period (a month, a day or a 6-hour slot); a reply that is not JSON, or is the provider's error, is refused. The engine also keeps when this laptop first listed each tile, so a new tile's backfill waits its random delay across restarts. Both are this laptop's own tables: downloads are shared through Drive as encrypted objects, not as synced records. The shell hands each reply over through two shell-only engine methods, `weather.store` and `weather.held`. A flight imported before its period was downloaded is completed at the next scheduled download, and upgraded to reanalysis about five days later.
 
 ## Analyzers common to all vehicles
 
@@ -2071,7 +2071,7 @@ devices/<laptop-id>/<sequence>-<object-key>.fio
 | Records | laptop, platform, build_version, airframe, component, battery_pack, ground_station, ground_station_version, source_file, param_snapshot, flight, change_set, recommendation, ai_packet, ai_exchange | A new record whole, with each field's clock; a changed record as its changed fields |
 | Links | flight_source, flight_battery, build_component | Added once, never changed |
 | Children | param_value and param_change, with their parameter snapshot | Sent with the snapshot when it is new |
-| Local only | analysis_run, finding, metric_value (recomputed); tlog_session, flight_tiles (derived from the logs); station_folder, ignored_file, source_location (this laptop's paths); the sync tables themselves | Never sent |
+| Local only | analysis_run, finding, metric_value (recomputed); tlog_session, flight_tiles (derived from the logs); weather_tile, weather_download (this laptop's weather, shared as drive objects); station_folder, ignored_file, source_location (this laptop's paths); the sync tables themselves | Never sent |
 
 A few fields of synced records name a row that exists only on the laptop that wrote them, and stay there: `recommendation.finding_id` and `ai_packet.run_id`. Each record also carries a **portable reference** to the same thing:
 
