@@ -5,6 +5,7 @@ self-test's own cases; and the shell-only methods keep the tripwire from the UI.
 from __future__ import annotations
 
 import json
+import math
 from itertools import count
 from pathlib import Path
 from typing import Any
@@ -91,6 +92,10 @@ def test_each_fixture_makes_a_packet_that_may_leave(
     assert reply["engine"] == {"ok": True, "reasons": []}, reply["engine"]
     packet = json.loads(reply["packet_json"])
     assert validate(packet) == [] and packet["findings"] and packet["parameters"]
+    # Nothing is withheld here, so every metric the run measured is in the packet.
+    run = rpc(engine, "analysis.get", flight_id=flight)["result"]
+    measured = [m for m in run["metrics"] if math.isfinite(m["value"])]
+    assert measured and len(packet["metrics"]) == len(measured)
     assert packet["aircraft"]["simulated"] and packet["aircraft"]["vehicle"] == vehicle
     # Today's analyzers read nothing the location policy holds back.
     assert not [e["ref"] for e in packet["evidence"] if e["summary"] == WITHHELD]
@@ -137,7 +142,7 @@ def test_evidence_that_read_a_location_field_is_withheld_with_its_metrics() -> N
     analysis: dict[str, Any] = {
         "evidence": evidence,
         "metrics": [{"metric": f"m.{e['id']}", "segment": "flight", "value": 1.5, "zone": None,
-                     "evidence_id": e["id"]} for e in evidence],
+                     "evidence": e["id"]} for e in evidence],
         "findings": [{"key": "k", "code": "c", "severity": "info", "confidence": "high",
                       "params": {}, "evidence": [e["id"] for e in evidence]}],
     }  # fmt: skip

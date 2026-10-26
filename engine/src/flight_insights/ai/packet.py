@@ -192,7 +192,7 @@ def _analysis(
          "zone": m["zone"]}
         for m in analysis["metrics"]
         if isinstance(m["value"], int | float) and math.isfinite(m["value"])
-        and m.get("evidence_id") in known and _clear(known[m["evidence_id"]], policy)
+        and m.get("evidence") in known and _clear(known[m["evidence"]], policy)
     ][:512]  # fmt: skip
     refs: dict[str, str] = {}
     evidence: list[dict[str, Any]] = []
