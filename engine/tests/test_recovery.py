@@ -1,8 +1,10 @@
-"""The recovery card: what the aircraft does when GNSS is lost or spoofed, and the
-operator's steps, from its parameters, its readiness and its measured outages."""
+"""The recovery card: what the aircraft does when GNSS is lost or spoofed, or when it
+loses a motor, and the operator's steps, from its parameters, its readiness, its measured
+outages and its motor-out margin."""
 
 from __future__ import annotations
 
+from dataclasses import replace
 from pathlib import Path
 from typing import Any
 
@@ -13,12 +15,19 @@ from test_no_gnss_readiness import DRAG, FLOW, POSITION_MODES, STOCK
 from flight_insights.analyzers.no_gnss_readiness import NO_GNSS_READINESS
 from flight_insights.analyzers.registry import Registry
 from flight_insights.knowledge import load_pack
-from flight_insights.recovery import Measured, build, card_text
+from flight_insights.recovery import Measured, MotorLoss, build, card_text
 
 PACK = load_pack()
 DOC = PACK.json("recovery/copter.json")
 SITL = Measured(outages=2, hold_s=6.9, detection_s=3.9)  # the SITL drills, on GNSS alone
 NOTHING = Measured()
+QUAD = MotorLoss("QUAD/X", can_lose_one=False, hold_yaw=False)
+OCTA = MotorLoss("OCTA/X", can_lose_one=True, hold_yaw=True)
+HEXA = MotorLoss("HEXA/X", can_lose_one=True, hold_yaw=False)
+# the SITL Callisto X8 light: 66.3% output against 85%, 1.423 times its 32.5 kg
+CALLISTO = MotorLoss("OCTAQUAD/X", can_lose_one=True, hold_yaw=True, measured=True,
+                     target_pct=85.0, needed_pct=66.3, ratio=1.423, flight_kg=32.5,
+                     weighed=True)  # fmt: skip
 
 
 @pytest.fixture(scope="module")
@@ -33,9 +42,20 @@ def make(reg: Registry, **params: float) -> dict[str, Any]:
 def measured_as(
     reg: Registry, alone: Measured, on_set: Measured, **params: float
 ) -> dict[str, Any]:
+    return _card(reg, alone, on_set, None, params)
+
+
+def losing(reg: Registry, motor: MotorLoss, **params: float) -> dict[str, Any]:
+    return _card(reg, SITL, NOTHING, motor, params)
+
+
+def _card(
+    reg: Registry, alone: Measured, on_set: Measured, motor: MotorLoss | None,
+    params: dict[str, float],
+) -> dict[str, Any]:  # fmt: skip
     p = STOCK | params
     readiness = NO_GNSS_READINESS.run(hover_flight({}, p), reg)
-    return build(readiness, alone, on_set, p, DOC, 10.0, "HL1", "a3f9c2d1")
+    return build(readiness, alone, on_set, p, DOC, 10.0, "HL1", "a3f9c2d1", motor)
 
 
 def keys(card: dict[str, Any], section: str, part: str = "steps") -> list[str]:
@@ -153,13 +173,103 @@ def test_a_hold_on_optical_flow_is_never_claimed_for_the_aircraft_on_its_own(
     assert "fact.hold_set" not in keys(measured_as(reg, NOTHING, flow), "gnss_lost", "facts")
 
 
+def test_without_a_frame_the_card_has_no_motor_section(reg: Registry) -> None:
+    assert [s["id"] for s in make(reg)["sections"]] == ["gnss_lost", "spoofing"]
+
+
+def test_a_quad_comes_down_and_its_parachute_is_named(reg: Registry) -> None:
+    c = losing(reg, QUAD)
+    assert [s["id"] for s in c["sections"]] == ["gnss_lost", "spoofing", "motor_lost"]
+    assert text(c, "motor_lost", "will") == ["come down: a quad cannot fly on three motors"]
+    assert keys(c, "motor_lost", "facts") == [] and keys(c, "motor_lost") == ["step.motor_clear"]
+    chute = losing(reg, QUAD, CHUTE_ENABLED=1.0, RC9_OPTION=22.0)
+    assert text(chute, "motor_lost")[1] == (
+        "If the parachute has not opened by itself, release it with its switch (RC9 high)."
+    )
+    station = losing(reg, QUAD, CHUTE_ENABLED=1.0)
+    assert keys(station, "motor_lost")[1] == "step.motor_chute_station"
+
+
+def test_a_heavy_lift_x8_holds_and_says_up_to_what_weight(reg: Registry) -> None:
+    c = losing(reg, CALLISTO)
+    assert text(c, "motor_lost", "will") == [
+        "hold height and heading on its other motors",
+        'after 1 s descending at full throttle, tell the ground station "Potential Thrust '
+        'Loss (N)", N being the motor it suspects',
+    ]
+    assert text(c, "motor_lost", "facts") == [
+        "With one motor lost it stays within the 85% output target up to 46.2 kg take-off "
+        "weight (measured on a flight weighed at 32.5 kg)."
+    ]
+    assert keys(c, "motor_lost") == [
+        "step.motor_level", "step.motor_descend", "step.motor_land",
+    ]  # fmt: skip
+    assert text(c, "motor_lost", "facts", "uk")[0].startswith(
+        "Із одним відмовленим мотором він залишається в межах цілі 85% виходу до 46.2 кг"
+    )
+
+
+def test_a_weight_not_weighed_is_estimated_or_given_as_a_ratio(reg: Registry) -> None:
+    estimated = losing(reg, replace(CALLISTO, flight_kg=40.1, weighed=False))
+    assert keys(estimated, "motor_lost", "facts") == ["fact.motor_kg_estimated"]
+    assert "about 40.1 kg" in text(estimated, "motor_lost", "facts")[0]
+    unweighed = losing(reg, replace(CALLISTO, flight_kg=None, weighed=False))
+    assert text(unweighed, "motor_lost", "facts") == [
+        "With one motor lost it stays within the 85% output target up to 1.42 times the "
+        "weight of the flight it was measured on; weigh a flight at import to see kilograms."
+    ]
+
+
+def test_a_hexa_may_turn_and_a_heavy_one_is_short_or_sinks(reg: Registry) -> None:
+    hexa = replace(HEXA, measured=True, target_pct=90.0, needed_pct=72.0, ratio=1.3)
+    c = losing(reg, hexa)
+    assert keys(c, "motor_lost", "will")[0] == "will.motor_hold_level"
+    assert keys(c, "motor_lost") == [
+        "step.motor_level", "step.motor_yaw", "step.motor_descend", "step.motor_land",
+    ]  # fmt: skip
+    short = losing(reg, replace(hexa, needed_pct=93.4, ratio=0.95))
+    assert text(short, "motor_lost", "will")[0] == (
+        "hold height on its other motors with little left to steer with, at the weight it "
+        "last flew: its busiest motor would need 93.4% output, over the 90% target"
+    )
+    sink = losing(reg, replace(hexa, needed_pct=104.2, ratio=0.82))
+    assert keys(sink, "motor_lost", "will")[0] == "will.motor_sink"
+    assert keys(sink, "motor_lost")[0] == "step.motor_level"  # it still levels and descends
+
+
+def test_no_thrust_split_that_balances_it_means_it_comes_down(reg: Registry) -> None:
+    c = losing(reg, replace(OCTA, measured=True, target_pct=85.0))
+    assert keys(c, "motor_lost", "will")[0] == "will.motor_no_balance"
+    assert keys(c, "motor_lost", "facts") == [] and keys(c, "motor_lost") == ["step.motor_clear"]
+
+
+def test_nothing_measured_says_what_flight_would_measure_it(reg: Registry) -> None:
+    c = losing(reg, OCTA)
+    assert keys(c, "motor_lost", "will") == ["will.motor_message"]  # the firmware's own
+    assert text(c, "motor_lost", "facts") == [
+        "Not measured yet: hover for 10 s or more, 3 m or higher, with the motor outputs and "
+        "battery voltage logged."
+    ]
+
+
+def test_the_thrust_loss_check_and_the_gripper_follow_flight_options(reg: Registry) -> None:
+    assert "will.motor_message" not in keys(
+        losing(reg, CALLISTO, FLIGHT_OPTIONS=1.0), "motor_lost", "will"
+    )
+    dropping = losing(reg, CALLISTO, FLIGHT_OPTIONS=4.0, GRIP_ENABLE=1.0)
+    assert keys(dropping, "motor_lost", "will")[1:] == ["will.motor_message", "will.motor_gripper"]
+    no_gripper = losing(reg, CALLISTO, FLIGHT_OPTIONS=4.0)
+    assert "will.motor_gripper" not in keys(no_gripper, "motor_lost", "will")
+
+
 def test_the_printed_card_in_both_languages(reg: Registry) -> None:
-    c = make(reg, **FLOW, **DRAG, RC8_OPTION=90.0, RC7_OPTION=65.0)
+    c = losing(reg, CALLISTO, **FLOW, **DRAG, RC8_OPTION=90.0, RC7_OPTION=65.0)
     for lang in ("en", "uk"):
         printed = card_text(c, lang)
         assert "{" not in printed and "}" not in printed
         assert printed.startswith(c["title"][lang]) and printed.rstrip().endswith(c["footer"][lang])
     assert "Valid while the parameters stay a3f9c2d1." in card_text(c)
+    assert "Motor or ESC lost\n- The aircraft will hold height and heading" in card_text(c)
 
 
 def test_every_wording_has_both_languages_and_no_stray_placeholders() -> None:
@@ -202,7 +312,8 @@ def test_the_card_over_rpc(tmp_path: Path) -> None:
         flights.append(done["flights"][0])
     c = call(server, out, 8, "airframe.recovery_card", airframe_id=af["id"])["result"]
     assert c["airframe"] == "Q-1" and c["flight"] == flights[1]  # the latest parameters
-    assert [s["id"] for s in c["sections"]] == ["gnss_lost", "spoofing"]
+    assert [s["id"] for s in c["sections"]] == ["gnss_lost", "spoofing", "motor_lost"]
+    assert keys(c, "motor_lost", "will") == ["will.motor_quad"]
     assert c["text"]["en"].startswith("Q-1: recovery card")
     # the drill with no other source on its own; the flow drill on source set 2
     alone, on_set = c["measured"]["alone"], c["measured"]["on_set"]
@@ -213,3 +324,39 @@ def test_the_card_over_rpc(tmp_path: Path) -> None:
     bad = call(server, out, 9, "airframe.recovery_card", airframe_id="nope")
     assert bad["error"]["code"] == -32003
     call(server, out, 10, "engine.shutdown")
+
+
+def test_the_heavy_lift_x8_card_from_its_own_flights(tmp_path: Path) -> None:
+    """The simulator's X8 at 32.5 kg (weighed at import) and 40.5 kg (not weighed): the
+    card reads the latest flight's margin, and its weight from the weighed one."""
+    from test_rpc import LAPTOP, Output, call
+    from test_rpc import keys as store_keys
+
+    from flight_insights.rpc import build_server
+
+    fixture = Path(__file__).resolve().parents[2] / "tests/fixtures/sitl/4.7.0"
+    out = Output()
+    server = build_server(out, PACK)
+    call(server, out, 1, "engine.unlock", laptop_id=LAPTOP, data_dir=str(tmp_path),
+         keys=store_keys())  # fmt: skip
+    pl = call(server, out, 2, "platform.create", name="X8", vehicle="copter")["result"]
+    af = call(server, out, 3, "airframe.create", platform_id=pl["id"], name="C-1")["result"]
+    for i, (name, kg) in enumerate((("light", 32.5), ("loaded", None))):
+        scanned = call(server, out, 10 + i, "import.scan",
+                       paths=[str(fixture / f"copter-heavylift-{name}.bin")])["result"]  # fmt: skip
+        decision: dict[str, Any] = {"log": "f1", "airframe_id": af["id"]}
+        if kg is not None:
+            decision["takeoff_kg"] = kg
+        [done] = call(server, out, 20 + i, "import.commit", batch=scanned["batch"],
+                      decisions=[decision])["result"]  # fmt: skip
+        call(server, out, 30 + i, "analysis.run", flight_id=done["flights"][0])
+    c = call(server, out, 8, "airframe.recovery_card", airframe_id=af["id"])["result"]
+    assert keys(c, "motor_lost", "will") == ["will.motor_hold", "will.motor_message"]
+    [s] = [s for s in c["sections"] if s["id"] == "motor_lost"]
+    [fact] = s["facts"]
+    # the loaded flight flew last; its weight from the light one's kilograms per thrust
+    assert fact["key"] == "fact.motor_kg_estimated"
+    assert fact["params"]["flight_kg"] == pytest.approx(40.5, rel=0.03)
+    # the same ceiling the light flight gives (its ratio 1.42 times 32.5 kg), within 3%
+    assert fact["params"]["kg"] == pytest.approx(32.5 * 1.423, rel=0.03)
+    call(server, out, 9, "engine.shutdown")

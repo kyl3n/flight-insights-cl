@@ -1,6 +1,7 @@
 """The recovery card per airframe (spec: Flying without GNSS, "Recommendations and
-recovery"): what the aircraft will do when GNSS is lost or spoofed with its current
-settings, how long it holds and how far it can go, and the operator's steps.
+recovery"; Propulsion, "Motor-out margin"): what the aircraft will do when GNSS is lost
+or spoofed with its current settings, how long it holds and how far it can go, and the
+operator's steps; and the same when it loses a motor.
 
 It is built on this laptop from:
 - the airframe's latest parameters and setup answers, through the readiness review
@@ -9,32 +10,39 @@ It is built on this laptop from:
   the longest detection and the worst drift a minute), kept apart by the source set they
   were flown on, so a hold measured on optical flow is never claimed for the aircraft on
   its own;
+- the motor-out margin of its latest flight that measured it on its current frame
+  (analyzers/motor_out.py), turned into kilograms by that flight's weight: weighed at
+  import, or estimated from the airframe's weighed flights (payload bands);
 - the wording in knowledge/recovery/copter.json, in English and Ukrainian.
 
-The card holds times, modes, switches and how far the estimate drifts; never a position.
-It is printed, never sent. Losing the radio link and losing a motor get their own
-sections once their measurements exist.
+The card holds times, modes, switches, weights and how far the estimate drifts; never a
+position. It is printed, never sent. Losing the radio link gets its own section once its
+measurements exist.
 """
 
 from __future__ import annotations
 
 import json
 from collections.abc import Mapping, Sequence
-from dataclasses import asdict, dataclass
+from dataclasses import asdict, dataclass, replace
 from typing import Any, cast
 
 from flight_insights.analyzers.flight import FlightData, FlightError
 from flight_insights.analyzers.model import Result
-from flight_insights.analyzers.no_gnss_readiness import NO_GNSS_READINESS
+from flight_insights.analyzers.motor_out import motor_frame
+from flight_insights.analyzers.no_gnss_readiness import NO_GNSS_READINESS, channels
 from flight_insights.analyzers.registry import LANGUAGES, Registry
 from flight_insights.knowledge import Pack
 from flight_insights.recommend.plan import render
 from flight_insights.store.cache import ColumnCache
 from flight_insights.store.db import Store
-from flight_insights.trends import flight_order
+from flight_insights.trends import analysed_flights, flight_order
 
 READINESS = "no_gnss:readiness:"
 OUTAGE = "no_gnss:outage:"
+MOTOR_OUT = "motor_out:hover"
+NO_THRUST_LOSS_CHECK, GRIPPER_ON_THRUST_LOSS = 1, 4  # FLIGHT_OPTIONS bits (Copter.h)
+PARACHUTE_RELEASE = (22, 23)  # aux functions: release, and the 3-position switch
 
 
 class RecoveryError(ValueError):
@@ -50,6 +58,22 @@ class Measured:
     hold_s: float | None = None  # the shortest time it kept a position it could fly on
     detection_s: float | None = None  # the longest time to stop using GNSS
     drift_m_per_min: float | None = None  # the worst
+
+
+@dataclass(frozen=True)
+class MotorLoss:
+    """Losing one motor on the airframe's current frame: whether its class can fly on the
+    rest at all, and what its latest flight that measured it found."""
+
+    frame: str  # "OCTA/X"
+    can_lose_one: bool  # not a quad
+    hold_yaw: bool  # the class's target holds the heading too
+    measured: bool = False
+    target_pct: float | None = None
+    needed_pct: float | None = None  # the busiest remaining motor, at that flight's weight
+    ratio: float | None = None  # the heaviest take-off within the target over that weight
+    flight_kg: float | None = None  # that flight's weight
+    weighed: bool = False  # on a scale, rather than estimated from the weighed flights
 
 
 @dataclass
@@ -83,10 +107,12 @@ def _areas(readiness: Result) -> dict[str, Mapping[str, Any]]:
 def build(
     readiness: Result, alone: Measured, on_set: Measured, params: Mapping[str, float],
     doc: Mapping[str, Any], tolerance_m: float, airframe: str, param_set: str | None,
+    motor: MotorLoss | None = None, hover: tuple[float, float] = (10.0, 3.0),
 ) -> dict[str, Any]:  # fmt: skip
     """The card from the readiness review's areas, the measured outages (on its own, and
-    on another source set) and the parameters; the same inputs always give the same card.
-    What was measured on one source set is never stated for the other."""
+    on another source set), the parameters and the motor-out margin; the same inputs
+    always give the same card. What was measured on one source set is never stated for
+    the other. `hover` is the hover a motor-out measurement needs: seconds and height."""
     c = _Card(doc)
     areas = _areas(readiness)
     position, switching = areas.get("position", {}), areas.get("switching", {})
@@ -184,6 +210,8 @@ def build(
         {"id": "spoofing", "title": c.phrase("spoofing")["text"], "will": [], "facts": [],
          "steps": spoof},
     ]  # fmt: skip
+    if motor is not None:
+        sections.append(_motor_section(c, motor, params, hover))
     return {
         "airframe": airframe,
         "param_set": param_set,
@@ -197,6 +225,60 @@ def build(
         "gaps": [f.code for f in readiness.findings],
         "footer": c.phrase("card_footer")["text"],
     }
+
+
+def _motor_section(
+    c: _Card, m: MotorLoss, params: Mapping[str, float], hover: tuple[float, float]
+) -> dict[str, Any]:
+    """Losing a motor: what the firmware does (Copter crash_check.cpp, 4.7.0) and what the
+    measured margin says the aircraft can do at the weight it last flew."""
+    will: list[dict[str, Any]] = []
+    down = not m.can_lose_one or (m.measured and m.ratio is None)
+    if not m.can_lose_one:
+        will.append(c.phrase("will.motor_quad"))
+    elif m.measured and m.ratio is None:
+        will.append(c.phrase("will.motor_no_balance"))
+    elif m.measured and m.ratio is not None and m.needed_pct is not None:
+        if m.needed_pct > 100.0:
+            will.append(c.phrase("will.motor_sink", needed=m.needed_pct))
+        elif m.ratio < 1.0:
+            will.append(c.phrase("will.motor_short", needed=m.needed_pct, target=m.target_pct))
+        else:
+            will.append(c.phrase("will.motor_hold" if m.hold_yaw else "will.motor_hold_level"))
+    options = int(params.get("FLIGHT_OPTIONS", 0))
+    if m.can_lose_one and not options & NO_THRUST_LOSS_CHECK:
+        will.append(c.phrase("will.motor_message"))
+        if options & GRIPPER_ON_THRUST_LOSS and params.get("GRIP_ENABLE", 0):
+            will.append(c.phrase("will.motor_gripper"))
+
+    facts: list[dict[str, Any]] = []
+    if m.can_lose_one and not m.measured:
+        facts.append(c.phrase("fact.motor_unmeasured", hover_s=hover[0], height_m=hover[1]))
+    elif m.ratio is not None and m.flight_kg:
+        kg = round(m.flight_kg * m.ratio, 1)
+        facts.append(
+            c.phrase("fact.motor_kg", target=m.target_pct, kg=kg,
+                     takeoff_kg=round(m.flight_kg, 1)) if m.weighed
+            else c.phrase("fact.motor_kg_estimated", target=m.target_pct, kg=kg,
+                          flight_kg=round(m.flight_kg, 1))
+        )  # fmt: skip
+    elif m.ratio is not None:
+        facts.append(c.phrase("fact.motor_ratio", target=m.target_pct, ratio=round(m.ratio, 2)))
+
+    steps: list[dict[str, Any]] = []
+    if down:
+        steps.append(c.phrase("step.motor_clear"))
+        if params.get("CHUTE_ENABLED", 0):
+            chute = channels(params, *PARACHUTE_RELEASE)
+            steps.append(c.phrase("step.motor_chute_switch", channel=chute[0]) if chute
+                         else c.phrase("step.motor_chute_station"))  # fmt: skip
+    else:
+        steps.append(c.phrase("step.motor_level"))
+        if not m.hold_yaw:
+            steps.append(c.phrase("step.motor_yaw"))
+        steps += [c.phrase("step.motor_descend"), c.phrase("step.motor_land")]
+    return {"id": "motor_lost", "title": c.phrase("motor_lost")["text"], "will": will,
+            "facts": facts, "steps": steps}  # fmt: skip
 
 
 def card_text(card: Mapping[str, Any], lang: str = "en") -> str:
@@ -255,6 +337,41 @@ def measured(store: Store, airframe_id: str) -> tuple[Measured, Measured]:
     return _group(alone), _group(on_set)
 
 
+def motor_loss(
+    store: Store, reg: Registry, flight: FlightData, airframe_id: str
+) -> MotorLoss | None:
+    """Losing a motor on the frame `flight`'s parameters set, measured on the airframe's
+    latest flight that measured it on that frame; None for a frame the matrix mixer does
+    not set up (a helicopter, or a frame of its own)."""
+    if flight.vehicle != "copter":
+        return None
+    found = motor_frame(flight, reg)
+    if isinstance(found, str):
+        return None
+    name = found[1]
+    target: Mapping[str, Any] = reg.rules["motor_out"]["classes"].get(
+        str(int(flight.params["FRAME_CLASS"])), {}
+    )
+    loss = MotorLoss(name, bool(target.get("max_output")), bool(target.get("hold_yaw")))
+    if not loss.can_lose_one:
+        return loss
+    flights, bands = analysed_flights(store, reg, airframe_id)
+    for f in reversed(flights):
+        row = store.conn.execute(
+            "SELECT evidence_json FROM analysis_run WHERE id = ?", (f.run_id,)
+        ).fetchone()
+        v = next((e.get("values", {}) for e in json.loads(row[0]) if e["id"] == MOTOR_OUT), None)
+        if v is None or v.get("frame") != name:  # measured on another frame
+            continue
+        kg = f.takeoff_kg or bands.kg(f.thrust)
+        return replace(
+            loss, measured=True, target_pct=v.get("target_pct"),
+            needed_pct=v.get("worst_output_pct"), ratio=v.get("weight_ratio"),
+            flight_kg=kg, weighed=f.takeoff_kg is not None,
+        )  # fmt: skip
+    return loss
+
+
 def _latest(store: Store, cache: ColumnCache, pack: Pack, airframe_id: str) -> FlightData:
     cur = store.conn.execute(
         "SELECT id, boot_utc_us, arm_us, created_hlc FROM flight "
@@ -273,7 +390,8 @@ def _latest(store: Store, cache: ColumnCache, pack: Pack, airframe_id: str) -> F
 def card(
     store: Store, cache: ColumnCache, pack: Pack, reg: Registry, airframe_id: str
 ) -> dict[str, Any]:
-    """The airframe's card, from its latest flight's parameters and all its outages."""
+    """The airframe's card, from its latest flight's parameters, all its outages and its
+    latest motor-out margin."""
     row = store.get("airframe", airframe_id)
     if row is None:
         raise RecoveryError("no such airframe")
@@ -286,10 +404,13 @@ def card(
         "WHERE f.id = ?",
         (flight.id,),
     ).fetchone()
+    hover: Mapping[str, Any] = reg.rules["payload"]
     out = build(
         readiness, *measured(store, airframe_id), flight.params, pack.json("recovery/copter.json"),
         float(reg.rules["no_gnss"]["landing_tolerance_m"]), str(row["name"]),
         str(snapshot[0]).split("-", 1)[-1][:8] if snapshot else None,  # "ps1-<hash>"
+        motor_loss(store, reg, flight, airframe_id),
+        (float(hover["min_hover_s"]), float(hover["min_height_m"])),
     )  # fmt: skip
     out["flight"] = flight.id
     out["text"] = {lang: card_text(out, lang) for lang in LANGUAGES}

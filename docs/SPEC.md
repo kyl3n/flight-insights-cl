@@ -790,9 +790,8 @@ The defaults are starting points that the team can change for each platform.
   - the lower propeller of a coaxial pair working in the upper one's wash;
   - battery sag at the higher output;
   - real motor losses compared with the prediction;
-  - the margin by payload band in trends;
-  - the motor-loss section of the recovery card;
-  - kilograms from a weighed flight.
+  - the margin by payload band in trends.
+- **On the recovery card** (below, "Recommendations and recovery"): the latest margin on the current frame, in kilograms from the measuring flight's weight. That weight is the one weighed at import, or else the hover thrust times the airframe's kilograms per percent of thrust from its weighed flights (payload bands). On the simulator's X8, the loaded flight's weight estimated from the weighed light one came out at 40.8 kg (40.5 kg true), and its heaviest take-off within the target at 45.3 kg, within 3% of the light flight's 46.2 kg.
 
 **From the logs.** The margin is tracked per flight, so it shows the effect of rising hover throttle from payload, battery ageing or wear. Real motor or ESC failures (telemetry stopping, RPM collapsing, stall flags, thrust-loss events) are compared with the prediction: which motor, how the others responded, how high they went, and whether yaw held. When ArduPilot's thrust-loss check fires, it logs the event and may favour altitude over yaw ([log messages](https://ardupilot.org/copter/docs/logmessages.html)).
 
@@ -1246,7 +1245,7 @@ The app assumes every aircraft will lose GNSS at some point, through jamming, sp
   - whether the aircraft got home;
   - trends per airframe;
   - readiness from the logs (compass health and interference, barometer error) and drag coefficients computed from the take-off weight and measured areas;
-  - the recovery card's radio-link and motor sections;
+  - the recovery card's radio-link section;
   - settings sized from the measured hold (`FS_DR_TIMEOUT`).
 
 ### Recommendations and recovery
@@ -1255,14 +1254,16 @@ The app assumes every aircraft will lose GNSS at some point, through jamming, sp
 - **Hardware and calibration ranked by measured benefit:** optical flow and rangefinder for low-altitude hold, visual odometry, a compass further from power wiring, and drag-fusion calibration flights.
 - **A recovery card per airframe:** what the aircraft will do on GNSS loss with its current settings, how long it can hold and how far it can travel on dead reckoning, and the operator's steps, from switching to the non-GNSS source set to flying home on a heading in AltHold.
 - **Loss and spoofing are handled differently.** On suspected spoofing the card says to reject GNSS manually first, because the estimator may still be trusting it.
+- **Losing a motor** gets its own section, from the motor-out margin (Propulsion, "Motor-out margin").
 
 **Built now:** `recovery.py`, with the RPC `airframe.recovery_card`. The wording is in `knowledge/recovery/copter.json`, in English and Ukrainian. The card is built on the laptop from three things:
 
 - the airframe's latest parameters, through the readiness review;
 - its measured outages over all its flights' latest analyses: the shortest hold, the longest detection and the worst drift a minute. These are kept apart by the source set they were flown on, so a hold measured on optical flow is never claimed for the aircraft on its own;
-- the landing tolerance.
+- the landing tolerance;
+- the motor-out margin of its latest flight that measured it on the current frame, with that flight's weight.
 
-It holds two sections; losing the radio link and losing a motor follow once their measurements exist.
+It holds three sections; losing the radio link follows once its measurements exist.
 
 - **GNSS lost:**
   - What the aircraft will do on its own, from the source sets, drag fusion and `FS_DR_ENABLE`, and the EKF failsafe.
@@ -1275,8 +1276,17 @@ It holds two sections; losing the radio link and losing a motor follow once thei
   - Take over in the fallback mode first.
   - Then reject GNSS with the GPS-disable switch or the non-GNSS source set. The card says when the EKF failsafe will then land it (`FS_EKF_ACTION` 3).
   - Then follow "GNSS lost".
+- **Motor or ESC lost** (frames the matrix mixer sets up; helicopters have none):
+  - What the aircraft will do:
+    - a quad comes down, and so does a frame where no share of thrust between the other motors keeps it level;
+    - otherwise, at the weight it last flew: it holds height, with the heading too where its class's target holds the heading. When the busiest motor would need more than the target it has little left to steer with; past 100% output it sinks.
+    - From ArduPilot 4.7.0's own thrust-loss check (`crash_check.cpp`): after 1 s descending at full throttle, it sends "Potential Thrust Loss (N)" with the motor it suspects, unless `FLIGHT_OPTIONS` bit 0 turns the check off. With bit 2 and the gripper on, it drops the gripper's load.
+  - What was measured: the heaviest take-off within the target, in kilograms (weighed, or estimated from the weighed flights), else as a multiple of the measuring flight's weight; or the hover still needed to measure it.
+  - The operator's steps:
+    - when it can fly on the rest: stop manoeuvring and let it level, let it turn where its class does not hold the heading, descend steadily, and land at the nearest clear spot, not at home;
+    - when it comes down: keep people clear. With `CHUTE_ENABLED`, release the parachute if it has not opened by itself, with its switch (aux function 22 or 23) or from the ground station. ArduPilot releases it after 1 s sinking faster than `CHUTE_CRT_SINK`, or, in modes with the crash check and above `CHUTE_ALT_MIN`, after 1 s more than 30° from the attitude it wants while falling (`crash_check.cpp`, `AP_Parachute.cpp`).
 
-The card carries times, modes, switches and distances from the measured drift, never a position. It is printed on the laptop and never sent.
+The card carries times, modes, switches, weights and distances from the measured drift, never a position. It is printed on the laptop and never sent.
 
 ## Recommendation engine
 
