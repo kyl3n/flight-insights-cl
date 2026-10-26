@@ -501,6 +501,381 @@
         "kind": "baseline",
         "title": "No universal range: judged against this airframe's own flights of the same tune-check profile and payload"
       }
+    },
+    "tune.i_at_limit_roll": {
+      "name": {
+        "en": "Roll rate I term at its limit",
+        "uk": "І-складова швидкості крену на межі"
+      },
+      "unit": "%",
+      "direction": "lower",
+      "definition": {
+        "en": "The share of flying time the roll rate controller's I term spends at 95% of its limit (ATC_RAT_RLL_IMAX) or more. Pinned at its limit, it cannot correct a steady error any further: usually an off-centre load or a tilted motor.",
+        "uk": "Частка часу польоту, коли І-складова регулятора швидкості крену становить 95% своєї межі (ATC_RAT_RLL_IMAX) або більше. На межі вона вже не може виправити сталу похибку: зазвичай це зміщений вантаж або нахилений мотор."
+      },
+      "method": {
+        "en": "PIDR.I against ATC_RAT_RLL_IMAX over flying time: armed and at least 2 m above take-off (CTUN.Alt from arming). Needs 20 s of flying.",
+        "uk": "PIDR.I відносно ATC_RAT_RLL_IMAX за час польоту: апарат озброєний і щонайменше на 2 м над точкою зльоту (CTUN.Alt від озброєння). Потрібно 20 с польоту."
+      },
+      "messages": [
+        "PIDR",
+        "CTUN"
+      ],
+      "zones": {
+        "target": [
+          null,
+          5.0
+        ],
+        "caution": [
+          5.0,
+          null
+        ]
+      },
+      "source": {
+        "kind": "app",
+        "title": "App rule, uncalibrated: an I term at its limit for 5% of the flight or more asks for the cause to be found"
+      }
+    },
+    "tune.slew_limited_roll": {
+      "name": {
+        "en": "Roll slew limiter active",
+        "uk": "Обмежувач швидкості зміни крену активний"
+      },
+      "unit": "%",
+      "direction": "lower",
+      "definition": {
+        "en": "The share of flying time the roll rate controller's slew limiter (ATC_RAT_RLL_SMAX) cut its P and D below 90%. It is there to cap oscillation from too much gain, not to act in ordinary flight.",
+        "uk": "Частка часу польоту, коли обмежувач швидкості зміни регулятора швидкості крену (ATC_RAT_RLL_SMAX) зменшував його P і D нижче 90%. Він обмежує коливання від завеликого підсилення і не має діяти у звичайному польоті."
+      },
+      "method": {
+        "en": "PIDR.Dmod under 0.9 over flying time (armed, at least 2 m above take-off), only when ATC_RAT_RLL_SMAX is above 0: 0 switches the limiter off. Needs 20 s of flying.",
+        "uk": "PIDR.Dmod нижче 0,9 за час польоту (апарат озброєний, щонайменше 2 м над точкою зльоту), лише коли ATC_RAT_RLL_SMAX більше 0: 0 вимикає обмежувач. Потрібно 20 с польоту."
+      },
+      "messages": [
+        "PIDR",
+        "CTUN"
+      ],
+      "zones": {
+        "target": [
+          null,
+          1.0
+        ],
+        "caution": [
+          1.0,
+          null
+        ]
+      },
+      "source": {
+        "kind": "ardupilot",
+        "title": "ArduPilot 4.7 ATC_RAT_RLL_SMAX: it limits the amplitude of high-frequency oscillations caused by an excessive gain",
+        "url": "https://ardupilot.org/copter/docs/parameters.html#atc-rat-rll-smax"
+      }
+    },
+    "tune.d_noise_roll": {
+      "name": {
+        "en": "Roll D-term noise share",
+        "uk": "Частка шуму в D-складовій крену"
+      },
+      "unit": "%",
+      "direction": "lower",
+      "definition": {
+        "en": "How much of the roll rate controller's D term in steady hover lies above the control band (40 Hz): noise the D term passes on to the motors rather than control. It heats motors and ESCs.",
+        "uk": "Яка частка D-складової регулятора швидкості крену під час стабільного зависання лежить вище смуги керування (40 Гц): шум, який D-складова передає моторам замість керування. Він гріє мотори й ESC."
+      },
+      "method": {
+        "en": "The Welch spectrum of PIDR.D (0.5 Hz resolution, at least 4 windows) in the fingerprint's steady-hover windows with stick inputs taken out, PIDR logged at 200 Hz or more: its power above 40 Hz over its power from 1 Hz up. Only when ATC_RAT_RLL_D is above 0.",
+        "uk": "Спектр Велча PIDR.D (роздільність 0,5 Гц, щонайменше 4 вікна) у вікнах стабільного зависання з відбитка без рухів стіків, PIDR записується з частотою від 200 Гц: його потужність понад 40 Гц відносно потужності від 1 Гц. Лише коли ATC_RAT_RLL_D більше 0."
+      },
+      "messages": [
+        "PIDR"
+      ],
+      "zones": {
+        "target": [
+          null,
+          50.0
+        ],
+        "caution": [
+          50.0,
+          null
+        ]
+      },
+      "source": {
+        "kind": "app",
+        "title": "App rule, uncalibrated: more than half of the D term above the control band is mostly noise"
+      }
+    },
+    "tune.hover_unsteady_roll": {
+      "name": {
+        "en": "Roll rate unsteadiness in hover",
+        "uk": "Нестабільність швидкості крену під час зависання"
+      },
+      "unit": "deg/s",
+      "direction": "lower",
+      "definition": {
+        "en": "How much the roll rate moves in steady hover with the sticks still, from 1 to 40 Hz: gusts, oscillation and vibration the filters let through. Judged against the airframe's own flights in similar wind.",
+        "uk": "Наскільки змінюється швидкість крену під час стабільного зависання з нерухомими стіками, від 1 до 40 Гц: пориви, коливання і вібрація, яку пропускають фільтри. Оцінюється відносно власних польотів апарата за схожого вітру."
+      },
+      "method": {
+        "en": "The RMS of RATE.R from 1 to 40 Hz (Welch, 0.5 Hz resolution, at least 4 windows) in the fingerprint's steady-hover windows with stick inputs taken out, RATE logged at 200 Hz or more.",
+        "uk": "Середньоквадратичне значення RATE.R від 1 до 40 Гц (Велч, роздільність 0,5 Гц, щонайменше 4 вікна) у вікнах стабільного зависання з відбитка без рухів стіків, RATE записується з частотою від 200 Гц."
+      },
+      "messages": [
+        "RATE"
+      ],
+      "source": {
+        "kind": "baseline",
+        "title": "No universal range: judged against this airframe's own flights in similar wind and payload"
+      }
+    },
+    "tune.i_at_limit_pitch": {
+      "name": {
+        "en": "Pitch rate I term at its limit",
+        "uk": "І-складова швидкості тангажу на межі"
+      },
+      "unit": "%",
+      "direction": "lower",
+      "definition": {
+        "en": "The share of flying time the pitch rate controller's I term spends at 95% of its limit (ATC_RAT_PIT_IMAX) or more. Pinned at its limit, it cannot correct a steady error any further: usually an off-centre load or a tilted motor.",
+        "uk": "Частка часу польоту, коли І-складова регулятора швидкості тангажу становить 95% своєї межі (ATC_RAT_PIT_IMAX) або більше. На межі вона вже не може виправити сталу похибку: зазвичай це зміщений вантаж або нахилений мотор."
+      },
+      "method": {
+        "en": "PIDP.I against ATC_RAT_PIT_IMAX over flying time: armed and at least 2 m above take-off (CTUN.Alt from arming). Needs 20 s of flying.",
+        "uk": "PIDP.I відносно ATC_RAT_PIT_IMAX за час польоту: апарат озброєний і щонайменше на 2 м над точкою зльоту (CTUN.Alt від озброєння). Потрібно 20 с польоту."
+      },
+      "messages": [
+        "PIDP",
+        "CTUN"
+      ],
+      "zones": {
+        "target": [
+          null,
+          5.0
+        ],
+        "caution": [
+          5.0,
+          null
+        ]
+      },
+      "source": {
+        "kind": "app",
+        "title": "App rule, uncalibrated: an I term at its limit for 5% of the flight or more asks for the cause to be found"
+      }
+    },
+    "tune.slew_limited_pitch": {
+      "name": {
+        "en": "Pitch slew limiter active",
+        "uk": "Обмежувач швидкості зміни тангажу активний"
+      },
+      "unit": "%",
+      "direction": "lower",
+      "definition": {
+        "en": "The share of flying time the pitch rate controller's slew limiter (ATC_RAT_PIT_SMAX) cut its P and D below 90%. It is there to cap oscillation from too much gain, not to act in ordinary flight.",
+        "uk": "Частка часу польоту, коли обмежувач швидкості зміни регулятора швидкості тангажу (ATC_RAT_PIT_SMAX) зменшував його P і D нижче 90%. Він обмежує коливання від завеликого підсилення і не має діяти у звичайному польоті."
+      },
+      "method": {
+        "en": "PIDP.Dmod under 0.9 over flying time (armed, at least 2 m above take-off), only when ATC_RAT_PIT_SMAX is above 0: 0 switches the limiter off. Needs 20 s of flying.",
+        "uk": "PIDP.Dmod нижче 0,9 за час польоту (апарат озброєний, щонайменше 2 м над точкою зльоту), лише коли ATC_RAT_PIT_SMAX більше 0: 0 вимикає обмежувач. Потрібно 20 с польоту."
+      },
+      "messages": [
+        "PIDP",
+        "CTUN"
+      ],
+      "zones": {
+        "target": [
+          null,
+          1.0
+        ],
+        "caution": [
+          1.0,
+          null
+        ]
+      },
+      "source": {
+        "kind": "ardupilot",
+        "title": "ArduPilot 4.7 ATC_RAT_PIT_SMAX: it limits the amplitude of high-frequency oscillations caused by an excessive gain",
+        "url": "https://ardupilot.org/copter/docs/parameters.html#atc-rat-pit-smax"
+      }
+    },
+    "tune.d_noise_pitch": {
+      "name": {
+        "en": "Pitch D-term noise share",
+        "uk": "Частка шуму в D-складовій тангажу"
+      },
+      "unit": "%",
+      "direction": "lower",
+      "definition": {
+        "en": "How much of the pitch rate controller's D term in steady hover lies above the control band (40 Hz): noise the D term passes on to the motors rather than control. It heats motors and ESCs.",
+        "uk": "Яка частка D-складової регулятора швидкості тангажу під час стабільного зависання лежить вище смуги керування (40 Гц): шум, який D-складова передає моторам замість керування. Він гріє мотори й ESC."
+      },
+      "method": {
+        "en": "The Welch spectrum of PIDP.D (0.5 Hz resolution, at least 4 windows) in the fingerprint's steady-hover windows with stick inputs taken out, PIDP logged at 200 Hz or more: its power above 40 Hz over its power from 1 Hz up. Only when ATC_RAT_PIT_D is above 0.",
+        "uk": "Спектр Велча PIDP.D (роздільність 0,5 Гц, щонайменше 4 вікна) у вікнах стабільного зависання з відбитка без рухів стіків, PIDP записується з частотою від 200 Гц: його потужність понад 40 Гц відносно потужності від 1 Гц. Лише коли ATC_RAT_PIT_D більше 0."
+      },
+      "messages": [
+        "PIDP"
+      ],
+      "zones": {
+        "target": [
+          null,
+          50.0
+        ],
+        "caution": [
+          50.0,
+          null
+        ]
+      },
+      "source": {
+        "kind": "app",
+        "title": "App rule, uncalibrated: more than half of the D term above the control band is mostly noise"
+      }
+    },
+    "tune.hover_unsteady_pitch": {
+      "name": {
+        "en": "Pitch rate unsteadiness in hover",
+        "uk": "Нестабільність швидкості тангажу під час зависання"
+      },
+      "unit": "deg/s",
+      "direction": "lower",
+      "definition": {
+        "en": "How much the pitch rate moves in steady hover with the sticks still, from 1 to 40 Hz: gusts, oscillation and vibration the filters let through. Judged against the airframe's own flights in similar wind.",
+        "uk": "Наскільки змінюється швидкість тангажу під час стабільного зависання з нерухомими стіками, від 1 до 40 Гц: пориви, коливання і вібрація, яку пропускають фільтри. Оцінюється відносно власних польотів апарата за схожого вітру."
+      },
+      "method": {
+        "en": "The RMS of RATE.P from 1 to 40 Hz (Welch, 0.5 Hz resolution, at least 4 windows) in the fingerprint's steady-hover windows with stick inputs taken out, RATE logged at 200 Hz or more.",
+        "uk": "Середньоквадратичне значення RATE.P від 1 до 40 Гц (Велч, роздільність 0,5 Гц, щонайменше 4 вікна) у вікнах стабільного зависання з відбитка без рухів стіків, RATE записується з частотою від 200 Гц."
+      },
+      "messages": [
+        "RATE"
+      ],
+      "source": {
+        "kind": "baseline",
+        "title": "No universal range: judged against this airframe's own flights in similar wind and payload"
+      }
+    },
+    "tune.i_at_limit_yaw": {
+      "name": {
+        "en": "Yaw rate I term at its limit",
+        "uk": "І-складова швидкості рискання на межі"
+      },
+      "unit": "%",
+      "direction": "lower",
+      "definition": {
+        "en": "The share of flying time the yaw rate controller's I term spends at 95% of its limit (ATC_RAT_YAW_IMAX) or more. Pinned at its limit, it cannot correct a steady error any further: usually an off-centre load or a tilted motor.",
+        "uk": "Частка часу польоту, коли І-складова регулятора швидкості рискання становить 95% своєї межі (ATC_RAT_YAW_IMAX) або більше. На межі вона вже не може виправити сталу похибку: зазвичай це зміщений вантаж або нахилений мотор."
+      },
+      "method": {
+        "en": "PIDY.I against ATC_RAT_YAW_IMAX over flying time: armed and at least 2 m above take-off (CTUN.Alt from arming). Needs 20 s of flying.",
+        "uk": "PIDY.I відносно ATC_RAT_YAW_IMAX за час польоту: апарат озброєний і щонайменше на 2 м над точкою зльоту (CTUN.Alt від озброєння). Потрібно 20 с польоту."
+      },
+      "messages": [
+        "PIDY",
+        "CTUN"
+      ],
+      "zones": {
+        "target": [
+          null,
+          5.0
+        ],
+        "caution": [
+          5.0,
+          null
+        ]
+      },
+      "source": {
+        "kind": "app",
+        "title": "App rule, uncalibrated: an I term at its limit for 5% of the flight or more asks for the cause to be found"
+      }
+    },
+    "tune.slew_limited_yaw": {
+      "name": {
+        "en": "Yaw slew limiter active",
+        "uk": "Обмежувач швидкості зміни рискання активний"
+      },
+      "unit": "%",
+      "direction": "lower",
+      "definition": {
+        "en": "The share of flying time the yaw rate controller's slew limiter (ATC_RAT_YAW_SMAX) cut its P and D below 90%. It is there to cap oscillation from too much gain, not to act in ordinary flight.",
+        "uk": "Частка часу польоту, коли обмежувач швидкості зміни регулятора швидкості рискання (ATC_RAT_YAW_SMAX) зменшував його P і D нижче 90%. Він обмежує коливання від завеликого підсилення і не має діяти у звичайному польоті."
+      },
+      "method": {
+        "en": "PIDY.Dmod under 0.9 over flying time (armed, at least 2 m above take-off), only when ATC_RAT_YAW_SMAX is above 0: 0 switches the limiter off. Needs 20 s of flying.",
+        "uk": "PIDY.Dmod нижче 0,9 за час польоту (апарат озброєний, щонайменше 2 м над точкою зльоту), лише коли ATC_RAT_YAW_SMAX більше 0: 0 вимикає обмежувач. Потрібно 20 с польоту."
+      },
+      "messages": [
+        "PIDY",
+        "CTUN"
+      ],
+      "zones": {
+        "target": [
+          null,
+          1.0
+        ],
+        "caution": [
+          1.0,
+          null
+        ]
+      },
+      "source": {
+        "kind": "ardupilot",
+        "title": "ArduPilot 4.7 ATC_RAT_YAW_SMAX: it limits the amplitude of high-frequency oscillations caused by an excessive gain",
+        "url": "https://ardupilot.org/copter/docs/parameters.html#atc-rat-yaw-smax"
+      }
+    },
+    "tune.d_noise_yaw": {
+      "name": {
+        "en": "Yaw D-term noise share",
+        "uk": "Частка шуму в D-складовій рискання"
+      },
+      "unit": "%",
+      "direction": "lower",
+      "definition": {
+        "en": "How much of the yaw rate controller's D term in steady hover lies above the control band (40 Hz): noise the D term passes on to the motors rather than control. It heats motors and ESCs.",
+        "uk": "Яка частка D-складової регулятора швидкості рискання під час стабільного зависання лежить вище смуги керування (40 Гц): шум, який D-складова передає моторам замість керування. Він гріє мотори й ESC."
+      },
+      "method": {
+        "en": "The Welch spectrum of PIDY.D (0.5 Hz resolution, at least 4 windows) in the fingerprint's steady-hover windows with stick inputs taken out, PIDY logged at 200 Hz or more: its power above 40 Hz over its power from 1 Hz up. Only when ATC_RAT_YAW_D is above 0.",
+        "uk": "Спектр Велча PIDY.D (роздільність 0,5 Гц, щонайменше 4 вікна) у вікнах стабільного зависання з відбитка без рухів стіків, PIDY записується з частотою від 200 Гц: його потужність понад 40 Гц відносно потужності від 1 Гц. Лише коли ATC_RAT_YAW_D більше 0."
+      },
+      "messages": [
+        "PIDY"
+      ],
+      "zones": {
+        "target": [
+          null,
+          50.0
+        ],
+        "caution": [
+          50.0,
+          null
+        ]
+      },
+      "source": {
+        "kind": "app",
+        "title": "App rule, uncalibrated: more than half of the D term above the control band is mostly noise"
+      }
+    },
+    "tune.hover_unsteady_yaw": {
+      "name": {
+        "en": "Yaw rate unsteadiness in hover",
+        "uk": "Нестабільність швидкості рискання під час зависання"
+      },
+      "unit": "deg/s",
+      "direction": "lower",
+      "definition": {
+        "en": "How much the yaw rate moves in steady hover with the sticks still, from 1 to 40 Hz: gusts, oscillation and vibration the filters let through. Judged against the airframe's own flights in similar wind.",
+        "uk": "Наскільки змінюється швидкість рискання під час стабільного зависання з нерухомими стіками, від 1 до 40 Гц: пориви, коливання і вібрація, яку пропускають фільтри. Оцінюється відносно власних польотів апарата за схожого вітру."
+      },
+      "method": {
+        "en": "The RMS of RATE.Y from 1 to 40 Hz (Welch, 0.5 Hz resolution, at least 4 windows) in the fingerprint's steady-hover windows with stick inputs taken out, RATE logged at 200 Hz or more.",
+        "uk": "Середньоквадратичне значення RATE.Y від 1 до 40 Гц (Велч, роздільність 0,5 Гц, щонайменше 4 вікна) у вікнах стабільного зависання з відбитка без рухів стіків, RATE записується з частотою від 200 Гц."
+      },
+      "messages": [
+        "RATE"
+      ],
+      "source": {
+        "kind": "baseline",
+        "title": "No universal range: judged against this airframe's own flights in similar wind and payload"
+      }
     }
   },
   "findings": {
@@ -524,6 +899,50 @@
       "action": {
         "en": "The loop amplifies disturbances near that frequency and is close to oscillating; a heavier payload or a gust can tip it over. Lower that axis's rate P and D by about a quarter, or run AutoTune (with AUTOTUNE_GMBK raised on a variable payload), then fly the tune check again to confirm the peak is under 2.",
         "uk": "Контур підсилює збурення поблизу цієї частоти й близький до коливань; важчий вантаж чи порив можуть їх викликати. Зменште P і D швидкості цієї осі приблизно на чверть або запустіть AutoTune (з підвищеним AUTOTUNE_GMBK для змінного вантажу), потім повторіть перевірку налаштування, щоб пік був нижче 2."
+      }
+    },
+    "tune.i_limit": {
+      "stage": "mechanical",
+      "title": {
+        "en": "A rate I term is at its limit for {percent}% of the flight",
+        "uk": "І-складова регулятора швидкості на межі {percent}% польоту"
+      },
+      "action": {
+        "en": "The I term corrects steady errors, and here it is asking for more than its IMAX allows. On roll or pitch that usually means the centre of gravity is off to one side (an offset payload or battery) or a motor is tilted; on yaw, a twisted motor or arm, or a motor or ESC weaker than its neighbours. Check the balance and the motor mounts first: raising IMAX only hides the cause and leaves less authority in reserve.",
+        "uk": "І-складова виправляє сталі похибки, а тут вимагає більше, ніж дозволяє її IMAX. На крені чи тангажі це зазвичай означає зміщений центр мас (вантаж чи батарея збоку) або нахилений мотор; на рисканні — перекручений мотор чи промінь або мотор чи ESC, слабший за сусідні. Спершу перевірте баланс і кріплення моторів: збільшення IMAX лише приховує причину й залишає менше запасу керування."
+      }
+    },
+    "tune.slew_limited": {
+      "stage": "rate tune",
+      "title": {
+        "en": "The slew limiter cut rate P and D for {percent}% of the flight",
+        "uk": "Обмежувач швидкості зміни зменшував P і D регулятора швидкості {percent}% польоту"
+      },
+      "action": {
+        "en": "SMAX ({smax}) is there to cap oscillation from too much gain. Acting in ordinary flight, it means the gains are near their limit or gyro noise is reaching the D term. Lower that axis's rate P and D by about a quarter, or run AutoTune, and check the filters: raising SMAX only lets the oscillation through.",
+        "uk": "SMAX ({smax}) обмежує коливання від завеликого підсилення. Якщо він діє у звичайному польоті, коефіцієнти близькі до межі або шум гіроскопа доходить до D-складової. Зменште P і D швидкості цієї осі приблизно на чверть або запустіть AutoTune і перевірте фільтри: збільшення SMAX лише пропускає коливання."
+      }
+    },
+    "tune.d_noise": {
+      "stage": "filters",
+      "title": {
+        "en": "{percent}% of a rate D term in hover is noise above {band_hz} Hz",
+        "uk": "{percent}% D-складової регулятора швидкості під час зависання — шум понад {band_hz} Гц"
+      },
+      "action": {
+        "en": "The D term amplifies whatever the gyro filters let through; what lies above the control band does nothing for control and heats the motors and ESCs. Improve the filtering first: a harmonic notch on the motor noise (the filter review shows what is left), then a lower ATC_RAT_*_FLTD on that axis, or a lower D gain.",
+        "uk": "D-складова підсилює все, що пропускають фільтри гіроскопа; те, що лежить вище смуги керування, не допомагає керуванню, а гріє мотори й ESC. Спершу покращте фільтрацію: гармонійний режекторний фільтр на шум моторів (огляд фільтрів показує, що залишилося), потім нижчий ATC_RAT_*_FLTD цієї осі або менший коефіцієнт D."
+      }
+    },
+    "tune.oscillation": {
+      "stage": "rate tune",
+      "title": {
+        "en": "The rate oscillates at {hz} Hz in steady hover ({dps} deg/s), not at a motor frequency",
+        "uk": "Швидкість коливається на {hz} Гц під час стабільного зависання ({dps} град/с), не на частоті моторів"
+      },
+      "action": {
+        "en": "Below about 2 Hz it is usually the attitude loop or a swinging payload; from 2 to 20 Hz usually the rate gains; above that often a flexing arm or frame, or a loose mount. Check the payload mount, the arms and the motor mounts, then lower that axis's rate P and D by about a quarter or run AutoTune, and fly the tune check again.",
+        "uk": "Нижче приблизно 2 Гц це зазвичай контур положення або вантаж, що розгойдується; від 2 до 20 Гц — зазвичай коефіцієнти контуру швидкості; вище — часто гнучкий промінь чи рама або слабке кріплення. Перевірте кріплення вантажу, промені й кріплення моторів, потім зменште P і D швидкості цієї осі приблизно на чверть або запустіть AutoTune і повторіть перевірку налаштування."
       }
     }
   }

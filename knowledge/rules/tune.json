@@ -102,5 +102,32 @@
       "libraries/AC_AttitudeControl/AC_AttitudeControl_Logging.cpp at Copter-4.7.0: ANG (DesRoll, DesPitch, DesYaw: the attitude target) is written every loop with LOG_BITMASK bit 0. libraries/AC_PID/AC_PID.cpp update_all: PID Tar is the target after the FLTT filter, Act the measurement, and FF and D_FF add the target and its derivative to the output.",
       "Astrom and Murray, Feedback Systems (2008), section 12.2: the sensitivity peak Ms; values of 1.2 to 2 are reasonable, and 1/Ms is the shortest distance from the loop's Nyquist curve to the critical point."
     ]
+  },
+  "health": {
+    "about": "The rate loop's health on any flight that logs the rate PIDs (spec: Copter analyzers, 'Rate-loop tune'). Flying time is armed and at least the excitation rules' min_height_m above take-off. Steady hover is the fingerprint's hover windows with the tune check's stick inputs taken out. I term at its limit: |PIDx.I| at i_limit_share of ATC_RAT_*_IMAX or more; a finding at i_limit_finding_pct of flying time. Slew limiter, only with ATC_RAT_*_SMAX above 0: PIDx.Dmod under dmod_limited; a finding at slew_finding_pct. D-term noise, from PIDs logged at the tune check's rate: the share of the D term's power from low_hz up that lies above noise_band_low_hz, the band the filter analysis counts as noise; a finding at d_noise_finding_pct. Oscillation: peaks of the measured rate (RATE) from oscillation.low_hz to high_hz standing prominence_db above the spectrum around them, with at least min_amplitude_dps RMS within peak_half_width_hz, and not within motor_tolerance of a harmonic of the motors' hover frequency. Spectra: Welch at resolution_hz, at least min_windows windows. Each judgement needs min_flying_s of flying. Starting values, uncalibrated.",
+    "calibrated": false,
+    "min_flying_s": 20.0,
+    "i_limit_share": 0.95,
+    "i_limit_finding_pct": 5.0,
+    "dmod_limited": 0.9,
+    "slew_finding_pct": 1.0,
+    "low_hz": 1.0,
+    "noise_band_low_hz": 40.0,
+    "d_noise_finding_pct": 50.0,
+    "resolution_hz": 0.5,
+    "min_windows": 4,
+    "oscillation": {
+      "low_hz": 1.0,
+      "high_hz": 40.0,
+      "prominence_db": 10.0,
+      "min_amplitude_dps": 1.0,
+      "peak_half_width_hz": 1.0,
+      "motor_tolerance": 0.05
+    },
+    "sources": [
+      "libraries/AC_PID/AC_PID.cpp at Copter-4.7.0: the integrator is held within IMAX; update_all multiplies P and D by the slew limiter's modifier (logged as Dmod) and logs the oscillation slew rate (SRate). libraries/Filter/SlewLimiter.cpp: with SMAX 0 the modifier is always 1; otherwise it never drops below 0.1.",
+      "ATC_RAT_RLL_SMAX at 4.7.0: 'Sets an upper limit on the slew rate produced by the combined P and D gains ... This limits the amplitude of high frequency oscillations caused by an excessive gain.' Copter's default is 0, off (AC_AttitudeControl_Multi.h).",
+      "knowledge/rules/filters.json noise_band_low_hz: the same 40 Hz the filter analysis counts as noise above the control band."
+    ]
   }
 }
