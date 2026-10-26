@@ -1,0 +1,151 @@
+{
+  "about": "GNSS disturbances and how the aircraft coped (spec: GNSS jamming and spoofing). Rules and their sources in knowledge/rules/gnss.json.",
+  "metrics": {
+    "gnss.disturbed_s": {
+      "name": {
+        "en": "Time GNSS was disturbed",
+        "uk": "Час порушень GNSS"
+      },
+      "unit": "s",
+      "direction": "lower",
+      "definition": {
+        "en": "How long, in total, the flight's GNSS disturbances lasted while armed: jamming, spoofing, obstruction, interference from the aircraft itself, or a receiver fault.",
+        "uk": "Скільки загалом тривали порушення GNSS під час взведення: глушіння, підміна, затінення, завади від самого апарата або несправність приймача."
+      },
+      "method": {
+        "en": "Each signal channel (fix, satellites, accuracy, the u-blox jamming indicator and AGC, GPS time) and consistency check (the estimator rejecting GNSS, GNSS against the estimator's track, a one-sided velocity innovation, the barometer, GPS time against the log's clock, a second receiver) trips on its own; trips within 5 s of each other are one event. The sum of the events' lengths between arming and disarming.",
+        "uk": "Кожен сигнальний канал (фіксація, супутники, точність, індикатор глушіння й АРП u-blox, час GPS) і кожна перевірка узгодженості (оцінювач відкидає GNSS, GNSS відносно траєкторії оцінювача, однобічна інновація швидкості, барометр, час GPS відносно годинника журналу, другий приймач) спрацьовують окремо; спрацювання в межах 5 с одне від одного — одна подія. Сума тривалостей подій між взведенням і зняттям."
+      },
+      "messages": ["GPS", "GPA", "UBX1", "XKF3", "XKF4", "ERR", "BARO"],
+      "zones": {
+        "target": [null, 1],
+        "caution": [1, 10],
+        "out": [10, null]
+      },
+      "source": {
+        "kind": "app",
+        "title": "The app's bands: a clean flight has none; past 10 s the estimator is near the end of what it can dead-reckon on its own (about 30 s, ArduPilot forum, spec: How the aircraft coped)"
+      }
+    },
+    "gnss.sats_min": {
+      "name": {
+        "en": "Fewest satellites",
+        "uk": "Найменше супутників"
+      },
+      "unit": "count",
+      "direction": "higher",
+      "definition": {
+        "en": "The fewest satellites the first GNSS receiver used while armed, from its first fix on.",
+        "uk": "Найменша кількість супутників, яку використовував перший приймач GNSS під час взведення, від його першої фіксації."
+      },
+      "method": {
+        "en": "The lowest GPS.NSats of the first receiver between arming (or its first 3D fix, if later) and disarming.",
+        "uk": "Найменше значення GPS.NSats першого приймача між взведенням (або його першою 3D-фіксацією, якщо пізніше) і зняттям."
+      },
+      "messages": ["GPS"],
+      "zones": {
+        "target": [10, null],
+        "caution": [6, 10],
+        "out": [null, 6]
+      },
+      "source": {
+        "kind": "app",
+        "title": "The app's bands: under 6 satellites a receiver's solution is weak and easily lost; a multi-constellation receiver in the open sees well over 10"
+      }
+    },
+    "gnss.hacc_p95": {
+      "name": {
+        "en": "GNSS horizontal accuracy (95%)",
+        "uk": "Горизонтальна точність GNSS (95%)"
+      },
+      "unit": "m",
+      "direction": "lower",
+      "definition": {
+        "en": "The horizontal accuracy the first receiver reported, which it stayed within for 95% of the armed flight.",
+        "uk": "Горизонтальна точність, яку повідомляв перший приймач і в межах якої він тримався 95% часу взведення."
+      },
+      "method": {
+        "en": "The 95th percentile of the first receiver's GPA.HAcc between arming (or its first 3D fix, if later) and disarming.",
+        "uk": "95-й процентиль GPA.HAcc першого приймача між взведенням (або його першою 3D-фіксацією, якщо пізніше) і зняттям."
+      },
+      "messages": ["GPA"],
+      "zones": {
+        "target": [null, 1.5],
+        "caution": [1.5, 3],
+        "out": [3, null]
+      },
+      "source": {
+        "kind": "app",
+        "title": "The app's bands: a modern receiver in the open reports about 1 m or better; past 3 m the position is degraded (the GNSS analyzer's own threshold, rules/gnss.json)"
+      }
+    }
+  },
+  "findings": {
+    "gnss.jamming": {
+      "stage": "navigation",
+      "title": {
+        "en": "GNSS jamming likely at {start_s} s, for {duration_s} s ({receivers}: {channels})",
+        "uk": "Імовірне глушіння GNSS на {start_s} с, протягом {duration_s} с ({receivers}: {channels})"
+      },
+      "action": {
+        "en": "The signal itself degraded: {response}. If the aircraft flies here again, give it a position source that does not need GNSS (optical flow with a rangefinder, or visual odometry) and an estimator source set to switch to, set the GPS failsafe and dead-reckoning failsafe to act within the time it can hold position, and log the receiver's own status so the next event is measured. A second receiver on another band helps against narrowband jamming.",
+        "uk": "Погіршився сам сигнал: {response}. Якщо апарат літатиме тут знову, дайте йому джерело положення, якому не потрібен GNSS (оптичний потік із далекоміром або візуальна одометрія), і набір джерел оцінювача, на який можна перемкнутися; налаштуйте відмовостійкість GPS і відмовостійкість навігації за рахунком так, щоб вони спрацьовували в межах часу, протягом якого апарат утримує положення, і записуйте власний стан приймача, щоб наступну подію було виміряно. Другий приймач в іншому діапазоні допомагає проти вузькосмугового глушіння."
+      }
+    },
+    "gnss.spoofing": {
+      "stage": "navigation",
+      "title": {
+        "en": "GNSS spoofing or a position jump at {start_s} s, for {duration_s} s, while the signal looked healthy ({channels})",
+        "uk": "Підміна GNSS або стрибок положення на {start_s} с, протягом {duration_s} с, коли сигнал виглядав справним ({channels})"
+      },
+      "action": {
+        "en": "The position stopped agreeing with the aircraft's own sensors while the receiver reported a good fix: {response}. A slow drift that the estimator follows is the dangerous form, because nothing rejects it. Check this against what the pilot saw; if it was not a receiver glitch, treat the area as spoofed: fly with a non-GNSS position source and an estimator source set to switch to, keep the compass healthy so heading never depends on GNSS, and fit a second receiver of another make or band.",
+        "uk": "Положення перестало узгоджуватися з власними датчиками апарата, хоча приймач повідомляв про добру фіксацію: {response}. Найнебезпечніша форма — повільний дрейф, за яким іде оцінювач, бо його ніщо не відкидає. Звірте це з тим, що бачив пілот; якщо це не збій приймача, вважайте район зоною підміни: літайте з джерелом положення без GNSS і набором джерел оцінювача, на який можна перемкнутися, тримайте компас справним, щоб курс ніколи не залежав від GNSS, і встановіть другий приймач іншого виробника або діапазону."
+      }
+    },
+    "gnss.obstruction": {
+      "stage": "navigation",
+      "title": {
+        "en": "GNSS signal partly blocked at {start_s} s, for {duration_s} s ({receivers}: {channels})",
+        "uk": "Сигнал GNSS частково затінено на {start_s} с, протягом {duration_s} с ({receivers}: {channels})"
+      },
+      "action": {
+        "en": "Satellites were lost without the signs of jamming: {response}. Look at what the aircraft was near and how it was banking at the time: structures, terrain and the airframe itself can block the sky. Mount the antenna high with a clear view and a ground plane.",
+        "uk": "Супутники було втрачено без ознак глушіння: {response}. Подивіться, біля чого був апарат і як він кренився в цей час: споруди, рельєф і сам планер можуть закривати небо. Встановіть антену високо, з відкритим оглядом неба й заземлювальною площиною."
+      }
+    },
+    "gnss.onboard": {
+      "stage": "navigation",
+      "title": {
+        "en": "GNSS interference from the aircraft itself at {start_s} s, for {duration_s} s: the jamming indicator follows motor current (r {r})",
+        "uk": "Завади GNSS від самого апарата на {start_s} с, протягом {duration_s} с: індикатор глушіння слідує за струмом двигунів (r {r})"
+      },
+      "action": {
+        "en": "The receiver's jamming evidence rises and falls with the current the aircraft draws, which points to its own electronics: {response}. Move the GNSS antenna away from power wiring, ESCs, the video transmitter and USB 3 devices, shield or twist the power leads, and check again on the next flight.",
+        "uk": "Ознаки глушіння в приймачі зростають і спадають разом зі струмом, який споживає апарат, що вказує на його власну електроніку: {response}. Віднесіть антену GNSS від силових проводів, регуляторів, відеопередавача й пристроїв USB 3, екрануйте або скрутіть силові проводи й перевірте знову в наступному польоті."
+      }
+    },
+    "gnss.receiver": {
+      "stage": "navigation",
+      "title": {
+        "en": "{receivers} degraded on its own at {start_s} s, for {duration_s} s ({channels})",
+        "uk": "{receivers} погіршився сам по собі на {start_s} с, протягом {duration_s} с ({channels})"
+      },
+      "action": {
+        "en": "Only one of the two receivers lost its signal while the other kept it: {response}. Check that receiver's antenna, cable and connector, and its placement; if it happens again on other flights, the receiver itself is suspect.",
+        "uk": "Лише один із двох приймачів утратив сигнал, а інший його зберіг: {response}. Перевірте антену, кабель і роз'єм цього приймача та його розташування; якщо це повториться в інших польотах, підозрюйте сам приймач."
+      }
+    },
+    "gnss.yaw_reset": {
+      "stage": "navigation",
+      "title": {
+        "en": "Heading reset from GNSS velocity at {at_s} s, during a suspected spoofing from {start_s} s ({count} resets)",
+        "uk": "Скидання курсу за швидкістю GNSS на {at_s} с під час імовірної підміни з {start_s} с (скидань: {count})"
+      },
+      "action": {
+        "en": "The estimator reset its heading from GNSS velocity while GNSS was suspect, which can corrupt the heading itself. Make sure the compass is healthy and calibrated so heading never has to come from GNSS, and review the emergency yaw reset settings (EK3_GSF_USE_MASK) for missions where spoofing is expected.",
+        "uk": "Оцінювач скинув курс за швидкістю GNSS тоді, коли GNSS був під підозрою, і це може зіпсувати сам курс. Переконайтеся, що компас справний і відкалібрований, щоб курс ніколи не доводилося брати з GNSS, і перегляньте налаштування аварійного скидання курсу (EK3_GSF_USE_MASK) для місій, де очікується підміна."
+      }
+    }
+  }
+}

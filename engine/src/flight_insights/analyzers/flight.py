@@ -16,7 +16,7 @@ from typing import Any
 import numpy as np
 import pyarrow as pa
 
-from flight_insights.analyzers.local_track import LocalTrack, from_coordinates
+from flight_insights.analyzers.local_track import LocalTrack, Series, tracks
 from flight_insights.analyzers.model import Segment
 from flight_insights.dataflash import si
 from flight_insights.history.persist import load_snapshot
@@ -132,30 +132,39 @@ class FlightData:
 
     def local_track(self) -> LocalTrack | None:
         """Where the aircraft was relative to its first fix, in metres (local_track.py),
-        from the estimator's position (POS), else the first GNSS receiver's. This is the
-        one place analysis reads positions, through the cache's positions key; what it
-        returns holds no coordinates and refuses to leave the analysis."""
+        from the estimator's position (POS), else the first GNSS receiver's. This and
+        `local_tracks` are the one place analysis reads positions, through the cache's
+        positions key; what they return holds no coordinates and refuses to leave the
+        analysis."""
+        found = self.local_tracks()
+        return found.get("POS") or found.get("GPS0")
+
+    def local_tracks(self) -> dict[str, LocalTrack]:
+        """The estimator's track ("POS") and each GNSS receiver's ("GPS0", "GPS1" ...),
+        all from one origin so they can be compared: the estimator's first fix, else the
+        first receiver's. Every sample a receiver logged is kept, whatever its fix; the
+        GPS table's `Status` at the same `TimeUS` says which to trust."""
         if self.cache is None:
-            return None
-        for name, lat, lon, alt in (("POS", "Lat", "Lng", "Alt"), ("GPS", "Lat", "Lng", "Alt")):
-            if not self.has(name):
-                continue
-            columns = ["TimeUS", lat, lon, alt]
-            table = self.cache.read(self.key, name, [*columns, "I"] if name == "GPS" else columns,
-                                    positions=True)  # fmt: skip
-            if table.num_rows == 0 or any(c not in table.column_names for c in columns):
-                continue
-            rows = np.ones(table.num_rows, bool)
-            if "I" in table.column_names:
-                rows = np.asarray(table.column("I").to_numpy(zero_copy_only=False)) == 0
-            track = from_coordinates(
-                np.asarray(table.column("TimeUS").to_numpy(zero_copy_only=False), np.int64)[rows],
-                _degrees(table, lat)[rows], _degrees(table, lon)[rows],
-                si.values(table, alt)[rows],
-            )  # fmt: skip
-            if track is not None:
-                return track
-        return None
+            return {}
+        series: dict[str, Series] = {}
+        if self.has("POS"):
+            pos = self.cache.read(self.key, "POS", ["TimeUS", "Lat", "Lng", "Alt"], positions=True)
+            if pos.num_rows and {"Lat", "Lng", "Alt"} <= set(pos.column_names):
+                series["POS"] = (_times(pos), _degrees(pos, "Lat"), _degrees(pos, "Lng"),
+                                 si.values(pos, "Alt"))  # fmt: skip
+        if self.has("GPS"):
+            gps = self.cache.read(self.key, "GPS", ["TimeUS", "I", "Lat", "Lng", "Alt"],
+                                  positions=True)  # fmt: skip
+            if gps.num_rows and {"Lat", "Lng", "Alt"} <= set(gps.column_names):
+                instance = np.zeros(gps.num_rows, np.int64)
+                if "I" in gps.column_names:
+                    instance = np.asarray(gps.column("I").to_numpy(zero_copy_only=False), np.int64)
+                t, lat, lon = _times(gps), _degrees(gps, "Lat"), _degrees(gps, "Lng")
+                alt = si.values(gps, "Alt")
+                for i in np.unique(instance):
+                    rows = instance == i
+                    series[f"GPS{int(i)}"] = (t[rows], lat[rows], lon[rows], alt[rows])
+        return tracks(series)
 
     def tlog(
         self, name: str, columns: list[str] | None = None
@@ -195,6 +204,10 @@ class FlightData:
             for w in self.fingerprint.get("hover_windows", [])
             if self.arm_us <= int(w["start_us"]) and int(w["end_us"]) <= self.disarm_us
         ]
+
+
+def _times(table: pa.Table) -> np.ndarray[Any, np.dtype[np.int64]]:
+    return np.asarray(table.column("TimeUS").to_numpy(zero_copy_only=False), np.int64)
 
 
 def _degrees(table: pa.Table, name: str) -> np.ndarray[Any, np.dtype[np.float64]]:
