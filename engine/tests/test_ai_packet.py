@@ -5,6 +5,7 @@ self-test's own cases; and the shell-only methods keep the tripwire from the UI.
 from __future__ import annotations
 
 import json
+import math
 from itertools import count
 from pathlib import Path
 from typing import Any
@@ -13,7 +14,12 @@ import pytest
 from planted import PLANT_LAT, PLANT_LON, leaks, plant
 
 from flight_insights.ai import selftest
-from flight_insights.ai.packet import number
+from flight_insights.ai.packet import (
+    WITHHELD,
+    _analysis,  # pyright: ignore[reportPrivateUsage]
+    number,
+)
+from flight_insights.ai.policy import Policy
 from flight_insights.ai.schema import validate
 from flight_insights.knowledge import load_pack
 
@@ -86,7 +92,13 @@ def test_each_fixture_makes_a_packet_that_may_leave(
     assert reply["engine"] == {"ok": True, "reasons": []}, reply["engine"]
     packet = json.loads(reply["packet_json"])
     assert validate(packet) == [] and packet["findings"] and packet["parameters"]
+    # Nothing is withheld here, so every metric the run measured is in the packet.
+    run = rpc(engine, "analysis.get", flight_id=flight)["result"]
+    measured = [m for m in run["metrics"] if math.isfinite(m["value"])]
+    assert measured and len(packet["metrics"]) == len(measured)
     assert packet["aircraft"]["simulated"] and packet["aircraft"]["vehicle"] == vehicle
+    # Today's analyzers read nothing the location policy holds back.
+    assert not [e["ref"] for e in packet["evidence"] if e["summary"] == WITHHELD]
     # The flight's own positions came back for the shell's check, and none is in the packet.
     assert reply["tripwire"]
     for lat, lon in reply["tripwire"]:
@@ -103,6 +115,48 @@ def test_each_fixture_makes_a_packet_that_may_leave(
     }
     again = rpc(engine, "ai.record", packet_id=reply["packet_id"], shell_reasons=[], sent=True)
     assert again["error"]["code"] == -32004  # one verdict per packet
+
+
+def _ev(eid: str, kind: str, messages: tuple[str, ...], fields: tuple[str, ...]) -> dict[str, Any]:
+    return {"id": eid, "kind": kind, "summary": f"{eid} read 512.25", "messages": list(messages),
+            "fields": list(fields), "segment": None, "values": {"reading": 512.25}}  # fmt: skip
+
+
+def test_evidence_that_read_a_location_field_is_withheld_with_its_metrics() -> None:
+    # Analyzer evidence carries values from the fields it read. One the location policy
+    # does not allow whole (a magnetic field, a GPS week, an absolute altitude, a rounded
+    # pressure) keeps its reference but not its summary or values, and a metric measured
+    # from it is left out.
+    policy = Policy.load(load_pack(), "4.7.0")
+    evidence = [
+        _ev("vibe", "metric", ("VIBE",), ("VibeX",)),
+        _ev("mag", "metric", ("MAG",), ("MagX",)),
+        _ev("week", "series", ("GPS",), ("TimeUS", "GWk")),
+        _ev("press", "metric", ("BARO",), ("Press",)),
+        _ev("gps-whole", "fact", ("GPS",), ()),
+        _ev("unknown", "metric", ("NOPE",), ("X",)),
+        _ev("not-its-field", "metric", ("VIBE",), ("MagX",)),
+        _ev("logging", "parameter", ("GYR",), ("LOG_BITMASK", "INS_RAW_LOG_OPT")),
+        _ev("declination", "parameter", (), ("COMPASS_DEC",)),
+    ]
+    analysis: dict[str, Any] = {
+        "evidence": evidence,
+        "metrics": [{"metric": f"m.{e['id']}", "segment": "flight", "value": 1.5, "zone": None,
+                     "evidence": e["id"]} for e in evidence],
+        "findings": [{"key": "k", "code": "c", "severity": "info", "confidence": "high",
+                      "params": {}, "evidence": [e["id"] for e in evidence]}],
+    }  # fmt: skip
+    keys: dict[str, str] = {}
+    metrics, _, packed = _analysis(analysis, 0, policy, keys)
+    held = {keys[e["ref"]] for e in packed if e["summary"] == WITHHELD}
+    assert held == {"mag", "week", "press", "gps-whole", "unknown", "not-its-field", "declination"}
+    for e in packed:
+        if keys[e["ref"]] in held:
+            assert e["values"] == {} and "512" not in json.dumps(e)
+    by_id = {keys[e["ref"]]: e for e in packed}
+    assert by_id["week"]["fields"] == ["TimeUS"]  # the allowed field is still named
+    assert by_id["vibe"]["values"] == {"reading": 512.25}
+    assert {m["metric"] for m in metrics} == {"m.vibe", "m.logging"}
 
 
 def test_no_planted_coordinate_survives_from_any_message(
