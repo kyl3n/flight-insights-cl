@@ -4,6 +4,7 @@ attitude loop, and on the simulator's tune-check flights."""
 
 from __future__ import annotations
 
+import os
 from pathlib import Path
 from typing import Any
 
@@ -312,3 +313,15 @@ def test_the_simulated_quads_soft_and_default_rate_loops_separate(tmp_path: Path
 
     assert tracking(soft) > tracking(default) + 10.0
     assert "tune.low_margin" not in {f["code"] for f in soft["findings"] + default["findings"]}
+
+
+def test_the_engine_keeps_numpy_to_one_blas_thread() -> None:
+    """Many BLAS threads on top of the engine's own work slowed a busy laptop's analysis
+    tenfold; the engine asks for one before NumPy loads, and the environment may override."""
+    import subprocess
+    import sys
+
+    env = {k: v for k, v in os.environ.items() if k != "OPENBLAS_NUM_THREADS"}
+    code = "import flight_insights, os; print(os.environ['OPENBLAS_NUM_THREADS'])"
+    out = subprocess.run([sys.executable, "-c", code], env=env, capture_output=True, text=True)
+    assert out.stdout.strip() == "1", out.stderr

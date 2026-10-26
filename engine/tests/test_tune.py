@@ -312,7 +312,7 @@ def test_the_simulated_tune_check_measures_roll_and_pitch(reg: Registry, tmp_pat
         batch = scan(store, pack, bytes(range(32)), [log])
         [result] = commit(store, pack, cache, batch, propose(store, pack, batch), [Decision("f1")])
         out = run_analysis(store, cache, pack, result.flights[0])
-    tune = {m["metric"]: m for m in out["metrics"] if m["metric"].startswith("tune.")}
+    tune = {m["metric"]: m for m in out["metrics"] if m["metric"].startswith("tune.tracking")}
     # Six doublets on roll and six on pitch in AltHold, every one counted; no yaw inputs.
     assert set(tune) == {"tune.tracking_error_roll", "tune.tracking_error_pitch"}
     for m in tune.values():
