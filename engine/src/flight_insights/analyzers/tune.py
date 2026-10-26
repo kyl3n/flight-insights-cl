@@ -24,6 +24,7 @@ from __future__ import annotations
 
 import math
 from collections.abc import Mapping, Sequence
+from dataclasses import dataclass
 from typing import Any
 
 import numpy as np
@@ -189,27 +190,34 @@ def _counts(found: Sequence[Event]) -> dict[str, int]:
     return {r: sum(e.rejected == r for e in found) for r in REASONS}
 
 
-def _tune(flight: FlightData, reg: Registry) -> Result:
+@dataclass(frozen=True)
+class Inputs:
+    """An axis's stick inputs, each counted or left out with why, and whether the log
+    let saturation and the stick be checked."""
+
+    events: list[Event]
+    saturation_checked: bool
+    sticks_checked: bool
+
+
+def found_inputs(flight: FlightData, reg: Registry) -> dict[str, Inputs] | str:
+    """Every stick input on each axis the log measures (segment/excitation.py), or why
+    the log cannot show them."""
     if not flight.logged:
-        return Result(skipped="a parameter file has no flight to measure")
+        return "a parameter file has no flight to measure"
     if flight.vehicle != "copter":  # Plane's and QuadPlane's rate loops: Phase 3
-        return Result(skipped="the tune check is for Copter")
+        return "the tune check is for Copter"
     rate = flight.table("RATE")
     if rate is None or rate.num_rows == 0:
-        return Result(skipped="the log has no RATE messages")
+        return "the log has no RATE messages"
     hz, needed = rate_hz(flight), needed_hz(flight, reg)
     if hz < needed:
-        return Result(skipped=f"RATE is logged at {hz:.0f} Hz; the tune check needs {needed:.0f}")
-    rules: Mapping[str, Any] = reg.rules["tune"]
-    found_rules: Mapping[str, Any] = rules["excitation"]
-    tracking: Mapping[str, Any] = rules["tracking"]
-    attitude_rules: Mapping[str, Any] = rules["attitude"]
+        return f"RATE is logged at {hz:.0f} Hz; the tune check needs {needed:.0f}"
+    found_rules: Mapping[str, Any] = reg.rules["tune"]["excitation"]
     t = np.asarray(rate.column("TimeUS").to_numpy(), np.int64)
     armed = (t >= flight.arm_us) & (t <= flight.disarm_us)
     flown, heights = modes(flight, reg), height(flight)
-    ang_ok = logged_hz(flight, "ANG") >= needed
-    out = Result()
-    per_axis: dict[str, list[Event]] = {}
+    out: dict[str, Inputs] = {}
     for axis in AXES:
         both = rates(rate, axis)
         if both is None:
@@ -222,7 +230,21 @@ def _tune(flight: FlightData, reg: Registry) -> Result:
             stick=_stick(flight, axis, found_rules),
         )
         found = events(axis, t[armed], target[armed], actual[armed], signals, found_rules)
-        per_axis[axis] = found
+        out[axis] = Inputs(found, signals.limited is not None, signals.stick is not None)
+    return out
+
+
+def _tune(flight: FlightData, reg: Registry) -> Result:
+    inputs = found_inputs(flight, reg)
+    if isinstance(inputs, str):
+        return Result(skipped=inputs)
+    rules: Mapping[str, Any] = reg.rules["tune"]
+    tracking: Mapping[str, Any] = rules["tracking"]
+    attitude_rules: Mapping[str, Any] = rules["attitude"]
+    ang_ok = logged_hz(flight, "ANG") >= needed_hz(flight, reg)
+    out = Result()
+    for axis, found_on in inputs.items():
+        found = found_on.events
         counted = [e for e in found if e.rejected is None]
         if len(counted) < int(tracking["min_events"]):
             continue
@@ -246,8 +268,8 @@ def _tune(flight: FlightData, reg: Registry) -> Result:
                 "errors_percent": [round(x, 1) for x in errors][:64],
                 "peak_target_dps": [round(e.peak_dps, 1) for e in counted][:64],
                 "stick": [None if e.stick is None else round(e.stick, 2) for e in counted][:64],
-                "saturation_checked": signals.limited is not None,
-                "sticks_checked": signals.stick is not None,
+                "saturation_checked": found_on.saturation_checked,
+                "sticks_checked": found_on.sticks_checked,
             },
         )
         out.evidence.append(ev)
@@ -260,8 +282,8 @@ def _tune(flight: FlightData, reg: Registry) -> Result:
         att = attitudes(flight, axis) if ang_ok else None
         if att is not None:
             _attitude(axis, att, counted, attitude_rules, tracking, out)
-    _few(per_axis, tracking, out)
-    _offer(flight, reg, flown, out)
+    _few({a: i.events for a, i in inputs.items()}, tracking, out)
+    _offer(flight, reg, modes(flight, reg), out)
     return out
 
 
