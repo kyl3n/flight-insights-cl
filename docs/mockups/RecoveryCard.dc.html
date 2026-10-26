@@ -1,0 +1,123 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Recovery card</title>
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&amp;family=IBM+Plex+Sans:wght@400;500;600&amp;display=swap" rel="stylesheet">
+<style>
+body{margin:0;background:#0E1114}
+a{color:#7CC4F0}a:hover{color:#A9D9F7}
+button{font-family:inherit}
+:focus-visible{outline:2px solid #7CC4F0;outline-offset:2px}
+@media (max-width:720px){.rail{flex:1 1 100% !important;width:100% !important;flex-direction:row !important;overflow-x:auto;padding:8px !important}.rail-spacer{display:none !important}}
+</style>
+</helmet>
+<div style="min-height: 100vh; display: flex; flex-wrap: wrap; background: #0E1114; color: #E7EAEE; font-family: 'IBM Plex Sans', system-ui, sans-serif; font-size: 14px; line-height: 1.45;">
+
+<nav class="rail" aria-label="Main navigation" style="flex: 0 0 76px; width: 76px; box-sizing: border-box; background: #0A0C0F; border-right: 1px solid #1E242B; display: flex; flex-direction: column; align-items: center; gap: 4px; padding: 14px 0 16px;">
+<svg role="img" aria-label="Flight Insights" width="36" height="36" viewBox="0 0 36 36" style="flex: 0 0 auto; margin-bottom: 14px;"><rect x="1" y="1" width="34" height="34" rx="9" fill="#13222D" stroke="#2A4558"></rect><path d="M8 25l6-7 5 4 9-12" fill="none" stroke="#5AB0E8" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"></path><circle cx="28" cy="10" r="2.4" fill="#5AB0E8"></circle></svg>
+<a href="Main.dc.html" style="flex: 0 0 auto; width: 60px; padding: 8px 0 7px; border-radius: 10px; display: flex; flex-direction: column; align-items: center; gap: 4px; font-size: 11px; font-weight: 500; text-decoration: none; color: #A3ACB6;"><svg aria-hidden="true" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="7" height="7" rx="1.5"></rect><rect x="14" y="3" width="7" height="7" rx="1.5"></rect><rect x="3" y="14" width="7" height="7" rx="1.5"></rect><rect x="14" y="14" width="7" height="7" rx="1.5"></rect></svg>Fleet</a>
+<a href="FlightReport.dc.html" style="flex: 0 0 auto; width: 60px; padding: 8px 0 7px; border-radius: 10px; display: flex; flex-direction: column; align-items: center; gap: 4px; font-size: 11px; font-weight: 500; text-decoration: none; color: #A3ACB6;"><svg aria-hidden="true" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M6 3h9l4 4v14H6z"></path><path d="M14 3v5h5"></path><path d="M9 13h7M9 17h5"></path></svg>Flights</a>
+<a href="Trends.dc.html" aria-current="page" style="flex: 0 0 auto; width: 60px; padding: 8px 0 7px; border-radius: 10px; display: flex; flex-direction: column; align-items: center; gap: 4px; font-size: 11px; font-weight: 500; text-decoration: none; color: #9BD3F5; background: rgba(90,176,232,0.15);"><svg aria-hidden="true" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M3 17l5-5 4 3 8-8"></path><path d="M15 7h5v5"></path></svg>Trends</a>
+<a href="ConfigReview.dc.html" style="flex: 0 0 auto; width: 60px; padding: 8px 0 7px; border-radius: 10px; display: flex; flex-direction: column; align-items: center; gap: 4px; font-size: 11px; font-weight: 500; text-decoration: none; color: #A3ACB6;"><svg aria-hidden="true" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M4 6h10M18 6h2M4 12h4M12 12h8M4 18h12"></path><circle cx="16" cy="6" r="2"></circle><circle cx="10" cy="12" r="2"></circle><circle cx="18" cy="18" r="2"></circle></svg>Params</a>
+<a href="Plan.dc.html" style="flex: 0 0 auto; width: 60px; padding: 8px 0 7px; border-radius: 10px; display: flex; flex-direction: column; align-items: center; gap: 4px; font-size: 11px; font-weight: 500; text-decoration: none; color: #A3ACB6;"><svg aria-hidden="true" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M10 6h10M10 12h10M10 18h10"></path><path d="M3.5 6l1.5 1.5L7.5 5"></path><path d="M3.5 12l1.5 1.5L7.5 11"></path><circle cx="5" cy="18" r="1.5"></circle></svg>Plan</a>
+<button type="button" style="flex: 0 0 auto; width: 60px; padding: 8px 0 7px; border: 0; border-radius: 10px; background: transparent; display: flex; flex-direction: column; align-items: center; gap: 4px; font-size: 11px; font-weight: 500; color: #A3ACB6; cursor: pointer;"><svg aria-hidden="true" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M4 5h16v11H9l-5 4z"></path><path d="M8 10h8"></path></svg>Ask</button>
+<div class="rail-spacer" style="flex: 1 1 auto;"></div>
+<button type="button" style="flex: 0 0 auto; width: 60px; padding: 8px 0 7px; border: 0; border-radius: 10px; background: transparent; display: flex; flex-direction: column; align-items: center; gap: 4px; font-size: 11px; font-weight: 500; color: #A3ACB6; cursor: pointer;"><svg aria-hidden="true" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3v11"></path><path d="M7 9l5 5 5-5"></path><path d="M4 17v3h16v-3"></path></svg>Imports</button>
+<button type="button" style="flex: 0 0 auto; width: 60px; padding: 8px 0 7px; border: 0; border-radius: 10px; background: transparent; display: flex; flex-direction: column; align-items: center; gap: 4px; font-size: 11px; font-weight: 500; color: #A3ACB6; cursor: pointer;"><svg aria-hidden="true" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"></circle><path d="M12 2v3M12 19v3M2 12h3M19 12h3M4.9 4.9L7 7M17 17l2.1 2.1M4.9 19.1L7 17M17 7l2.1-2.1"></path></svg>Settings</button>
+</nav>
+
+<div style="flex: 999 1 560px; min-width: 0; display: flex; flex-direction: column;">
+
+<header style="display: flex; flex-wrap: wrap; align-items: center; gap: 12px 16px; padding: 10px 24px; min-height: 60px; box-sizing: border-box; border-bottom: 1px solid #1E242B;">
+<nav aria-label="Scope" style="display: flex; align-items: center; gap: 4px; flex-wrap: wrap;">
+<button type="button" style="display: flex; align-items: center; gap: 6px; padding: 6px 10px; border: 1px solid transparent; border-radius: 8px; background: transparent; font-size: 13px; color: #CBD2D9; cursor: pointer;">Heavy-lift X8<svg aria-hidden="true" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#7C8691" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M6 9l6 6 6-6"></path></svg></button>
+<svg aria-hidden="true" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#4A535D" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 6l6 6-6 6"></path></svg>
+<button type="button" style="display: flex; align-items: center; gap: 6px; padding: 6px 10px; border: 1px solid #262D35; border-radius: 8px; background: #151A1F; font-family: 'IBM Plex Mono', ui-monospace, monospace; font-size: 13px; color: #E7EAEE; cursor: pointer;">HL-07<svg aria-hidden="true" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#7C8691" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M6 9l6 6 6-6"></path></svg></button>
+</nav>
+<button type="button" style="flex: 1 1 200px; max-width: 360px; display: flex; align-items: center; gap: 8px; padding: 8px 12px; border: 1px solid #262D35; border-radius: 8px; background: #12161A; color: #8A949E; font-size: 13px; text-align: left; cursor: pointer;"><svg aria-hidden="true" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><circle cx="11" cy="11" r="6"></circle><path d="M20 20l-4.5-4.5"></path></svg><span style="flex: 1 1 auto;">Search or jump</span><kbd style="font-family: 'IBM Plex Mono', ui-monospace, monospace; font-size: 11px; padding: 2px 6px; border: 1px solid #333B45; border-radius: 5px; color: #A3ACB6;">Ctrl K</kbd></button>
+<div style="margin-left: auto; display: flex; align-items: center; gap: 8px; flex-wrap: wrap;">
+<span style="display: flex; align-items: center; gap: 6px; padding: 5px 10px; border-radius: 999px; background: #151A1F; border: 1px solid #222930; font-size: 12px; color: #A3ACB6;"><span aria-hidden="true" style="width: 7px; height: 7px; border-radius: 50%; background: #3DBE8B;"></span>Claude API</span>
+<button type="button" style="display: flex; align-items: center; gap: 8px; padding: 9px 14px; border: 0; border-radius: 8px; background: #5AB0E8; color: #06121A; font-size: 13px; font-weight: 600; cursor: pointer;"><svg aria-hidden="true" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3v11"></path><path d="M7 9l5 5 5-5"></path><path d="M4 17v3h16v-3"></path></svg>Import logs</button>
+</div>
+</header>
+
+<div style="display: flex; flex-direction: column; gap: 12px; padding: 18px 24px 0;">
+<div style="display: flex; flex-wrap: wrap; align-items: baseline; gap: 8px 16px;">
+<h1 style="margin: 0; font-size: 22px; font-weight: 600; letter-spacing: -0.01em;">HL-07 · Recovery card</h1>
+<p style="margin: 0; font-size: 13px; color: #A3ACB6;">What the aircraft will do and what the operator does, for each loss, from this airframe's measured performance.</p>
+</div>
+</div>
+
+<main style="display: flex; flex-wrap: wrap; gap: 20px; padding: 16px 24px 24px; align-items: flex-start;">
+<article aria-label="Recovery card for HL-07" style="flex: 0 1 820px; min-width: 0; box-sizing: border-box; padding: 28px 30px; border-radius: 6px; background: #FFFFFF; color: #14181C; display: flex; flex-direction: column; gap: 14px; font-family: 'IBM Plex Sans', system-ui, sans-serif;">
+<header style="display: flex; flex-wrap: wrap; align-items: baseline; gap: 6px 16px; padding-bottom: 10px; border-bottom: 2px solid #14181C;">
+<h1 style="margin: 0; font-size: 22px; font-weight: 600;">HL-07 · Recovery card</h1>
+<span style="font-size: 12px; color: #4A535D;">Heavy-lift X8 · build v4 · parameters a3f9 · printed 26 Oct 2026</span>
+<span style="margin-left: auto; font-family: 'IBM Plex Mono', ui-monospace, monospace; font-size: 12px; color: #4A535D;">Valid while the parameters stay a3f9</span>
+</header>
+<div style="display: flex; flex-wrap: wrap; gap: 8px 22px; font-size: 13px;">
+<span><span style="color: #4A535D;">Home heading</span> <span style="font-family: 'IBM Plex Mono', ui-monospace, monospace; font-weight: 500;">fill in before take-off: ______°</span></span>
+<span><span style="color: #4A535D;">Maximum take-off for motor-out</span> <span style="font-family: 'IBM Plex Mono', ui-monospace, monospace; font-weight: 500;">30.5 kg</span></span>
+<span><span style="color: #4A535D;">Pilot fallback mode</span> <span style="font-weight: 500;">AltHold, switch position 1</span></span>
+</div>
+<div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); gap: 12px;">
+<section style="display: flex; flex-direction: column; gap: 8px; padding: 14px 16px; border: 1.5px solid #2F6E9E; border-radius: 8px; break-inside: avoid;">
+<h2 style="margin: 0; font-size: 16px; font-weight: 600; color: #14181C;">GNSS lost</h2>
+<table style="border-collapse: collapse; font-size: 13px;"><tbody><tr><td style="padding: 4px 8px 4px 0; color: #4A535D; vertical-align: top; width: 46%;">The aircraft will</td><td style="padding: 4px 0; color: #14181C; vertical-align: top;">hold on dead reckoning, then land in place (EKF failsafe)</td></tr><tr><td style="padding: 4px 8px 4px 0; color: #4A535D; vertical-align: top; width: 46%;">Holds its estimate for</td><td style="padding: 4px 0; color: #14181C; vertical-align: top;">about 40 s, measured</td></tr><tr><td style="padding: 4px 8px 4px 0; color: #4A535D; vertical-align: top; width: 46%;">Travels on dead reckoning</td><td style="padding: 4px 0; color: #14181C; vertical-align: top;">about 150 m before it is 10 m off</td></tr></tbody></table>
+<h3 style="margin: 4px 0 0; font-size: 13px; font-weight: 600; color: #14181C;">Operator</h3>
+<ol style="margin: 0; padding-left: 20px; display: flex; flex-direction: column; gap: 4px; font-size: 13px; line-height: 1.45; color: #14181C;"><li>Switch to AltHold.</li><li>Turn the nose to the home heading.</li><li>Fly home on the heading at walking pace; keep it in sight.</li><li>Land by sight; do not wait for GNSS to return.</li></ol>
+</section>
+<section style="display: flex; flex-direction: column; gap: 8px; padding: 14px 16px; border: 1.5px solid #2F6E9E; border-radius: 8px; break-inside: avoid;">
+<h2 style="margin: 0; font-size: 16px; font-weight: 600; color: #14181C;">Radio link lost</h2>
+<table style="border-collapse: collapse; font-size: 13px;"><tbody><tr><td style="padding: 4px 8px 4px 0; color: #4A535D; vertical-align: top; width: 46%;">The aircraft will</td><td style="padding: 4px 0; color: #14181C; vertical-align: top;">after 5 s, return to launch (GCS failsafe, RTL)</td></tr><tr><td style="padding: 4px 8px 4px 0; color: #4A535D; vertical-align: top; width: 46%;">Joystick commands</td><td style="padding: 4px 0; color: #14181C; vertical-align: top;">stop holding after 3 s</td></tr><tr><td style="padding: 4px 8px 4px 0; color: #4A535D; vertical-align: top; width: 46%;">Link usually returns</td><td style="padding: 4px 0; color: #14181C; vertical-align: top;">within 2.1 km of the station</td></tr></tbody></table>
+<h3 style="margin: 4px 0 0; font-size: 13px; font-weight: 600; color: #14181C;">Operator</h3>
+<ol style="margin: 0; padding-left: 20px; display: flex; flex-direction: column; gap: 4px; font-size: 13px; line-height: 1.45; color: #14181C;"><li>Do nothing for 5 s: let the failsafe start the return.</li><li>Walk the ground station clear of obstacles toward the aircraft.</li><li>When the link returns, take over in Loiter.</li></ol>
+</section>
+<section style="display: flex; flex-direction: column; gap: 8px; padding: 14px 16px; border: 1.5px solid #B23B38; border-radius: 8px; break-inside: avoid;">
+<h2 style="margin: 0; font-size: 16px; font-weight: 600; color: #14181C;">Link and GNSS both lost</h2>
+<table style="border-collapse: collapse; font-size: 13px;"><tbody><tr><td style="padding: 4px 8px 4px 0; color: #4A535D; vertical-align: top; width: 46%;">The aircraft will</td><td style="padding: 4px 0; color: #14181C; vertical-align: top;">land where it is: RTL needs a position</td></tr><tr><td style="padding: 4px 8px 4px 0; color: #4A535D; vertical-align: top; width: 46%;">It cannot</td><td style="padding: 4px 0; color: #14181C; vertical-align: top;">return to take-off with today's settings and sensors</td></tr></tbody></table>
+<h3 style="margin: 4px 0 0; font-size: 13px; font-weight: 600; color: #14181C;">Operator</h3>
+<ol style="margin: 0; padding-left: 20px; display: flex; flex-direction: column; gap: 4px; font-size: 13px; line-height: 1.45; color: #14181C;"><li>Note the time and last seen direction.</li><li>Keep the ground station running to catch the link if it returns.</li><li>Search along the last heading from the last known position.</li></ol><p style="margin: 4px 0 0; font-size: 12px; color: #4A535D;">This is the fleet goal HL-07 does not meet yet: see Navigation and GNSS, "What would get it home".</p>
+</section>
+<section style="display: flex; flex-direction: column; gap: 8px; padding: 14px 16px; border: 1.5px solid #2F6E9E; border-radius: 8px; break-inside: avoid;">
+<h2 style="margin: 0; font-size: 16px; font-weight: 600; color: #14181C;">Motor or ESC lost</h2>
+<table style="border-collapse: collapse; font-size: 13px;"><tbody><tr><td style="padding: 4px 8px 4px 0; color: #4A535D; vertical-align: top; width: 46%;">The aircraft will</td><td style="padding: 4px 0; color: #14181C; vertical-align: top;">hold height and yaw on the other 7 at or below 30.5 kg</td></tr><tr><td style="padding: 4px 8px 4px 0; color: #4A535D; vertical-align: top; width: 46%;">Above 30.5 kg</td><td style="padding: 4px 0; color: #14181C; vertical-align: top;">the busiest motor may saturate</td></tr></tbody></table>
+<h3 style="margin: 4px 0 0; font-size: 13px; font-weight: 600; color: #14181C;">Operator</h3>
+<ol style="margin: 0; padding-left: 20px; display: flex; flex-direction: column; gap: 4px; font-size: 13px; line-height: 1.45; color: #14181C;"><li>Stop any manoeuvre; let it level.</li><li>Descend at a steady rate.</li><li>Land at the nearest clear spot, not at home.</li></ol>
+</section>
+</div>
+<section style="display: flex; flex-direction: column; gap: 6px; padding: 12px 16px; border: 1.5px dashed #B07A1F; border-radius: 8px; break-inside: avoid;">
+<h2 style="margin: 0; font-size: 15px; font-weight: 600;">Suspected spoofing: position jumps or drifts while GNSS looks healthy</h2>
+<ol style="margin: 0; padding-left: 20px; display: flex; flex-direction: column; gap: 4px; font-size: 13px; line-height: 1.45;"><li>Reject GNSS first with the GNSS-disable switch: the estimator may still trust it. <span style="color: #B23B38;">Not set up on HL-07 yet: it is in the plan.</span></li><li>Then follow "GNSS lost".</li></ol>
+</section>
+<footer style="font-size: 11px; color: #4A535D;">Made by Flight Insights from HL-07's own flights and settings. No positions are printed. Re-print after any parameter or build change.</footer>
+</article>
+<aside aria-labelledby="pr-title" style="flex: 1 1 260px; max-width: 340px; min-width: 0; display: flex; flex-direction: column; gap: 14px; padding: 18px; border-radius: 12px; background: #12161A; border: 1px solid #262D35;">
+<h2 id="pr-title" style="margin: 0; font-size: 15px; font-weight: 600;">Print</h2>
+<div style="display: flex; flex-direction: column; gap: 6px;">
+<div style="display: flex; justify-content: space-between; align-items: baseline; gap: 10px; font-size: 12px;"><span style="color: #A3ACB6;">Paper</span><span style="color: #E7EAEE; text-align: right;">A4 or Letter, one page</span></div>
+<div style="display: flex; justify-content: space-between; align-items: baseline; gap: 10px; font-size: 12px;"><span style="color: #A3ACB6;">Version</span><span style="color: #E7EAEE; text-align: right;">parameters a3f9, build v4</span></div>
+<div style="display: flex; justify-content: space-between; align-items: baseline; gap: 10px; font-size: 12px;"><span style="color: #A3ACB6;">Measured from</span><span style="color: #E7EAEE; text-align: right;">12 flights, 1 drill, 1 jamming event</span></div>
+</div>
+<p style="margin: 0; font-size: 12px; line-height: 1.5; color: #A3ACB6;">The card is rebuilt whenever the parameters, the build or a measured hold time changes; an out-of-date card is marked on the airframe.</p>
+<div style="display: flex; gap: 8px; flex-wrap: wrap;"><button type="button" style="display: inline-flex; align-items: center; justify-content: center; min-height: 40px; padding: 0 14px; border: 0; border-radius: 8px; background: #5AB0E8; color: #06121A; font-size: 13px; font-weight: 600; text-decoration: none; cursor: pointer;">Print</button><a href="Navigation.dc.html" style="display: inline-flex; align-items: center; justify-content: center; min-height: 40px; padding: 0 12px; border: 1px solid #333B45; border-radius: 8px; background: transparent; font-size: 13px; color: #CBD2D9; text-decoration: none; cursor: pointer;">Back to Navigation</a></div>
+</aside>
+</main>
+</div>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":1440,"height":1500}}'>
+class Component extends DCLogic {
+  renderVals() {
+    return {};
+  }
+}
+</script>
+</body>
+</html>

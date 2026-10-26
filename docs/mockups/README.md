@@ -15,5 +15,13 @@ These are the source files of the Flight Insights layout canvas. The live, viewa
 | `MetricExplain.dc.html` | Metric on click: full explanation |
 | `PlatformSetup.dc.html` | New platform setup |
 | `ImportDialog.dc.html` | Import: airframe and hardware changes |
+| `Propulsion.dc.html` | Flight: thrust curve from ESC RPM, payload estimate and bands, motor-out margin by payload |
+| `History.dc.html` | Parameter history: change sets with their measured effect, and the change behind a shift |
+| `Incidents.dc.html` | Flight timeline: every source on one axis, first fault, failsafes checked, lead time, near misses |
+| `Links.dc.html` | Flight links: loss, outages, latency and joystick input over the radio, signal against distance, antenna pattern |
+| `Navigation.dc.html` | Flight navigation and GNSS: events and their class, how the aircraft coped, readiness without GNSS |
+| `RecoveryCard.dc.html` | Printable recovery card per airframe |
+| `Weather.dc.html` | Flight weather: the record, measured against model wind, wind envelope |
+| `SettingsWeather.dc.html` | Settings: weather key and download status |
 
 All data in the mock-ups is illustrative.
