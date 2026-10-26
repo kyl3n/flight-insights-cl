@@ -15,6 +15,8 @@ from collections.abc import Callable, Mapping
 from dataclasses import dataclass, field
 from typing import TYPE_CHECKING, Any, Literal
 
+import numpy as np
+
 if TYPE_CHECKING:
     from flight_insights.analyzers.flight import FlightData
     from flight_insights.analyzers.registry import Registry
@@ -46,6 +48,14 @@ class Evidence:
     fields: tuple[str, ...] = ()
     segment: Segment | None = None
     values: Mapping[str, Any] = field(default_factory=dict[str, Any])
+
+    def __post_init__(self) -> None:
+        # Values are scalars, or short lists of them: never an array or a local track,
+        # which could carry where the aircraft flew into a result.
+        for key, value in self.values.items():
+            kind = str(type(value).__name__)  # pyright: ignore[reportUnknownArgumentType]
+            if isinstance(value, np.ndarray) or kind == "LocalTrack":
+                raise TypeError(f"evidence {self.id}: {key} must be a scalar, not {kind}")
 
 
 @dataclass(frozen=True)

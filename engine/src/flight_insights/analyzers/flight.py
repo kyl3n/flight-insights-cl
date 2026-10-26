@@ -13,9 +13,12 @@ from collections.abc import Mapping
 from dataclasses import dataclass, field
 from typing import Any
 
+import numpy as np
 import pyarrow as pa
 
+from flight_insights.analyzers.local_track import LocalTrack, from_coordinates
 from flight_insights.analyzers.model import Segment
+from flight_insights.dataflash import si
 from flight_insights.history.persist import load_snapshot
 from flight_insights.knowledge import Pack
 from flight_insights.store.cache import ColumnCache
@@ -127,6 +130,33 @@ class FlightData:
             )
         return self._tables[key]
 
+    def local_track(self) -> LocalTrack | None:
+        """Where the aircraft was relative to its first fix, in metres (local_track.py),
+        from the estimator's position (POS), else the first GNSS receiver's. This is the
+        one place analysis reads positions, through the cache's positions key; what it
+        returns holds no coordinates and refuses to leave the analysis."""
+        if self.cache is None:
+            return None
+        for name, lat, lon, alt in (("POS", "Lat", "Lng", "Alt"), ("GPS", "Lat", "Lng", "Alt")):
+            if not self.has(name):
+                continue
+            columns = ["TimeUS", lat, lon, alt]
+            table = self.cache.read(self.key, name, [*columns, "I"] if name == "GPS" else columns,
+                                    positions=True)  # fmt: skip
+            if table.num_rows == 0 or any(c not in table.column_names for c in columns):
+                continue
+            rows = np.ones(table.num_rows, bool)
+            if "I" in table.column_names:
+                rows = np.asarray(table.column("I").to_numpy(zero_copy_only=False)) == 0
+            track = from_coordinates(
+                np.asarray(table.column("TimeUS").to_numpy(zero_copy_only=False), np.int64)[rows],
+                _degrees(table, lat)[rows], _degrees(table, lon)[rows],
+                si.values(table, alt)[rows],
+            )  # fmt: skip
+            if track is not None:
+                return track
+        return None
+
     def tlog(
         self, name: str, columns: list[str] | None = None
     ) -> list[tuple[Mapping[str, Any], pa.Table]]:
@@ -165,3 +195,10 @@ class FlightData:
             for w in self.fingerprint.get("hover_windows", [])
             if self.arm_us <= int(w["start_us"]) and int(w["end_us"]) <= self.disarm_us
         ]
+
+
+def _degrees(table: pa.Table, name: str) -> np.ndarray[Any, np.dtype[np.float64]]:
+    values = si.values(table, name)
+    if "e7" in si.unit(table, name).lower() and np.nanmax(np.abs(values), initial=0.0) > 180:
+        values = values * 1e-7  # degE7 not yet scaled by its multiplier
+    return values
