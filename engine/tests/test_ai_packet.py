@@ -84,7 +84,9 @@ def test_numbers_are_rounded_to_what_reasoning_needs() -> None:
     [("copter-heavylift-loaded.bin", "copter"), ("plane-circuit.bin", "plane"),
      ("heli-hover.bin", "copter"), ("quadplane-hover.bin", "plane"),
      ("copter-quad-tune-default.bin", "copter"), ("copter-quad-tune-low.bin", "copter"),
-     ("copter-quad-autotune-saved.bin", "copter")],
+     ("copter-quad-autotune-saved.bin", "copter"),
+     # flights with failsafes, whose error times in µs once stopped the packet
+     ("copter-quad-fs-gcs.bin", "copter"), ("copter-quad-fs-off.bin", "copter")],
 )  # fmt: skip
 def test_each_fixture_makes_a_packet_that_may_leave(
     engine: tuple[Any, Any, Path], log: str, vehicle: str

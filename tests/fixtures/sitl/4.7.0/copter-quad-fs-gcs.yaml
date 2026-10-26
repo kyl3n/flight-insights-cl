@@ -1,0 +1,21 @@
+source: sitl
+vehicle: copter
+frame: quad +
+firmware: 4.7.0
+ardupilot_commit: 1511f27194f1dcc3728270883047bdf022b3fd53
+scenario: copter-quad-fs-gcs
+description: 'GUIDED take-off to 5 m with the ground station''s heartbeats on, then
+  none: the GCS failsafe (FS_GCS_ENABLE 1) returns and lands.'
+parameters_set:
+  LOG_DISARMED: 0
+  SIM_ESC_TELEM: 0
+  LOG_FILE_RATEMAX: 10
+  FS_GCS_ENABLE: 1
+faults:
+- kind: other
+  description: ground-station link lost (heartbeats stop)
+expected:
+- ERR FAILSAFE_GCS about 5 s after MAV.mgs stops advancing (FS_GCS_TIMEOUT 5)
+- 'MODE RTL with reason GCS_FAILSAFE in the same loop: as configured, on time'
+- RTL lands and disarms
+- 'steady hover windows: 14 s in GUIDED'

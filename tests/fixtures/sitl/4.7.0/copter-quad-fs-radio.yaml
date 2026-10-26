@@ -1,0 +1,29 @@
+source: sitl
+vehicle: copter
+frame: quad +
+firmware: 4.7.0
+ardupilot_commit: 1511f27194f1dcc3728270883047bdf022b3fd53
+scenario: copter-quad-fs-radio
+description: "GUIDED take-off to 5 m, then the receiver's failsafe output (throttle\
+  \ 950 \xB5s, under FS_THR_VALUE 975) with FS_THR_ENABLE 4, SmartRTL or RTL, and\
+  \ SmartRTL unavailable (SRTL_POINTS 0): the failsafe falls back to RTL."
+parameters_set:
+  LOG_DISARMED: 0
+  SIM_ESC_TELEM: 0
+  LOG_FILE_RATEMAX: 10
+  SRTL_POINTS: 0
+  FS_THR_ENABLE: 4
+faults:
+- kind: other
+  description: RC link lost (receiver failsafe throttle)
+  parameters:
+  - SIM_RC_FAIL
+- kind: parameter-error
+  description: SmartRTL unavailable
+  parameters:
+  - SRTL_POINTS
+expected:
+- RCIN.C3 under FS_THR_VALUE, then ERR FAILSAFE_RADIO within three frames
+- 'MODE RTL with reason RADIO_FAILSAFE: a fallback, SmartRTL could not start'
+- RTL lands and disarms
+- 'steady hover windows: 10 s in GUIDED'

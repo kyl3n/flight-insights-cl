@@ -1,0 +1,29 @@
+source: sitl
+vehicle: copter
+frame: quad +
+firmware: 4.7.0
+ardupilot_commit: 1511f27194f1dcc3728270883047bdf022b3fd53
+scenario: copter-quad-fs-battery
+description: 'GUIDED take-off to 10 m, then the simulated pack to 10.5 V and 8.5 V:
+  the low stage''s RTL, then the critical stage''s LAND.'
+parameters_set:
+  LOG_DISARMED: 0
+  SIM_ESC_TELEM: 0
+  LOG_FILE_RATEMAX: 10
+  BATT_LOW_VOLT: 11
+  BATT_CRT_VOLT: 9
+  BATT_LOW_TIMER: 2
+  BATT_FS_LOW_ACT: 2
+  BATT_FS_CRT_ACT: 1
+faults:
+- kind: other
+  description: the pack run down to low, then critical
+  parameters:
+  - SIM_BATT_VOLTAGE
+expected:
+- 'ERR FAILSAFE_BATT 2.1 s after BAT.Volt drops under BATT_LOW_VOLT 11 (BATT_LOW_TIMER
+  2, checked at 10 Hz): MODE RTL, reason BATTERY_FAILSAFE'
+- 'a second ERR FAILSAFE_BATT 2.1 s after BAT.Volt drops under BATT_CRT_VOLT 9: MODE
+  LAND'
+- LAND lands and disarms
+- 'steady hover windows: 8 s in GUIDED; 6 s in RTL'

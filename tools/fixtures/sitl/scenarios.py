@@ -274,6 +274,51 @@ def quadplane_hover(v: Vehicle) -> None:
     land_and_disarm(v, "QLAND")
 
 
+def failsafe_takeoff(v: Vehicle, altitude: float = 5) -> None:
+    v.mode("GUIDED")
+    v.arm()
+    v.command(ML.MAV_CMD_NAV_TAKEOFF, 0, 0, 0, 0, 0, 0, altitude)
+    v.wait_altitude(altitude - 0.5)
+    v.hold(3)
+
+
+def gcs_loss(v: Vehicle) -> None:
+    """Heartbeats from take-off, then none: the GCS failsafe's RTL lands the aircraft."""
+    v.heartbeats(True)
+    failsafe_takeoff(v)
+    v.heartbeats(False)
+    v.wait_disarmed(240)
+
+
+def battery_stages(v: Vehicle) -> None:
+    """The pack to 10.5 V (the low stage's RTL), then 8.5 V (the critical stage's LAND)."""
+    failsafe_takeoff(v, 10)
+    v.set_param("SIM_BATT_VOLTAGE", 10.5)
+    v.hold(5)
+    v.set_param("SIM_BATT_VOLTAGE", 8.5)
+    v.wait_disarmed(240)
+
+
+def radio_loss(v: Vehicle) -> None:
+    """The receiver's failsafe output (every channel neutral, throttle 950 µs): the radio
+    failsafe's RTL lands the aircraft."""
+    failsafe_takeoff(v)
+    v.set_param("SIM_RC_FAIL", 2)
+    v.wait_disarmed(240)
+
+
+def failsafes_off(v: Vehicle) -> None:
+    """The ground station lost, then the receiver, with both failsafes off: nothing
+    reacts, and the flight ends in LAND by command."""
+    v.heartbeats(True)
+    failsafe_takeoff(v)
+    v.heartbeats(False)
+    v.hold(8)
+    v.set_param("SIM_RC_FAIL", 2)
+    v.hold(3)
+    land_and_disarm(v)
+
+
 COPTER = dict(binary="arducopter", model="+", defaults=["default_params/copter.parm"])
 
 # Motor vibration and ESC telemetry as ArduPilot's DynamicRpmNotches autotest simulates
@@ -343,6 +388,10 @@ HEAVY_LIFT_FAULTS = [
         "parameters": ["MOT_HOVER_LEARN"],
     },
 ]
+# Failsafe flights log at no more than 10 Hz (LOG_FILE_RATEMAX): what the failsafe
+# analyzers read is logged at 10 Hz or slower (BAT, RCIN, RCI2, CTUN) or as events.
+FAILSAFE_LOGGING = {"LOG_DISARMED": 0, "SIM_ESC_TELEM": 0, "LOG_FILE_RATEMAX": 10}
+
 HEAVY_LIFT_EXPECTED = [
     "one armed period with about 14 s of steady hover at 5 m",
     "raw IMU logged during the hover only",
@@ -593,6 +642,125 @@ SCENARIOS: dict[str, Scenario] = {
             ],
             fly=quadplane_hover,
             params={"RC_OVERRIDE_TIME": -1},
+        ),
+        Scenario(
+            name="copter-quad-fs-gcs",
+            vehicle="copter",
+            frame="quad +",
+            description=(
+                "GUIDED take-off to 5 m with the ground station's heartbeats on, then none:"
+                " the GCS failsafe (FS_GCS_ENABLE 1) returns and lands."
+            ),
+            expected=[
+                "ERR FAILSAFE_GCS about 5 s after MAV.mgs stops advancing (FS_GCS_TIMEOUT 5)",
+                "MODE RTL with reason GCS_FAILSAFE in the same loop: as configured, on time",
+                "RTL lands and disarms",
+                "steady hover windows: 14 s in GUIDED",
+            ],
+            fly=gcs_loss,
+            params={"FS_GCS_ENABLE": 1},
+            boot_params=FAILSAFE_LOGGING,
+            faults=[{"kind": "other", "description": "ground-station link lost (heartbeats stop)"}],
+            **COPTER,  # type: ignore[arg-type]
+        ),
+        Scenario(
+            name="copter-quad-fs-battery",
+            vehicle="copter",
+            frame="quad +",
+            description=(
+                "GUIDED take-off to 10 m, then the simulated pack to 10.5 V and 8.5 V: the"
+                " low stage's RTL, then the critical stage's LAND."
+            ),
+            expected=[
+                "ERR FAILSAFE_BATT 2.1 s after BAT.Volt drops under BATT_LOW_VOLT 11"
+                " (BATT_LOW_TIMER 2, checked at 10 Hz): MODE RTL, reason BATTERY_FAILSAFE",
+                "a second ERR FAILSAFE_BATT 2.1 s after BAT.Volt drops under BATT_CRT_VOLT 9:"
+                " MODE LAND",
+                "LAND lands and disarms",
+                "steady hover windows: 8 s in GUIDED; 6 s in RTL",
+            ],
+            fly=battery_stages,
+            params={
+                "BATT_LOW_VOLT": 11,
+                "BATT_CRT_VOLT": 9,
+                "BATT_LOW_TIMER": 2,
+                "BATT_FS_LOW_ACT": 2,
+                "BATT_FS_CRT_ACT": 1,
+            },
+            boot_params=FAILSAFE_LOGGING,
+            faults=[
+                {
+                    "kind": "other",
+                    "description": "the pack run down to low, then critical",
+                    "parameters": ["SIM_BATT_VOLTAGE"],
+                }
+            ],
+            **COPTER,  # type: ignore[arg-type]
+        ),
+        Scenario(
+            name="copter-quad-fs-radio",
+            vehicle="copter",
+            frame="quad +",
+            description=(
+                "GUIDED take-off to 5 m, then the receiver's failsafe output (throttle 950 µs,"
+                " under FS_THR_VALUE 975) with FS_THR_ENABLE 4, SmartRTL or RTL, and SmartRTL"
+                " unavailable (SRTL_POINTS 0): the failsafe falls back to RTL."
+            ),
+            expected=[
+                "RCIN.C3 under FS_THR_VALUE, then ERR FAILSAFE_RADIO within three frames",
+                "MODE RTL with reason RADIO_FAILSAFE: a fallback, SmartRTL could not start",
+                "RTL lands and disarms",
+                "steady hover windows: 10 s in GUIDED",
+            ],
+            fly=radio_loss,
+            params={"FS_THR_ENABLE": 4},
+            boot_params=FAILSAFE_LOGGING | {"SRTL_POINTS": 0},
+            faults=[
+                {
+                    "kind": "other",
+                    "description": "RC link lost (receiver failsafe throttle)",
+                    "parameters": ["SIM_RC_FAIL"],
+                },
+                {
+                    "kind": "parameter-error",
+                    "description": "SmartRTL unavailable",
+                    "parameters": ["SRTL_POINTS"],
+                },
+            ],
+            **COPTER,  # type: ignore[arg-type]
+        ),
+        Scenario(
+            name="copter-quad-fs-off",
+            vehicle="copter",
+            frame="quad +",
+            description=(
+                "GUIDED take-off to 5 m with the ground station's heartbeats on, then none,"
+                " then the receiver's failsafe output, with both failsafes off"
+                " (FS_GCS_ENABLE 0, FS_THR_ENABLE 0): nothing reacts; LAND by command."
+            ),
+            expected=[
+                "MAV.mgs stops advancing and the throttle drops under FS_THR_VALUE while armed",
+                "no ERR FAILSAFE_GCS or FAILSAFE_RADIO",
+                "LAND by command (reason GCS_COMMAND), then disarm",
+                "steady hover windows: 14 s in GUIDED",
+            ],
+            fly=failsafes_off,
+            params={"FS_GCS_ENABLE": 0, "FS_THR_ENABLE": 0},
+            boot_params=FAILSAFE_LOGGING,
+            faults=[
+                {"kind": "other", "description": "ground-station link lost (heartbeats stop)"},
+                {
+                    "kind": "other",
+                    "description": "RC link lost (receiver failsafe throttle)",
+                    "parameters": ["SIM_RC_FAIL"],
+                },
+                {
+                    "kind": "parameter-error",
+                    "description": "GCS and radio failsafes off",
+                    "parameters": ["FS_GCS_ENABLE", "FS_THR_ENABLE"],
+                },
+            ],
+            **COPTER,  # type: ignore[arg-type]
         ),
     ]
 }
