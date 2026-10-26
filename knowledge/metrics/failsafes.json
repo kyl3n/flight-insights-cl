@@ -66,6 +66,117 @@
         "en": "Nothing reacted to the loss, because its failsafe is off. Decide whether the aircraft can fly on safely whenever this happens: with no other control link, or a battery that low, it cannot, so switch the failsafe on (the configuration review proposes a setting).",
         "uk": "На втрату ніщо не зреагувало, бо аварійний режим вимкнено. Вирішіть, чи може апарат безпечно летіти далі щоразу, коли таке стається: без іншого каналу керування чи з такою розрядженою батареєю — ні, тож увімкніть аварійний режим (огляд конфігурації пропонує налаштування)."
       }
+    },
+    "failsafe.battery_near_miss": {
+      "stage": "operations",
+      "title": {
+        "en": "The battery failsafe came within {left} of firing at {at_s} s ({what})",
+        "uk": "Аварійному режиму батареї бракувало {left}, щоб спрацювати на {at_s} с ({what})"
+      },
+      "action": {
+        "en": "A near miss: the pack was close to its failsafe on this flight. Check the pack's health and resistance, plan shorter flights or a bigger reserve with this payload, and check the current sensor's calibration if the charge used looks wrong.",
+        "uk": "Майже аварія: батарея була близько до аварійного режиму в цьому польоті. Перевірте стан і опір батареї, плануйте коротші польоти або більший запас із цим вантажем і перевірте калібрування датчика струму, якщо використаний заряд виглядає неправильно."
+      }
+    },
+    "failsafe.lead_time": {
+      "stage": "operations",
+      "title": {
+        "en": "{failsafe} failsafe at {at_s} s: {first} gave the first warning, {lead_s} s before",
+        "uk": "Аварійний режим «{failsafe}» на {at_s} с: першим попередив показник «{first}», за {lead_s} с до того"
+      },
+      "action": {
+        "en": "Use the earliest warning to act sooner next time: {warned} of {watched} precursors warned before it. Once the fleet has more failsafes, the app ranks which precursors warn earliest and how often they warn with nothing following.",
+        "uk": "Використайте найраніше попередження, щоб наступного разу діяти раніше: попередили {warned} з {watched} показників. Коли у флоту буде більше аварійних режимів, застосунок визначить, які показники попереджають найраніше і як часто попереджають даремно."
+      }
+    },
+    "failsafe.unwarned": {
+      "stage": "operations",
+      "title": {
+        "en": "{failsafe} failsafe at {at_s} s: none of the {watched} precursors the log holds warned before it",
+        "uk": "Аварійний режим «{failsafe}» на {at_s} с: жоден із {watched} показників у журналі не попередив про нього"
+      },
+      "action": {
+        "en": "The loss came without warning in what the log holds: a sudden cause such as a cable, a connector, power to the radio or the ground station itself. Check those first.",
+        "uk": "Втрата сталася без попередження в тому, що є в журналі: раптова причина, як-от кабель, роз'єм, живлення радіомодема чи сама наземна станція. Спершу перевірте їх."
+      }
+    }
+  },
+  "metrics": {
+    "failsafe.battery_low_run": {
+      "name": {
+        "en": "Longest low-voltage spell",
+        "uk": "Найдовший проміжок низької напруги"
+      },
+      "unit": "",
+      "direction": "lower",
+      "definition": {
+        "en": "The longest the voltage the battery failsafe uses stayed under BATT_LOW_VOLT while armed, as a share of BATT_LOW_TIMER: at 1 the low-battery failsafe is due.",
+        "uk": "Найдовший час, коли напруга, за якою стежить аварійний режим батареї, трималася нижче BATT_LOW_VOLT під час взведення, як частка BATT_LOW_TIMER: при 1 мав спрацювати аварійний режим низького заряду."
+      },
+      "method": {
+        "en": "BAT is logged just before the firmware checks: the voltage it names (Volt, or VoltR with BATT_FS_VOLTSRC 1), each run of samples under BATT_LOW_VOLT timed from its first, the longest over BATT_LOW_TIMER. The worst monitor counts.",
+        "uk": "BAT записується якраз перед перевіркою прошивки: напруга, яку вона використовує (Volt або VoltR при BATT_FS_VOLTSRC 1), кожна серія відліків нижче BATT_LOW_VOLT від першого з них, найдовша, поділена на BATT_LOW_TIMER. Рахується найгірший монітор."
+      },
+      "messages": [
+        "BAT"
+      ],
+      "zones": {
+        "target": [
+          null,
+          0.4
+        ],
+        "caution": [
+          0.4,
+          1
+        ],
+        "out": [
+          1,
+          null
+        ]
+      },
+      "source": {
+        "kind": "ardupilot",
+        "title": "AP_BattMonitor::check_failsafes at Copter-4.7.0: the low-voltage failsafe fires once the voltage has stayed under BATT_LOW_VOLT for BATT_LOW_TIMER, and the capacity failsafe once the charge used passes BATT_CAPACITY less BATT_LOW_MAH (the caution bands' starts are the app's)",
+        "url": "https://github.com/ArduPilot/ardupilot/blob/Copter-4.7.0/libraries/AP_BattMonitor/AP_BattMonitor_Backend.cpp"
+      }
+    },
+    "failsafe.battery_charge": {
+      "name": {
+        "en": "Charge used of the failsafe budget",
+        "uk": "Використаний заряд від запасу до аварійного режиму"
+      },
+      "unit": "",
+      "direction": "lower",
+      "definition": {
+        "en": "The most charge used while armed, as a share of BATT_CAPACITY less BATT_LOW_MAH: at 1 the low-capacity failsafe fires.",
+        "uk": "Найбільший використаний заряд під час взведення як частка BATT_CAPACITY мінус BATT_LOW_MAH: при 1 спрацьовує аварійний режим низької ємності."
+      },
+      "method": {
+        "en": "BAT.CurrTot at its highest while armed, over BATT_CAPACITY less BATT_LOW_MAH. The worst monitor counts. It follows the current sensor's calibration.",
+        "uk": "Найбільше значення BAT.CurrTot під час взведення, поділене на BATT_CAPACITY мінус BATT_LOW_MAH. Рахується найгірший монітор. Залежить від калібрування датчика струму."
+      },
+      "messages": [
+        "BAT"
+      ],
+      "zones": {
+        "target": [
+          null,
+          0.8
+        ],
+        "caution": [
+          0.8,
+          1
+        ],
+        "out": [
+          1,
+          null
+        ]
+      },
+      "source": {
+        "kind": "ardupilot",
+        "title": "AP_BattMonitor::check_failsafes at Copter-4.7.0: the low-voltage failsafe fires once the voltage has stayed under BATT_LOW_VOLT for BATT_LOW_TIMER, and the capacity failsafe once the charge used passes BATT_CAPACITY less BATT_LOW_MAH (the caution bands' starts are the app's)",
+        "url": "https://github.com/ArduPilot/ardupilot/blob/Copter-4.7.0/libraries/AP_BattMonitor/AP_BattMonitor_Backend.cpp"
+      }
     }
   }
 }

@@ -1,0 +1,29 @@
+{
+  "about": "Failsafe precursors (spec: Failsafe causes and RF early warning, lead-time analysis and near misses). Each precursor is a series from the log or tlog with a caution band. Where a metric already defines the band (its target zone), the series is judged by that metric's zones, so a flight's metric and its warnings agree. Before each failsafe, the first time each of its precursors left its target band within the look-back window is its lead time. The bands are the app's starting points, to be tuned across the fleet for the longest useful lead at an acceptable false-alarm rate, so the pack marks them uncalibrated.",
+  "calibrated": false,
+  "lookback_s": 300,
+  "window_s": 10,
+  "window_packets": 20,
+  "precursors": {
+    "FAILSAFE_GCS": {
+      "gcs_silence": {"metric": "link.gcs_silence_share"},
+      "uplink_loss": {"metric": "link.uplink_loss"},
+      "downlink_loss": {"metric": "link.downlink_loss"},
+      "txbuf": {"below": 50}
+    },
+    "FAILSAFE_BATT": {
+      "low_voltage": {"metric": "failsafe.battery_low_run"},
+      "headroom": {"below_pct": 3.0},
+      "charge": {"metric": "failsafe.battery_charge"}
+    },
+    "FAILSAFE_RADIO": {
+      "receiver_flag": {"any": true}
+    }
+  },
+  "sources": [
+    "ArduCopter 4.7.0 events.cpp failsafe_gcs_check (FS_GCS_TIMEOUT from the newest last-heard time) and AP_BattMonitor::check_failsafes (the voltage under BATT_LOW_VOLT for BATT_LOW_TIMER; the charge used past BATT_CAPACITY less BATT_LOW_MAH at once)",
+    "libraries/GCS_MAVLink/GCS_Common.cpp at Copter-4.7.0, handle_radio_status: with under 50% of the radio's buffer free every stream is slowed (rules/links.json)",
+    "AP_BattMonitor VoltR, the voltage with the pack's resistance times its current added back: the sag-compensated voltage the spec's battery precursor follows. The 3% band (about 0.1 V a cell at 3.5 V a cell) is the app's",
+    "libraries/AP_Logger/LogFile.cpp at Copter-4.7.0, Write_RCIN: RCI2.Flags bit 2, the receiver's own failsafe flag, after which frames stop counting as input"
+  ]
+}

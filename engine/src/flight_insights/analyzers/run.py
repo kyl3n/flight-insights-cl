@@ -33,6 +33,7 @@ from flight_insights.analyzers.options import OPTIONS
 from flight_insights.analyzers.params_audit import PARAMS_AUDIT
 from flight_insights.analyzers.payload import PAYLOAD
 from flight_insights.analyzers.power import POWER
+from flight_insights.analyzers.precursors import PRECURSORS
 from flight_insights.analyzers.rate_health import RATE_HEALTH
 from flight_insights.analyzers.rate_tune import RATE_TUNE
 from flight_insights.analyzers.registry import Registry
@@ -47,8 +48,9 @@ from flight_insights.tlog import sessions as tlog_sessions
 log = logging.getLogger(__name__)
 
 ANALYZERS: tuple[Analyzer, ...] = (
-    LOG_ADEQUACY, SYSTEM, FAILSAFES, LINKS, VIBRATION, ESC_RPM, FILTER_MODEL, FILTERS, POWER,
-    MOTORS_HEALTH, BUSES, PAYLOAD, TUNE, RATE_TUNE, RATE_HEALTH, AUTOTUNE, OPTIONS, PARAMS_AUDIT,
+    LOG_ADEQUACY, SYSTEM, FAILSAFES, LINKS, PRECURSORS, VIBRATION, ESC_RPM, FILTER_MODEL,
+    FILTERS, POWER, MOTORS_HEALTH, BUSES, PAYLOAD, TUNE, RATE_TUNE, RATE_HEALTH, AUTOTUNE,
+    OPTIONS, PARAMS_AUDIT,
 )  # fmt: skip
 
 
