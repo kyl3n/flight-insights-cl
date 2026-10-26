@@ -17,3 +17,4 @@ expected:
 - ATUN rows for roll only, the tune stopped part-way
 - the gains at the end of the log are the gains at its start
 - 'LOG_FILE_RATEMAX 25 for a small log: streamed messages at 25 Hz'
+- 'steady hover windows: 20 s in ALT_HOLD; 7 s in AUTOTUNE (between twitches)'
