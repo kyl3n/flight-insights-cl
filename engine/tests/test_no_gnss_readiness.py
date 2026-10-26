@@ -37,9 +37,8 @@ def reg() -> Registry:
     return Registry.load(load_pack())
 
 
-def run(reg: Registry, answers: dict[str, Any] | None = None, fp: dict[str, Any] | None = None,
-        **params: float) -> Result:  # fmt: skip
-    return NO_GNSS_READINESS.run(hover_flight({}, STOCK | params, fp, answers), reg)
+def run(reg: Registry, **params: float) -> Result:
+    return NO_GNSS_READINESS.run(hover_flight({}, STOCK | params), reg)
 
 
 def found(r: Result) -> dict[str, dict[str, Any]]:
@@ -108,7 +107,9 @@ def test_a_source_set_one_that_copes_needs_no_switch(reg: Registry) -> None:
      ({"EK3_SRC1_YAW": 3.0, "COMPASS_USE": 0.0, "COMPASS_USE2": 0.0, "COMPASS_USE3": 0.0},
       True)],  # ... but no compass in use
 )  # fmt: skip
-def test_a_heading_that_goes_with_gnss(reg: Registry, params: dict[str, float], risky: bool) -> None:
+def test_a_heading_that_goes_with_gnss(
+    reg: Registry, params: dict[str, float], risky: bool
+) -> None:
     r = run(reg, **params)
     assert ("no_gnss.heading_needs_gnss" in found(r)) is risky
     if risky:
@@ -128,7 +129,8 @@ def test_drag_fusion_follows_the_firmwares_thresholds(reg: Registry) -> None:
     assert not off(EK3_DRAG_BCOEF_X=1.5)
     assert not off(EK3_DRAG_MCOEF=0.1)
     assert off(EK3_DRAG_MCOEF=0.001)
-    severe = run(reg, answers={"flies_without_gnss": True})
+    flies = hover_flight({}, STOCK, None, {"flies_without_gnss": True})
+    severe = NO_GNSS_READINESS.run(flies, reg)
     assert found(severe)["no_gnss.drag_fusion_off"]["severity"] == "caution"
 
 
