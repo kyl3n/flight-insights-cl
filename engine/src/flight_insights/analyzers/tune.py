@@ -19,6 +19,7 @@ from collections.abc import Mapping, Sequence
 from typing import Any
 
 import numpy as np
+import pyarrow as pa
 
 from flight_insights.analyzers.flight import FlightData
 from flight_insights.analyzers.model import (
@@ -46,14 +47,19 @@ Array = np.ndarray[Any, Any]
 TO_DEG_S = {"deg/s": 1.0, "rad/s": 180.0 / math.pi}
 
 
-def rate_hz(flight: FlightData) -> float:
-    """How often RATE was logged while armed; 0 when it was not."""
-    rate = flight.table("RATE", ["TimeUS"])
-    if rate is None or rate.num_rows < 3:
+def logged_hz(flight: FlightData, message: str) -> float:
+    """How often a message was logged while armed; 0 when it was not."""
+    table = flight.table(message, ["TimeUS"])
+    if table is None or table.num_rows < 3:
         return 0.0
-    t = np.asarray(rate.column("TimeUS").to_numpy(), np.int64)
+    t = np.asarray(table.column("TimeUS").to_numpy(), np.int64)
     t = t[(t >= flight.arm_us) & (t <= flight.disarm_us)]
     return 1e6 / float(np.median(np.diff(t))) if len(t) > 2 else 0.0
+
+
+def rate_hz(flight: FlightData) -> float:
+    """How often RATE was logged while armed; 0 when it was not."""
+    return logged_hz(flight, "RATE")
 
 
 def needed_hz(flight: FlightData, reg: Registry) -> float:
@@ -63,7 +69,7 @@ def needed_hz(flight: FlightData, reg: Registry) -> float:
     return min(float(rules["min_rate_hz"]), float(rules["loop_share"]) * loop)
 
 
-def _modes(flight: FlightData, reg: Registry) -> list[tuple[int, int, str]]:
+def modes(flight: FlightData, reg: Registry) -> list[tuple[int, int, str]]:
     table = flight.table("MODE", ["TimeUS", "ModeNum"])
     if table is None or table.num_rows == 0:
         return []
@@ -77,7 +83,7 @@ def _modes(flight: FlightData, reg: Registry) -> list[tuple[int, int, str]]:
     return [(start, end, name) for (start, name), end in zip(rows, ends, strict=True)]
 
 
-def _limited(flight: FlightData, axis: str, bit: int) -> Array | None:
+def limited(flight: FlightData, axis: str, bit: int) -> Array | None:
     table = flight.table(PID_MESSAGES[axis], ["TimeUS", "Flags"])
     if table is None or table.num_rows == 0:
         return None
@@ -86,7 +92,7 @@ def _limited(flight: FlightData, axis: str, bit: int) -> Array | None:
     return t[(flags >> bit & 1).astype(bool)]
 
 
-def _height(flight: FlightData) -> tuple[Array, Array] | None:
+def height(flight: FlightData) -> tuple[Array, Array] | None:
     table = flight.table("CTUN", ["TimeUS", "Alt"])
     if table is None or table.num_rows == 0 or si.unit(table, "Alt") != "m":
         return None
@@ -96,6 +102,16 @@ def _height(flight: FlightData) -> tuple[Array, Array] | None:
     if not len(after):
         return None
     return t, alt - alt[after[0]]
+
+
+def rates(rate: pa.Table, axis: str) -> tuple[Array, Array] | None:
+    """An axis's rate target and measured rate in deg/s, in the unit the log names."""
+    target_name, actual_name = RATE_FIELDS[axis]
+    unit = si.unit(rate, target_name)
+    if unit not in TO_DEG_S or si.unit(rate, actual_name) != unit:
+        return None
+    k = TO_DEG_S[unit]
+    return si.values(rate, target_name) * k, si.values(rate, actual_name) * k
 
 
 def _stick(flight: FlightData, axis: str, rules: Mapping[str, Any]) -> tuple[Array, Array] | None:
@@ -143,20 +159,18 @@ def _tune(flight: FlightData, reg: Registry) -> Result:
     tracking: Mapping[str, Any] = rules["tracking"]
     t = np.asarray(rate.column("TimeUS").to_numpy(), np.int64)
     armed = (t >= flight.arm_us) & (t <= flight.disarm_us)
-    modes, height = _modes(flight, reg), _height(flight)
+    flown, heights = modes(flight, reg), height(flight)
     out = Result()
     per_axis: dict[str, list[Event]] = {}
     for axis in AXES:
-        target_name, actual_name = RATE_FIELDS[axis]
-        unit = si.unit(rate, target_name)
-        if unit not in TO_DEG_S or si.unit(rate, actual_name) != unit:
+        both = rates(rate, axis)
+        if both is None:
             continue
-        k = TO_DEG_S[unit]
-        target, actual = si.values(rate, target_name) * k, si.values(rate, actual_name) * k
+        target, actual = both
         signals = Signals(
-            modes=modes,
-            limited=_limited(flight, axis, int(found_rules["limit_flag"])),
-            height=height,
+            modes=flown,
+            limited=limited(flight, axis, int(found_rules["limit_flag"])),
+            height=heights,
             stick=_stick(flight, axis, found_rules),
         )
         found = events(axis, t[armed], target[armed], actual[armed], signals, found_rules)

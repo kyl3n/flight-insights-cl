@@ -58,5 +58,49 @@
     "libraries/AP_Logger/LogFile.cpp AP_Logger::Write_PID at 4.7.0: Flags bit 0 LIMIT (output saturated, I-term anti-windup active), bit 1 PD_SUM_LIMIT, bit 2 RESET, bit 3 I_TERM_SET.",
     "ArduCopter/Log.cpp Log_Write_Control_Tuning at 4.7.0: CTUN.Alt is the position estimate's height above the EKF origin; heights here are taken from it relative to the moment of arming.",
     "libraries/RC_Channel/RC_Channel.cpp at 4.7.0: RCn_MIN 1100, RCn_TRIM 1500, RCn_MAX 1900 by default; ArduCopter/radio.cpp sets the roll and pitch dead zones to 20 and yaw's to 15 or 20. The log's own values are used; the defaults stand in only where a value is missing."
-  ]
+  ],
+  "response": {
+    "about": "The rate loop's frequency and step responses come from every stretch that measures the rate loop alone: flown in a stick mode, at least min_height_m above take-off (the excitation rules), with no gap in the log, and away from the rate PID's saturation by saturation_pad_s either side. The loop's own target and measured rate are the rate PID's Tar (after ATC_RAT_*_FLTT) and Act. Through the attitude loop, gusts move the target as well as the rate, so both responses are read through an instrument the stick sets and gusts do not: the rate of the attitude target (ANG), which input shaping makes from the stick alone. Frequency response: Giy/Gix from Welch cross-spectra with windows of the power of two nearest rate / resolution_hz samples; each bin's random error is estimated from the instrument's coherences with the target and the rate and the number of windows (Bendat and Piersol), and the measured band runs up from low_hz to the first bin whose error is over max_error, or to high_hz. The sensitivity peak counts only when the band reaches peak_reach times its frequency and |1 - H| falls to peak_drop of it on the way; one still rising at the band's top is not measured. At least min_windows windows. Step response: an impulse response step_s long from the instrumental-variable Wiener-Hopf equations with loading times the instrument-target correlation at lag 0 on the diagonal, over blocks of block_s, taken only when the frequency response is measured past its bandwidth: a step's rise and overshoot rest on the response up to it and beyond. A stretch counts when its attitude target moves at min_instrument_rms_dps or more. Intervals: a seeded bootstrap of resamples over windows and blocks. The sensitivity peak is |1 - H| only for a controller acting on the error alone, so it is given only when an axis's feed_forward parameters are all 0.",
+    "resolution_hz": 0.2,
+    "max_error": 0.1,
+    "peak_drop": 0.9,
+    "peak_reach": 1.2,
+    "low_hz": 0.3,
+    "high_hz": 40.0,
+    "step_s": 1.5,
+    "block_s": 5.0,
+    "loading": 0.001,
+    "saturation_pad_s": 0.25,
+    "min_windows": 8,
+    "min_blocks": 4,
+    "min_instrument_rms_dps": 5.0,
+    "feed_forward": {
+      "roll": [
+        "ATC_RAT_RLL_FF",
+        "ATC_RAT_RLL_D_FF"
+      ],
+      "pitch": [
+        "ATC_RAT_PIT_FF",
+        "ATC_RAT_PIT_D_FF"
+      ],
+      "yaw": [
+        "ATC_RAT_YAW_FF",
+        "ATC_RAT_YAW_D_FF"
+      ]
+    },
+    "resamples": 200,
+    "level": 0.95,
+    "seed": {
+      "roll": 11,
+      "pitch": 12,
+      "yaw": 13
+    },
+    "sources": [
+      "Welch, P. (1967), The use of the fast Fourier transform for the estimation of power spectra; Bendat and Piersol, Random Data, cross-spectra, ordinary coherence, and the normalized random error of a frequency response estimate, sqrt(1 - g) / (|g| sqrt(2 n)), for coherence g² = g and n averages.",
+      "Ljung, System Identification: Theory for the User (2nd ed., 1999), on identification in closed loop: the joint input-output approach to closed-loop identification, and the instrumental-variable method for data taken in closed loop, where the input is correlated with the disturbance.",
+      "Norbert Wiener (1949), the Wiener-Hopf equations for the least-squares FIR estimate of an impulse response from auto- and cross-correlations.",
+      "libraries/AC_AttitudeControl/AC_AttitudeControl_Logging.cpp at Copter-4.7.0: ANG (DesRoll, DesPitch, DesYaw: the attitude target) is written every loop with LOG_BITMASK bit 0. libraries/AC_PID/AC_PID.cpp update_all: PID Tar is the target after the FLTT filter, Act the measurement, and FF and D_FF add the target and its derivative to the output.",
+      "Astrom and Murray, Feedback Systems (2008), section 12.2: the sensitivity peak Ms; values of 1.2 to 2 are reasonable, and 1/Ms is the shortest distance from the loop's Nyquist curve to the critical point."
+    ]
+  }
 }
