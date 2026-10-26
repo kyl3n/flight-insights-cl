@@ -4,12 +4,15 @@
 # dependencies = ["numpy==2.3.3", "pymavlink==2.4.50", "pyyaml==6.0.2"]
 # ///
 """Check the motor frame table against ArduPilot SITL: fly each multirotor frame SITL
-has, with stick inputs on every axis, and fit each motor's output to what the mixer was
-asked for. The fitted factors must match knowledge/frames/<version>.json.
+has a model for, with System ID mode adding a chirp to the mixer's roll, pitch, yaw and
+throttle input in turn (SID_AXIS 10 to 13), and fit each motor's output to what the
+mixer was asked for. The fitted factors must match knowledge/frames/<version>.json.
 
-Copter logs RATE (the mixer's roll, pitch and yaw inputs, and its throttle) and RCOU
-(each motor's output) in the same 10 Hz logging call, so each RCOU row pairs with the
-RATE row just before it. With MOT_THST_EXPO 0 and MOT_BAT_VOLT_MAX 0 the mixer is linear
+RATE logs the mixer's roll, pitch and yaw inputs and its throttle; RCOU logs each
+motor's output at 10 Hz. With fast and medium attitude logging both on, System ID logs
+RATE every loop after the motors are output, so each RCOU row pairs exactly with the
+RATE row just before it (ArduCopter/Copter.cpp task order, mode_systemid.cpp). With
+MOT_THST_EXPO 0 and MOT_BAT_VOLT_MAX 0 the mixer is linear
 (AP_MotorsMatrix::output_armed_stabilizing, AP_Motors_Thrust_Linearization.cpp):
 
     PWM_i = a + b * (throttle * t_i + roll * r_i + pitch * p_i + yaw * y_i)
