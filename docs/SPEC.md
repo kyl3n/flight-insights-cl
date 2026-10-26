@@ -1209,7 +1209,7 @@ The default path goes from dropping a log to a loadable `.param` file in four sc
 
 ### Layout
 
-Screen mock-ups: [Flight Insights layout](https://claude.ai/artifact/J1biLycHF9oebSNh92wFhy) (source files in [`docs/mockups/`](mockups/)), covering the fleet overview, flight report, analysis workbench, trends with what changed, tuning plan, configuration review, platform setup, log import and metric explanations.
+Screen mock-ups: [Flight Insights layout](https://claude.ai/artifact/J1biLycHF9oebSNh92wFhy) (source files in [`docs/mockups/`](mockups/)), covering the fleet overview, flight report, analysis workbench, tune comparison, trends with what changed, tuning plan, configuration review, platform setup, log import and metric explanations.
 
 Rules that keep decisions easy:
 
@@ -1235,7 +1235,7 @@ Rules that keep decisions easy:
 | Incident timeline | Onboard events, tlog events, commands, warnings, bus errors, ground station session records, parameter and build changes on one time axis, first fault marked | Jump from any event to its data |
 | Weather | The flight's weather record, aircraft-measured against model wind, the airframe's wind envelope | Compare models; filter trends by wind and density |
 | Filter workbench | Pre- and post-filter spectra, spectrogram over time with motor RPM and notch centres overlaid, predicted spectrum, phase-lag readout | Edit candidate filter values and see the prediction update |
-| Tune | Step and frequency responses per axis, before and after | Overlay any two flights |
+| Tune | Tracking error per axis with its 95% interval against a flight of the same profile and payload band; step and frequency responses per axis, before and after; the stick inputs counted and those left out, with why; whether the plan improved the tune | Pick the flight to compare with, the payload band and the axis; open the tune-check card |
 | Propulsion and power | Per-motor output and RPM, temperatures, sag, battery resistance, thrust-model fit, motor-out margin by payload | Select motors and segments; see which motor loss is worst |
 | System and buses | CPU load, loop timing, latency budget, per-task CPU, bus and interface errors | Align with flight events; compare before and after a change |
 | Navigation and GNSS | Estimator innovations, GPS quality, jamming and spoofing events with their evidence, position-controller error statistics | Select segments |

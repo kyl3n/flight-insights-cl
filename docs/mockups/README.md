@@ -7,6 +7,7 @@ These are the source files of the Flight Insights layout canvas. The live, viewa
 | `Main.dc.html` | Fleet overview |
 | `FlightReport.dc.html` | Flight report |
 | `Workbench.dc.html` | Filter workbench |
+| `Tune.dc.html` | Tune: tracking error, step and frequency responses, against an earlier flight |
 | `ConfigReview.dc.html` | Configuration review |
 | `Trends.dc.html` | Trends and what changed |
 | `Plan.dc.html` | Tuning plan |

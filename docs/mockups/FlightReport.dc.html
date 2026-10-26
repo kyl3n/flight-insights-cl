@@ -195,7 +195,7 @@ class Component extends DCLogic {
       ['Payload', '≈ 4.2 kg, estimated'],
       ['Wind', '7 m/s, gusts 10 at flight height · forecast grade']
     ].map((f) => ({ k: f[0], v: f[1] }));
-    const tabNames = [['Overview', 'FlightReport.dc.html'], ['Timeline', 'FlightReport.dc.html'], ['Filters', 'Workbench.dc.html'], ['Tune', 'FlightReport.dc.html'], ['Propulsion', 'FlightReport.dc.html'], ['Navigation and GNSS', 'FlightReport.dc.html'], ['Links', 'FlightReport.dc.html'], ['System and buses', 'FlightReport.dc.html'], ['Weather', 'FlightReport.dc.html'], ['Parameters', 'Trends.dc.html']];
+    const tabNames = [['Overview', 'FlightReport.dc.html'], ['Timeline', 'FlightReport.dc.html'], ['Filters', 'Workbench.dc.html'], ['Tune', 'Tune.dc.html'], ['Propulsion', 'FlightReport.dc.html'], ['Navigation and GNSS', 'FlightReport.dc.html'], ['Links', 'FlightReport.dc.html'], ['System and buses', 'FlightReport.dc.html'], ['Weather', 'FlightReport.dc.html'], ['Parameters', 'Trends.dc.html']];
     const tabs = tabNames.map((t, i) => ({ label: t[0], href: t[1], c: i === 0 ? '#E7EAEE' : '#A3ACB6', line: i === 0 ? '#5AB0E8' : 'transparent' }));
     const subs = [
       ['Filters', 'caution', 'Caution', 'Noise passes notch at 92–110 Hz'],
