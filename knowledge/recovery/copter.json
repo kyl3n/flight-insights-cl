@@ -1,5 +1,5 @@
 {
-  "about": "The recovery card per airframe (spec: Flying without GNSS, 'Recommendations and recovery'): what the aircraft will do when GNSS is lost or spoofed with its current settings, how long it holds and how far it can go, and the operator's steps. Built by engine/src/flight_insights/recovery.py from the airframe's latest parameters, the readiness review and its measured outages. Placeholders are filled from those; each template is in English and Ukrainian.",
+  "about": "The recovery card per airframe (spec: Flying without GNSS, 'Recommendations and recovery'): what the aircraft will do when GNSS is lost or spoofed with its current settings, how long it holds and how far it can go, and the operator's steps; and what it will do when it loses a motor, at what weight it still can, and the operator's steps. Built by engine/src/flight_insights/recovery.py from the airframe's latest parameters, the readiness review and its measured outages. Placeholders are filled from those; each template is in English and Ukrainian.",
   "landing_tolerance_from": "rules/no_gnss.json landing_tolerance_m",
   "sensors": {
     "optical_flow": {
@@ -186,6 +186,86 @@
     "spoof.then": {
       "en": "Then follow \"GNSS lost\".",
       "uk": "Далі дійте за розділом «Втрата GNSS»."
+    },
+    "motor_lost": {
+      "en": "Motor or ESC lost",
+      "uk": "Відмова мотора чи ESC"
+    },
+    "will.motor_quad": {
+      "en": "come down: a quad cannot fly on three motors",
+      "uk": "знизиться: квадрокоптер не може летіти на трьох моторах"
+    },
+    "will.motor_no_balance": {
+      "en": "come down: no share of thrust between its other motors keeps it level",
+      "uk": "знизиться: жоден розподіл тяги між рештою моторів не втримає його рівно"
+    },
+    "will.motor_hold": {
+      "en": "hold height and heading on its other motors",
+      "uk": "утримає висоту й курс на решті моторів"
+    },
+    "will.motor_hold_level": {
+      "en": "hold height on its other motors, though it may turn",
+      "uk": "утримає висоту на решті моторів, хоча може розвертатися"
+    },
+    "will.motor_short": {
+      "en": "hold height on its other motors with little left to steer with, at the weight it last flew: its busiest motor would need {needed}% output, over the {target}% target",
+      "uk": "утримає висоту на решті моторів, але з малим запасом на керування, за ваги останнього польоту: найнавантаженішому мотору знадобиться {needed}% виходу, понад ціль {target}%"
+    },
+    "will.motor_sink": {
+      "en": "sink: at the weight it last flew, its other motors cannot carry it (its busiest motor would need {needed}% output)",
+      "uk": "знижуватиметься: за ваги останнього польоту решта моторів його не втримає (найнавантаженішому мотору знадобилося б {needed}% виходу)"
+    },
+    "will.motor_message": {
+      "en": "after 1 s descending at full throttle, tell the ground station \"Potential Thrust Loss (N)\", N being the motor it suspects",
+      "uk": "після 1 с зниження на повному газі повідомить наземну станцію «Potential Thrust Loss (N)», де N — мотор, який він підозрює"
+    },
+    "will.motor_gripper": {
+      "en": "release the gripper's load when it reports the thrust loss",
+      "uk": "скине вантаж із захоплювача, коли повідомить про втрату тяги"
+    },
+    "fact.motor_kg": {
+      "en": "With one motor lost it stays within the {target}% output target up to {kg} kg take-off weight (measured on a flight weighed at {takeoff_kg} kg).",
+      "uk": "Із одним відмовленим мотором він залишається в межах цілі {target}% виходу до {kg} кг злітної ваги (виміряно в польоті, зваженому на {takeoff_kg} кг)."
+    },
+    "fact.motor_kg_estimated": {
+      "en": "With one motor lost it stays within the {target}% output target up to {kg} kg take-off weight (measured on a flight of about {flight_kg} kg, estimated from the weighed flights).",
+      "uk": "Із одним відмовленим мотором він залишається в межах цілі {target}% виходу до {kg} кг злітної ваги (виміряно в польоті близько {flight_kg} кг, оціненому за зваженими польотами)."
+    },
+    "fact.motor_ratio": {
+      "en": "With one motor lost it stays within the {target}% output target up to {ratio} times the weight of the flight it was measured on; weigh a flight at import to see kilograms.",
+      "uk": "Із одним відмовленим мотором він залишається в межах цілі {target}% виходу до ваги, у {ratio} раза більшої за вагу польоту, у якому це виміряно; зважте політ під час імпорту, щоб бачити кілограми."
+    },
+    "fact.motor_unmeasured": {
+      "en": "Not measured yet: hover for {hover_s} s or more, {height_m} m or higher, with the motor outputs and battery voltage logged.",
+      "uk": "Ще не виміряно: зависніть на {hover_s} с або довше на висоті від {height_m} м із записом виходів моторів і напруги батареї."
+    },
+    "step.motor_level": {
+      "en": "Stop any manoeuvre and let it level.",
+      "uk": "Припиніть будь-який маневр і дайте апарату вирівнятися."
+    },
+    "step.motor_yaw": {
+      "en": "If it turns, let it: keep it level rather than fighting the heading.",
+      "uk": "Якщо апарат розвертається, не заважайте: тримайте його рівно, а не боріться за курс."
+    },
+    "step.motor_descend": {
+      "en": "Descend at a steady rate.",
+      "uk": "Знижуйтеся з постійною швидкістю."
+    },
+    "step.motor_land": {
+      "en": "Land at the nearest clear spot, not at home.",
+      "uk": "Сідайте на найближчому вільному місці, а не вдома."
+    },
+    "step.motor_clear": {
+      "en": "Keep people clear of where it is coming down.",
+      "uk": "Тримайте людей подалі від місця, де апарат знижується."
+    },
+    "step.motor_chute_switch": {
+      "en": "If the parachute has not opened by itself, release it with its switch (RC{channel} high).",
+      "uk": "Якщо парашут не розкрився сам, випустіть його перемикачем (RC{channel} угору)."
+    },
+    "step.motor_chute_station": {
+      "en": "If the parachute has not opened by itself, release it from the ground station.",
+      "uk": "Якщо парашут не розкрився сам, випустіть його з наземної станції."
     }
   }
 }

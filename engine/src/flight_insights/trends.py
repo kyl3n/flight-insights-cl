@@ -111,10 +111,16 @@ def _bands(flights: Sequence[Flight], reg: Registry) -> Bands:
     return bands(analysed, reg.rules["payload"])
 
 
+def analysed_flights(store: Store, reg: Registry, airframe_id: str) -> tuple[list[Flight], Bands]:
+    """The airframe's analysed flights in the order they flew, with its payload bands
+    (which turn hover thrust into kilograms once a flight was weighed)."""
+    flights = [f for f in _flights(store, airframe_id) if f.run_id is not None]
+    return flights, _bands(flights, reg)
+
+
 def grouped_flights(store: Store, reg: Registry, airframe_id: str) -> list[tuple[Flight, str]]:
     """The airframe's analysed flights in the order they flew, each with its payload group."""
-    flights = [f for f in _flights(store, airframe_id) if f.run_id is not None]
-    b = _bands(flights, reg)
+    flights, b = analysed_flights(store, reg, airframe_id)
     return [(f, group_of(f, b)) for f in flights]
 
 
@@ -291,8 +297,7 @@ def payloads(store: Store, reg: Registry, airframe_id: str) -> dict[str, Any]:
     when a flight was weighed, its flights and the labels they were imported with; then
     the label groups of flights with no hover thrust. With two or more flights weighed,
     each one's weight estimated from the others' (the check against the scale)."""
-    flights = [f for f in _flights(store, airframe_id) if f.run_id is not None]
-    b = _bands(flights, reg)
+    flights, b = analysed_flights(store, reg, airframe_id)
     groups: dict[str, dict[str, Any]] = {}
     for f in flights:
         g = group_of(f, b)
