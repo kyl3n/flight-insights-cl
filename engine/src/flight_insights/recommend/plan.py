@@ -571,11 +571,14 @@ def _build_plan(
         )
 
     # Findings that need a person and leave nothing to load become actions, and so does
-    # any finding with steps of its own (new ESC firmware for a better option).
+    # any finding with steps of its own (new ESC firmware for a better option). Work a
+    # later log shows done (`applied_when`: AutoTune, saved) is an action even when its
+    # finding also has changes to load first: they prepare the work, they are not it.
     answered = {s.finding for r in recs if r.status in ("next", "disputed") for s in r.sources}
     for source, f in sources:
         needs_person = source.severity in ACTION_SEVERITIES or source.code in procedures
-        if needs_person and source.finding not in answered:
+        shown_done = bool(procedures.get(source.code, {}).get("applied_when"))
+        if needs_person and (source.finding not in answered or shown_done):
             stage = str(f.get("stage") or "mechanical")
             recs.append(Recommendation(None, None, None, None, stage, [source]))
 
@@ -800,6 +803,8 @@ def to_json(plan: Plan, reg: Registry) -> dict[str, Any]:
             "revert": r.native_revert,
             "verify": dict(rules["verify"][r.stage]) if r.stage in rules["verify"] else None,
             "procedure": procedure.to_json(procedure.procedure(plan, reg, r)),
+            "applied_when": reg.procedures.get(lead.code, {}).get("applied_when"),
+            "graded_by": reg.procedures.get(lead.code, {}).get("graded_by", "findings"),
             "source": f"finding:{lead.code}",
             "sources": [source(s) for s in sorted(r.sources, key=Source.priority)],
             "notes": [
@@ -828,5 +833,7 @@ def to_json(plan: Plan, reg: Registry) -> dict[str, Any]:
             {"number": s.number, "params": list(s.params), "after": s.after} for s in plan.steps
         ],
         "session": procedure.to_json(procedure.session(plan, reg)),
-        "held_back": [h | {"text": texts(rules, "held_back", h)} for h in plan.held_back],
+        "held_back": [
+            h | {"text": texts(rules, str(h.get("reason", "held_back")), h)} for h in plan.held_back
+        ],
     }

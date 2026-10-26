@@ -24,6 +24,7 @@ import pyarrow as pa
 from flight_insights.analyzers.flight import FlightData
 from flight_insights.analyzers.model import (
     Analyzer,
+    CandidateChange,
     Evidence,
     Finding,
     MetricValue,
@@ -210,7 +211,50 @@ def _tune(flight: FlightData, reg: Registry) -> Result:
             )
         )  # fmt: skip
     _few(per_axis, tracking, out)
+    _offer(flight, reg, flown, out)
     return out
+
+
+def _offer(
+    flight: FlightData, reg: Registry, flown: Sequence[tuple[int, int, str]], out: Result
+) -> None:
+    """A tune check measured on roll or pitch, with no AutoTune in the flight: AutoTune is
+    ArduPilot's next step once the filters are set, and the next tune check measures it.
+    On large propellers the rate filters go to 10 Hz first; with a payload that varies, the
+    gain back-off is raised (rules/tune.json autotune_offer). One axis a pack is the
+    procedure's to say: AUTOTUNE_AXES changes from pack to pack, so it is no change to keep."""
+    measured = [m.metric.removeprefix("tune.tracking_error_") for m in out.metrics]
+    axes = [a for a in ("roll", "pitch") if a in measured]
+    if not axes or any(name == "AUTOTUNE" for _, _, name in flown):
+        return
+    rules: Mapping[str, Any] = reg.rules["tune"]["autotune_offer"]
+    start: Mapping[str, Any] = reg.rules["audit"]["starting_tune"]
+    p = flight.params
+    wanted: dict[str, float] = {}
+    prop = flight.answers.get("prop_diameter_in")
+    large = isinstance(prop, int | float) and prop >= float(start["large_prop_in"])
+    if large:
+        rate = float(start["large_rate_filter_hz"])
+        wanted |= {f"ATC_RAT_{a}_{f}": rate for a in ("RLL", "PIT") for f in ("FLTT", "FLTD")}
+    if flight.answers.get("payload") == "variable":
+        wanted["AUTOTUNE_GMBK"] = max(float(rules["gmbk_variable_payload"]),
+                                      float(p.get("AUTOTUNE_GMBK", 0.25)))  # fmt: skip
+    changes = tuple(
+        CandidateChange(n, p.get(n), v, "autotune")
+        for n, v in wanted.items()
+        if n in p and abs(float(p[n]) - v) > 1e-6
+    )
+    cited = tuple(e for e in out.evidence if e.id in {f"tune:{a}" for a in axes})
+    out.findings.append(
+        Finding(
+            code="tune.autotune_offer",
+            severity="info",
+            confidence="medium",
+            evidence=cited,
+            params={"axes": ", ".join(axes), "large_props": bool(large)},
+            changes=changes,
+        )
+    )
 
 
 def _few(per_axis: Mapping[str, Sequence[Event]], rules: Mapping[str, Any], out: Result) -> None:
@@ -264,8 +308,8 @@ def _few(per_axis: Mapping[str, Sequence[Event]], rules: Mapping[str, Any], out:
 
 TUNE = Analyzer(
     name="tune",
-    version=1,
+    version=2,
     run=_tune,
     metrics=("tune.tracking_error_roll", "tune.tracking_error_pitch", "tune.tracking_error_yaw"),
-    findings=("tune.few_inputs",),
+    findings=("tune.few_inputs", "tune.autotune_offer"),
 )

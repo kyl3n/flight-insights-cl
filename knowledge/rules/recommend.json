@@ -294,6 +294,10 @@
       "en": "{code} is not proposed again: flight {flight} was checked with raw gyro data, and the filter settings and the airframe's build have not changed since.",
       "uk": "{code} не пропонується знову: політ {flight} перевірено з сирими даними гіроскопа, а налаштування фільтрів і збірка апарата відтоді не змінилися."
     },
+    "held_once_done": {
+      "en": "{code} is not offered again: flight {flight} showed the work done on this build of the airframe. A new build (propellers, motors) offers it again.",
+      "uk": "{code} не пропонується знову: політ {flight} показав, що роботу виконано на цій збірці апарата. Нова збірка (гвинти, мотори) запропонує її знову."
+    },
     "check_failed": {
       "en": "The finding cleared, but a check of its procedure did not pass on the next flight.",
       "uk": "Знахідка зникла, але перевірка з її процедури не пройшла в наступному польоті."
@@ -301,6 +305,12 @@
     "undo_header": {
       "en": "Undo file: load it if the test goes wrong. It puts back every value the plan changed; parameters the plan made appear are hidden again once their switch is back off.",
       "uk": "Файл скасування: завантажте його, якщо тест піде не так. Він повертає кожне значення, змінене планом; параметри, що з'явилися через план, знову сховаються, щойно їхній перемикач вимкнено."
+    }
+  },
+  "held_once_done": {
+    "about": "A finding not proposed again once another finding shows its work done on the airframe's current build: a tune check's AutoTune offer, once an AutoTune saved its gains. A new build version (props, motors) offers it again.",
+    "findings": {
+      "tune.autotune_offer": "autotune.saved"
     }
   }
 }

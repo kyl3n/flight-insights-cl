@@ -129,5 +129,14 @@
       "ATC_RAT_RLL_SMAX at 4.7.0: 'Sets an upper limit on the slew rate produced by the combined P and D gains ... This limits the amplitude of high frequency oscillations caused by an excessive gain.' Copter's default is 0, off (AC_AttitudeControl_Multi.h).",
       "knowledge/rules/filters.json noise_band_low_hz: the same 40 Hz the filter analysis counts as noise above the control band."
     ]
+  },
+  "autotune_offer": {
+    "about": "When a tune check offers AutoTune, and how it is set up: ArduPilot's tuning order puts AutoTune after the filters; the next tune check, light and loaded, grades it (procedure tune.autotune_offer). On propellers of 13 inches or more the roll and pitch rate filters (FLTT, FLTD) go to 10 Hz first; with a payload that varies, AUTOTUNE_GMBK is raised for more stability margin.",
+    "gmbk_variable_payload": 0.35,
+    "sources": [
+      "ArduPilot Copter docs, AutoTune: for large copters (props of at least 13 inches) set ATC_RAT_RLL_FLTT, FLTD, ATC_RAT_PIT_FLTT and FLTD to 10 Hz; tune one axis at a time if a battery cannot finish them all (AUTOTUNE_AXES) (https://ardupilot.org/copter/docs/autotune.html).",
+      "ArduPilot Copter docs, AutoTune: AUTOTUNE_GMBK (default 0.25) is the share by which the tuned P and D are reduced for stability margin; raise it for more margin. 0.35 for a payload that varies is an app starting value, uncalibrated, within its range 0 to 0.5.",
+      "rules/audit.json starting_tune: large_prop_in and large_rate_filter_hz, shared with the never-tuned starting values."
+    ]
   }
 }

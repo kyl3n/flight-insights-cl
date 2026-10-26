@@ -18,6 +18,14 @@ A grade needs the analyzer that raised the finding to have judged the later flig
 log without the data it needs leaves the recommendation applied, ungraded. The checks
 its procedure lists for the next log (a message logged, a metric within a limit, a
 parameter's value) are run too: a cleared finding with a failed check is no effect.
+
+Some recommendations are measured rather than cleared (a procedure `graded_by` its
+checks): AutoTune, say, is graded on whether tracking improved in every payload band
+(measured.py), not on its offer being raised again. A check marked `required` that
+cannot judge yet, such as a band not flown again, keeps the grade pending, unless a
+band already flown again is worse: that is regressed at once. An action whose
+procedure names the finding that shows it done (`applied_when`, with the axes it must
+cover) is marked applied by the flight that raised it, without a person.
 """
 
 from __future__ import annotations
@@ -26,8 +34,10 @@ import json
 from collections.abc import Collection, Mapping, Sequence
 from typing import Any
 
+from flight_insights.analyzers.registry import Registry
 from flight_insights.history.persist import load_snapshot
 from flight_insights.knowledge import Pack
+from flight_insights.recommend import measured
 from flight_insights.store.db import Store, StoreError
 
 OPEN = ("proposed", "accepted", "applied")
@@ -150,18 +160,39 @@ def record_plan(store: Store, plan: dict[str, Any]) -> dict[str, Any]:
 
 
 def set_status(store: Store, rec_id: str, status: str, version: int) -> dict[str, Any]:
-    """A person's decision. Grades are the engine's to give."""
+    """A person's decision. Grades are the engine's to give. An action a person marks
+    applied was done after the airframe's latest flight so far: the flights after it are
+    the ones with it, for the checks that compare before and after (measured.py)."""
     row = store.get("recommendation", rec_id)
     if row is None:
         raise RecommendationError(f"no recommendation {rec_id}")
     allowed = TRANSITIONS.get(row["status"], ())
     if status not in allowed:
         raise RecommendationError(f"a {row['status']} recommendation cannot become {status}")
+    fields: dict[str, Any] = {"status": status}
+    if row["param"] is None:
+        detail = json.loads(row["detail_json"])
+        if status == "applied":
+            detail["applied_flight"] = _latest_flight(store, row["airframe_id"])
+        else:
+            detail.pop("applied_flight", None)
+            detail.pop("applied_axes", None)
+        fields["detail_json"] = json.dumps(detail)
     try:
-        new_version = store.update("recommendation", rec_id, version, {"status": status})
+        new_version = store.update("recommendation", rec_id, version, fields)
     except StoreError as e:
         raise RecommendationConflict(str(e)) from None
     return {"id": rec_id, "status": status, "version": new_version}
+
+
+def _latest_flight(store: Store, airframe_id: str) -> str | None:
+    cur = store.conn.execute("SELECT * FROM flight WHERE airframe_id = ?", (airframe_id,))
+    latest: dict[str, Any] | None = None
+    for r in cur.fetchall():
+        f = {d[0]: v for d, v in zip(cur.description, r, strict=True)}
+        if latest is None or flew_before(latest, f):
+            latest = f
+    return None if latest is None else str(latest["id"])
 
 
 def history(store: Store, airframe_id: str) -> list[dict[str, Any]]:
@@ -221,6 +252,26 @@ def _check(
     return None
 
 
+def _shown_done(rec: dict[str, Any], flight_id: str, analysis: Mapping[str, Any]) -> bool | None:
+    """Whether this flight shows the action done (its procedure's `applied_when` finding,
+    raised here, covering the axes it asks for, over this and earlier flights); None when
+    it shows nothing new. Records the axes covered and the flight that completed them."""
+    when = rec["detail"].get("applied_when")
+    if not when:
+        return None
+    raised = [f for f in analysis["findings"] if f["code"] == when["finding"]]
+    if not raised:
+        return None
+    covered = set(rec["detail"].get("applied_axes", []))
+    for f in raised:
+        covered |= {a.strip() for a in str(f["params"].get("axes", "")).split(",") if a.strip()}
+    rec["detail"]["applied_axes"] = sorted(covered)
+    if set(when.get("axes", ())) <= covered:
+        rec["detail"]["applied_flight"] = flight_id
+        return True
+    return False
+
+
 def grade_flight(
     store: Store,
     pack: Pack,
@@ -242,20 +293,32 @@ def grade_flight(
             raised[f["code"]] = f["severity"]
     judged = {name for name, o in analysis["analyzers"].items() if not o.get("skipped")}
     judged.add("followup")  # the plan's own follow-ups: judged by the parameters alone
+    reg: Registry | None = None
     out: list[dict[str, Any]] = []
     with store.transaction():
         for rec in _open_for(store, flight["airframe_id"]):
             source = store.get("flight", rec["flight_id"]) if rec["flight_id"] else None
             if source is None or source["id"] == flight_id or not flew_before(source, flight):
                 continue
+            was = json.dumps(rec["detail"], sort_keys=True)
             if rec["param"] is not None:
                 if not _same(params.get(rec["param"]), rec["proposed_value"]):
                     continue  # not flown with the change (yet)
             elif rec["status"] != "applied":
-                continue  # an action is graded once a person says it was done
+                done = _shown_done(rec, flight_id, analysis)
+                if done or (done is False and json.dumps(rec["detail"], sort_keys=True) != was):
+                    store.update(
+                        "recommendation", rec["id"], rec["version"],
+                        {"status": "applied" if done else rec["status"],
+                         "detail_json": json.dumps(rec["detail"])},
+                    )  # fmt: skip
+                    if done:
+                        out.append({"id": rec["id"], "param": None, "status": "applied"})
+                continue  # an action is graded once it was done, on a later flight
             sources: list[dict[str, Any]] = rec["detail"].get("sources", [])
             lead = sources[0] if sources else {"code": rec["detail"]["code"], "severity": "info"}
             grade: str | None = None
+            status: str = rec["status"]
             if any(s.get("analyzer") not in judged for s in sources):
                 status = "applied"  # the later log cannot judge it
             else:
@@ -263,13 +326,28 @@ def grade_flight(
                 after = {s["code"]: raised[s["code"]] for s in sources if s["code"] in raised}
                 worst = max((SEVERITY_RANK[v] for v in after.values()), default=None)
                 cleared = SEVERITY_RANK.get(after.get(lead["code"], ""), -1) < before
-                checks = [
-                    dict(c) | {"passed": _check(c, cleared, analysis, params, messages)}
-                    for step in rec["detail"].get("procedure", ())
-                    if step.get("kind") == "verify"
-                    for c in step.get("checks", ())
-                ]
-                if worst is not None and worst > before:
+                checks: list[dict[str, Any]] = []
+                for step in rec["detail"].get("procedure", ()):
+                    if step.get("kind") != "verify":
+                        continue
+                    for c in step.get("checks", ()):
+                        if c.get("check") in ("metric_improves", "metric_vs_lightest"):
+                            reg = reg or Registry.load(pack)
+                            passed, info = measured.judge(store, pack, reg, rec, flight_id, c)
+                            checks.append(dict(c) | info | {"passed": passed})
+                        else:
+                            passed = _check(c, cleared, analysis, params, messages)
+                            checks.append(dict(c) | {"passed": passed})
+                by_checks = rec["detail"].get("graded_by") == "checks"
+                if any(c.get("worse") for c in checks):
+                    grade = "regressed"  # worse in a band flown: the others need not be waited for
+                elif any(c.get("required") and c["passed"] is None for c in checks):
+                    grade, status = None, "applied"  # a required check cannot judge yet
+                    rec["detail"]["grade_pending"] = {"flight": flight_id, "checks": checks}
+                elif by_checks:
+                    failed = any(c["passed"] is False for c in checks)
+                    grade = "no effect" if failed else "confirmed"
+                elif worst is not None and worst > before:
                     grade = "regressed"
                 elif lead["code"] in after and SEVERITY_RANK[after[lead["code"]]] == before:
                     grade = "no effect"
@@ -277,12 +355,14 @@ def grade_flight(
                     grade = "no effect"  # cleared, but the next log does not show it worked
                 else:
                     grade = "confirmed"
-                status = grade
-                rec["detail"]["grade"] = {
-                    "flight": flight_id, "before": lead["severity"], "after": after,
-                    "checks": checks,
-                }  # fmt: skip
-            if status == rec["status"]:
+                if grade is not None:
+                    status = grade
+                    rec["detail"].pop("grade_pending", None)
+                    rec["detail"]["grade"] = {
+                        "flight": flight_id, "before": lead["severity"], "after": after,
+                        "checks": checks,
+                    }  # fmt: skip
+            if status == rec["status"] and json.dumps(rec["detail"], sort_keys=True) == was:
                 continue
             store.update(
                 "recommendation", rec["id"], rec["version"],
