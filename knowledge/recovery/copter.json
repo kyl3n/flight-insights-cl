@@ -1,0 +1,191 @@
+{
+  "about": "The recovery card per airframe (spec: Flying without GNSS, 'Recommendations and recovery'): what the aircraft will do when GNSS is lost or spoofed with its current settings, how long it holds and how far it can go, and the operator's steps. Built by engine/src/flight_insights/recovery.py from the airframe's latest parameters, the readiness review and its measured outages. Placeholders are filled from those; each template is in English and Ukrainian.",
+  "landing_tolerance_from": "rules/no_gnss.json landing_tolerance_m",
+  "sensors": {
+    "optical_flow": {
+      "en": "optical flow",
+      "uk": "оптичний потік"
+    },
+    "beacon": {
+      "en": "beacons",
+      "uk": "маяки"
+    },
+    "external_nav": {
+      "en": "external navigation",
+      "uk": "зовнішня навігація"
+    },
+    "wheel_encoder": {
+      "en": "wheel encoders",
+      "uk": "енкодери коліс"
+    },
+    "rangefinder": {
+      "en": "a rangefinder",
+      "uk": "далекомір"
+    }
+  },
+  "dead_reckoning_actions": {
+    "1": "Land",
+    "2": "RTL",
+    "3": "SmartRTL or RTL",
+    "4": "SmartRTL or Land",
+    "6": "Auto DO_LAND_START or RTL"
+  },
+  "texts": {
+    "will_label": {
+      "en": "The aircraft will",
+      "uk": "Апарат"
+    },
+    "card_title": {
+      "en": "{airframe}: recovery card",
+      "uk": "{airframe}: картка дій у разі відмов"
+    },
+    "card_valid": {
+      "en": "Valid while the parameters stay {param_set}.",
+      "uk": "Чинна, доки параметри лишаються {param_set}."
+    },
+    "card_footer": {
+      "en": "Made by Flight Insights from this airframe's own flights and settings. No positions are printed. Print it again after any parameter or build change.",
+      "uk": "Створено Flight Insights за власними польотами й налаштуваннями цього апарата. Позиції не друкуються. Надрукуйте знову після будь-якої зміни параметрів чи збірки."
+    },
+    "home_heading": {
+      "en": "Home heading: fill in before take-off: ______°",
+      "uk": "Курс додому: заповніть перед зльотом: ______°"
+    },
+    "gnss_lost": {
+      "en": "GNSS lost",
+      "uk": "Втрата GNSS"
+    },
+    "spoofing": {
+      "en": "Suspected spoofing: the position jumps or drifts while GNSS looks healthy",
+      "uk": "Підозра на спуфінг: позиція стрибає чи дрейфує, хоча GNSS виглядає справним"
+    },
+    "will.keeps_set": {
+      "en": "keep navigating on {sensors} (source set {set})",
+      "uk": "продовжить навігацію (джерела: {sensors}, набір {set})"
+    },
+    "will.dead_reckon": {
+      "en": "dead-reckon on its wind estimate: the dead-reckoning failsafe acts at once ({dr_action}), and after {dr_timeout} s the EKF failsafe acts",
+      "uk": "вестиме навігацію за рахунком на оцінці вітру: аварійний режим навігації за рахунком спрацює одразу ({dr_action}), а через {dr_timeout} с спрацює аварійний режим EKF"
+    },
+    "will.ekf": {
+      "en": "hold its estimate for a short time, then the EKF failsafe will {ekf_action}",
+      "uk": "недовго утримуватиме оцінку, потім аварійний режим EKF {ekf_action}"
+    },
+    "will.ekf_off": {
+      "en": "hold its estimate for a short time, then drift with the wind: the EKF failsafe is off",
+      "uk": "недовго утримуватиме оцінку, потім дрейфуватиме з вітром: аварійний режим EKF вимкнено"
+    },
+    "ekf.0": {
+      "en": "only report it, and the aircraft drifts with the wind",
+      "uk": "лише повідомить про це, а апарат дрейфуватиме з вітром"
+    },
+    "ekf.1": {
+      "en": "land it in place if it is in a mode that needs a position",
+      "uk": "посадить його на місці, якщо він у режимі, якому потрібна позиція"
+    },
+    "ekf.2": {
+      "en": "switch to AltHold if it is in a mode that needs a position",
+      "uk": "перемкне в AltHold, якщо він у режимі, якому потрібна позиція"
+    },
+    "ekf.3": {
+      "en": "land it in place, in every mode",
+      "uk": "посадить його на місці в будь-якому режимі"
+    },
+    "fact.detection": {
+      "en": "It stops using GNSS about {detection_s} s after the loss (measured).",
+      "uk": "Він перестає використовувати GNSS приблизно через {detection_s} с після втрати (виміряно)."
+    },
+    "fact.hold": {
+      "en": "On its own it keeps a position it can fly on for at least {hold_s} s (measured; outages and drills: {outages}).",
+      "uk": "Сам по собі він зберігає придатну для польоту позицію щонайменше {hold_s} с (виміряно; втрат і тренувань: {outages})."
+    },
+    "fact.hold_unmeasured": {
+      "en": "How long it holds on its own is not measured yet: fly a GNSS-off drill at a safe height.",
+      "uk": "Скільки він утримує позицію сам, ще не виміряно: виконайте тренування з вимкненим GNSS на безпечній висоті."
+    },
+    "fact.range": {
+      "en": "On its own, about {minutes} min before its estimate is {tolerance_m} m off (drift {rate} m a minute, measured).",
+      "uk": "Сам по собі — приблизно {minutes} хв, доки оцінка не відхилиться на {tolerance_m} м (дрейф {rate} м за хвилину, виміряно)."
+    },
+    "fact.hold_set": {
+      "en": "On source set {set} it kept a position it can fly on for at least {hold_s} s (measured; outages and drills: {outages}).",
+      "uk": "На наборі джерел {set} він зберігав придатну для польоту позицію щонайменше {hold_s} с (виміряно; втрат і тренувань: {outages})."
+    },
+    "fact.range_set": {
+      "en": "On source set {set}, about {minutes} min before its estimate is {tolerance_m} m off (drift {rate} m a minute, measured).",
+      "uk": "На наборі джерел {set} — приблизно {minutes} хв, доки оцінка не відхилиться на {tolerance_m} м (дрейф {rate} м за хвилину, виміряно)."
+    },
+    "fact.no_fallback_set": {
+      "en": "No source set keeps a position without GNSS.",
+      "uk": "Жоден набір джерел не зберігає позицію без GNSS."
+    },
+    "step.switch_set": {
+      "en": "Switch to source set {set} with RC{channel}, and wait for the ground station's message that the source changed.",
+      "uk": "Перемкніться на набір джерел {set} каналом RC{channel} і дочекайтеся повідомлення наземної станції про зміну джерела."
+    },
+    "step.no_switch": {
+      "en": "Nothing selects source set {set} yet: use the steps below, and set up a switch (it is in the plan).",
+      "uk": "Набір джерел {set} поки нічим не вмикається: дійте за кроками нижче й налаштуйте перемикач (це є в плані)."
+    },
+    "step.fly_home_set": {
+      "en": "Fly home in Loiter on {sensors}, ready to take over in {mode}.",
+      "uk": "Летіть додому в Loiter (джерела: {sensors}), будучи готовими перебрати керування в {mode}."
+    },
+    "step.mode": {
+      "en": "Switch to {mode}.",
+      "uk": "Перемкніться в {mode}."
+    },
+    "step.mode_station": {
+      "en": "Switch to AltHold from the ground station.",
+      "uk": "Перемкніться в AltHold з наземної станції."
+    },
+    "step.no_mode": {
+      "en": "No mode that needs no position is on a switch: change to AltHold from the ground station if you can, and set one up (it is in the plan).",
+      "uk": "Жоден режим без позиції не призначено на перемикач: перейдіть в AltHold з наземної станції, якщо можете, і налаштуйте перемикач (це є в плані)."
+    },
+    "step.heading": {
+      "en": "Turn the nose to the home heading.",
+      "uk": "Розверніть ніс на курс додому."
+    },
+    "step.no_heading": {
+      "en": "The heading is not reliable without GNSS on this aircraft: fly by sight.",
+      "uk": "Курс цього апарата без GNSS ненадійний: летіть на око."
+    },
+    "step.fly_home": {
+      "en": "Fly home on the heading at a slow, steady speed, and keep the aircraft in sight.",
+      "uk": "Летіть додому за курсом на невеликій сталій швидкості й тримайте апарат у полі зору."
+    },
+    "step.land": {
+      "en": "Land by sight; do not wait for GNSS to return.",
+      "uk": "Сідайте на око; не чекайте повернення GNSS."
+    },
+    "spoof.mode_first": {
+      "en": "Switch to {mode} first: it needs no position, so a false one cannot steer the aircraft.",
+      "uk": "Спершу перемкніться в {mode}: цьому режиму не потрібна позиція, тож хибна позиція не зможе керувати апаратом."
+    },
+    "spoof.mode_station": {
+      "en": "Switch to AltHold from the ground station first: it needs no position, so a false one cannot steer the aircraft.",
+      "uk": "Спершу перемкніться в AltHold з наземної станції: цьому режиму не потрібна позиція, тож хибна позиція не зможе керувати апаратом."
+    },
+    "spoof.reject_switch": {
+      "en": "Then reject GNSS with the GPS-disable switch (RC{channel} high): the estimator may still trust it.",
+      "uk": "Потім відкиньте GNSS перемикачем вимкнення GPS (RC{channel} угору): оцінювач може й далі йому довіряти."
+    },
+    "spoof.reject_set": {
+      "en": "Then switch to source set {set} with RC{channel}, which does not use GNSS: the estimator may still trust it.",
+      "uk": "Потім перемкніться на набір джерел {set} каналом RC{channel}, який не використовує GNSS: оцінювач може й далі йому довіряти."
+    },
+    "spoof.no_reject": {
+      "en": "Nothing on this aircraft rejects GNSS yet: a GPS-disable switch (aux function 65) would.",
+      "uk": "На цьому апараті поки ніщо не відкидає GNSS: це зробив би перемикач вимкнення GPS (допоміжна функція 65)."
+    },
+    "spoof.ekf_lands": {
+      "en": "With GNSS rejected, the EKF failsafe will land the aircraft where it is (FS_EKF_ACTION 3).",
+      "uk": "Після відкидання GNSS аварійний режим EKF посадить апарат на місці (FS_EKF_ACTION 3)."
+    },
+    "spoof.then": {
+      "en": "Then follow \"GNSS lost\".",
+      "uk": "Далі дійте за розділом «Втрата GNSS»."
+    }
+  }
+}

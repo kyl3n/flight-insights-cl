@@ -1,5 +1,5 @@
 {
-  "about": "Flying without GNSS: each outage and drill, measured from the estimator's own status (spec: Flying without GNSS, Performance from the logs). Rules and their sources in knowledge/rules/no_gnss.json.",
+  "about": "Flying without GNSS: each outage and drill, measured from the estimator's own status, and the readiness to fly without GNSS from the parameters (spec: Flying without GNSS). Rules and their sources in knowledge/rules/no_gnss.json.",
   "metrics": {
     "no_gnss.hold_s": {
       "name": {
@@ -101,6 +101,61 @@
       "action": {
         "en": "What happened: {response}. Without another position source the aircraft cannot hold or navigate once GNSS goes. Fit optical flow with a rangefinder, or visual odometry, set them up as a second estimator source set (EK3_SRC2_*) with a switch to change to it (aux function 90), calibrate drag fusion so the estimator knows the wind, and practise with the GPS-disable switch (aux function 65) at a safe height.",
         "uk": "Що сталося: {response}. Без іншого джерела положення апарат не може утримуватися чи навігувати після зникнення GNSS. Встановіть оптичний потік із далекоміром або візуальну одометрію, налаштуйте їх як другий набір джерел оцінювача (EK3_SRC2_*) з перемикачем (допоміжна функція 90), відкалібруйте злиття аеродинамічного опору, щоб оцінювач знав вітер, і тренуйтеся з перемикачем вимкнення GPS (допоміжна функція 65) на безпечній висоті."
+      }
+    },
+    "no_gnss.source_not_fitted": {
+      "stage": "navigation",
+      "title": {
+        "en": "Estimator source set {set} needs sensors that are not set up ({missing})",
+        "uk": "Набір джерел оцінювача {set} потребує датчиків, які не налаштовано ({missing})"
+      },
+      "action": {
+        "en": "Once GNSS goes, the estimator would use source set {set}, and it cannot without these. Fit each sensor and set it up from its setup page (its type parameter, then a reboot), or change the set's sources (EK3_SRC{set}_*) to sensors the aircraft has. Optical flow also needs a downward rangefinder and EK3_FLOW_USE 1.",
+        "uk": "Після зникнення GNSS оцінювач перейшов би на набір джерел {set}, але без цих датчиків не зможе. Встановіть кожен датчик і налаштуйте його за сторінкою налаштування (параметр типу, потім перезавантаження) або змініть джерела набору (EK3_SRC{set}_*) на датчики, які апарат має. Оптичному потоку також потрібні далекомір, спрямований униз, і EK3_FLOW_USE 1."
+      }
+    },
+    "no_gnss.no_source_switch": {
+      "stage": "navigation",
+      "title": {
+        "en": "Nothing selects source set {set}, the one for flying without GNSS",
+        "uk": "Ніщо не вмикає набір джерел {set}, призначений для польоту без GNSS"
+      },
+      "action": {
+        "en": "Give a 3-position switch aux function 90 (RCn_OPTION 90: low selects set 1, middle set 2, high set 3), on a channel the transmitter drives. A joystick flown through a ground station drives channels 1 to 4 only: there, use the station's source-set command (MAV_CMD_SET_EKF_SOURCE_SET) if it can send one, and check it does before relying on it. A switch also lets the pilot reject GNSS they suspect is spoofed. A Lua script such as ahrs-source-gps-optflow.lua can change sets on sensor quality, and still reads the aux 90 switch.",
+        "uk": "Призначте 3-позиційному перемикачу допоміжну функцію 90 (RCn_OPTION 90: нижнє положення вмикає набір 1, середнє — набір 2, верхнє — набір 3) на каналі, яким керує передавач. Джойстик через наземну станцію керує лише каналами 1–4: тоді використовуйте команду станції для вибору набору джерел (MAV_CMD_SET_EKF_SOURCE_SET), якщо станція її підтримує, і перевірте це, перш ніж покладатися. Перемикач також дає пілотові змогу відкинути GNSS, якщо є підозра на спуфінг. Lua-скрипт, як-от ahrs-source-gps-optflow.lua, може перемикати набори за якістю датчиків, але теж читає перемикач функції 90."
+      }
+    },
+    "no_gnss.heading_needs_gnss": {
+      "stage": "navigation",
+      "title": {
+        "en": "Source set {set} loses its heading when GNSS goes (EK3_SRC{set}_YAW {yaw}, {compasses} compasses in use)",
+        "uk": "Набір джерел {set} втрачає курс разом із GNSS (EK3_SRC{set}_YAW {yaw}, компасів у роботі: {compasses})"
+      },
+      "action": {
+        "en": "Without GNSS the estimator cannot correct a heading taken from GNSS (yaw 2) or from the GNSS-driven yaw estimator (yaw 8), and a compass heading needs a compass in use; holding position and getting home both depend on the heading. Use the compass (EK3_SRC{set}_YAW 1), or GPS with compass fallback (3) where a moving-baseline GNSS gives the heading, with at least one compass in use (COMPASS_USE 1). Calibrate the compass and run CompassMot first.",
+        "uk": "Без GNSS оцінювач не може виправляти курс, узятий від GNSS (yaw 2) або від оцінювача курсу на основі GNSS (yaw 8), а курсу від компаса потрібен компас у роботі; утримання позиції й повернення додому залежать від курсу. Використовуйте компас (EK3_SRC{set}_YAW 1) або GPS із резервом на компас (3), коли курс дає GNSS із рухомою базою, і щонайменше один компас у роботі (COMPASS_USE 1). Спершу відкалібруйте компас і виконайте CompassMot."
+      }
+    },
+    "no_gnss.drag_fusion_off": {
+      "stage": "navigation",
+      "title": {
+        "en": "Drag fusion is off: without GNSS the estimator does not know the wind",
+        "uk": "Злиття аеродинамічного опору вимкнено: без GNSS оцінювач не знає вітру"
+      },
+      "action": {
+        "en": "Without a wind estimate the estimator cannot dead-reckon once its position sources go: the aircraft drifts with the wind, and the dead-reckoning failsafe (FS_DR_ENABLE, FS_DR_TIMEOUT) never acts, so the EKF failsafe answers instead. Weigh the aircraft with its battery, measure its frontal and side areas without the propellers, and set EK3_DRAG_BCOEF_X and EK3_DRAG_BCOEF_Y to the mass in kg over each area in square metres. Then fly the drag test in light wind for EK3_DRAG_MCOEF (normally 0.1 to 1.0).",
+        "uk": "Без оцінки вітру оцінювач не може вести навігацію за рахунком після втрати джерел позиції: апарат зносить вітром, а аварійний режим навігації за рахунком (FS_DR_ENABLE, FS_DR_TIMEOUT) ніколи не спрацьовує, тож реагує аварійний режим EKF. Зважте апарат з акумулятором, виміряйте його фронтальну й бічну площу без пропелерів і задайте EK3_DRAG_BCOEF_X та EK3_DRAG_BCOEF_Y як масу в кг, поділену на відповідну площу в квадратних метрах. Потім виконайте тестовий політ на опір у слабкий вітер для EK3_DRAG_MCOEF (зазвичай 0,1–1,0)."
+      }
+    },
+    "no_gnss.no_pilot_fallback": {
+      "stage": "navigation",
+      "title": {
+        "en": "No mode that flies without a position is on a switch",
+        "uk": "Жоден режим, що працює без позиції, не призначено на перемикач"
+      },
+      "action": {
+        "en": "When GNSS goes, Loiter, PosHold, RTL and Auto can no longer hold or navigate. Put AltHold (or Stabilize) on a flight-mode switch position (FLTMODE1 to FLTMODE6) or an aux switch (function 70), so the pilot can take over and fly home on a heading.",
+        "uk": "Після зникнення GNSS режими Loiter, PosHold, RTL і Auto більше не можуть утримувати позицію чи навігувати. Призначте AltHold (або Stabilize) на положення перемикача режимів (FLTMODE1–FLTMODE6) або на допоміжний перемикач (функція 70), щоб пілот міг перебрати керування й летіти додому за курсом."
       }
     }
   }

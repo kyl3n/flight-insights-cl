@@ -114,14 +114,18 @@ QUAD_NO_NOTCH = Scenario(
 # Failsafes the firmware ships on, found off, on a quad that otherwise flies normally.
 # They are set after boot, not as boot defaults, so the log still records the firmware's
 # own defaults for the plan to go back to.
+# Drag fusion on, with the values ArduPilot's own SITL tests use for this quad
+# (Tools/autotest/default_params/copter-wind-estimates.parm at Copter-4.7.0): the
+# dead-reckoning failsafe can only act once the estimator knows the wind.
+WIND_ESTIMATES = {"EK3_DRAG_BCOEF_X": 9.5, "EK3_DRAG_BCOEF_Y": 9.5, "EK3_DRAG_MCOEF": 0.082}
 QUAD_SETTINGS = Scenario(
     name="rehearse-quad-settings",
     vehicle="copter",
     frame="quad +",
-    description="Quad with the vibration and dead-reckoning failsafes off.",
+    description="Quad with drag fusion on and the vibration and dead-reckoning failsafes off.",
     expected=["the failsafes the firmware ships on, found off"],
     fly=copter_hover(10, altitude=4),
-    params={"FS_VIBE_ENABLE": 0, "FS_DR_ENABLE": 0},
+    params={"FS_VIBE_ENABLE": 0, "FS_DR_ENABLE": 0, **WIND_ESTIMATES},
     speedup=RAW_SPEEDUP,  # its plan logs raw IMU for the test flight
     **COPTER,  # type: ignore[arg-type]
 )
