@@ -1,0 +1,479 @@
+{
+  "about": "Telemetry and RC links, from what the autopilot and the ground station recorded (spec: Links, ground station and whole-system faults: Telemetry link, RC link). The radios' own logs and link quality against distance come later.",
+  "metrics": {
+    "link.downlink_loss": {
+      "name": {
+        "en": "Telemetry downlink loss",
+        "uk": "Втрати телеметрії вниз"
+      },
+      "unit": "%",
+      "direction": "lower",
+      "definition": {
+        "en": "The share of the vehicle's packets the ground station never received while armed, from MAVLink sequence numbers. The worst station counts when several recorded the flight.",
+        "uk": "Частка пакетів апарата, яких наземна станція так і не отримала під час взведення, за порядковими номерами MAVLink. Коли політ записували кілька станцій, рахується найгірша."
+      },
+      "method": {
+        "en": "Per tlog session, the autopilot's packets mapped onto the flight's clock between arming and disarming, counted in the order the station recorded them (a late packet fills the gap it left): lost over lost plus received.",
+        "uk": "Для кожного сеансу tlog пакети автопілота, перенесені на годинник польоту між взведенням і зняттям, рахуються в порядку запису станцією (запізнілий пакет заповнює залишений проміжок): втрачені поділити на втрачені плюс отримані."
+      },
+      "messages": [],
+      "zones": {
+        "target": [
+          null,
+          2
+        ],
+        "caution": [
+          2,
+          10
+        ],
+        "out": [
+          10,
+          null
+        ]
+      },
+      "source": {
+        "kind": "app",
+        "title": "The app's bands: under 2% is a clean link; past 10% the operator misses updates and commands need retries (spec: Telemetry link)"
+      }
+    },
+    "link.downlink_outage": {
+      "name": {
+        "en": "Longest telemetry outage",
+        "uk": "Найдовша перерва телеметрії"
+      },
+      "unit": "s",
+      "direction": "lower",
+      "definition": {
+        "en": "The longest time the ground station heard nothing from the vehicle while armed: the operator saw nothing new for that long.",
+        "uk": "Найдовший час, коли наземна станція нічого не чула від апарата під час взведення: стільки часу оператор не бачив нічого нового."
+      },
+      "method": {
+        "en": "The largest gap between consecutive autopilot packets in a tlog session, on the flight's clock, between arming and disarming; the worst station.",
+        "uk": "Найбільший проміжок між послідовними пакетами автопілота в сеансі tlog, на годиннику польоту, між взведенням і зняттям; найгірша станція."
+      },
+      "messages": [],
+      "zones": {
+        "target": [
+          null,
+          2
+        ],
+        "caution": [
+          2,
+          5
+        ],
+        "out": [
+          5,
+          null
+        ]
+      },
+      "source": {
+        "kind": "app",
+        "title": "The app's bands: 2 s is several missed stream updates; 5 s is FS_GCS_TIMEOUT's default, the outage the vehicle side treats as a lost link"
+      }
+    },
+    "link.uplink_loss": {
+      "name": {
+        "en": "Telemetry uplink loss",
+        "uk": "Втрати телеметрії вгору"
+      },
+      "unit": "%",
+      "direction": "lower",
+      "definition": {
+        "en": "The share of packets from the ground the autopilot knows it missed, on the worst link that carried the ground station, while armed. Commands, joystick input and heartbeats travel this way.",
+        "uk": "Частка пакетів із землі, які автопілот вважає пропущеними, на найгіршому каналі, яким ішла наземна станція, під час взведення. Цим шляхом ідуть команди, введення джойстика й серцебиття."
+      },
+      "method": {
+        "en": "MAV.rxdp (packets the autopilot's MAVLink parser saw missing from the sequence) over MAV.rxp plus MAV.rxdp, both 16-bit counts advanced between arming and disarming, for each link that heard the ground station (MAV.mgs advanced) and carried at least 50 packets.",
+        "uk": "MAV.rxdp (пакети, яких парсер MAVLink автопілота не побачив у послідовності) поділити на MAV.rxp плюс MAV.rxdp, обидва 16-бітні лічильники між взведенням і зняттям, для кожного каналу, що чув наземну станцію (MAV.mgs зростав) і передав щонайменше 50 пакетів."
+      },
+      "messages": [
+        "MAV"
+      ],
+      "zones": {
+        "target": [
+          null,
+          2
+        ],
+        "caution": [
+          2,
+          10
+        ],
+        "out": [
+          10,
+          null
+        ]
+      },
+      "source": {
+        "kind": "app",
+        "title": "The app's bands, as for the downlink: under 2% clean, past 10% commands and joystick input go missing (spec: Telemetry link; MAV.rxdp in ArduPilot's LogStructure)"
+      }
+    },
+    "link.gcs_silence_share": {
+      "name": {
+        "en": "Longest ground station silence",
+        "uk": "Найдовша тиша наземної станції"
+      },
+      "unit": "",
+      "direction": "lower",
+      "definition": {
+        "en": "The longest the autopilot went without hearing the ground station while armed, as a share of FS_GCS_TIMEOUT: at 1 the GCS failsafe is due.",
+        "uk": "Найдовший час, коли автопілот не чув наземної станції під час взведення, як частка FS_GCS_TIMEOUT: при 1 мав спрацювати аварійний режим GCS."
+      },
+      "method": {
+        "en": "At each MAV record while armed, the time since the newest last-heard time (MAV.mgs) of any link; the largest, over FS_GCS_TIMEOUT.",
+        "uk": "На кожному записі MAV під час взведення час від найновішого моменту, коли станцію чув будь-який канал (MAV.mgs); найбільший, поділений на FS_GCS_TIMEOUT."
+      },
+      "messages": [
+        "MAV"
+      ],
+      "zones": {
+        "target": [
+          null,
+          0.4
+        ],
+        "caution": [
+          0.4,
+          1
+        ],
+        "out": [
+          1,
+          null
+        ]
+      },
+      "source": {
+        "kind": "ardupilot",
+        "title": "ArduCopter failsafe_gcs_check: the GCS failsafe is due when the ground station is unheard for FS_GCS_TIMEOUT (the 0.4 start of the caution band, two missed 1 Hz heartbeats at the default 5 s, is the app's)",
+        "url": "https://github.com/ArduPilot/ardupilot/blob/Copter-4.7.0/ArduCopter/events.cpp"
+      }
+    },
+    "link.txbuf_low": {
+      "name": {
+        "en": "Telemetry radio buffer low",
+        "uk": "Буфер телеметрійного радіо майже повний"
+      },
+      "unit": "%",
+      "direction": "lower",
+      "definition": {
+        "en": "The share of the armed flight the radio's buffer of data waiting for air time was under half free. ArduPilot then slows every telemetry stream: the link is carrying more than it can send.",
+        "uk": "Частка взведеного польоту, коли буфер радіо з даними, що чекають на ефір, був вільний менше ніж наполовину. ArduPilot тоді сповільнює всі потоки телеметрії: каналом іде більше, ніж він може передати."
+      },
+      "method": {
+        "en": "RAD.TxBuf (or RADIO_STATUS.txbuf in the tlog) under 50% free, over the samples between arming and disarming.",
+        "uk": "RAD.TxBuf (або RADIO_STATUS.txbuf у tlog) нижче 50% вільного місця серед вибірок між взведенням і зняттям."
+      },
+      "messages": [
+        "RAD"
+      ],
+      "zones": {
+        "target": [
+          null,
+          5
+        ],
+        "caution": [
+          5,
+          25
+        ],
+        "out": [
+          25,
+          null
+        ]
+      },
+      "source": {
+        "kind": "ardupilot",
+        "title": "ArduPilot GCS_MAVLINK::handle_radio_status: under 50% free each stream message is delayed 20 ms more, under 20% 60 ms more (the 5% and 25% bands are the app's)",
+        "url": "https://github.com/ArduPilot/ardupilot/blob/Copter-4.7.0/libraries/GCS_MAVLink/GCS_Common.cpp"
+      }
+    },
+    "link.fade_margin": {
+      "name": {
+        "en": "Telemetry fade margin",
+        "uk": "Запас загасання телеметрії"
+      },
+      "unit": "dB",
+      "direction": "higher",
+      "definition": {
+        "en": "How far the received signal stayed above the noise at the weaker end of a SiK telemetry link: each 6 dB of it doubles the range the link would reach. Measured only on SiK firmware radios, whose units are known.",
+        "uk": "Наскільки прийнятий сигнал тримався над шумом на слабшому кінці телеметрійного каналу SiK: кожні 6 дБ запасу подвоюють досяжну дальність. Вимірюється лише для радіо на прошивці SiK, чиї одиниці відомі."
+      },
+      "method": {
+        "en": "RSSI minus noise in SiK units over 1.9 a dB, at each end (RAD.RSSI and RAD.Noise for the aircraft's radio, RAD.RemRSSI and RAD.RemNoise for the ground's), 5th percentile while armed; the weaker end.",
+        "uk": "RSSI мінус шум в одиницях SiK, поділене на 1,9 на дБ, на кожному кінці (RAD.RSSI і RAD.Noise для радіо апарата, RAD.RemRSSI і RAD.RemNoise для наземного), 5-й процентиль під час взведення; слабший кінець."
+      },
+      "messages": [
+        "RAD"
+      ],
+      "zones": {
+        "target": [
+          12,
+          null
+        ],
+        "caution": [
+          6,
+          12
+        ],
+        "out": [
+          null,
+          6
+        ]
+      },
+      "source": {
+        "kind": "ardupilot",
+        "title": "ArduPilot wiki, SiK telemetry radio: fade margin is RSSI minus noise in dB, each 6 dB doubles range (bands the app's: under one doubling left out, under two caution)",
+        "url": "https://github.com/ArduPilot/ardupilot_wiki/blob/master/common/source/docs/common-3dr-radio-advanced-configuration-and-technical-information.rst"
+      }
+    },
+    "link.rssi_asymmetry": {
+      "name": {
+        "en": "Telemetry signal imbalance",
+        "uk": "Дисбаланс сигналу телеметрії"
+      },
+      "unit": "dB",
+      "direction": "lower",
+      "definition": {
+        "en": "How much less one end of a SiK telemetry link receives than the other. With the same power at both ends the two should match; a lasting gap points to a one-sided antenna, amplifier or cable fault.",
+        "uk": "Наскільки менше приймає один кінець телеметрійного каналу SiK порівняно з іншим. За однакової потужності на обох кінцях вони мають збігатися; стала різниця вказує на однобічну несправність антени, підсилювача чи кабелю."
+      },
+      "method": {
+        "en": "The median of the difference between the two ends' RSSI (RAD.RSSI and RAD.RemRSSI) over 1.9 a dB, while armed, when the far end was heard.",
+        "uk": "Медіана різниці RSSI двох кінців (RAD.RSSI і RAD.RemRSSI), поділена на 1,9 на дБ, під час взведення, коли дальній кінець було чути."
+      },
+      "messages": [
+        "RAD"
+      ],
+      "zones": {
+        "target": [
+          null,
+          6
+        ],
+        "caution": [
+          6,
+          10
+        ],
+        "out": [
+          10,
+          null
+        ]
+      },
+      "source": {
+        "kind": "app",
+        "title": "The app's bands: 6 dB, one halving of range at the weaker end (spec: Telemetry link, a gap between local and remote RSSI points to a one-sided antenna, amplifier or cable fault)"
+      }
+    },
+    "link.rc_rssi": {
+      "name": {
+        "en": "RC receiver RSSI",
+        "uk": "RSSI приймача керування"
+      },
+      "unit": "%",
+      "direction": "higher",
+      "definition": {
+        "en": "The receiver's signal strength at its 5th percentile while armed, as ArduPilot scales it (0 to 100%). Its scale depends on the receiver and RSSI_TYPE, so it is judged against the airframe's own flights.",
+        "uk": "Сила сигналу приймача на 5-му процентилі під час взведення, у масштабі ArduPilot (від 0 до 100%). Масштаб залежить від приймача й RSSI_TYPE, тож порівнюється з власними польотами апарата."
+      },
+      "method": {
+        "en": "RSSI.RXRSSI times 100, 5th percentile between arming and disarming, of the values the receiver reported.",
+        "uk": "RSSI.RXRSSI помножене на 100, 5-й процентиль між взведенням і зняттям, серед значень, які повідомив приймач."
+      },
+      "messages": [
+        "RSSI"
+      ],
+      "source": {
+        "kind": "baseline",
+        "title": "The airframe's own flights: a receiver's RSSI scale is its own"
+      }
+    },
+    "link.rc_lq": {
+      "name": {
+        "en": "RC link quality",
+        "uk": "Якість каналу керування"
+      },
+      "unit": "%",
+      "direction": "higher",
+      "definition": {
+        "en": "The share of RC packets the receiver got, at its 5th percentile while armed, where the receiver reports it (CRSF, ExpressLRS). Link quality falling while RSSI holds means interference rather than range.",
+        "uk": "Частка пакетів керування, які отримав приймач, на 5-му процентилі під час взведення, де приймач це повідомляє (CRSF, ExpressLRS). Падіння якості за незмінного RSSI означає завади, а не дальність."
+      },
+      "method": {
+        "en": "RSSI.RXLQ, 5th percentile between arming and disarming, of the values the receiver reported.",
+        "uk": "RSSI.RXLQ, 5-й процентиль між взведенням і зняттям, серед значень, які повідомив приймач."
+      },
+      "messages": [
+        "RSSI"
+      ],
+      "source": {
+        "kind": "baseline",
+        "title": "The airframe's own flights: link quality depends on the receiver's packet rate and setup"
+      }
+    },
+    "link.rc_receiver_failsafes": {
+      "name": {
+        "en": "Receiver failsafes",
+        "uk": "Аварійні режими приймача"
+      },
+      "unit": "count",
+      "direction": "lower",
+      "definition": {
+        "en": "How many times the receiver itself said it had lost the transmitter while armed, however briefly. A short one that recovers before RC_FS_TIMEOUT never trips the radio failsafe, but it is a near miss.",
+        "uk": "Скільки разів сам приймач повідомив, що втратив передавач під час взведення, хоч і ненадовго. Коротка втрата, що минає до RC_FS_TIMEOUT, не вмикає аварійний режим радіо, але це майже аварія."
+      },
+      "method": {
+        "en": "Runs of RCI2.Flags bit 2 (the receiver's protocol failsafe) between arming and disarming.",
+        "uk": "Відрізки з бітом 2 у RCI2.Flags (аварійний режим протоколу приймача) між взведенням і зняттям."
+      },
+      "messages": [
+        "RCI2"
+      ],
+      "zones": {
+        "target": [
+          null,
+          1
+        ],
+        "caution": [
+          1,
+          null
+        ]
+      },
+      "source": {
+        "kind": "ardupilot",
+        "title": "ArduPilot AP_Logger Write_RCIN: RCI2.Flags bit 2, the receiver indicating failsafe through its protocol (any one is a lost link: the app's band)",
+        "url": "https://github.com/ArduPilot/ardupilot/blob/Copter-4.7.0/libraries/AP_Logger/LogFile.cpp"
+      }
+    },
+    "link.rc_fs_thr_margin": {
+      "name": {
+        "en": "Throttle failsafe margin",
+        "uk": "Запас аварійного порогу газу"
+      },
+      "unit": "us",
+      "direction": "higher",
+      "definition": {
+        "en": "How far the lowest throttle the receiver sent with valid input stayed above FS_THR_VALUE. Too close, and a stick at its lowest can trip the radio failsafe in flight.",
+        "uk": "Наскільки найменший газ, який приймач надіслав із дійсним сигналом, тримався над FS_THR_VALUE. Надто близько, і стік у найнижчому положенні може ввімкнути аварійний режим радіо в польоті."
+      },
+      "method": {
+        "en": "The lowest RCIN value on the throttle channel (RCMAP_THROTTLE) anywhere in the log with RCI2 reporting valid input, no failsafe and no MAVLink override on that channel, minus FS_THR_VALUE; only with the radio failsafe on.",
+        "uk": "Найменше значення RCIN на каналі газу (RCMAP_THROTTLE) будь-де в журналі, коли RCI2 повідомляє дійсний сигнал, без аварійного режиму й без перевизначення MAVLink на цьому каналі, мінус FS_THR_VALUE; лише з увімкненим аварійним режимом радіо."
+      },
+      "messages": [
+        "RCIN",
+        "RCI2"
+      ],
+      "zones": {
+        "target": [
+          10,
+          null
+        ],
+        "out": [
+          null,
+          10
+        ]
+      },
+      "source": {
+        "kind": "ardupilot",
+        "title": "ArduPilot radio failsafe: FS_THR_VALUE at least 10 PWM below the lowest throttle the receiver sends with the transmitter on",
+        "url": "https://ardupilot.org/copter/docs/radio-failsafe.html"
+      }
+    }
+  },
+  "findings": {
+    "link.downlink_loss": {
+      "stage": "operations",
+      "title": {
+        "en": "Telemetry lost {loss}% of the vehicle's packets on the way down ({lost} of {received})",
+        "uk": "Телеметрія втратила {loss}% пакетів апарата на шляху вниз ({lost} із {received})"
+      },
+      "action": {
+        "en": "Check the ground antenna's placement and line of sight, the radio's air data rate against the stream rates asked for, and for interference near the ground station. The link analysis shows whether the loss rises with distance or comes in bursts.",
+        "uk": "Перевірте розташування наземної антени й пряму видимість, швидкість передачі радіо порівняно із запитаними частотами потоків і завади біля наземної станції. Аналіз каналу показує, чи зростають втрати з відстанню, чи приходять пачками."
+      }
+    },
+    "link.downlink_outage": {
+      "stage": "operations",
+      "title": {
+        "en": "The ground station heard nothing from the vehicle for {seconds} s at {at_s} s ({outages} silences over {over_s} s)",
+        "uk": "Наземна станція нічого не чула від апарата {seconds} с на {at_s} с ({outages} перерв понад {over_s} с)"
+      },
+      "action": {
+        "en": "For that long the operator saw nothing new. Look at the incident timeline around it: distance, heading and what the aircraft was doing, and whether the uplink dropped at the same time.",
+        "uk": "Стільки часу оператор не бачив нічого нового. Перегляньте часову шкалу інциденту довкола: відстань, курс і що робив апарат, і чи зник одночасно канал угору."
+      }
+    },
+    "link.uplink_loss": {
+      "stage": "operations",
+      "title": {
+        "en": "The autopilot missed {loss}% of the packets from the ground on link {link}",
+        "uk": "Автопілот пропустив {loss}% пакетів із землі на каналі {link}"
+      },
+      "action": {
+        "en": "Commands, joystick input and heartbeats travel this way, so lost packets delay control. Check the aircraft's antenna and its placement away from motors, ESCs and the video transmitter. Two senders sharing one link also read as loss here.",
+        "uk": "Цим шляхом ідуть команди, введення джойстика й серцебиття, тож втрати затримують керування. Перевірте антену апарата і її розташування подалі від моторів, ESC і відеопередавача. Два відправники на одному каналі теж виглядають тут як втрати."
+      }
+    },
+    "link.gcs_silence": {
+      "stage": "operations",
+      "title": {
+        "en": "The autopilot did not hear the ground station for {seconds} s at {at_s} s, against FS_GCS_TIMEOUT {timeout}",
+        "uk": "Автопілот не чув наземної станції {seconds} с на {at_s} с, при FS_GCS_TIMEOUT {timeout}"
+      },
+      "action": {
+        "en": "A near miss: a little longer and the GCS failsafe would have fired. Find out what dropped the uplink then, and make sure the ground station sends heartbeats at least once a second.",
+        "uk": "Майже аварія: трохи довше — і спрацював би аварійний режим GCS. З'ясуйте, що тоді обірвало канал угору, і переконайтеся, що наземна станція надсилає серцебиття щонайменше раз на секунду."
+      }
+    },
+    "link.txbuf_low": {
+      "stage": "operations",
+      "title": {
+        "en": "The telemetry radio's buffer was under {below}% free for {share}% of the flight",
+        "uk": "Буфер телеметрійного радіо був вільний менше ніж на {below}% протягом {share}% польоту"
+      },
+      "action": {
+        "en": "The link carries more than it can send, so ArduPilot slowed every stream. Lower the stream rates the ground station asks for, or raise the radio's air data rate if range allows.",
+        "uk": "Каналом іде більше, ніж він може передати, тож ArduPilot сповільнив усі потоки. Зменште частоти потоків, які запитує наземна станція, або підвищте швидкість передачі радіо, якщо дальність дозволяє."
+      }
+    },
+    "link.fade_margin": {
+      "stage": "operations",
+      "title": {
+        "en": "Telemetry fade margin down to {margin} dB at the {side} end: the link would hold to only about {range_factor}× the distance",
+        "uk": "Запас загасання телеметрії знижувався до {margin} дБ на кінці «{side}»: канал утримався б лише приблизно до {range_factor}× відстані"
+      },
+      "action": {
+        "en": "Each 6 dB of margin doubles the range. Raise the weaker end's antenna gain or placement, cut the noise near it (motors, ESCs, USB on the ground laptop), or fly closer.",
+        "uk": "Кожні 6 дБ запасу подвоюють дальність. Покращте підсилення чи розташування антени слабшого кінця, зменште шум біля нього (мотори, ESC, USB наземного ноутбука) або літайте ближче."
+      }
+    },
+    "link.rssi_asymmetry": {
+      "stage": "operations",
+      "title": {
+        "en": "The {weaker} end of the telemetry link receives {gap} dB less than the other",
+        "uk": "Кінець «{weaker}» телеметрійного каналу приймає на {gap} дБ менше за інший"
+      },
+      "action": {
+        "en": "With the same power at both ends the two should match. Check that end's antenna, cable and connectors, and any amplifier on the other end.",
+        "uk": "За однакової потужності на обох кінцях вони мають збігатися. Перевірте антену, кабель і роз'єми цього кінця та підсилювач на іншому."
+      }
+    },
+    "link.rc_receiver_failsafes": {
+      "stage": "operations",
+      "title": {
+        "en": "The RC receiver lost the transmitter {count} times while armed (longest {longest_s} s)",
+        "uk": "Приймач керування втрачав передавач {count} разів під час взведення (найдовше {longest_s} с)"
+      },
+      "action": {
+        "en": "Each one is a near miss for the radio failsafe. Check the receiver's antennas and their placement, and the RC link's packet rate against the range flown.",
+        "uk": "Кожна така втрата — майже аварія для аварійного режиму радіо. Перевірте антени приймача і їхнє розташування та частоту пакетів каналу керування порівняно з відстанню польоту."
+      }
+    },
+    "link.rc_fs_thr_margin": {
+      "stage": "operations",
+      "title": {
+        "en": "The lowest throttle the receiver sent ({lowest}) is only {margin} above FS_THR_VALUE {value}",
+        "uk": "Найменший газ, який надіслав приймач ({lowest}), лише на {margin} вищий за FS_THR_VALUE {value}"
+      },
+      "action": {
+        "en": "A stick at its lowest can trip the radio failsafe in flight. Set FS_THR_VALUE at least {needed} below the stick's lowest and at least 10 above what the receiver sends with the transmitter off (check that on the bench).",
+        "uk": "Стік у найнижчому положенні може ввімкнути аварійний режим радіо в польоті. Встановіть FS_THR_VALUE щонайменше на {needed} нижче найнижчого положення стіка й щонайменше на 10 вище того, що надсилає приймач із вимкненим передавачем (перевірте це на стенді)."
+      }
+    }
+  }
+}

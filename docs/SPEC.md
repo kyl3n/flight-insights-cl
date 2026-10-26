@@ -115,6 +115,7 @@ DataFlash .bin logs are the primary input because they describe themselves: FMT 
 | Parameter files (Mission Planner `.param`, QGroundControl `.params`) | Parameter history; audit without a flight | v1 |
 | Methodic Configurator vehicle folder | Planned changes and their reasons | v1 |
 | wfb-ng link statistics | Per-antenna RSSI, FEC recovered and lost packets | Later |
+| IP mesh radio logs (Doodle Labs, Silvus, DigiQ SkyPulse) | Each radio's own signal quality, throughput and retransmissions | Later: the format work needs sample logs from the radios |
 | Download from the vehicle over MAVLink | Convenience | Later |
 
 **Pipeline**
@@ -212,7 +213,7 @@ Every airframe has a build profile listing its components. It is set up once whe
 | Batteries | Chemistry, cells, capacity, C rating, pack ID | Cell count from voltage; pack resistance |
 | Power module | Model, calibration | Calibration parameters |
 | GNSS and compass | Model, antenna, mounting | Yes: receiver type, compass IDs |
-| Telemetry radio | Type (SiK, RFD, wfb-ng), antennas, firmware | Partly, from radio status messages |
+| Telemetry radio | Type (SiK, RFD, IP mesh such as Doodle Labs, Silvus or DigiQ SkyPulse, wfb-ng), antennas, firmware | Partly: SiK radios name themselves in the tlog's radio status messages |
 | RC receiver | Protocol, model | Protocol |
 | CAN peripherals | Node name, firmware version | Yes: DroneCAN node information is logged ([log messages](https://ardupilot.org/copter/docs/logmessages.html)) |
 | Video, companion computer, gimbal, payload mount | Model, mounting, power source | Mostly no |
@@ -846,9 +847,29 @@ Tlogs are worth analysing in full: the onboard log records what the aircraft exp
 - **Geometry and interference,** computed locally: link quality against distance from the ground station, altitude, the station's bearing in the aircraft's body frame (airframe shadowing an antenna at certain headings), motor current (EMI) and video transmitter activity.
 - **Latency and bandwidth.** Round-trip time from time-sync exchanges and command-to-reply times; the byte rate implied by configured stream rates against measured throughput.
 
+**Measured now** (`analyzers/links.py`, rules in `knowledge/rules/links.json`), from what ArduPilot and the ground station recorded, while armed:
+
+- **Downlink loss:** the share of the vehicle's packets the station never received, from the tlog session's sequence counts. With several stations, the worst one's view.
+- **Downlink outage:** the longest time the station heard nothing at all from the vehicle, on the vehicle's clock through the tlog session. Any packet counts, which times an outage more finely than 1 Hz heartbeats. Gaps over 2 s are counted as outages.
+- **Uplink loss:** the autopilot's own count of packets it missed (`MAV.rxdp` against `rxp`, 16-bit counts taken across their wraps), on each link that heard the GCS. A link needs at least 50 packets before its share is judged.
+- **GCS silence:** the longest the autopilot did not hear the GCS (`MAV.mgs`), as a share of `FS_GCS_TIMEOUT`. From 0.4 to 1 it is a near miss and a finding. Past 1 it is left to the failsafe analysis, which judges whether the failsafe fired.
+- **TX buffer:** the share of the flight the radio's buffer was less than half free. That makes ArduPilot slow every stream by 20 ms, or 60 ms under 20% free. It comes from `RAD` on the vehicle, else the tlog's RADIO\_STATUS, and holds for every radio, since MAVLink defines TxBuf as a percentage.
+- **Fade margin and asymmetry, SiK firmware only.** MAVLink leaves RSSI and noise in each device's own units, so they are read as decibels (1.9 units a dB) only for SiK firmware radios. Those are radios the platform's setup names as SiK or RFD, or that identify themselves in the tlog with SiK's own system and component IDs ('3', 'D').
+  - **Fade margin:** the 5th percentile of RSSI minus noise at each end, with the weaker end reported. 12 dB or more is the target.
+  - **Asymmetry:** the median gap between the two ends' RSSI.
+- **Not yet:** latency and command-to-reply times come with the command timeline. Link quality against distance, and the predicted range, need the local position accessor (GNSS work). Geometry and interference come with them.
+- **The radios' own logs** (IP mesh radios such as Doodle Labs, Silvus and DigiQ SkyPulse, and wfb-ng) are a later import. The format work waits for sample logs from the radios. Until then their quality is judged from the MAVLink loss and silence above, which hold for every radio.
+
 ### RC link
 
 Receiver RSSI and link quality where reported, frame loss, failsafe entries and recoveries, impossible channel jumps, and the throttle-failsafe threshold (`FS_THR_VALUE`) against the lowest throttle the receiver actually delivered.
+
+**Measured now**, skipped when `RC_OPTIONS` tells ArduPilot to ignore the receiver (the ground station flies it):
+
+- **Receiver RSSI and link quality** (`RSSI.RXRSSI` and `RXLQ`): their 5th percentile while armed. They have no fixed zones, since each receiver scales them its own way, and are judged against the airframe's own flights.
+- **The receiver's own failsafes:** each time the receiver itself flagged failsafe while armed (`RCI2.Flags` bit 2), with the longest. One is a near miss and a finding.
+- **`FS_THR_VALUE` margin:** the lowest throttle the receiver sent with valid input, outside failsafe and not overridden over MAVLink, less `FS_THR_VALUE`. Under 10 PWM is a finding. The receiver's own failsafe throttle is left out: the SITL receiver fixture sends 950 µs on loss and the margin still reads from the stick's 1000 µs.
+- **Not yet:** impossible channel jumps, and the ExpressLRS margin, which needs RSSI in dBm, not the autopilot's 0 to 1 scale.
 
 ### GNSS quality and interference
 
