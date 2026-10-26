@@ -302,6 +302,10 @@ def test_every_fixture_is_one_flight_with_the_modes_its_scenario_flew(
         "quadplane-hover": ["QLOITER", "QLAND"],
         "copter-quad-autotune-saved": ["GUIDED", "ALT_HOLD", "AUTOTUNE"],  # disarmed in it
         "copter-quad-autotune-aborted": ["GUIDED", "ALT_HOLD", "AUTOTUNE", "ALT_HOLD", "LAND"],
+        "copter-quad-fs-gcs": ["GUIDED", "RTL"],
+        "copter-quad-fs-battery": ["GUIDED", "RTL", "LAND"],
+        "copter-quad-fs-radio": ["GUIDED", "RTL"],
+        "copter-quad-fs-off": ["GUIDED", "LAND"],
     }[log.stem]
     assert names == expected
     assert flight.end == "disarmed" and flight.duration_s > 20

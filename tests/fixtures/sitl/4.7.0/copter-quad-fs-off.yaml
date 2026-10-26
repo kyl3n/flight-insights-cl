@@ -1,0 +1,32 @@
+source: sitl
+vehicle: copter
+frame: quad +
+firmware: 4.7.0
+ardupilot_commit: 1511f27194f1dcc3728270883047bdf022b3fd53
+scenario: copter-quad-fs-off
+description: 'GUIDED take-off to 5 m with the ground station''s heartbeats on, then
+  none, then the receiver''s failsafe output, with both failsafes off (FS_GCS_ENABLE
+  0, FS_THR_ENABLE 0): nothing reacts; LAND by command.'
+parameters_set:
+  LOG_DISARMED: 0
+  SIM_ESC_TELEM: 0
+  LOG_FILE_RATEMAX: 10
+  FS_GCS_ENABLE: 0
+  FS_THR_ENABLE: 0
+faults:
+- kind: other
+  description: ground-station link lost (heartbeats stop)
+- kind: other
+  description: RC link lost (receiver failsafe throttle)
+  parameters:
+  - SIM_RC_FAIL
+- kind: parameter-error
+  description: GCS and radio failsafes off
+  parameters:
+  - FS_GCS_ENABLE
+  - FS_THR_ENABLE
+expected:
+- MAV.mgs stops advancing and the throttle drops under FS_THR_VALUE while armed
+- no ERR FAILSAFE_GCS or FAILSAFE_RADIO
+- LAND by command (reason GCS_COMMAND), then disarm
+- 'steady hover windows: 14 s in GUIDED'

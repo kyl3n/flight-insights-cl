@@ -39,6 +39,9 @@ from scenarios import SCENARIOS, Scenario
 SITL_HOME = "-35.363261,149.165230,584,353"
 SPEEDUP = 10
 SERIAL0 = ("127.0.0.1", 5760)
+# A ground station's heartbeat, in wall time: 0.5 s of simulated time at the default
+# speed-up, well inside the GCS failsafe's 5 s
+HEARTBEAT_S = 0.05
 
 
 class ScenarioFailed(Exception):
@@ -54,6 +57,8 @@ class Vehicle:
         # so watch every message from the moment the link opens.
         self.ready = False
         self.texts: list[str] = []  # status texts received, for diagnosing failures
+        self.beating = False  # sending a ground station's heartbeats (see heartbeats)
+        self.last_beat = 0.0
         self.conn.message_hooks.append(self._watch)
         self.conn.setup_logfile(str(tlog))
         self.conn.wait_heartbeat(timeout=60)
@@ -63,6 +68,12 @@ class Vehicle:
         )
 
     def _watch(self, _conn: object, msg: object) -> None:
+        # Sent as messages arrive, on this thread, so they never interleave with another send
+        if self.beating and time.monotonic() - self.last_beat >= HEARTBEAT_S:
+            self.last_beat = time.monotonic()
+            self.conn.mav.heartbeat_send(
+                mavutil.mavlink.MAV_TYPE_GCS, mavutil.mavlink.MAV_AUTOPILOT_INVALID, 0, 0, 0
+            )
         kind = getattr(msg, "get_type", lambda: "")()
         if kind == "STATUSTEXT":
             text = str(getattr(msg, "text", ""))
@@ -74,6 +85,12 @@ class Vehicle:
             health = int(getattr(msg, "onboard_control_sensors_health", 0))
             if health & mavutil.mavlink.MAV_SYS_STATUS_PREARM_CHECK:
                 self.ready = True
+
+    def heartbeats(self, on: bool) -> None:
+        """Send a ground station's heartbeats, as this link's system ID (255, the
+        autopilot's MAV_GCS_SYSID), so the GCS failsafe has a ground station to lose; stop
+        them to lose it. Nothing else this script sends counts as the GCS being heard."""
+        self.beating = on
 
     def wait_ready(self, timeout: float = 120) -> None:
         end = time.monotonic() + timeout
