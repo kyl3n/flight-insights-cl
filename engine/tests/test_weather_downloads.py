@@ -106,3 +106,62 @@ def test_the_shell_hands_over_a_file(tmp_path: Path) -> None:
                   path=str(tmp_path / "gone.json"))  # fmt: skip
     assert missing["error"]["message"] == "no such file"
     assert rpc("weather.held", source="radar")["error"]["code"] == -32602
+
+
+def test_a_shared_reply_arrives_gzipped(store: Store) -> None:
+    """What another laptop shared is kept the same as a reply fetched here; a body that
+    opens to more than any reply, or is cut off, or is not gzip, is refused."""
+    import gzip
+
+    shared = gzip.compress(REPLY, mtime=0)
+    downloads.keep(store, "forecast", "N50E030", "2026-10-26T06", shared, 1, gzipped=True)
+    assert downloads.body(store, "forecast", "N50E030", "2026-10-26T06") == REPLY
+    assert downloads.packed(store, "forecast", "N50E030", "2026-10-26T06") == shared
+    bomb = gzip.compress(b"[" + b"0," * (downloads.MAX_BYTES // 2) + b"0]", mtime=0)
+    for bad, why in [
+        (bomb, "larger"),
+        (shared[:-10], "cut off"),
+        (REPLY, "not gzip"),
+        (gzip.compress(b'{"error": true}', mtime=0), "error reply"),
+    ]:
+        with pytest.raises(DownloadError, match=why):
+            downloads.keep(store, "forecast", "N50E030", "2026-10-26T12", bad, 1, gzipped=True)
+
+
+def test_the_shell_exports_a_kept_reply_to_share(tmp_path: Path) -> None:
+    from test_rpc import LAPTOP, Output, call, keys
+
+    from flight_insights.rpc import build_server
+
+    out = Output()
+    server = build_server(out)
+    call(server, out, next(ids), "engine.unlock", laptop_id=LAPTOP, data_dir=str(tmp_path),
+         keys=keys())  # fmt: skip
+
+    def rpc(method: str, **params: Any) -> dict[str, Any]:
+        return call(server, out, next(ids), method, **params)
+
+    reply = tmp_path / "reply.json"
+    reply.write_bytes(REPLY)
+    where = {"source": "reanalysis", "tile": "N50E030", "period": "2026-09"}
+    rpc("weather.store", path=str(reply), **where)
+    shared = tmp_path / "shared.gz"
+    assert rpc("weather.export", path=str(shared), **where)["result"]["bytes"] > 0
+    assert rpc("weather.export", path=str(shared), **where)["error"]["code"] == -32003  # exists
+    gone = {**where, "period": "2026-08"}
+    assert (
+        "not kept" in rpc("weather.export", path=str(tmp_path / "x.gz"), **gone)["error"]["message"]
+    )
+    # another laptop keeps it as shared
+    other = tmp_path / "other"
+    other.mkdir()
+    out2 = Output()
+    server2 = build_server(out2)
+    call(server2, out2, next(ids), "engine.unlock", laptop_id=LAPTOP, data_dir=str(other),
+         keys=keys())  # fmt: skip
+    got = call(server2, out2, next(ids), "weather.store", path=str(shared), gzip=True, **where)
+    assert got["result"]["bytes"] > 0
+    held = call(server2, out2, next(ids), "weather.held", source="reanalysis")["result"]
+    assert held == {"held": [["N50E030", "2026-09"]]}
+    bad = call(server2, out2, next(ids), "weather.store", path=str(shared), gzip="yes", **where)
+    assert bad["error"]["code"] == -32602

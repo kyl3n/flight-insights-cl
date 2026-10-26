@@ -235,6 +235,31 @@ fn service_keys(
     Ok(())
 }
 
+/// What weather sharing needs, when this laptop is in a fleet and signed in to its
+/// drive: the drive, the registry as last read, this laptop's keys and its identity.
+pub struct WeatherFleet {
+    pub drive: Arc<GoogleDrive>,
+    pub registry: Registry,
+    pub keyring: Keyring,
+    pub identity: Arc<LaptopIdentity>,
+}
+
+pub fn weather_fleet(shell: &Shell) -> Option<WeatherFleet> {
+    let p = parts(shell).ok()?;
+    app::load_settings(&p.data_dir).fingerprint()?;
+    oauth::built_in_client()?;
+    refresh_token(p.keychain.as_ref()).ok()??;
+    let drive = google(shell, &p).ok()?;
+    let registry = shell.registry.lock().expect("registry").clone()?;
+    let keyring = Worker::keys_for(&registry, &p.identity).ok()??;
+    Some(WeatherFleet {
+        drive,
+        registry,
+        keyring,
+        identity: p.identity,
+    })
+}
+
 /// Whether this laptop is in a fleet, so a key entered here is shared with it.
 pub fn in_fleet(shell: &Shell) -> bool {
     app::load_settings(&shell.data_dir).fleet.is_some()
