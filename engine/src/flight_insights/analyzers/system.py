@@ -186,6 +186,13 @@ def error_name(subsystem: str, code: int, codes: Mapping[str, list[str]]) -> str
     return _code_name(subsystem, code, codes) or _general_name(code, codes)
 
 
+def _after_arming(flight: FlightData, times: list[int]) -> list[float]:
+    """Log times as seconds after arming: a log's own clock is no use to a reader, and a
+    raw microsecond count is in the form of a scaled coordinate, which the AI packet's
+    location check refuses."""
+    return [round((t - flight.arm_us) / 1e6, 3) for t in times]
+
+
 def _errors(flight: FlightData, names: Mapping[str, Any], pm_errors: bool, out: Result) -> bool:
     err = flight.table("ERR")
     if err is None or err.num_rows == 0:
@@ -211,7 +218,7 @@ def _errors(flight: FlightData, names: Mapping[str, Any], pm_errors: bool, out: 
             messages=("ERR",),
             fields=("Subsys", "ECode"),
             segment=Segment("flight", times[0], times[-1]),
-            values={"subsystem": s, "code": c, "times_us": times},
+            values={"subsystem": s, "code": c, "at_s": _after_arming(flight, times)},
         )
         if subsystem.startswith("FAILSAFE_") or subsystem in FAILSAFE_SUBSYSTEMS:
             finding = Finding(
@@ -267,7 +274,7 @@ def _events(flight: FlightData, names: Mapping[str, Any], out: Result) -> bool:
             messages=("EV",),
             fields=("Id",),
             segment=Segment("flight", first, int(t[hit[-1]])),
-            values={"times_us": [int(t[k]) for k in hit]},
+            values={"at_s": _after_arming(flight, [int(t[k]) for k in hit])},
         )
         out.findings.append(
             Finding(
@@ -295,7 +302,7 @@ def _system(flight: FlightData, reg: Registry) -> Result:
 
 SYSTEM = Analyzer(
     name="system",
-    version=1,
+    version=2,
     run=_system,
     metrics=("system.slow_loops", "system.max_loop_time"),
     findings=(
