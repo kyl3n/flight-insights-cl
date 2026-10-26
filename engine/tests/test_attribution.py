@@ -4,7 +4,7 @@ which metrics, checked against the metric registry and the 4.7 parameter metadat
 from __future__ import annotations
 
 import json
-from collections.abc import Callable
+from collections.abc import Callable, Iterator, Mapping, Sequence
 from pathlib import Path
 from typing import Any
 
@@ -12,9 +12,12 @@ import pytest
 from test_analyzers import copy_pack
 
 from flight_insights.analyzers import Registry
-from flight_insights.history.attribution import links_for, links_to
+from flight_insights.history.attribution import attribute, links_for, links_to, shift_json
 from flight_insights.knowledge import KnowledgeError, Pack, load_pack
 from flight_insights.params import Dialect
+from flight_insights.platforms.records import create_airframe, create_platform
+from flight_insights.platforms.schema import load_schema
+from flight_insights.store import Store, StoreKeys, open_store
 
 
 @pytest.fixture(scope="module")
@@ -119,3 +122,184 @@ def test_a_broken_map_is_refused(pack: Pack, tmp_path: Path, case: str) -> None:
     path.write_text(json.dumps(doc), encoding="utf-8")
     with pytest.raises(KnowledgeError, match=message):
         Registry.load(load_pack(root))
+
+
+# --- shifts and their ranked causes -------------------------------------------------------
+
+T0 = 1_760_000_000_000_000
+D_NOISE = ("tune.d_noise_roll", "inputs")
+Value = float | tuple[float, float, float]  # a value, or (value, low, high)
+
+
+@pytest.fixture
+def store(tmp_path: Path) -> Iterator[Store]:
+    with open_store(tmp_path / "f.db", StoreKeys.generate(), "e" * 32) as s:
+        yield s
+
+
+def airframe(store: Store) -> str:
+    platform = create_platform(store, load_schema(load_pack()), "HL", "copter")
+    return create_airframe(store, platform, "HL1")
+
+
+def fly(
+    store: Store, af: str, n: int, values: Mapping[tuple[str, str], Value],
+    thrust: float | None = None, firmware: str = "4.7.0",
+) -> str:  # fmt: skip
+    """Flight n of the airframe, analysed, with these metric values."""
+    fid = store.insert(
+        "flight",
+        {"airframe_id": af, "firmware": firmware, "boot_utc_us": T0 + n * 86_400_000_000,
+         "arm_us": 1_000_000},
+    )  # fmt: skip
+    run = store.insert(
+        "analysis_run",
+        {"flight_id": fid, "engine_version": "t", "knowledge_version": "t",
+         "analyzers_json": "{}", "status": "complete"},
+    )  # fmt: skip
+    rows = dict(values) | ({("payload.hover_thrust", "hover"): thrust} if thrust else {})
+    for (metric, segment), v in rows.items():
+        value, spread = (
+            (v, {}) if isinstance(v, float | int) else (v[0], {"low": v[1], "high": v[2]})
+        )
+        store.insert(
+            "metric_value",
+            {"run_id": run, "flight_id": fid, "metric": metric, "segment": segment,
+             "value": value, "spread_json": json.dumps(spread), "zone": "target"},
+        )  # fmt: skip
+    return fid
+
+
+def change(store: Store, af: str, after: str, *changes: tuple[str, float, float, str]) -> None:
+    """A parameter change set that first applies to flight `after`: (name, before,
+    after, class) each."""
+    store.insert(
+        "change_set",
+        {"airframe_id": af, "kind": "parameter", "origin": "loaded file",
+         "after_flight_id": after,
+         "details_json": json.dumps({"changes": [
+             {"name": n, "before": b, "after": a, "class": c} for n, b, a, c in changes
+         ]})},
+    )  # fmt: skip
+
+
+def noise(values: Sequence[float]) -> list[dict[tuple[str, str], Value]]:
+    return [{D_NOISE: v} for v in values]
+
+
+def flights(store: Store, af: str, series: Sequence[Mapping[tuple[str, str], Value]]) -> list[str]:
+    return [fly(store, af, n, v) for n, v in enumerate(series)]
+
+
+def test_a_raised_d_gain_is_named_for_the_d_noise_it_brought(store: Store, reg: Registry) -> None:
+    af = airframe(store)
+    ids = flights(store, af, noise([10.0, 10.4, 9.8, 10.2, 20.1, 19.8, 20.4]))
+    change(store, af, ids[4], ("ATC_RAT_RLL_D", 0.003, 0.006, "tuning"),
+           ("BATT_CAPACITY", 10000.0, 12000.0, "tuning"),
+           ("MOT_THST_HOVER", 0.31, 0.33, "learned"))  # fmt: skip
+    [s] = attribute(store, reg, af, "tune.d_noise_roll")
+    assert (s.flight, s.verdict, s.confidence) == (ids[4], "worse", "high")
+    assert s.before == tuple(ids[:4]) and s.after == tuple(ids[4:])
+    assert s.effect == pytest.approx(9.95, abs=0.2) and s.low > 0
+    ranked = [c.change.name for c in s.candidates]
+    assert ranked == ["ATC_RAT_RLL_D", "BATT_CAPACITY"]  # linked, then not
+    assert s.candidates[0].group == "rate D" and s.candidates[0].factors["direction"] == 1.0
+    assert [c.name for c in s.context] == ["MOT_THST_HOVER"]  # learned: context, no cause
+
+
+def test_a_shift_reads_as_the_app_shows_it(store: Store, reg: Registry) -> None:
+    af = airframe(store)
+    ids = flights(store, af, noise([10.0, 10.4, 9.8, 10.2, 20.1, 19.8, 20.4]))
+    change(store, af, ids[4], ("ATC_RAT_RLL_D", 0.003, 0.006, "tuning"))
+    [s] = attribute(store, reg, af)  # every metric: only D noise moved
+    shown = shift_json(s, reg)
+    assert (shown["metric"], shown["verdict"], shown["name"]["en"]) == (
+        "tune.d_noise_roll", "worse", reg.metrics["tune.d_noise_roll"].name["en"]
+    )  # fmt: skip
+    [top] = shown["candidates"]
+    assert top["name"] == "ATC_RAT_RLL_D" and top["link"] == "rate D"
+    assert set(top["why"]) == {"en", "uk"} and json.dumps(shown)
+
+
+def test_noise_inside_the_spread_is_no_shift(store: Store, reg: Registry) -> None:
+    af = airframe(store)
+    ids = flights(store, af, noise([10.0, 11.0, 9.0, 10.5, 9.5, 10.8, 9.7]))
+    change(store, af, ids[4], ("ATC_RAT_RLL_D", 0.003, 0.0033, "tuning"))
+    assert attribute(store, reg, af, "tune.d_noise_roll") == []
+
+
+def test_a_large_move_on_too_few_flights_is_inconclusive(store: Store, reg: Registry) -> None:
+    af = airframe(store)
+    ids = flights(store, af, noise([10.0, 10.5, 9.5, 10.0, 30.0, 10.0]))
+    change(store, af, ids[4], ("ATC_RAT_RLL_D", 0.003, 0.006, "tuning"))
+    [s] = attribute(store, reg, af, "tune.d_noise_roll")
+    assert s.verdict == "inconclusive" and s.low <= 0 <= s.high
+
+
+def test_one_flight_each_side_counts_when_their_intervals_are_apart(
+    store: Store, reg: Registry
+) -> None:
+    """The tune check's error carries an interval per flight, so the gate's few flights
+    can still show a shift."""
+    af = airframe(store)
+    metric = ("tune.attitude_error_pitch", "inputs")
+    a = fly(store, af, 0, {metric: (4.0, 3.8, 4.2)})
+    b = fly(store, af, 1, {metric: (6.0, 5.7, 6.3)})
+    change(store, af, b, ("ATC_ANG_PIT_P", 20.0, 9.0, "tuning"))
+    [s] = attribute(store, reg, af, "tune.attitude_error_pitch")
+    assert (s.before, s.after, s.verdict, s.spread) == ((a,), (b,), "worse", None)
+    assert s.candidates[0].factors["direction"] == 1.0  # less angle P, more attitude error
+    c = fly(store, af, 2, {metric: (6.1, 5.0, 7.2)})  # overlapping: no shift from b to c
+    change(store, af, c, ("ATC_RAT_PIT_D", 0.004, 0.0042, "tuning"))
+    assert [x.flight for x in attribute(store, reg, af, "tune.attitude_error_pitch")] == [b]
+
+
+def test_a_loaded_flight_is_never_read_against_a_light_one(store: Store, reg: Registry) -> None:
+    af = airframe(store)
+    ids = [
+        fly(store, af, n, {D_NOISE: v}, thrust=t)
+        for n, (v, t) in enumerate([(10.0, 30.0), (10.2, 30.0), (9.9, 30.0), (10.1, 30.0),
+                                    (14.0, 37.5), (14.2, 37.5), (13.9, 37.5)])
+    ]  # fmt: skip
+    change(store, af, ids[4], ("ATC_RAT_RLL_D", 0.003, 0.006, "tuning"))
+    assert attribute(store, reg, af, "tune.d_noise_roll") == []  # loaded is its own group
+
+
+def test_a_build_change_with_it_lowers_the_confidence(store: Store, reg: Registry) -> None:
+    af = airframe(store)
+    ids = flights(store, af, noise([10.0, 10.4, 9.8, 10.2, 20.1, 19.8, 20.4]))
+    change(store, af, ids[4], ("ATC_RAT_RLL_D", 0.003, 0.006, "tuning"))
+    store.insert(
+        "build_version",
+        {"airframe_id": af, "number": 2, "reason_kind": "upgrade", "reason": "new props",
+         "spec_json": "{}", "effective_date": "2026-11-01", "first_flight_id": ids[4]},
+    )  # fmt: skip
+    [s] = attribute(store, reg, af, "tune.d_noise_roll")
+    assert s.confidence == "medium" and {c.change.kind for c in s.candidates} == {
+        "parameter", "build"
+    }  # fmt: skip
+
+
+def test_a_change_that_cannot_move_the_metric_does_not_split_its_window(
+    store: Store, reg: Registry
+) -> None:
+    """Telemetry rates changed after flight 1: the D noise baseline still runs from
+    flight 0, so the later D change has enough flights before it."""
+    af = airframe(store)
+    ids = flights(store, af, noise([10.0, 10.4, 9.8, 10.2, 20.1, 19.8, 20.4]))
+    change(store, af, ids[2], ("SERIAL1_BAUD", 57.0, 115.0, "tuning"))
+    change(store, af, ids[4], ("ATC_RAT_RLL_D", 0.003, 0.006, "tuning"))
+    [s] = attribute(store, reg, af, "tune.d_noise_roll")
+    assert s.flight == ids[4] and s.before == tuple(ids[:4])
+
+
+def test_a_change_that_would_push_the_other_way_ranks_below(store: Store, reg: Registry) -> None:
+    """D noise rose: a raised D gain fits, a lowered gyro filter would have lowered it."""
+    af = airframe(store)
+    ids = flights(store, af, noise([10.0, 10.4, 9.8, 10.2, 20.1, 19.8, 20.4]))
+    change(store, af, ids[4], ("INS_GYRO_FILTER", 40.0, 20.0, "tuning"),
+           ("ATC_RAT_RLL_D", 0.003, 0.006, "tuning"))  # fmt: skip
+    [s] = attribute(store, reg, af, "tune.d_noise_roll")
+    names = [c.change.name for c in s.candidates]
+    assert names == ["ATC_RAT_RLL_D", "INS_GYRO_FILTER"]
+    assert s.candidates[1].factors["direction"] == 0.2

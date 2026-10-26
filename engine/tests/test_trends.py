@@ -341,6 +341,9 @@ def test_trends_over_rpc(tmp_path: Path) -> None:
                      segment=card["segment"], group=bad_group)  # fmt: skip
         assert wrong["error"]["code"] == -32602
     assert call(server, out, 9, "trend.events", airframe_id=af["id"])["result"] == []
+    assert call(server, out, 17, "trend.attribution", airframe_id=af["id"])["result"] == []
+    bad = call(server, out, 18, "trend.attribution", airframe_id=af["id"], metric="tune.feel")
+    assert bad["error"]["code"] == -32602
     view = call(server, out, 10, "trend.platform", platform_id=pl["id"], metric=card["metric"],
                 segment=card["segment"])["result"]  # fmt: skip
     assert [r["airframe"] for r in view["airframes"]] == [af["id"]]

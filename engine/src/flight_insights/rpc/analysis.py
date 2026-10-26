@@ -13,6 +13,7 @@
 | trend.series | One metric's series for an airframe, with its zones, baseline and drift |
 | trend.payloads | An airframe's payload bands by hover thrust, in kg once a flight is weighed |
 | trend.events | What changed on an airframe, placed at the flight it first applies to |
+| trend.attribution | An airframe's shifts (of one metric, or all), with their ranked causes |
 | trend.platform | One metric for every airframe of a platform, on shared axes |
 | flight.list | Flights, newest first, with a summary of each one's latest analysis |
 | fleet.overview | Each airframe's status, stage, key metrics and last flight; what is urgent |
@@ -37,6 +38,7 @@ from typing import TYPE_CHECKING, Any, cast
 from flight_insights import analyzers, recommend, review, trends, views
 from flight_insights.analyzers.registry import LANGUAGES
 from flight_insights.filters import workbench
+from flight_insights.history import attribution
 from flight_insights.rpc.server import (
     BAD_INPUT,
     CONFLICT,
@@ -318,6 +320,18 @@ def add_analysis_methods(server: Server, state: EngineState, guarded: Callable[[
     @guarded
     def trend_events(_ctx: Context, params: dict[str, Any]) -> list[dict[str, Any]]:
         return trends.events(state.require_store(), _id(params, "airframe_id"))
+
+    @server.method("trend.attribution")
+    @guarded
+    def trend_attribution(_ctx: Context, params: dict[str, Any]) -> list[dict[str, Any]]:
+        """The airframe's shifts, each with its ranked candidate causes."""
+        reg = analyzers.Registry.load(state.pack)
+        metric = params.get("metric")
+        if metric is not None and (not isinstance(metric, str) or metric not in reg.metrics):
+            raise RpcError(INVALID_PARAMS, "metric must be a metric the registry knows, or null")
+        store, airframe = state.require_store(), _id(params, "airframe_id")
+        found = attribution.attribute(store, reg, airframe, metric)
+        return [attribution.shift_json(s, reg) for s in found]
 
     @server.method("trend.platform")
     @guarded

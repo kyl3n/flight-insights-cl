@@ -8,6 +8,11 @@ within each payload band, so a loaded flight is never read against a light one.
   waiting for its flight leaves the check unanswered; a band clearly worse marks it worse.
 - **metric_not_worse**: the same bands, flown again with it, none worse by `by` with
   the intervals apart: a guard on what the change is not meant to improve.
+- **no_shift_worse**: no metric shifted worse from the first flight with the change to
+  the one being graded (history/attribution.py: per payload group, beyond the airframe's
+  spread). One whose top-ranked cause is the change's own parameter, or a value its work
+  saves, marks the check worse; one caused by something else fails it. A metric with too
+  few flights to judge is no shift, so it passes until they are flown.
 - **metric_vs_lightest**: with the change, the heaviest band's value against the
   lightest's: at most `max_ratio` times it, or at most `max_above` over it. ArduPilot
   tunes light and expects the same gains to fly heavier aircraft slower, not unstable.
@@ -30,7 +35,7 @@ from flight_insights.knowledge import Pack
 from flight_insights.store.db import Store
 
 TOLERANCE = 1e-6
-CHECKS = ("metric_improves", "metric_not_worse", "metric_vs_lightest")  # judged here
+CHECKS = ("metric_improves", "metric_not_worse", "metric_vs_lightest", "no_shift_worse")
 
 
 @dataclass(frozen=True)
@@ -161,6 +166,8 @@ def judge(
     store: Store, pack: Pack, reg: Registry, rec: Mapping[str, Any], flight_id: str,
     check: Mapping[str, Any],
 ) -> tuple[bool | None, dict[str, Any]]:  # fmt: skip
+    if check["check"] == "no_shift_worse":
+        return no_shift_worse(store, pack, reg, rec, flight_id)
     metric = reg.metrics[str(check["metric"])]
     ms = measurements(store, pack, reg, rec, flight_id, metric.id, check.get("segment"))
     if check["check"] == "metric_improves":
@@ -179,3 +186,31 @@ def not_worse(
     if info["worse"]:
         return False, info
     return (None if passed is None else True), info
+
+
+def no_shift_worse(
+    store: Store, pack: Pack, reg: Registry, rec: Mapping[str, Any], flight_id: str
+) -> tuple[bool | None, dict[str, Any]]:
+    from flight_insights.history.attribution import attribute  # it imports trends
+    from flight_insights.trends import grouped_flights
+
+    flights = grouped_flights(store, reg, str(rec["airframe_id"]))
+    order = {f.id: i for i, (f, _) in enumerate(flights)}
+    if flight_id not in order:
+        return None, {"shifts": []}
+    changed = _with_change(store, pack, rec, order)
+    first = next((i for i, (f, _) in enumerate(flights) if changed(f.id)), None)
+    if first is None or first > order[flight_id]:
+        return None, {"shifts": []}
+    own = {str(n) for n in [rec["param"], *rec["detail"].get("undo", ())] if n}
+    worse = [
+        s for s in attribute(store, reg, str(rec["airframe_id"]))
+        if s.verdict == "worse" and first <= order[s.flight] <= order[flight_id]
+    ]  # fmt: skip
+    shifts = [
+        {"metric": s.metric, "segment": s.segment, "group": s.group, "flight": s.flight,
+         "effect": s.effect, "cause": s.candidates[0].change.name if s.candidates else None}
+        for s in worse
+    ]  # fmt: skip
+    caused = any(x["cause"] in own for x in shifts)
+    return not worse, {"shifts": shifts, "worse": caused}

@@ -833,5 +833,33 @@
         "spec: Buses and interfaces: serial drops against the port's speed and stream rates."
       ]
     }
-  ]
+  ],
+  "shifts": {
+    "about": "A shift is looked for in each metric series (per airframe, segment and payload group) at each boundary where changes first apply. Its windows are the flights since the last boundary that could move this metric (a linked parameter, a build or a firmware change) and until the next one, at most window of each. With min_before and min_after flights, the effect is the median after minus the median before, against the flights' spread before (1.4826 times their median absolute deviation, at least spread_floor of the median), with a seeded percentile bootstrap interval of the difference of medians. It is a shift when the effect is at least spread_factor times the spread and the interval leaves out 0; inconclusive when it is that large but the interval holds 0. With fewer flights, a metric measured with an interval on each flight (the tune check's) still compares the last flight before with the first after: a shift when their intervals are apart and the change is at least min_relative_pair of the value before.",
+    "window": 5,
+    "min_before": 3,
+    "min_after": 2,
+    "spread_factor": 2.0,
+    "spread_floor": 0.01,
+    "level": 0.95,
+    "resamples": 2000,
+    "seed": 7,
+    "min_relative_pair": 0.1
+  },
+  "ranking": {
+    "about": "Each change bracketed by a shift (applied after the last flight before it, by the first flight after it) is scored: the map's strength for this metric, times how well its direction fits (match when the map's sign and the change's direction would move the metric the way it moved, the other way when they would move it opposite, either when the map's sign is 0 or the values are not numbers), times its size (its relative change over size_saturates, at most 1), times its timing (1 at the shift's own boundary, nearby for a boundary the windows spanned). A parameter the map does not tie to the metric scores unlinked; a build change scores build, a firmware change firmware. Learned values, counters, hardware IDs and ground-station settings are listed as context, unscored. Confidence is high when the top candidate is linked, scores at least dominates times the next and no build or firmware change sits with it; medium when it is linked; low otherwise. Uncalibrated: the fleet's confirmed results refine it.",
+    "match": 1.0,
+    "either": 0.6,
+    "opposite": 0.2,
+    "size_saturates": 0.25,
+    "nearby": 0.5,
+    "unlinked": 0.05,
+    "build": 0.5,
+    "firmware": 0.3,
+    "dominates": 2.0,
+    "candidate_classes": [
+      "tuning",
+      "calibration"
+    ]
+  }
 }

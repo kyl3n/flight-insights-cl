@@ -275,6 +275,7 @@ pub const UI_METHODS: &[&str] = &[
     "trend.series",
     "trend.payloads",
     "trend.events",
+    "trend.attribution",
     "trend.platform",
     "flight.list",
     "fleet.overview",

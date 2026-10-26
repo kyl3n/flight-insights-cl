@@ -80,6 +80,7 @@ class Gate:
         changes: tuple[Mapping[str, Any], ...] = (),
         build: str | None = None,
         snapshot: str | None = None,
+        extra: Mapping[str, tuple[float, float, float]] | None = None,
     ) -> tuple[str, dict[str, Any]]:
         """The next flight and its analysis: a tune check (which offers AutoTune unless
         told not to), or an AutoTune flight that saved the named axes."""
@@ -104,6 +105,7 @@ class Gate:
         )  # fmt: skip
         values: dict[str, tuple[float, dict[str, float]]] = {"payload.hover_thrust": (thrust, {})}
         values |= check.metrics() if check else {}
+        values |= {m: (v, {"low": lo, "high": hi}) for m, (v, lo, hi) in (extra or {}).items()}
         for metric, (value, spread) in values.items():
             segment = "hover" if metric.startswith("payload.") else "inputs"
             self.store.insert(
@@ -211,7 +213,10 @@ def test_autotune_is_graded_on_both_payload_bands(gate: Gate) -> None:
     rec = gate.offer()
     assert rec["status"] == "confirmed" and rec["graded_flight_id"] == f6
     assert "grade_pending" not in rec["detail"]
-    checks = {c["metric"]: c for c in rec["detail"]["grade"]["checks"]}
+    checks = {c["metric"]: c for c in rec["detail"]["grade"]["checks"] if "metric" in c}
+    assert next(c for c in rec["detail"]["grade"]["checks"] if c["check"] == "no_shift_worse")[
+        "passed"
+    ]  # nothing else got worse
     pitch = checks["tune.attitude_error_pitch"]
     assert [b["verdict"] for b in pitch["bands"]] == ["better", "better"]
     assert pitch["bands"][1]["change"] == pytest.approx((48 - 35) / 48, abs=1e-4)
@@ -407,6 +412,58 @@ def test_changes_made_ready_for_autotune_are_graded_after_it(gate: Gate) -> None
     graded = grade_flight(gate.store, gate.pack, f6, a6)
     assert sorted(str(g["param"]) for g in graded) == [*sorted(prepared), "None"]
     assert {g["status"] for g in graded} == {"confirmed"}
+
+
+def saved_gains(gate: Gate, after: str, *changes: tuple[str, float, float]) -> None:
+    """A change set the log recorded in flight (AutoTune saving its gains at disarm),
+    first applying to flight `after`."""
+    gate.store.insert(
+        "change_set",
+        {"airframe_id": gate.airframe, "kind": "parameter", "origin": "in flight",
+         "after_flight_id": after,
+         "details_json": json.dumps({"changes": [
+             {"name": n, "before": b, "after": a, "class": "tuning"} for n, b, a in changes
+         ]})},
+    )  # fmt: skip
+
+
+D_NOISE = "tune.d_noise_roll"
+
+
+def test_another_metric_made_worse_by_the_tune_itself_is_regressed(gate: Gate) -> None:
+    """Attitude follows better, but the D gain AutoTune saved put more gyro noise into
+    the motors: nothing else may get worse, and attribution names the tune's own gain."""
+    f1, a1 = gate.fly(LIGHT, BASE_LIGHT, extra={D_NOISE: (5.0, 4.8, 5.2)})
+    gate.plan(f1, a1)
+    gate.plan(*gate.fly(LOADED, BASE_LOADED))
+    for axis in ("roll", "pitch"):
+        f, a = gate.fly(LIGHT, saved=axis)
+        grade_flight(gate.store, gate.pack, f, a)
+    f5, a5 = gate.fly(LIGHT, AFTER_LIGHT, extra={D_NOISE: (8.0, 7.7, 8.3)})
+    saved_gains(gate, f5, ("ATC_RAT_RLL_D", 0.0036, 0.006))
+    assert grade_flight(gate.store, gate.pack, f5, a5)[0]["status"] == "regressed"
+    [check] = [c for c in gate.offer()["detail"]["grade"]["checks"]
+               if c["check"] == "no_shift_worse"]  # fmt: skip
+    assert check["passed"] is False and check["shifts"][0]["cause"] == "ATC_RAT_RLL_D"
+
+
+def test_another_metric_made_worse_by_something_else_stops_the_confirmation(
+    gate: Gate,
+) -> None:
+    f1, a1 = gate.fly(LIGHT, BASE_LIGHT, extra={D_NOISE: (5.0, 4.8, 5.2)})
+    gate.plan(f1, a1)
+    gate.plan(*gate.fly(LOADED, BASE_LOADED))
+    for axis in ("roll", "pitch"):
+        f, a = gate.fly(LIGHT, saved=axis)
+        grade_flight(gate.store, gate.pack, f, a)
+    f5, a5 = gate.fly(LIGHT, AFTER_LIGHT, extra={D_NOISE: (8.0, 7.7, 8.3)})
+    saved_gains(gate, f5, ("INS_GYRO_FILTER", 20.0, 40.0))  # loaded by hand with the tune
+    grade_flight(gate.store, gate.pack, f5, a5)
+    f6, a6 = gate.fly(LOADED, AFTER_LOADED)
+    assert grade_flight(gate.store, gate.pack, f6, a6)[0]["status"] == "no effect"
+    [check] = [c for c in gate.offer()["detail"]["grade"]["checks"]
+               if c["check"] == "no_shift_worse"]  # fmt: skip
+    assert check["shifts"][0]["cause"] == "INS_GYRO_FILTER" and not check["worse"]
 
 
 # --- the measurements on their own -----------------------------------------------------
