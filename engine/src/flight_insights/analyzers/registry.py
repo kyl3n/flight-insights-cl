@@ -230,9 +230,10 @@ def _attribution(
 
 def knowledge_version(pack: Pack) -> str:
     """A short hash of every file an analysis reads from the pack: the registry, the
-    rules and the names. A result made with another version is recomputed, not reused."""
+    rules, the names and the motor frames. A result made with another version is
+    recomputed, not reused."""
     h = hashlib.sha256()
-    for folder in ("metrics", "rules", "enums", "options", "procedures"):
+    for folder in ("metrics", "rules", "enums", "options", "procedures", "frames"):
         for path in sorted((pack.root / folder).glob("*.json")):
             h.update(f"{folder}/{path.name}\0".encode())
             h.update(path.read_bytes())

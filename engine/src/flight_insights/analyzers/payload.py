@@ -31,6 +31,7 @@ evidence and the metric measured from it.
 from __future__ import annotations
 
 from collections.abc import Mapping
+from dataclasses import dataclass
 from typing import Any
 
 import numpy as np
@@ -75,30 +76,49 @@ def _reference_volts(flight: FlightData, rules: Mapping[str, Any]) -> tuple[floa
     return None
 
 
-def _payload(flight: FlightData, reg: Registry) -> Result:
+@dataclass(frozen=True)
+class Hover:
+    """The motors' thrust in steady hover, sample by sample, as the payload estimate and
+    the motor-out margin read it."""
+
+    thrust: Array  # the mean over motors, of each one's full thrust, at the measured voltage
+    tilt: Array  # cos(roll) cos(pitch): the share of it holding the weight
+    density_ratio: Array  # the air's density over standard air's
+    windows: list[tuple[int, int]]  # the steady hover windows
+    times: Array  # the samples kept
+    seconds: float
+    names: list[str]  # the motor output fields read, C<channel>
+    expo: float
+    volts: float  # the median battery voltage the motors saw
+    volt_ref: float
+    volt_ref_from: str
+
+
+def hover_thrust(flight: FlightData, reg: Registry) -> Hover | str:
+    """The motors' thrust in steady hover clear of the ground, or why it cannot be read."""
     if not flight.logged:
-        return Result(skipped="a parameter file has no flight to measure")
+        return "a parameter file has no flight to measure"
     if flight.vehicle != "copter":  # QuadPlane's VTOL motors: Phase 3
-        return Result(skipped="the payload estimate is for Copter")
+        return "the hover thrust is read for Copter"
     rules = _rules(reg)
     tables = {m: flight.table(m) for m in ("RCOU", "BAT", "ATT", "BARO")}
     missing = [m for m, t in tables.items() if t is None or t.num_rows < 2]
     if missing:
-        return Result(skipped=f"the log has no {', '.join(missing)}")
+        return f"the log has no {', '.join(missing)}"
     rcou, bat, att, baro = (tables[m] for m in ("RCOU", "BAT", "ATT", "BARO"))
     assert rcou is not None and bat is not None and att is not None and baro is not None
     for (message, field), wanted in UNITS.items():
         table = tables[message]
         assert table is not None
         if field not in table.column_names or si.unit(table, field) != wanted:
-            return Result(skipped=f"{message}.{field} is not logged in {wanted}")
+            return f"{message}.{field} is not logged in {wanted}"
     ms = motors(flight.params)
     names = [f"C{m.channel}" for m in ms]
     if not ms or not set(names) <= set(rcou.column_names):
-        return Result(skipped="the motor outputs are not in RCOU")
+        return "the motor outputs are not in RCOU"
     reference = _reference_volts(flight, rules)
     if reference is None:
-        return Result(skipped="MOT_BAT_VOLT_MAX is off and the cell count is not known")
+        return "MOT_BAT_VOLT_MAX is off and the cell count is not known"
     volt_ref, volt_ref_from = reference
 
     t = _times(rcou)
@@ -115,7 +135,7 @@ def _payload(flight: FlightData, reg: Registry) -> Result:
     high = float(p.get("MOT_PWM_MAX", 0)) or float(p.get("RC3_MAX", 2000))
     spin_min, spin_max = float(p.get("MOT_SPIN_MIN", 0.15)), float(p.get("MOT_SPIN_MAX", 0.95))
     if high <= low or spin_max <= spin_min:
-        return Result(skipped="the motor output range (MOT_PWM_*, MOT_SPIN_*) is not valid")
+        return "the motor output range (MOT_PWM_*, MOT_SPIN_*) is not valid"
     expo = float(np.clip(p.get("MOT_THST_EXPO", 0.65), -1.0, 1.0))
     pwm = np.column_stack([si.values(rcou, n) for n in names])
     out = ((pwm - low) / (high - low) - spin_min) / (spin_max - spin_min)
@@ -125,12 +145,12 @@ def _payload(flight: FlightData, reg: Registry) -> Result:
     battery = _instance(bat, "Inst", int(p.get("MOT_BAT_IDX", 0)))
     sensor = _instance(baro, "I", int(p.get("BARO_PRIMARY", 0)))
     if battery.sum() < 2 or sensor.sum() < 2:
-        return Result(skipped="the log has no battery voltage or barometer for the motors")
+        return "the log has no battery voltage or barometer for the motors"
     volts = np.interp(t, _times(bat)[battery], si.values(bat, "Volt")[battery])
     keep &= volts > 0
     seconds = float(keep.sum()) * float(np.median(np.diff(t))) / 1e6
     if seconds < float(rules["min_hover_s"]):
-        return Result(skipped="too little steady hover, clear of the ground, to weigh the aircraft")
+        return "too little steady hover, clear of the ground, to weigh the aircraft"
 
     x = out[keep] * (volts[keep] / volt_ref)[:, None]
     thrust = ((1.0 - expo) * x + expo * x * x).mean(axis=1)
@@ -143,34 +163,46 @@ def _payload(flight: FlightData, reg: Registry) -> Result:
     density = np.interp(t[keep], tb, si.values(baro, "Press")[sensor]) / (
         float(rules["gas_constant"]) * kelvin
     )
-    ratio = density / float(rules["standard_density"])
-    weighed = thrust * tilt * ratio
-    value = 100.0 * float(np.median(weighed))
+    return Hover(
+        thrust=thrust, tilt=tilt, density_ratio=density / float(rules["standard_density"]),
+        windows=hover, times=t[keep], seconds=seconds, names=names, expo=expo,
+        volts=float(np.median(volts[keep])), volt_ref=volt_ref, volt_ref_from=volt_ref_from,
+    )  # fmt: skip
 
+
+def _payload(flight: FlightData, reg: Registry) -> Result:
+    if flight.logged and flight.vehicle != "copter":  # QuadPlane's VTOL motors: Phase 3
+        return Result(skipped="the payload estimate is for Copter")
+    h = hover_thrust(flight, reg)
+    if isinstance(h, str):
+        return Result(skipped=h)
+    ratio = h.density_ratio
+    weighed = h.thrust * h.tilt * ratio
+    value = 100.0 * float(np.median(weighed))
     windows = [
-        round(100.0 * float(np.median(weighed[(t[keep] >= a) & (t[keep] <= b)])), 2)
-        for a, b in hover
-        if ((t[keep] >= a) & (t[keep] <= b)).any()
+        round(100.0 * float(np.median(weighed[(h.times >= a) & (h.times <= b)])), 2)
+        for a, b in h.windows
+        if ((h.times >= a) & (h.times <= b)).any()
     ]
     ev = Evidence(
         id="payload:hover",
         kind="metric",
         summary=(
-            f"{value:.1f}% of full thrust at standard air over {seconds:.0f} s of steady "
-            f"hover: {len(ms)} motors, expo {expo:g}, {float(np.median(volts[keep])):.1f} V "
-            f"against {volt_ref:g} V ({volt_ref_from}), air at "
+            f"{value:.1f}% of full thrust at standard air over {h.seconds:.0f} s of steady "
+            f"hover: {len(h.names)} motors, expo {h.expo:g}, {h.volts:.1f} V "
+            f"against {h.volt_ref:g} V ({h.volt_ref_from}), air at "
             f"{float(np.median(ratio)):.3f} of standard"
         ),
         messages=("RCOU", "BAT", "ATT", "BARO", "CTUN"),
-        fields=(*names, "Volt", "Roll", "Pitch", "Press", "Temp", "Alt"),
-        segment=Segment("hover", hover[0][0], hover[-1][1]),
+        fields=(*h.names, "Volt", "Roll", "Pitch", "Press", "Temp", "Alt"),
+        segment=Segment("hover", h.windows[0][0], h.windows[-1][1]),
         values={
-            "seconds": round(seconds, 1),
-            "motors": len(ms),
-            "expo": expo,
-            "volts": round(float(np.median(volts[keep])), 2),
-            "reference_volts": round(volt_ref, 2),
-            "tilt_deg": round(float(np.degrees(np.arccos(np.median(tilt)))), 1),
+            "seconds": round(h.seconds, 1),
+            "motors": len(h.names),
+            "expo": h.expo,
+            "volts": round(h.volts, 2),
+            "reference_volts": round(h.volt_ref, 2),
+            "tilt_deg": round(float(np.degrees(np.arccos(np.median(h.tilt)))), 1),
             "density_ratio": round(float(np.median(ratio)), 4),
             "windows": windows,
         },
