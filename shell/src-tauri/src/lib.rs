@@ -72,6 +72,8 @@ struct Shell {
     engine: Mutex<Option<Arc<Engine>>>,
     /// The sync worker's state, and what wakes it.
     sync: sync::app::Worker,
+    /// The weather downloader's state.
+    weather: weather::Worker,
     /// The signed-in shared drive, by its id.
     drive: Mutex<Option<(String, Arc<sync::google::GoogleDrive>)>>,
     /// The device registry as last read, for the sync panel.
@@ -522,7 +524,8 @@ async fn weather_key_clear(app: AppHandle) -> Result<(), String> {
     .map_err(|e| e.to_string())?
 }
 
-/// What the interface may know of weather: whether a key is set (never the key).
+/// What the interface may know of weather: whether a key is set (never the key), the
+/// last download round's outcome and when the next one is (never a tile or a place).
 #[tauri::command]
 async fn weather_status(app: AppHandle) -> Result<Value, String> {
     tauri::async_runtime::spawn_blocking(move || {
@@ -532,7 +535,14 @@ async fn weather_status(app: AppHandle) -> Result<Value, String> {
             .map(|k| weather::key(k.as_ref()).map(|k| k.is_some()))
             .transpose()?
             .unwrap_or(false);
-        Ok(serde_json::json!({ "key_set": key_set }))
+        let schedule = weather::load_schedule(&shell.data_dir);
+        let mut state = shell.weather.state.lock().expect("weather state").clone();
+        if state.is_null() {
+            state = serde_json::json!({ "state": "waiting" });
+        }
+        state["key_set"] = serde_json::json!(key_set);
+        state["next_ms"] = serde_json::json!(schedule.next_instant(weather::now_ms()));
+        Ok(state)
     })
     .await
     .map_err(|e| e.to_string())?
@@ -646,6 +656,40 @@ async fn ai_chat_cancel(app: AppHandle, packet_id: String) -> Result<(), String>
     .map_err(|e| e.to_string())?
 }
 
+/// One slot's weather downloads, when a key is set and the engine is running.
+fn weather_round(shell: &Shell, schedule: &weather::plan::Schedule, slot: i64) {
+    let now = weather::now_ms();
+    let keychain = shell.keychain.lock().expect("keychain").clone();
+    let key = keychain.and_then(|k| weather::key(k.as_ref()).ok().flatten());
+    let Some(key) = key else {
+        return shell
+            .weather
+            .record(serde_json::json!({"state": "no key"}), schedule, now);
+    };
+    let Some(engine) = shell.current_engine() else {
+        return shell
+            .weather
+            .record(serde_json::json!({"state": "no engine"}), schedule, now);
+    };
+    let outcome = net::client(Duration::from_secs(120))
+        .map_err(weather::fetch::Stop::Failed)
+        .and_then(|http| {
+            weather::fetch::round(
+                engine.as_ref(),
+                &http,
+                &weather::fetch::Hosts::default(),
+                &key,
+                schedule,
+                slot,
+                &shell.data_dir.join("weather-staging"),
+                &mut |_| {},
+            )
+        });
+    shell
+        .weather
+        .record(weather::fetch::summary(&outcome), schedule, now);
+}
+
 fn start_up(app: &AppHandle) {
     let shell = app.state::<Shell>();
     let identifier = app.config().identifier.clone();
@@ -704,6 +748,21 @@ fn start_up(app: &AppHandle) {
                 syncer.state::<Shell>().sync.wait();
             }
         });
+    let weatherer = app.clone();
+    let _ = std::thread::Builder::new()
+        .name("weather".into())
+        .spawn(move || {
+            loop {
+                let shell = weatherer.state::<Shell>();
+                let schedule = weather::load_schedule(&shell.data_dir);
+                if let Some(slot) = shell.weather.take_slot(&schedule, weather::now_ms()) {
+                    weather_round(&shell, &schedule, slot);
+                }
+                let now = weather::now_ms();
+                let wait = (schedule.next_instant(now) - now).clamp(1_000, weather::WAKE_MS);
+                std::thread::sleep(Duration::from_millis(wait as u64));
+            }
+        });
     let watcher = app.clone();
     let _ = std::thread::Builder::new()
         .name("folder-watch".into())
@@ -738,6 +797,7 @@ pub fn run() {
                 drive: Mutex::new(None),
                 registry: Mutex::new(None),
                 starting: Mutex::new(()),
+                weather: weather::Worker::default(),
                 exiting: AtomicBool::new(false),
                 status: Mutex::new(Status::default()),
                 command: Mutex::new(None),
