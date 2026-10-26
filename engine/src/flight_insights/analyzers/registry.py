@@ -122,6 +122,18 @@ PARAM_NAME = re.compile(r"[A-Z][A-Z0-9_]{0,15}")
 
 
 @dataclass(frozen=True)
+class AttributionLink:
+    """Parameters that should move metrics (rules/attribution.json): each metric with
+    the sign it moves by (+1 with the value, -1 against it, 0 either way) and a weight."""
+
+    group: str
+    params: tuple[re.Pattern[str], ...]
+    metrics: tuple[tuple[str, int, float], ...]  # metric name, may hold {axis}
+    why: Mapping[str, str]
+    sources: tuple[str, ...]
+
+
+@dataclass(frozen=True)
 class Registry:
     """What the knowledge pack tells the analyzers: the metric and finding registry,
     the curated rules (knowledge/rules/*.json, by file stem), and each release's names
@@ -140,6 +152,7 @@ class Registry:
     procedure_texts: Mapping[str, Mapping[str, str]] = dataclasses.field(
         default_factory=dict[str, Any]
     )
+    attribution: tuple[AttributionLink, ...] = ()
 
     def names(self, firmware: str | None) -> Mapping[str, Any]:
         """Mode, event and error names of the flight's release, or the nearest earlier
@@ -168,8 +181,49 @@ class Registry:
         procedures, procedure_texts = _procedures(pack, findings, metrics)
         return Registry(
             metrics, findings, knowledge_version(pack), rules, pack, options, questions,
-            coverage, procedures, procedure_texts,
+            coverage, procedures, procedure_texts, _attribution(rules, metrics),
         )  # fmt: skip
+
+
+def _attribution(
+    rules: Mapping[str, Any], metrics: Mapping[str, Metric]
+) -> tuple[AttributionLink, ...]:
+    """The parameter-to-metric map, checked: patterns that compile, metrics the registry
+    knows (for some axis, where one is named), signs and strengths, and its texts."""
+    doc: Mapping[str, Any] | None = rules.get("attribution")
+    if doc is None:
+        return ()
+    strengths: Mapping[str, float] = doc["strengths"]
+    axes = set(cast(Mapping[str, str], doc["axes"]).values())
+    out: list[AttributionLink] = []
+    for i, raw in enumerate(cast(list[Mapping[str, Any]], doc["links"])):
+        where = f"attribution.json: link {raw.get('group', i)}"
+        try:
+            params = tuple(re.compile(str(p)) for p in raw["params"])
+        except re.error as e:
+            raise KnowledgeError(f"{where}: a parameter pattern does not compile: {e}") from None
+        captures = any("axis" in p.groupindex for p in params)
+        links: list[tuple[str, int, float]] = []
+        for m in cast(list[Mapping[str, Any]], raw["metrics"]):
+            name, sign, strength = str(m["metric"]), m.get("sign"), m.get("strength")
+            if sign not in (-1, 0, 1) or strength not in strengths:
+                raise KnowledgeError(f"{where}: {name} needs a sign of -1, 0 or 1 and a strength")
+            if "{axis}" in name and not captures:
+                raise KnowledgeError(f"{where}: {name} names an axis its parameters do not give")
+            names = {name.format(axis=a) for a in axes} if "{axis}" in name else {name}
+            if not names & set(metrics):
+                raise KnowledgeError(f"{where}: no metric {name}")
+            links.append((name, int(sign), float(strengths[str(strength)])))
+        sources = raw.get("sources")
+        if not (isinstance(sources, list) and sources):
+            raise KnowledgeError(f"{where}: needs its sources")
+        out.append(
+            AttributionLink(
+                str(raw["group"]), params, tuple(links), _text(where, raw, "why"),
+                tuple(str(x) for x in cast(list[Any], sources)),
+            )
+        )  # fmt: skip
+    return tuple(out)
 
 
 def knowledge_version(pack: Pack) -> str:

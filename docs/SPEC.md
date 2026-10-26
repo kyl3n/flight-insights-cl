@@ -1835,6 +1835,14 @@ Every flight is tied to the exact parameter set it flew with, and every change b
 | Battery and failsafe parameters | Failsafe margins |
 | Notch count and options, in-flight FFT, raw IMU and batch logging, log bitmask, EKF lane and IMU masks, loop rate, fast-rate loop, scripting, stream and DroneCAN rates | CPU load, slow-loop share, maximum loop time, free memory, latency budget |
 
+The map lives in the rule pack (`knowledge/rules/attribution.json`, 25 links in Phase 2). Each link names its parameters as patterns over the 4.7 names, and for each metric:
+
+- **A direction.** +1 when the metric moves the way the parameter's value moves (more rate D, more D-term noise), -1 the other way (more rate P, less attitude tracking error), or 0 when it can go either way: a bitmask, a switch, 0 meaning off (`ATC_RAT_*_SMAX`, `ATC_ACC_*_MAX`), or a value whose effect depends on where it sits (a notch's frequency).
+- **A strength** (strong, medium, weak) that weights how firmly the link holds.
+- **Its axis.** A pattern that captures the axis (`ATC_RAT_(RLL|PIT|YAW)_P`) ties each axis's parameter to that axis's metrics.
+
+Every link gives its reason in English and Ukrainian, with sources: ArduPilot's own parameter documentation for each parameter's role, and control texts for the direction (Astrom and Murray). The registry refuses a link whose metric it does not know, or whose direction, strength, texts or sources are missing, and a test checks every pattern against each release's parameters. Only tuning and calibration parameters are tied to metrics: learned values, counters, hardware IDs and ground-station settings change on their own and are context only. The map ties measurement changes too: a current-sensor scale (`BATT_AMP_PERVLT`) moves every power figure, and the thrust curve (`MOT_THST_EXPO`, `MOT_SPIN_*`, `MOT_PWM_*`) moves the hover-thrust estimate, with nothing changed on the aircraft. The map is a prior, uncalibrated; rows above whose metrics no analyzer gives yet (position, TECS, transition, telemetry) join it with their analyzers.
+
 The AI layer can propose links the map lacks; those are shown as hypotheses until a later flight confirms them.
 
 **Attribution method**
