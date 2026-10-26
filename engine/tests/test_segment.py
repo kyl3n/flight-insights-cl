@@ -297,6 +297,7 @@ def test_every_fixture_is_one_flight_with_the_modes_its_scenario_flew(
         "copter-quad-tune-low": ["GUIDED", "ALT_HOLD", "LAND"],
         "copter-heavylift-light": ["GUIDED", "LAND"],
         "copter-heavylift-loaded": ["GUIDED", "LAND"],
+        "copter-heavylift-tune": ["GUIDED", "ALT_HOLD", "LAND"],
         "heli-hover": ["GUIDED", "LAND"],
         "plane-circuit": ["AUTO", "RTL"],
         "quadplane-hover": ["QLOITER", "QLAND"],

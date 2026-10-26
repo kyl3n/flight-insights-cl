@@ -105,6 +105,30 @@
         "kind": "app",
         "title": "App rule, uncalibrated: no published range; a quarter of the range between motors is a clear imbalance"
       }
+    },
+    "motors.response_ms": {
+      "name": {
+        "en": "Motor response time",
+        "uk": "Час відгуку мотора"
+      },
+      "unit": "ms",
+      "direction": "lower",
+      "definition": {
+        "en": "How long a motor takes to reach 63% of a change in its command, from the command to the ESC's RPM: the time constant of a first-order lag plus its dead time. The median over the motors. Large propellers and low-KV motors answer slowly, and the rate loop can ask for no faster than its motors answer.",
+        "uk": "Скільки часу мотор досягає 63% зміни своєї команди, від команди до обертів ESC: стала часу інерційної ланки першого порядку плюс її чисте запізнення. Медіана за моторами. Великі пропелери й мотори з низьким KV відповідають повільно, і контур кутової швидкості не може вимагати швидшого, ніж відповідають його мотори."
+      },
+      "method": {
+        "en": "Each motor's command rebuilt from the mixer's inputs logged every loop (RATE ROut, POut, YOut, AOut) and the frame's mixer factors, and its ESC RPM, on a common 100 Hz grid (the command averaged over each step, centred); Welch cross-spectra from command to RPM over 2.56 s windows, and a first-order lag with dead time fitted over 0.3-8 Hz to the bins whose estimated random error is under 20%; the interval from a seeded bootstrap over the windows. The RPM's logged time can be up to 10 ms after the ESC measured it, and the result includes that and the ESC's telemetry path. Needs RATE every loop (LOG_BITMASK bit 0, as on the tune-check card) and ESC RPM.",
+        "uk": "Команда кожного мотора, відновлена з входів мікшера, записаних у кожному циклі (RATE ROut, POut, YOut, AOut), і коефіцієнтів мікшера рами, та оберти його ESC на спільній сітці 100 Гц (команда усереднена за кожним кроком, із центруванням); взаємні спектри Велча від команди до обертів у вікнах 2,56 с і інерційна ланка першого порядку з чистим запізненням, підібрана в діапазоні 0,3–8 Гц за смугами, де оцінена випадкова похибка менша за 20%; інтервал — із сіяного бутстрепу за вікнами. Записаний час обертів може бути до 10 мс пізніше, ніж ESC їх виміряв, і результат включає це та шлях телеметрії ESC. Потрібні RATE у кожному циклі (біт 0 LOG_BITMASK, як у картці перевірки налаштування) і оберти ESC."
+      },
+      "messages": [
+        "RATE",
+        "ESC"
+      ],
+      "source": {
+        "kind": "baseline",
+        "title": "No universal range: it depends on the propeller, motor and ESC. Judged against the aircraft's own motors and its history until real heavy-lift flights have calibrated it"
+      }
     }
   },
   "findings": {
@@ -129,6 +153,17 @@
         "en": "Check the centre of gravity and payload position, that motor {highest} is not tilted and its prop is right, and that no motor is twisted on its arm. Yaw imbalance shows as diagonal pairs working harder.",
         "uk": "Перевірте центр мас і положення навантаження, чи мотор {highest} не нахилений і пропелер правильний, і чи жоден мотор не перекошений на балці. Дисбаланс рискання проявляється як сильніша робота діагональних пар."
       }
+    },
+    "motors.slow_motor": {
+      "title": {
+        "en": "Motor {motor} answers its command in {response_ms} ms, against {others_ms} ms for the others",
+        "uk": "Мотор {motor} відповідає на команду за {response_ms} мс, тоді як інші — за {others_ms} мс"
+      },
+      "action": {
+        "en": "Check that motor's ESC settings match the others' (timing, startup power, firmware), that its prop is the same make and pitch and sits fully on its hub, and that the motor spins freely by hand with no rough bearing. A slow motor makes the rate loop fight it, most of all on the axis it carries.",
+        "uk": "Перевірте, чи налаштування ESC цього мотора такі самі, як в інших (таймінг, потужність запуску, прошивка), чи його пропелер того ж виробника й кроку та повністю сидить на маточині, і чи мотор вільно обертається рукою без шорсткого підшипника. Повільний мотор змушує контур кутової швидкості боротися з ним, найбільше на осі, яку він несе."
+      },
+      "stage": "mechanical"
     }
   }
 }

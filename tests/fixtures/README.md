@@ -34,6 +34,7 @@ The only place in the repository where flight data may be committed. Every log, 
 | `copter-quad-nognss-flow` | Copter, quad + | GUIDED take-off to 10 m, LOITER in the same wind with simulated optical flow and a rangefinder as EKF source set 2 (`RC8_OPTION` 90): set 2, GNSS off for 30 s, GNSS back, set 1. The estimator keeps a relative position throughout, with no failsafe |
 | `copter-heavylift-light` | Copter, coaxial X8 | ArduPilot's Callisto heavy-lift model (32.5 kg, 30-inch props): 15 s hover at 5 m with motor vibration and ESC RPM, raw IMU logged during the hover only. Planted: a throttle-tracking notch although ESC RPM is present, and hover learning off |
 | `copter-heavylift-loaded` | Copter, coaxial X8 | The same airframe and motors carrying 8 kg more (hover throttle 0.47 against 0.38), so it pairs with the light flight as one airframe with and without payload |
+| `copter-heavylift-tune` | Copter, coaxial X8 | The light Callisto flying the tune-check doublets (3 each on roll, pitch and yaw in AltHold at 5 m) with RATE logged every loop during them and ESC RPM from all eight motors, for timing the motors. SITL models no motor dynamics: each motor's RPM follows its command within the simulation step and the log's timing (about 5 ms) |
 | `heli-hover` | Traditional helicopter | Rotor run-up, take-off, 20 s hover, LAND |
 | `plane-circuit` | Fixed-wing | AUTO take-off, three-waypoint circuit, RTL; ends with a forced disarm in the air |
 | `quadplane-hover` | QuadPlane | QLOITER climb and 20 s hover on the VTOL motors, QLAND |

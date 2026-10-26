@@ -733,6 +733,25 @@ ArduPilot's controller has flown aircraft from 100 g to 500 kg, but large aircra
 
 **Actuator response.** Large props and low-KV motors respond slowly. The analyzer measures commanded-to-RPM lag from ESC telemetry, checks slew limiting in the rate loop, flags desync and stall reports, and checks motor start-up settings. Autotune's large, fast output changes can cause ESC sync problems with motors under 500 KV, so it warns before recommending Autotune on such aircraft.
 
+**Response time measured now** (`analyzers/motor_lag.py`, `spectral/lag.py`, rules in `knowledge/rules/motor_lag.json`):
+
+- **The command.** RCOU is logged at only 10 Hz, too slow to time a motor. So each motor's command is rebuilt from the mixer's inputs, which RATE logs every loop with `LOG_BITMASK` bit 0 (as on the tune-check card), times the frame's own mixer factors (checked in SITL).
+- **The answer** is the motor's ESC RPM.
+- **The grid.** Both go on a 100 Hz grid that starts on an ESC row, so the RPM is read as logged. The command is averaged over each step, centred, from its integral; the average's known gain, sinc(f / 100 Hz), is taken back out. Stretches where any motor's command is near its limits are left out.
+- **The fit.** Welch cross-spectra from command to RPM (2.56 s windows) and a first-order lag with dead time fitted over 1–8 Hz, to the bins whose estimated random error is under 20%. The lowest bins are left out: with windows this short, their leakage biased a 40 ms lag about 2 ms short.
+- **The result.** The response time (time constant plus dead time: when a step reaches 63%) per motor, with a seeded bootstrap interval. The median over motors is the metric `motors.response_ms`, which has no zones until real heavy-lift flights calibrate it.
+- **The finding.** `motors.slow_motor` (caution) names a motor more than 10 ms and 50% slower than its siblings' median, its interval clear of theirs.
+- **Accuracy.**
+  - Synthetic motors: a 40 ms lag after 8 ms of dead time comes back within 1.5 ms; a 110 ms one within 3 ms.
+  - Slower motors: a 200 ms lag, whose corner lies below the band, scatters about 10% between data sets, and the interval shows it.
+  - The logged RPM time can be up to one 10 ms logging step after the ESC measured it. The result includes that, and the ESC's telemetry path.
+- **In SITL**, which models no motor dynamics, every motor of the heavy-lift X8 answers in 4.5–5 ms, all of it dead time (the simulation step and the logging).
+- **Not yet:**
+  - the response compared with the rate loop's bandwidth;
+  - motor start-up settings;
+  - the AutoTune KV warning, which waits on the motor KV from setup;
+  - zones, which wait on HL1's flights.
+
 **Attitude versus throttle priority.** After a good tune, ArduPilot suggests raising `ATC_THR_MIX_MAX` to 0.9 on large-prop copters that pitch up when slowing from fast forward flight. The analyzer recommends it only when the log shows that pattern and the tune shows no oscillation, because the same change makes descent difficult if the gains are too high.
 
 **Variable payload: the strategy the app recommends.**

@@ -6,6 +6,10 @@ e3d23e3710853835a7aa2d53d7a0011004d29a14c579ebbc43db46fb064c4bc1  sitl/4.7.0/cop
 d194e34c7c3dc607141f18e78abfc8756ee38b3ce036e112f325a17d844cbb60  sitl/4.7.0/copter-heavylift-loaded.param
 d8d59de013940a5ab11cbffb54a0d311dd7775f601b0053060d4fbbc74dd27b1  sitl/4.7.0/copter-heavylift-loaded.params
 d53376baf0db3d8de6558e3c2448cd161d983cd74db5ac3243c4418a90ec7799  sitl/4.7.0/copter-heavylift-loaded.tlog
+ed12313377e1d15ef930f36a56664d8f2ad6c295a646e7b010664c78e9814f40  sitl/4.7.0/copter-heavylift-tune.bin
+8e9314495c4f729dec3c647c77dd42650167087a9cc6682870d72a9140748a65  sitl/4.7.0/copter-heavylift-tune.param
+2707d57f4982ec0bfce68ea333d5b4c0678662fe6d93affcf9c93ea47aee9dd3  sitl/4.7.0/copter-heavylift-tune.params
+158b1df039e8b17d29a212cb02f1f70b49074c15b95a0dae44b965b5485174dd  sitl/4.7.0/copter-heavylift-tune.tlog
 c0bdeb8e38fbf2666ad2898b2b5c8c58e8fd45602bb7c4a9baf075f1649a8e73  sitl/4.7.0/copter-quad-autotune-aborted.bin
 dab1fce12e1f0a19d1b909338d5bb3436cdca58bfdcb61b9be47f0b7c98f16bc  sitl/4.7.0/copter-quad-autotune-aborted.param
 df5f4b743c78e7698bab73d55b6e7ac29736e59440c5b13fab079169500ead27  sitl/4.7.0/copter-quad-autotune-aborted.params

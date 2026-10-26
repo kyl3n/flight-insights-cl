@@ -1,0 +1,23 @@
+source: sitl
+vehicle: copter
+frame: octo coaxial X8
+firmware: 4.7.0
+ardupilot_commit: 1511f27194f1dcc3728270883047bdf022b3fd53
+scenario: copter-heavylift-tune
+description: 'The tune-check profile on the heavy-lift X8 without payload, shortened
+  to keep the log small: AltHold at 5 m, 3 doublets each on roll, pitch and yaw at
+  40% stick, with RATE logged every loop and ESC RPM from all eight motors.'
+parameters_set:
+  LOG_DISARMED: 0
+  SIM_ESC_TELEM: 1
+  LOG_BITMASK: 176126
+  SIM_VIB_MOT_MAX: 350
+  SIM_GYR1_RND: 5
+faults: []
+expected:
+- 'LOG_BITMASK bit 0 during the doublets: RATE at 400 Hz (no PID messages)'
+- ESC RPM from all eight motors, about 100 Hz each
+- 'each motor''s RPM follows its command with no lag beyond the simulator''s slew
+  limit and the log''s timing: SITL models no motor or rotor dynamics'
+- 'about 33 s of steady hover in ALT_HOLD: the short doublets stay inside the hover
+  limits'
