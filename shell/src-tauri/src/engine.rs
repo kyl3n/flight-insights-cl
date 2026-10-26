@@ -318,6 +318,10 @@ pub const SYNC_SHELL_ONLY: &[&str] = &[
     "board.rekey",
 ];
 
+/// Weather's engine methods, the shell's alone: the tiles the fleet flies in are for the
+/// downloader, and the interface has no use for them.
+pub const WEATHER_SHELL_ONLY: &[&str] = &["weather.tiles"];
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -366,6 +370,12 @@ mod tests {
             );
         }
         assert!(SYNC_SHELL_ONLY.iter().all(|m| !UI_METHODS.contains(m)));
+    }
+
+    #[test]
+    fn the_ui_never_reads_where_the_fleet_flies() {
+        assert!(UI_METHODS.iter().all(|m| !m.starts_with("weather.")));
+        assert!(WEATHER_SHELL_ONLY.iter().all(|m| !UI_METHODS.contains(m)));
     }
 
     #[test]

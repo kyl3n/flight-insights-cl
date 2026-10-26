@@ -39,14 +39,6 @@ def _kind(field: pa.Field[Any]) -> str | None:
     return None
 
 
-def _degrees(table: pa.Table, name: str) -> np.ndarray[Any, np.dtype[np.float64]]:
-    values = si.values(table, name)
-    unit = si.unit(table, name).lower()
-    if "e7" in unit and np.nanmax(np.abs(values), initial=0.0) > 180.0:
-        values = values * 1e-7  # degE7 not yet scaled by its multiplier
-    return values
-
-
 def flight_points(cache: ColumnCache, flight_key: str, cap: int = MAX_POINTS) -> list[Point]:
     """Every latitude-longitude pair the flight's cached messages hold, thinned."""
     cells: dict[tuple[int, int], Point] = {}
@@ -59,7 +51,7 @@ def flight_points(cache: ColumnCache, flight_key: str, cap: int = MAX_POINTS) ->
             continue
         table = cache.read(flight_key, name, lats + lons, positions=True)
         for lat_name, lon_name in zip(lats, lons, strict=False):
-            lat, lon = _degrees(table, lat_name), _degrees(table, lon_name)
+            lat, lon = si.degrees(table, lat_name), si.degrees(table, lon_name)
             ok = np.isfinite(lat) & np.isfinite(lon) & (np.abs(lat) <= 90) & (np.abs(lon) <= 180)
             ok &= (np.abs(lat) > 1e-6) | (np.abs(lon) > 1e-6)  # 0,0 is "no position"
             for a, b in zip(lat[ok].tolist(), lon[ok].tolist(), strict=True):
