@@ -1,0 +1,27 @@
+source: sitl
+vehicle: copter
+frame: quad +
+firmware: 4.7.0
+ardupilot_commit: 1511f27194f1dcc3728270883047bdf022b3fd53
+scenario: copter-quad-nognss-drill
+description: GUIDED take-off to 15 m, LOITER in a 6 m/s wind, then GNSS switched off
+  with the GPS-disable switch (aux 65) for 20 s, with no other position source.
+parameters_set:
+  LOG_DISARMED: 0
+  SIM_ESC_TELEM: 0
+  LOG_FILE_RATEMAX: 10
+  RC7_OPTION: 65
+  RC8_OPTION: 90
+  RC_OVERRIDE_TIME: -1
+  SIM_WIND_SPD: 6
+  SIM_WIND_DIR: 90
+  SIM_WIND_TURB: 1
+faults:
+- kind: gnss
+  description: GNSS switched off for a drill
+expected:
+- AUXF 65 high, GPS.Status 1 while it is
+- 'XKF4.SS: using GPS clears about 4 s in, the absolute position about 7 s in'
+- ERR FAILSAFE_EKFINAV and MODE LAND by EKF_FAILSAFE; the aircraft drifts downwind
+- 'the no-GNSS analyzer: a drill, the position given up; the GNSS analyzer: nothing'
+- 'steady hover windows: 22 s in LOITER'
