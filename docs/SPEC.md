@@ -764,6 +764,11 @@ The defaults are starting points that the team can change for each platform.
 - **How the table is made.** `knowledge/tools/build_motor_frames.py` reads each release's `AP_MotorsMatrix.cpp` and replays every case as the firmware runs it: angles become cos(angle + 90) for roll and cos(angle) for pitch, raw factors are taken as given, and a co-rotating X8 scales its top layer by 0.9. The generator refuses any construct it does not know, so a change in a later release is read by a person.
 - **Plane-only frames.** Frames only Plane builds (QuadPlane's no-yaw-torque frames) are marked.
 - **Checked in CI.** The fixtures workflow regenerates the table from the release's source and fails on any difference. The 4.7.0, 4.7.1 and 4.7.2 tables are identical.
+- **Checked in SITL.** `knowledge/tools/check_motor_frames_sitl.py` flies each of the 20 frames ArduPilot's simulator has a model for, out of the table's 41 Copter frames, in the same workflow.
+  - **The flight:** System ID mode adds a chirp to the mixer's roll, pitch, yaw and throttle input in turn (`SID_AXIS` 10 to 13), with `MOT_THST_EXPO` 0 and `MOT_BAT_VOLT_MAX` 0 so the mixer's output is linear in its inputs.
+  - **The pairing:** with fast and medium attitude logging both on, System ID logs RATE every loop, so each 10 Hz RCOU row pairs exactly with its own loop's mixer inputs.
+  - **The fit:** a least-squares fit per motor gives its four factors, scaled by the largest throttle factor. Each must match the table within 2% of its axis's range.
+  - **Result on 4.7.0:** all 20 match, the worst factor 1.04% off (octa-quad CW X). This includes the co-rotating X8's 0.9 top layer.
 
 **Measured now:** `analyzers/motor_out.py`, with the solver in `motor_out.py` and `simplex.py`. Rules are in `knowledge/rules/motor_out.json`; the targets are the table's defaults, marked uncalibrated.
 
