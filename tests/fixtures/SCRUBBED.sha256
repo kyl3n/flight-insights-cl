@@ -6,6 +6,14 @@ e3d23e3710853835a7aa2d53d7a0011004d29a14c579ebbc43db46fb064c4bc1  sitl/4.7.0/cop
 d194e34c7c3dc607141f18e78abfc8756ee38b3ce036e112f325a17d844cbb60  sitl/4.7.0/copter-heavylift-loaded.param
 d8d59de013940a5ab11cbffb54a0d311dd7775f601b0053060d4fbbc74dd27b1  sitl/4.7.0/copter-heavylift-loaded.params
 d53376baf0db3d8de6558e3c2448cd161d983cd74db5ac3243c4418a90ec7799  sitl/4.7.0/copter-heavylift-loaded.tlog
+c0bdeb8e38fbf2666ad2898b2b5c8c58e8fd45602bb7c4a9baf075f1649a8e73  sitl/4.7.0/copter-quad-autotune-aborted.bin
+dab1fce12e1f0a19d1b909338d5bb3436cdca58bfdcb61b9be47f0b7c98f16bc  sitl/4.7.0/copter-quad-autotune-aborted.param
+df5f4b743c78e7698bab73d55b6e7ac29736e59440c5b13fab079169500ead27  sitl/4.7.0/copter-quad-autotune-aborted.params
+301e5ab3601751cbe82dd49d75776a583f8a15dd0c0a7b6f49c8f86e8f54f2b7  sitl/4.7.0/copter-quad-autotune-aborted.tlog
+3051ea3f43fe0b4207b27f8f36883c74efb788a81d4359b6696888f5cbb9a835  sitl/4.7.0/copter-quad-autotune-saved.bin
+30637ccacc320a486500c3ce81fdf2c09bdcb5d229e851dc0052e51a2521498b  sitl/4.7.0/copter-quad-autotune-saved.param
+f7e8dbf8e92e3ff05c07adbf58c4e7c7fcca16e6f388955d958a3f383d47f9ed  sitl/4.7.0/copter-quad-autotune-saved.params
+d146d1b88cdcbbf09c1ffa4938c4f0959c0f5281feaf6bebb9a2edc13ae69112  sitl/4.7.0/copter-quad-autotune-saved.tlog
 9bcb2144174d1653f382793a8c2a69704de13e09b518fb956ab415c11cfaebf7  sitl/4.7.0/copter-quad-fastnotch.bin
 5fdd5389171445980778e3f58d5a458619ce34aaeb97426fc5099c71ba080e8b  sitl/4.7.0/copter-quad-fastnotch.param
 384581db95ef7dfea1ee559e0a4141b552e1f2ac5250b41184688d811b52522e  sitl/4.7.0/copter-quad-fastnotch.params

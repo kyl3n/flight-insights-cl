@@ -173,6 +173,54 @@ def tune_check(
     return fly
 
 
+def autotune(
+    finish: bool, altitude: float = 10, before_stop: float = 25
+) -> Callable[[Vehicle], None]:
+    """Roll AutoTune from AltHold (AUTOTUNE_AXES 1), sticks centred throughout. With
+    `finish`, the tune runs to its end ("AutoTune: Success") and the aircraft lands and
+    disarms still in AutoTune, so the firmware saves the tuned gains (AC_AutoTune::disarmed).
+    Otherwise the pilot switches back to AltHold after `before_stop` s, which stops the
+    tune and restores the original gains (AC_AutoTune::stop), then lands."""
+
+    def fly(v: Vehicle) -> None:
+        from run_scenario import ScenarioFailed
+
+        v.mode("GUIDED")
+        v.arm()
+        v.command(ML.MAV_CMD_NAV_TAKEOFF, 0, 0, 0, 0, 0, 0, altitude)
+        v.wait_altitude(altitude - 0.5)
+        centre = {"ch1": 1500, "ch2": 1500, "ch3": 1500, "ch4": 1500}
+        v.rc(**centre)
+        v.mode("ALT_HOLD")
+        sticks(v, 3, centre)
+        v.mode("AUTOTUNE")
+        if not finish:
+            sticks(v, before_stop, centre)
+            v.mode("ALT_HOLD")
+            sticks(v, 3, centre)
+            land_and_disarm(v)
+            return
+        for _ in range(int(900 / 5)):  # up to 15 minutes of simulated time
+            sticks(v, 5, centre)
+            if any("AutoTune: Success" in t for t in v.texts):
+                break
+        else:
+            raise ScenarioFailed("AutoTune did not finish")
+        sticks(v, 2, centre)
+        # Land in AutoTune with the throttle low (it climbs and descends like AltHold),
+        # then disarm on the ground: the tune is complete, so the gains are saved.
+        low = centre | {"ch3": 1100}
+        while True:
+            sticks(v, 1, low)
+            m = v.conn.recv_match(type="GLOBAL_POSITION_INT", blocking=True, timeout=10)
+            if m is not None and m.relative_alt < 300:
+                break
+        sticks(v, 4, low)
+        v.disarm()
+
+    return fly
+
+
 def heli_hover(v: Vehicle) -> None:
     v.rc(ch3=1000, ch8=1000)  # motor interlock off to arm
     v.mode("GUIDED")
@@ -236,6 +284,10 @@ VIBRATING = {
     "LOG_DISARMED": 0,
     "LOG_FILE_BUFSIZE": 64,
 }
+# A roll AutoTune runs for minutes, and SITL logs its own state (SIM2) at loop rate,
+# streamed: capping streamed messages at 25 Hz keeps the log small. AutoTune's own
+# records (EV, ATUN, MODE, MSG) are not streamed, so all of them are kept.
+AUTOTUNE_LOGGING = {"LOG_DISARMED": 0, "SIM_ESC_TELEM": 0, "LOG_FILE_RATEMAX": 25}
 RAW_SPEEDUP = 2  # full-rate raw IMU logging drops data at the default speed-up
 
 # The default quad's roll and pitch rate gains (P, I and D: 0.135, 0.135 and 0.0036 in
@@ -420,6 +472,48 @@ SCENARIOS: dict[str, Scenario] = {
             fly=tune_check(6, axes=("ch1", "ch2")),
             boot_params={"LOG_DISARMED": 0, "SIM_ESC_TELEM": 0} | SOFT_RATE_GAINS,
             speedup=RAW_SPEEDUP,
+            **COPTER,  # type: ignore[arg-type]
+        ),
+        Scenario(
+            name="copter-quad-autotune-saved",
+            vehicle="copter",
+            frame="quad +",
+            description=(
+                "Roll AutoTune on the quad with the soft rate gains of copter-quad-tune-low:"
+                " AltHold at 10 m, AUTOTUNE until 'AutoTune: Success', then landed and disarmed"
+                " still in AutoTune, so the firmware saves the tuned gains."
+            ),
+            expected=[
+                "EV AUTOTUNE_INITIALISED, then AUTOTUNE_SUCCESS and AUTOTUNE_SAVEDGAINS",
+                "ATUN rows for roll only (AUTOTUNE_AXES 1), from rate D up to angle P up",
+                "roll rate P about doubled from the soft 0.054 (to about 0.118); rate D lowered"
+                " to about 0.0004, under AUTOTUNE_MIN_D after the 25% back-off",
+                "no ESC telemetry (SIM_ESC_TELEM 0): the desync check has nothing to read",
+                "LOG_FILE_RATEMAX 25 for a small log: streamed messages at 25 Hz",
+                "steady hover windows: 5 s in ALT_HOLD; 8 s in AUTOTUNE; 8 s in AUTOTUNE"
+                " (between twitches)",
+            ],
+            fly=autotune(finish=True),
+            boot_params=AUTOTUNE_LOGGING | {"AUTOTUNE_AXES": 1} | SOFT_RATE_GAINS,
+            **COPTER,  # type: ignore[arg-type]
+        ),
+        Scenario(
+            name="copter-quad-autotune-aborted",
+            vehicle="copter",
+            frame="quad +",
+            description=(
+                "Roll AutoTune on the default quad, stopped after 25 s by switching back to"
+                " AltHold, then LAND: the firmware restores the original gains."
+            ),
+            expected=[
+                "EV AUTOTUNE_INITIALISED, then AUTOTUNE_OFF; no AUTOTUNE_SUCCESS or SAVEDGAINS",
+                "ATUN rows for roll only, the tune stopped part-way",
+                "the gains at the end of the log are the gains at its start",
+                "LOG_FILE_RATEMAX 25 for a small log: streamed messages at 25 Hz",
+                "steady hover windows: 20 s in ALT_HOLD; 7 s in AUTOTUNE (between twitches)",
+            ],
+            fly=autotune(finish=False),
+            boot_params=AUTOTUNE_LOGGING | {"AUTOTUNE_AXES": 1},
             **COPTER,  # type: ignore[arg-type]
         ),
         Scenario(

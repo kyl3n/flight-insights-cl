@@ -1,0 +1,94 @@
+{
+  "about": "What AutoTune did in a flight (spec: Copter analyzers, 'Autotune review').",
+  "metrics": {},
+  "findings": {
+    "autotune.saved": {
+      "stage": "autotune",
+      "title": {
+        "en": "AutoTune saved new gains for {axes}",
+        "uk": "AutoTune зберіг нові коефіцієнти для: {axes}"
+      },
+      "action": {
+        "en": "These are the firmware's own tuned gains, kept when the aircraft disarmed in AutoTune. Fly the tune check light, then loaded, on the same profile to confirm them: tracking error should drop and nothing else should get worse. The evidence lists each axis's gains before and after.",
+        "uk": "Це коефіцієнти, які налаштувала сама прошивка; вони збереглися, бо апарат роззброївся в режимі AutoTune. Виконайте перевірку налаштування без вантажу, потім з вантажем, за тим самим профілем, щоб їх підтвердити: похибка відстеження має зменшитися, а решта — не погіршитися. У доказах наведено коефіцієнти кожної осі до і після."
+      }
+    },
+    "autotune.not_saved": {
+      "stage": "autotune",
+      "title": {
+        "en": "AutoTune finished {axes} but the new gains were not saved",
+        "uk": "AutoTune завершив {axes}, але нові коефіцієнти не збережено"
+      },
+      "action": {
+        "en": "AutoTune keeps its gains only when the aircraft lands and disarms still in AutoTune, or with the AutoTune test switch on the tuned gains. This flight disarmed in another mode, so the original gains came back. Fly the tune again and land in AutoTune; the tuned values are in this flight's evidence if you prefer to review and load them by hand.",
+        "uk": "AutoTune зберігає коефіцієнти, лише якщо апарат сідає й роззброюється в режимі AutoTune або з перемикачем перевірки на налаштованих коефіцієнтах. Цей політ роззброївся в іншому режимі, тож повернулися початкові коефіцієнти. Повторіть налаштування й сідайте в AutoTune; налаштовані значення є в доказах цього польоту, якщо ви волієте перевірити й завантажити їх вручну."
+      }
+    },
+    "autotune.incomplete": {
+      "stage": "autotune",
+      "title": {
+        "en": "AutoTune stopped before finishing {remaining}",
+        "uk": "AutoTune зупинився, не завершивши: {remaining}"
+      },
+      "action": {
+        "en": "Leaving AutoTune before an axis finishes discards that axis's work and restores its original gains. On the next pack, set AUTOTUNE_AXES to the axes still to tune (one axis per pack if a battery cannot finish them), take off in AltHold in calm air, switch to AutoTune and let it run to 'AutoTune: Success', then land and disarm still in AutoTune.",
+        "uk": "Вихід з AutoTune до завершення осі скасовує її налаштування й повертає початкові коефіцієнти. На наступній батареї вкажіть в AUTOTUNE_AXES осі, що лишилися (по одній на батарею, якщо заряду не вистачає), злетіть в AltHold у тиху погоду, перемкніться в AutoTune і дочекайтеся 'AutoTune: Success', потім сідайте й роззброюйтеся, не виходячи з AutoTune."
+      }
+    },
+    "autotune.failed": {
+      "stage": "mechanical",
+      "title": {
+        "en": "AutoTune gave up on {axis} during {step}",
+        "uk": "AutoTune припинив налаштування осі {axis} на кроці {step}"
+      },
+      "action": {
+        "en": "AutoTune stops when the aircraft will not settle level between twitches, or when it cannot size a twitch within the lean limit. Check that it holds level hands-off in AltHold, that the centre of gravity is central and the payload is secure, and fly in calmer air. If it still fails, lower AUTOTUNE_AGGR towards 0.05 and try again.",
+        "uk": "AutoTune зупиняється, коли апарат не вирівнюється між ривками або коли не вдається підібрати розмір ривка в межах крену. Перевірте, що в AltHold апарат тримає рівень без втручання, центр мас по центру, а вантаж закріплений, і літайте в тихішу погоду. Якщо збій повториться, зменште AUTOTUNE_AGGR до 0.05 і спробуйте знову."
+      }
+    },
+    "autotune.rate_limit": {
+      "stage": "filters",
+      "title": {
+        "en": "AutoTune reached a gain limit on {axis} during {step}",
+        "uk": "AutoTune досяг межі коефіцієнта осі {axis} на кроці {step}"
+      },
+      "action": {
+        "en": "During the rate steps AutoTune raises P and D until the response bounces back. Reaching the limit there means the aircraft never showed it: usually gyro noise or a flexible frame hiding the bounce, or a very stiff, overpowered airframe. Check the filter analysis and the frame first; the tuned gains on that axis are less certain.",
+        "uk": "На кроках швидкості AutoTune підвищує P і D, доки відгук не почне відскакувати. Досягнення межі означає, що апарат цього так і не показав: зазвичай шум гіроскопа чи гнучка рама ховають відскок, або ж це дуже жорсткий апарат із великим запасом тяги. Спершу перевірте аналіз фільтрів і раму; налаштовані коефіцієнти цієї осі менш надійні."
+      }
+    },
+    "autotune.d_at_min": {
+      "stage": "filters",
+      "title": {
+        "en": "AutoTune left {axes} rate D at its floor (AUTOTUNE_MIN_D)",
+        "uk": "AutoTune залишив D швидкості для {axes} на нижній межі (AUTOTUNE_MIN_D)"
+      },
+      "action": {
+        "en": "AutoTune wanted less D than AUTOTUNE_MIN_D allows: the D term was making the response worse. That is usually gyro noise reaching D (notch or low-pass filters not set for the motors) or a flexible frame, not a gain problem. Fix the filters first (see the filter findings), then AutoTune again; lower AUTOTUNE_MIN_D only once noise is ruled out.",
+        "uk": "AutoTune хотів менше D, ніж дозволяє AUTOTUNE_MIN_D: складова D погіршувала відгук. Зазвичай причина — шум гіроскопа, що потрапляє в D (режекторні чи низькочастотні фільтри не налаштовані на мотори), або гнучка рама, а не коефіцієнти. Спершу виправте фільтри (див. висновки щодо фільтрів), потім повторіть AutoTune; зменшуйте AUTOTUNE_MIN_D, лише коли шум виключено."
+      }
+    },
+    "autotune.desync": {
+      "stage": "mechanical",
+      "title": {
+        "en": "A motor lost sync during AutoTune (motor {motors})",
+        "uk": "Мотор втратив синхронізацію під час AutoTune (мотор {motors})"
+      },
+      "action": {
+        "en": "AutoTune's twitches ask the motors for large, fast changes, which can make an ESC lose sync, especially on low-KV motors. A desync in flight can drop a motor. Do not AutoTune this aircraft again until it is fixed: check the ESC firmware's timing and demag settings and the motor wiring, then repeat with AUTOTUNE_AGGR at 0.05 and one axis per flight.",
+        "uk": "Ривки AutoTune вимагають від моторів великих і швидких змін, через що регулятор може втратити синхронізацію, особливо з моторами з низьким KV. Розсинхронізація в польоті може вимкнути мотор. Не запускайте AutoTune на цьому апараті, доки це не виправлено: перевірте налаштування таймінгу й demag у прошивці регулятора та проводку моторів, потім повторіть з AUTOTUNE_AGGR 0.05 і по одній осі за політ."
+      }
+    },
+    "autotune.low_kv_unchecked": {
+      "stage": "evidence",
+      "title": {
+        "en": "{kv} KV motors were AutoTuned with no ESC RPM to check for desyncs",
+        "uk": "Мотори {kv} KV пройшли AutoTune без обертів від регуляторів для перевірки синхронізації"
+      },
+      "action": {
+        "en": "ArduPilot warns that AutoTune can desync ESCs on motors under 500 KV. Without ESC RPM in the log the app cannot tell whether that happened. Turn on ESC telemetry (bidirectional DShot or serial telemetry) before the next AutoTune so it can be checked.",
+        "uk": "ArduPilot попереджає, що AutoTune може розсинхронізувати регулятори з моторами до 500 KV. Без обертів від регуляторів у журналі застосунок не може це перевірити. Увімкніть телеметрію регуляторів (двонапрямний DShot або послідовну) перед наступним AutoTune."
+      }
+    }
+  }
+}
