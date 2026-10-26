@@ -1224,7 +1224,7 @@ The app assumes every aircraft will lose GNSS at some point, through jamming, sp
 **Built now:** `recovery.py`, with the RPC `airframe.recovery_card`. The wording is in `knowledge/recovery/copter.json`, in English and Ukrainian. The card is built on the laptop from three things:
 
 - the airframe's latest parameters, through the readiness review;
-- its measured outages over all its flights' latest analyses: the shortest hold, the longest detection and the worst drift a minute;
+- its measured outages over all its flights' latest analyses: the shortest hold, the longest detection and the worst drift a minute. These are kept apart by the source set they were flown on, so a hold measured on optical flow is never claimed for the aircraft on its own;
 - the landing tolerance.
 
 It holds two sections; losing the radio link and losing a motor follow once their measurements exist.

@@ -5,8 +5,10 @@ settings, how long it holds and how far it can go, and the operator's steps.
 It is built on this laptop from:
 - the airframe's latest parameters and setup answers, through the readiness review
   (analyzers/no_gnss_readiness.py);
-- its measured outages and drills: the shortest hold, the longest detection and the
-  worst drift a minute, over its flights' latest analyses;
+- its measured outages and drills over its flights' latest analyses (the shortest hold,
+  the longest detection and the worst drift a minute), kept apart by the source set they
+  were flown on, so a hold measured on optical flow is never claimed for the aircraft on
+  its own;
 - the wording in knowledge/recovery/copter.json, in English and Ukrainian.
 
 The card holds times, modes, switches and how far the estimate drifts; never a position.
@@ -18,7 +20,7 @@ from __future__ import annotations
 
 import json
 from collections.abc import Mapping, Sequence
-from dataclasses import dataclass
+from dataclasses import asdict, dataclass
 from typing import Any, cast
 
 from flight_insights.analyzers.flight import FlightData, FlightError
@@ -32,7 +34,7 @@ from flight_insights.store.db import Store
 from flight_insights.trends import flight_order
 
 READINESS = "no_gnss:readiness:"
-HOLD, DETECTION, DRIFT = "no_gnss.hold_s", "no_gnss.detection_s", "no_gnss.drift_rate"
+OUTAGE = "no_gnss:outage:"
 
 
 class RecoveryError(ValueError):
@@ -41,12 +43,12 @@ class RecoveryError(ValueError):
 
 @dataclass(frozen=True)
 class Measured:
-    """The airframe's outages and drills, over its flights' latest analyses."""
+    """Outages and drills of one kind, over the airframe's flights' latest analyses: flown
+    on the GNSS source set (the aircraft on its own), or on another source set."""
 
-    outages: int = 0
-    drills: int = 0
-    hold_s: float | None = None  # the shortest
-    detection_s: float | None = None  # the longest
+    outages: int = 0  # outages and drills
+    hold_s: float | None = None  # the shortest time it kept a position it could fly on
+    detection_s: float | None = None  # the longest time to stop using GNSS
     drift_m_per_min: float | None = None  # the worst
 
 
@@ -79,11 +81,12 @@ def _areas(readiness: Result) -> dict[str, Mapping[str, Any]]:
 
 
 def build(
-    readiness: Result, measured: Measured, params: Mapping[str, float], doc: Mapping[str, Any],
-    tolerance_m: float, airframe: str, param_set: str | None,
+    readiness: Result, alone: Measured, on_set: Measured, params: Mapping[str, float],
+    doc: Mapping[str, Any], tolerance_m: float, airframe: str, param_set: str | None,
 ) -> dict[str, Any]:  # fmt: skip
-    """The card from the readiness review's areas, the measured outages and the
-    parameters; the same inputs always give the same card."""
+    """The card from the readiness review's areas, the measured outages (on its own, and
+    on another source set) and the parameters; the same inputs always give the same card.
+    What was measured on one source set is never stated for the other."""
     c = _Card(doc)
     areas = _areas(readiness)
     position, switching = areas.get("position", {}), areas.get("switching", {})
@@ -118,16 +121,24 @@ def build(
         will.append(c.phrase("will.ekf_off"))
 
     facts: list[dict[str, Any]] = []
-    if measured.detection_s is not None:
-        facts.append(c.phrase("fact.detection", detection_s=measured.detection_s))
-    if measured.hold_s is not None:
-        facts.append(c.phrase("fact.hold", hold_s=measured.hold_s, outages=measured.outages))
+    if alone.detection_s is not None:
+        facts.append(c.phrase("fact.detection", detection_s=alone.detection_s))
+    if alone.hold_s is not None:
+        facts.append(c.phrase("fact.hold", hold_s=alone.hold_s, outages=alone.outages))
     else:
         facts.append(c.phrase("fact.hold_unmeasured"))
-    if measured.drift_m_per_min:
-        minutes = round(tolerance_m / measured.drift_m_per_min, 1)
-        facts.append(c.phrase("fact.range", minutes=minutes, tolerance_m=tolerance_m,
-                              rate=measured.drift_m_per_min))  # fmt: skip
+    if alone.drift_m_per_min:
+        facts.append(c.phrase("fact.range", minutes=round(tolerance_m / alone.drift_m_per_min, 1),
+                              tolerance_m=tolerance_m, rate=alone.drift_m_per_min))  # fmt: skip
+    if usable and target != 1 and on_set.hold_s is not None:
+        facts.append(c.phrase("fact.hold_set", set=target, hold_s=on_set.hold_s,
+                              outages=on_set.outages))  # fmt: skip
+        if on_set.drift_m_per_min:
+            facts.append(c.phrase(
+                "fact.range_set", set=target, tolerance_m=tolerance_m,
+                minutes=round(tolerance_m / on_set.drift_m_per_min, 1),
+                rate=on_set.drift_m_per_min,
+            ))  # fmt: skip
     if not sets:
         facts.append(c.phrase("fact.no_fallback_set"))
 
@@ -136,11 +147,11 @@ def build(
                  else c.phrase("step.mode_station") if station
                  else c.phrase("step.no_mode"))  # fmt: skip
     steps: list[dict[str, Any]] = []
-    on_set = usable and (target == 1 or bool(switch))  # a source set to fly home on
+    fly_on_set = usable and (target == 1 or bool(switch))  # a source set to fly home on
     if usable and target != 1:
         steps.append(c.phrase("step.switch_set", set=target, channel=switch[0]) if switch
                      else c.phrase("step.no_switch", set=target))  # fmt: skip
-    if on_set:
+    if fly_on_set:
         steps.append(c.phrase("step.fly_home_set", sensors=sensors, mode=mode or "AltHold"))
     else:  # home by hand, on the heading
         steps.append(take_over)
@@ -166,11 +177,7 @@ def build(
         spoof.append(c.phrase("spoof.ekf_lands"))
     spoof.append(c.phrase("spoof.then"))
 
-    numbers = {
-        "outages": measured.outages, "drills": measured.drills, "hold_s": measured.hold_s,
-        "detection_s": measured.detection_s, "drift_m_per_min": measured.drift_m_per_min,
-        "tolerance_m": tolerance_m,
-    }  # fmt: skip
+    numbers = {"alone": asdict(alone), "on_set": asdict(on_set), "tolerance_m": tolerance_m}
     sections = [
         {"id": "gnss_lost", "title": c.phrase("gnss_lost")["text"], "will": will,
          "facts": facts, "steps": steps},
@@ -211,40 +218,41 @@ def card_text(card: Mapping[str, Any], lang: str = "en") -> str:
 # --- from the store --------------------------------------------------------------------------
 
 
-def measured(store: Store, airframe_id: str) -> Measured:
-    """The outages and drills over the airframe's flights' latest analyses."""
-    runs = [
-        r[0]
-        for (flight_id,) in store.conn.execute(
-            "SELECT id FROM flight WHERE airframe_id = ?", (airframe_id,)
-        ).fetchall()
-        if (r := store.conn.execute(
-            "SELECT id FROM analysis_run WHERE flight_id = ? ORDER BY created_hlc DESC LIMIT 1",
-            (flight_id,),
-        ).fetchone())
-    ]  # fmt: skip
-    values: dict[str, list[float]] = {HOLD: [], DETECTION: [], DRIFT: []}
-    outages = drills = 0
-    for run in runs:
-        for metric, value in store.conn.execute(
-            "SELECT metric, value FROM metric_value WHERE run_id = ? AND metric IN (?, ?, ?)",
-            (run, HOLD, DETECTION, DRIFT),
-        ):
-            values[metric].append(float(value))
-        (evidence,) = store.conn.execute(
-            "SELECT evidence_json FROM analysis_run WHERE id = ?", (run,)
-        ).fetchone()
-        for e in json.loads(evidence):
-            if e.get("id") == "no_gnss:flight":
-                outages += int(e["values"].get("outages", 0))
-                drills += int(e["values"].get("drills", 0))
+def _group(outages: Sequence[Mapping[str, Any]]) -> Measured:
+    kept = [float(o["kept_s"]) for o in outages if o.get("kept_s") is not None]
+    detection = [float(o["detection_s"]) for o in outages if o.get("detection_s") is not None]
+    drift = [float(o["drift"]) for o in outages if o.get("drift") is not None]
     return Measured(
-        outages=outages,
-        drills=drills,
-        hold_s=min(values[HOLD]) if values[HOLD] else None,
-        detection_s=max(values[DETECTION]) if values[DETECTION] else None,
-        drift_m_per_min=max(values[DRIFT]) if values[DRIFT] else None,
+        outages=len(outages),
+        hold_s=min(kept) if kept else None,
+        detection_s=max(detection) if detection else None,
+        drift_m_per_min=max(drift) if drift else None,
     )
+
+
+def measured(store: Store, airframe_id: str) -> tuple[Measured, Measured]:
+    """The airframe's outages and drills over its flights' latest analyses: those it met
+    on the GNSS source set (on its own), and those on another source set."""
+    alone: list[dict[str, Any]] = []
+    on_set: list[dict[str, Any]] = []
+    for (flight_id,) in store.conn.execute(
+        "SELECT id FROM flight WHERE airframe_id = ?", (airframe_id,)
+    ).fetchall():
+        run = store.conn.execute(
+            "SELECT evidence_json FROM analysis_run WHERE flight_id = ? "
+            "ORDER BY created_hlc DESC LIMIT 1",
+            (flight_id,),
+        ).fetchone()
+        if run is None:
+            continue
+        evidence = {e["id"]: e.get("values", {}) for e in json.loads(run[0])}
+        for eid, v in evidence.items():
+            if not eid.startswith(OUTAGE) or eid.endswith(":drift"):
+                continue
+            o = dict(v) | {"drift": evidence.get(f"{eid}:drift", {}).get("drift_m_per_min")}
+            other = v.get("source_set") not in (None, 1) or v.get("using_gnss_at_start") is False
+            (on_set if other else alone).append(o)
+    return _group(alone), _group(on_set)
 
 
 def _latest(store: Store, cache: ColumnCache, pack: Pack, airframe_id: str) -> FlightData:
@@ -279,7 +287,7 @@ def card(
         (flight.id,),
     ).fetchone()
     out = build(
-        readiness, measured(store, airframe_id), flight.params, pack.json("recovery/copter.json"),
+        readiness, *measured(store, airframe_id), flight.params, pack.json("recovery/copter.json"),
         float(reg.rules["no_gnss"]["landing_tolerance_m"]), str(row["name"]),
         str(snapshot[0]).split("-", 1)[-1][:8] if snapshot else None,  # "ps1-<hash>"
     )  # fmt: skip

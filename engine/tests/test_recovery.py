@@ -17,7 +17,8 @@ from flight_insights.recovery import Measured, build, card_text
 
 PACK = load_pack()
 DOC = PACK.json("recovery/copter.json")
-SITL = Measured(outages=2, drills=1, hold_s=6.9, detection_s=3.9)  # the local SITL drill
+SITL = Measured(outages=2, hold_s=6.9, detection_s=3.9)  # the SITL drills, on GNSS alone
+NOTHING = Measured()
 
 
 @pytest.fixture(scope="module")
@@ -26,13 +27,15 @@ def reg() -> Registry:
 
 
 def make(reg: Registry, **params: float) -> dict[str, Any]:
-    return measured_as(reg, SITL, **params)
+    return measured_as(reg, SITL, NOTHING, **params)
 
 
-def measured_as(reg: Registry, measured: Measured, **params: float) -> dict[str, Any]:
+def measured_as(
+    reg: Registry, alone: Measured, on_set: Measured, **params: float
+) -> dict[str, Any]:
     p = STOCK | params
     readiness = NO_GNSS_READINESS.run(hover_flight({}, p), reg)
-    return build(readiness, measured, p, DOC, 10.0, "HL1", "a3f9c2d1")
+    return build(readiness, alone, on_set, p, DOC, 10.0, "HL1", "a3f9c2d1")
 
 
 def keys(card: dict[str, Any], section: str, part: str = "steps") -> list[str]:
@@ -120,10 +123,34 @@ def test_an_ekf_failsafe_switched_off(reg: Registry) -> None:
 
 
 def test_measured_drift_gives_the_range_and_nothing_measured_says_so(reg: Registry) -> None:
-    drifting = measured_as(reg, Measured(outages=1, hold_s=30.0, drift_m_per_min=5.0))
+    drifting = measured_as(reg, Measured(outages=1, hold_s=30.0, drift_m_per_min=5.0), NOTHING)
     [fact] = [t for t in text(drifting, "gnss_lost", "facts") if "min before" in t]
-    assert fact == "About 2 min before its estimate is 10 m off (drift 5 m a minute, measured)."
-    assert keys(measured_as(reg, Measured()), "gnss_lost", "facts")[0] == "fact.hold_unmeasured"
+    assert fact == (
+        "On its own, about 2 min before its estimate is 10 m off (drift 5 m a minute, measured)."
+    )
+    assert keys(measured_as(reg, NOTHING, NOTHING), "gnss_lost", "facts")[0] == (
+        "fact.hold_unmeasured"
+    )
+
+
+def test_a_hold_on_optical_flow_is_never_claimed_for_the_aircraft_on_its_own(
+    reg: Registry,
+) -> None:
+    """As in the SITL flow drill: 30 s held on source set 2, which the aircraft only uses
+    once the operator switches to it."""
+    flow = Measured(outages=1, hold_s=30.2, drift_m_per_min=0.2)
+    c = measured_as(reg, NOTHING, flow, **FLOW, RC8_OPTION=90.0)
+    assert keys(c, "gnss_lost", "facts") == [
+        "fact.hold_unmeasured", "fact.hold_set", "fact.range_set",
+    ]  # fmt: skip
+    assert text(c, "gnss_lost", "facts")[1:] == [
+        "On source set 2 it kept a position it can fly on for at least 30.2 s (measured; "
+        "outages and drills: 1).",
+        "On source set 2, about 50 min before its estimate is 10 m off (drift 0.2 m a minute, "
+        "measured).",
+    ]
+    # without a set to switch to, a hold measured on one says nothing about this aircraft
+    assert "fact.hold_set" not in keys(measured_as(reg, NOTHING, flow), "gnss_lost", "facts")
 
 
 def test_the_printed_card_in_both_languages(reg: Registry) -> None:
@@ -165,16 +192,24 @@ def test_the_card_over_rpc(tmp_path: Path) -> None:
     af = call(server, out, 3, "airframe.create", platform_id=pl["id"], name="Q-1")["result"]
     empty = call(server, out, 4, "airframe.recovery_card", airframe_id=af["id"])
     assert empty["error"]["code"] == -32003 and "parameters" in empty["error"]["message"]
-    scanned = call(server, out, 5, "import.scan",
-                   paths=[str(fixture / "copter-quad-gnss-jam.bin")])["result"]  # fmt: skip
-    [done] = call(server, out, 6, "import.commit", batch=scanned["batch"],
-                  decisions=[{"log": "f1", "airframe_id": af["id"]}])["result"]  # fmt: skip
-    call(server, out, 7, "analysis.run", flight_id=done["flights"][0])
+    flights: list[str] = []
+    for i, name in enumerate(("copter-quad-nognss-drill", "copter-quad-nognss-flow")):
+        scanned = call(server, out, 10 + i, "import.scan",
+                       paths=[str(fixture / f"{name}.bin")])["result"]  # fmt: skip
+        [done] = call(server, out, 20 + i, "import.commit", batch=scanned["batch"],
+                      decisions=[{"log": "f1", "airframe_id": af["id"]}])["result"]  # fmt: skip
+        call(server, out, 30 + i, "analysis.run", flight_id=done["flights"][0])
+        flights.append(done["flights"][0])
     c = call(server, out, 8, "airframe.recovery_card", airframe_id=af["id"])["result"]
-    assert c["airframe"] == "Q-1" and c["flight"] == done["flights"][0]
+    assert c["airframe"] == "Q-1" and c["flight"] == flights[1]  # the latest parameters
     assert [s["id"] for s in c["sections"]] == ["gnss_lost", "spoofing"]
     assert c["text"]["en"].startswith("Q-1: recovery card")
-    assert c["measured"]["tolerance_m"] == 10.0
+    # the drill with no other source on its own; the flow drill on source set 2
+    alone, on_set = c["measured"]["alone"], c["measured"]["on_set"]
+    assert alone["outages"] == 1 and 5 <= alone["hold_s"] <= 9 and 3 <= alone["detection_s"] <= 5
+    assert on_set["outages"] == 1 and on_set["hold_s"] >= 30 and on_set["drift_m_per_min"] < 1
+    assert keys(c, "gnss_lost") == ["step.switch_set", "step.fly_home_set", "step.land"]
+    assert keys(c, "spoofing")[1] == "spoof.reject_switch"  # RC7, the GPS-disable switch
     bad = call(server, out, 9, "airframe.recovery_card", airframe_id="nope")
     assert bad["error"]["code"] == -32003
     call(server, out, 10, "engine.shutdown")

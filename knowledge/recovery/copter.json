@@ -96,16 +96,24 @@
       "uk": "Він перестає використовувати GNSS приблизно через {detection_s} с після втрати (виміряно)."
     },
     "fact.hold": {
-      "en": "It keeps a position it can fly on for at least {hold_s} s (measured over {outages} outages).",
-      "uk": "Він зберігає придатну для польоту позицію щонайменше {hold_s} с (виміряно за {outages} втратами)."
+      "en": "On its own it keeps a position it can fly on for at least {hold_s} s (measured; outages and drills: {outages}).",
+      "uk": "Сам по собі він зберігає придатну для польоту позицію щонайменше {hold_s} с (виміряно; втрат і тренувань: {outages})."
     },
     "fact.hold_unmeasured": {
-      "en": "Hold time not measured yet: fly a GNSS-off drill at a safe height.",
-      "uk": "Час утримання ще не виміряно: виконайте тренування з вимкненим GNSS на безпечній висоті."
+      "en": "How long it holds on its own is not measured yet: fly a GNSS-off drill at a safe height.",
+      "uk": "Скільки він утримує позицію сам, ще не виміряно: виконайте тренування з вимкненим GNSS на безпечній висоті."
     },
     "fact.range": {
-      "en": "About {minutes} min before its estimate is {tolerance_m} m off (drift {rate} m a minute, measured).",
-      "uk": "Приблизно {minutes} хв, доки оцінка не відхилиться на {tolerance_m} м (дрейф {rate} м за хвилину, виміряно)."
+      "en": "On its own, about {minutes} min before its estimate is {tolerance_m} m off (drift {rate} m a minute, measured).",
+      "uk": "Сам по собі — приблизно {minutes} хв, доки оцінка не відхилиться на {tolerance_m} м (дрейф {rate} м за хвилину, виміряно)."
+    },
+    "fact.hold_set": {
+      "en": "On source set {set} it kept a position it can fly on for at least {hold_s} s (measured; outages and drills: {outages}).",
+      "uk": "На наборі джерел {set} він зберігав придатну для польоту позицію щонайменше {hold_s} с (виміряно; втрат і тренувань: {outages})."
+    },
+    "fact.range_set": {
+      "en": "On source set {set}, about {minutes} min before its estimate is {tolerance_m} m off (drift {rate} m a minute, measured).",
+      "uk": "На наборі джерел {set} — приблизно {minutes} хв, доки оцінка не відхилиться на {tolerance_m} м (дрейф {rate} м за хвилину, виміряно)."
     },
     "fact.no_fallback_set": {
       "en": "No source set keeps a position without GNSS.",
