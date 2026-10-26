@@ -944,6 +944,17 @@
         "en": "Below about 2 Hz it is usually the attitude loop or a swinging payload; from 2 to 20 Hz usually the rate gains; above that often a flexing arm or frame, or a loose mount. Check the payload mount, the arms and the motor mounts, then lower that axis's rate P and D by about a quarter or run AutoTune, and fly the tune check again.",
         "uk": "Нижче приблизно 2 Гц це зазвичай контур положення або вантаж, що розгойдується; від 2 до 20 Гц — зазвичай коефіцієнти контуру швидкості; вище — часто гнучкий промінь чи рама або слабке кріплення. Перевірте кріплення вантажу, промені й кріплення моторів, потім зменште P і D швидкості цієї осі приблизно на чверть або запустіть AutoTune і повторіть перевірку налаштування."
       }
+    },
+    "tune.autotune_offer": {
+      "stage": "autotune",
+      "title": {
+        "en": "AutoTune {axes}, then fly this tune check again to measure it",
+        "uk": "Запустіть AutoTune для {axes}, потім повторіть цю перевірку налаштування, щоб виміряти результат"
+      },
+      "action": {
+        "en": "This flight measured how the rate loop tracks the sticks. ArduPilot's next step once the filters are set is AutoTune; flying the same tune check after it, light and then loaded, shows whether tracking improved, in each payload band. On large propellers the rate filters go to 10 Hz first and one axis is tuned per pack; with a payload that varies the gain back-off is raised. The plan's file carries those settings.",
+        "uk": "Цей політ виміряв, як контур швидкості відстежує стіки. Наступний крок ArduPilot після налаштування фільтрів — AutoTune; та сама перевірка налаштування після нього, спершу без вантажу, потім з вантажем, покаже, чи покращилося відстеження в кожному діапазоні навантаження. На великих гвинтах спершу фільтри швидкості ставлять на 10 Гц і налаштовують по одній осі на батарею; за змінного вантажу збільшують запас коефіцієнтів. Файл плану містить ці налаштування."
+      }
     }
   }
 }

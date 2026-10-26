@@ -106,7 +106,14 @@ CHECKS: Mapping[str, tuple[str, ...]] = {
     "metric": ("metric",),
     "has_metric": ("metric",),
     "param_is": ("param", "value"),
+    # in every payload band flown before the change, flown again with it, the metric
+    # better by at least `by` (a share) with 95% intervals apart
+    "metric_improves": ("metric", "by"),
+    # with the change, the heaviest band's value within max_ratio times, or max_above
+    # over, the lightest band's
+    "metric_vs_lightest": ("metric",),
 }
+METRIC_CHECKS = ("metric", "has_metric", "metric_improves", "metric_vs_lightest")
 
 
 @dataclass(frozen=True)
@@ -345,7 +352,15 @@ def _procedures(
                     raise KnowledgeError(
                         f"{where}: add_temporary needs a param and set_bits, clear_bits or a value"
                     )
-            procedures[code] = {"temporary": temporary, "add_temporary": add, "steps": steps}
+            applied_when = raw.get("applied_when")
+            if applied_when is not None and applied_when.get("finding") not in findings:
+                raise KnowledgeError(f"{where}: applied_when names no finding the registry knows")
+            if raw.get("graded_by", "findings") not in ("findings", "checks"):
+                raise KnowledgeError(f"{where}: graded_by is 'findings' or 'checks'")
+            procedures[code] = {
+                "temporary": temporary, "add_temporary": add, "steps": steps,
+                "applied_when": applied_when, "graded_by": raw.get("graded_by", "findings"),
+            }  # fmt: skip
     return procedures, texts
 
 
@@ -361,8 +376,14 @@ def _procedure_step(
         needs = CHECKS.get(check.get("check"))
         if needs is None or any(k not in check for k in needs):
             raise KnowledgeError(f"{where}: unknown or incomplete check {check}")
-        if check["check"] in ("metric", "has_metric") and check["metric"] not in metrics:
+        if check["check"] in METRIC_CHECKS and check["metric"] not in metrics:
             raise KnowledgeError(f"{where}: no metric {check['metric']}")
+        if check["check"] == "metric_vs_lightest" and ("max_ratio" in check) == (
+            "max_above" in check
+        ):
+            raise KnowledgeError(f"{where}: metric_vs_lightest needs max_ratio or max_above")
+        if not isinstance(check.get("required", False), bool):
+            raise KnowledgeError(f"{where}: 'required' is true or false")
     when = s.get("when")
     if when is not None and not (isinstance(when.get("param"), str) and when.get("in")):
         raise KnowledgeError(f"{where}: 'when' needs a param and the values it keeps the step for")

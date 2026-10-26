@@ -111,6 +111,28 @@ def _bands(flights: Sequence[Flight], reg: Registry) -> Bands:
     return bands(analysed, reg.rules["payload"])
 
 
+def grouped_flights(store: Store, reg: Registry, airframe_id: str) -> list[tuple[Flight, str]]:
+    """The airframe's analysed flights in the order they flew, each with its payload group."""
+    flights = [f for f in _flights(store, airframe_id) if f.run_id is not None]
+    b = _bands(flights, reg)
+    return [(f, group_of(f, b)) for f in flights]
+
+
+def metric_of(
+    store: Store, run_id: str, metric: str, segment: str | None
+) -> tuple[float, Mapping[str, Any]] | None:
+    """A run's value of a metric (in `segment`, or its first), with its spread."""
+    if segment is not None:
+        found = _value(store, run_id, metric, segment)
+        return None if found is None else (found[0], found[1][0] or {})
+    row = store.conn.execute(
+        "SELECT value, spread_json FROM metric_value WHERE run_id = ? AND metric = ? "
+        "ORDER BY segment LIMIT 1",
+        (run_id, metric),
+    ).fetchone()
+    return None if row is None else (float(row[0]), json.loads(row[1]) if row[1] else {})
+
+
 def group_of(flight: Flight, b: Bands) -> str:
     """The payload group a flight is compared within: its band, or its label without one."""
     k = b.band.get(flight.id)

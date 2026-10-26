@@ -1172,6 +1172,87 @@
           }
         }
       ]
+    },
+    "tune.autotune_offer": {
+      "applied_when": {
+        "finding": "autotune.saved",
+        "axes": [
+          "roll",
+          "pitch"
+        ]
+      },
+      "graded_by": "checks",
+      "steps": [
+        {
+          "kind": "hardware",
+          "text": {
+            "en": "Secure the payload and anything else that could wobble, and fly with the same propellers, battery type and mount as the tune check.",
+            "uk": "Закріпіть вантаж і все, що може хитатися, і літайте з тими самими гвинтами, типом батареї та кріпленням, що й під час перевірки налаштування."
+          }
+        },
+        {
+          "kind": "ground_check",
+          "text": {
+            "en": "Load the plan's file, then put AltHold on one flight-mode switch position and AutoTune on a spare switch (RCn_OPTION 17), and leave that switch LOW. With one axis per pack, AUTOTUNE_AXES is 1 (roll) for the first pack and 2 (pitch) for the next. Keep AUTOTUNE_AGGR at its default (0.075 in 4.7). On motors under 500 KV, AutoTune's twitches can make an ESC lose sync: have ESC telemetry on so the review can check.",
+            "uk": "Завантажте файл плану, потім призначте AltHold на одне положення перемикача режимів, а AutoTune — на вільний перемикач (RCn_OPTION 17) і залиште його внизу. По одній осі на батарею: AUTOTUNE_AXES 1 (крен) для першої батареї і 2 (тангаж) для наступної. Залиште AUTOTUNE_AGGR стандартним (0.075 у 4.7). На моторах до 500 KV ривки AutoTune можуть розсинхронізувати регулятор: увімкніть телеметрію регуляторів, щоб огляд це перевірив."
+          }
+        },
+        {
+          "kind": "fly",
+          "text": {
+            "en": "Light, in wind under 4 m/s, take off and hold AltHold at 10-15 m, nose into the wind. Switch AutoTune HIGH and let it run to 'AutoTune: Success' (several minutes an axis); reposition with the sticks when it drifts. Land and disarm with the switch still HIGH: the gains are saved. Then fly the tune check light, and loaded.",
+            "uk": "Без вантажу, за вітру до 4 м/с, злетіть і тримайте AltHold на 10-15 м носом проти вітру. Перемкніть AutoTune вгору й дочекайтеся 'AutoTune: Success' (кілька хвилин на вісь); повертайте апарат стіками, коли зноситься. Сідайте й роззброюйтеся з перемикачем угорі: коефіцієнти збережуться. Потім виконайте перевірку налаштування без вантажу і з вантажем."
+          }
+        },
+        {
+          "kind": "abort",
+          "text": {
+            "en": "If it oscillates, drifts hard in the wind, an ESC temperature warning shows or the battery reaches its caution level, switch AutoTune LOW: the original gains come back and nothing is saved. Land.",
+            "uk": "Якщо апарат розгойдується, його сильно зносить вітром, з'являється попередження про температуру регулятора або батарея досягає порогу попередження, перемкніть AutoTune вниз: повернуться початкові коефіцієнти, нічого не збережеться. Сідайте."
+          }
+        },
+        {
+          "kind": "verify",
+          "checks": [
+            {
+              "check": "metric_improves",
+              "metric": "tune.tracking_error_roll",
+              "by": 0.2,
+              "required": true
+            },
+            {
+              "check": "metric_improves",
+              "metric": "tune.tracking_error_pitch",
+              "by": 0.2,
+              "required": true
+            },
+            {
+              "check": "metric_vs_lightest",
+              "metric": "tune.rise_time_roll",
+              "max_ratio": 1.5
+            },
+            {
+              "check": "metric_vs_lightest",
+              "metric": "tune.rise_time_pitch",
+              "max_ratio": 1.5
+            },
+            {
+              "check": "metric_vs_lightest",
+              "metric": "tune.sensitivity_peak_roll",
+              "max_above": 0.2
+            },
+            {
+              "check": "metric_vs_lightest",
+              "metric": "tune.sensitivity_peak_pitch",
+              "max_above": 0.2
+            }
+          ],
+          "text": {
+            "en": "The tune check after AutoTune, in each payload band flown before it, shows roll and pitch tracking error at least 20% lower than before, with the 95% intervals apart. Loaded, the rate loop may be slower, not less stable: rise time within 1.5 times the light flight's and the sensitivity peak within 0.2 of it, where they are measured.",
+            "uk": "Перевірка налаштування після AutoTune в кожному діапазоні навантаження, у якому літали раніше, показує похибку відстеження за креном і тангажем щонайменше на 20% меншу, ніж до того, з 95% інтервалами, що не перетинаються. З вантажем контур швидкості може бути повільнішим, але не менш стійким: час наростання не більше 1,5 від польоту без вантажу, а пік чутливості — не більше ніж на 0,2 вищий, де їх виміряно."
+          }
+        }
+      ]
     }
   }
 }

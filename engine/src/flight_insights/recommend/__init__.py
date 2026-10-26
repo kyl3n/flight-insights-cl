@@ -25,6 +25,7 @@ from flight_insights.recommend.plan import Plan, Recommendation, Source, build_p
 from flight_insights.recommend.records import (
     RecommendationConflict,
     RecommendationError,
+    flew_before,
     grade_flight,
     history,
     record_plan,
@@ -64,10 +65,36 @@ def flight_plan(
             {"code": f["code"], "flight": checked} for f in findings if f["code"] in diagnostics
         ]
         findings = [f for f in findings if f["code"] not in diagnostics]
+    # An offer is not made again once a later finding showed its work done on this build.
+    once: Mapping[str, str] = reg.rules["recommend"]["held_once_done"]["findings"]
+    for code in sorted({f["code"] for f in findings} & set(once)):
+        done = _done_on_build(store, row, once[code])
+        if done is not None:
+            held.append({"code": code, "flight": done, "reason": "held_once_done"})
+            findings = [f for f in findings if f["code"] != code]
     findings += followup.revert_findings(store, flight_id, dialect, params)
     plan = build_plan(flight_id, findings, params, dialect, reg)
     plan.held_back = held
     return plan
+
+
+def _done_on_build(store: Store, flight: Mapping[str, Any], code: str) -> str | None:
+    """The latest flight of this flight's airframe and build version, flown no later than
+    it, that raised `code`; None when none did."""
+    rows = store.conn.execute(
+        "SELECT DISTINCT fl.* FROM finding f JOIN flight fl ON fl.id = f.flight_id "
+        "WHERE fl.airframe_id IS ? AND fl.build_version_id IS ? AND f.code = ?",
+        (flight["airframe_id"], flight["build_version_id"], code),
+    )
+    names = [d[0] for d in rows.description]
+    found = [dict(zip(names, r, strict=True)) for r in rows.fetchall()]
+    latest: dict[str, Any] | None = None
+    for f in found:
+        if (f["id"] == flight["id"] or flew_before(f, flight)) and (
+            latest is None or flew_before(latest, f)
+        ):
+            latest = f
+    return None if latest is None else str(latest["id"])
 
 
 def _ai(
