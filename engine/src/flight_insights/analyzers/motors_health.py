@@ -44,7 +44,8 @@ SATURATED_MARGIN = 0.01  # within 1% of the range below the top counts as satura
 HOT_SIBLING_C = 15.0  # an ESC this much hotter than its siblings' median
 SUPPLY_DROP_V = 0.3  # an ESC seeing this much less voltage than its siblings
 DESYNC_SHARE = 0.5  # RPM falling below this share of the motor's hover RPM...
-DESYNC_UPDATES = 3  # ...for this many updates in a row, under a hover-level command
+DESYNC_UPDATES = 3  # ...for this many updates in a row, under a hover-level command,
+DESYNC_RUNNING_US = 500_000  # after it held above that share this long
 EDT2_ALERT, EDT2_WARNING, EDT2_ERROR = 1 << 2, 1 << 3, 1 << 4  # log_Edt2_Status
 
 
@@ -161,6 +162,21 @@ def _first_run(flags: np.ndarray[Any, Any], length: int) -> int | None:
     return int(starts[long[0]]) if len(long) else None
 
 
+def _held(
+    t: np.ndarray[Any, Any], above: np.ndarray[Any, Any], span_us: int
+) -> np.ndarray[Any, Any]:
+    """True from the first moment `above` has held for `span_us` without a break."""
+    edges = np.diff(np.concatenate([[0], above.astype(np.int8), [0]]))
+    starts, ends = np.flatnonzero(edges == 1), np.flatnonzero(edges == -1)
+    out = np.zeros(len(t), dtype=bool)
+    for a, b in zip(starts, ends, strict=True):
+        reached = np.flatnonzero(t[a:b] - t[a] >= span_us)
+        if len(reached):
+            out[a + int(reached[0]) :] = True
+            break
+    return out
+
+
 def _desync(flight: FlightData, ms: list[Motor], out: Result) -> None:
     esc, rcou = flight.table("ESC"), flight.table("RCOU")
     hover = flight.hover()
@@ -190,9 +206,12 @@ def _desync(flight: FlightData, ms: list[Motor], out: Result) -> None:
         hover_pwm = float(np.median(pwm[_inside(rt, spans)]))
         command = pwm[np.clip(np.searchsorted(rt, t, side="right") - 1, 0, len(rt) - 1)]
         armed = (t >= flight.arm_us) & (t <= flight.disarm_us)
-        # A collapse, not a spool-up: the motor ran above the share before it fell. Large
-        # propellers take seconds to reach speed while take-off already commands more.
-        running = np.maximum.accumulate(armed & (r >= DESYNC_SHARE * hover_rpm))
+        # A collapse, not a spool-up: the motor held above the share before it fell. Large
+        # propellers take seconds to reach speed while take-off already commands more, and
+        # a spool-up on the ground can read in bursts (ArduPilot's simulator swings between
+        # zero and full speed until the aircraft lifts off), so one reading above is not
+        # enough: the speed must hold there for a while.
+        running = _held(t, armed & (r >= DESYNC_SHARE * hover_rpm), DESYNC_RUNNING_US)
         low = armed & running & (command >= hover_pwm) & (r < DESYNC_SHARE * hover_rpm)
         start = _first_run(low, DESYNC_UPDATES)
         if start is not None:
@@ -395,7 +414,7 @@ def _motors_health(flight: FlightData, reg: Registry) -> Result:
 
 MOTORS_HEALTH = Analyzer(
     name="motors",
-    version=1,
+    version=2,
     run=_motors_health,
     metrics=(
         "motors.saturation_flight", "motors.saturation_hover", "motors.output_spread",

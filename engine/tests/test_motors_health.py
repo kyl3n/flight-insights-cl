@@ -121,6 +121,30 @@ def test_a_slow_spool_up_at_take_off_is_not_a_desync(reg: Registry) -> None:
     assert found({"RCOU": rcou([1550] * 4, take_off), "ESC": escs}, reg) == []
 
 
+def test_a_spool_up_that_reads_in_bursts_is_not_a_desync(reg: Registry) -> None:
+    # On the ground before lift-off, ArduPilot's simulator reports a spooling motor in
+    # bursts: full speed for a reading, then almost nothing, under a take-off command.
+    t = np.arange(ARM, DISARM, STEP)
+    burst = [0.0, 5000.0, 9000.0, 1000.0, 9000.0, 500.0, 600.0, 700.0, 9000.0]
+    rows = [(int(x), i) for x in t for i in range(4)]
+    rpm = [burst[k] if k < len(burst) else 9000.0 for k, _ in enumerate(t) for _ in range(4)]
+    escs = table(
+        [x for x, _ in rows],
+        {"Instance": (pa.uint8(), [i for _, i in rows]), "RPM": (pa.float32(), rpm)},
+    )
+    take_off = {k: (ARM, ARM + 1_000_000, 1700.0) for k in range(1, 5)}
+    assert found({"RCOU": rcou([1550] * 4, take_off), "ESC": escs}, reg) == []
+    # Once the speed has held, the same fall is a collapse.
+    late = [9000.0] * 20 + [500.0, 600.0, 700.0] + [9000.0] * (len(t) - 23)
+    rpm = [late[k] for k, _ in enumerate(t) for _ in range(4)]
+    escs = table(
+        [x for x, _ in rows],
+        {"Instance": (pa.uint8(), [i for _, i in rows]), "RPM": (pa.float32(), rpm)},
+    )
+    [f] = found({"RCOU": rcou([1550] * 4), "ESC": escs}, reg)
+    assert f.code == "esc.desync" and f.params["motors"] == "1, 2, 3, 4"
+
+
 def test_extended_dshot_warnings_are_named_by_motor(reg: Registry) -> None:
     [f] = found({"RCOU": rcou([1550] * 4), "EDT2": edt2(1 << 3 | 1 << 1, 1)}, reg)
     assert (f.code, f.severity, f.params) == (
