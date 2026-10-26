@@ -20,6 +20,7 @@
 | filter.workbench | A flight's spectra before, as flown and with candidate filter values |
 | flight.propulsion | A flight's motor outputs, ESC telemetry and battery, reduced for display |
 | flight.system | A flight's loop load and timing, logging drops and errors, for display |
+| flight.tlogs | A flight's tlog sessions: each station clock against the vehicle's, and loss |
 | flight.tune | A flight's tune against one of its payload group's, and the plan's verdict |
 | review.file | A parameter file's configuration review and plan, with no flight |
 
@@ -48,6 +49,7 @@ from flight_insights.rpc.server import (
     RpcError,
     Server,
 )
+from flight_insights.tlog import sessions as tlog_sessions
 
 if TYPE_CHECKING:
     from flight_insights.rpc.methods import EngineState
@@ -225,6 +227,15 @@ def add_analysis_methods(server: Server, state: EngineState, guarded: Callable[[
     @guarded
     def flight_system(_ctx: Context, params: dict[str, Any]) -> dict[str, Any]:
         return _view(params, views.system)
+
+    @server.method("flight.tlogs")
+    @guarded
+    def flight_tlogs(_ctx: Context, params: dict[str, Any]) -> list[dict[str, Any]]:
+        store = state.require_store()
+        flight_id = _flight(params)
+        if store.get("flight", flight_id) is None:
+            raise RpcError(BAD_INPUT, "no such flight")
+        return tlog_sessions.sessions(store, flight_id)
 
     opened: dict[str, analyzers.FlightData] = {}  # the last few flights the Tune view read
 
