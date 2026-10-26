@@ -1,0 +1,27 @@
+source: sitl
+vehicle: copter
+frame: quad +
+firmware: 4.7.0
+ardupilot_commit: 1511f27194f1dcc3728270883047bdf022b3fd53
+scenario: copter-quad-autotune-saved
+description: 'Roll AutoTune on the quad with the soft rate gains of copter-quad-tune-low:
+  AltHold at 10 m, AUTOTUNE until ''AutoTune: Success'', then landed and disarmed
+  still in AutoTune, so the firmware saves the tuned gains.'
+parameters_set:
+  LOG_DISARMED: 0
+  SIM_ESC_TELEM: 0
+  LOG_FILE_RATEMAX: 25
+  AUTOTUNE_AXES: 1
+  ATC_RAT_RLL_P: 0.054
+  ATC_RAT_RLL_I: 0.054
+  ATC_RAT_RLL_D: 0.00144
+  ATC_RAT_PIT_P: 0.054
+  ATC_RAT_PIT_I: 0.054
+  ATC_RAT_PIT_D: 0.00144
+faults: []
+expected:
+- EV AUTOTUNE_INITIALISED, then AUTOTUNE_SUCCESS and AUTOTUNE_SAVEDGAINS
+- ATUN rows for roll only (AUTOTUNE_AXES 1), from rate D up to angle P up
+- roll rate P about doubled from the soft 0.054 (to about 0.118); rate D lowered to about 0.0004, under AUTOTUNE_MIN_D after the 25% back-off
+- 'no ESC telemetry (SIM_ESC_TELEM 0): the desync check has nothing to read'
+- 'LOG_FILE_RATEMAX 25 for a small log: streamed messages at 25 Hz'

@@ -1,0 +1,44 @@
+{
+  "about": "How the AutoTune review reads an AutoTune session from the log (spec: Copter analyzers, 'Autotune review'). The event names come from the release's enum table (AP_Logger LogEvent); the axis and step numbers are AC_AutoTune's at Copter-4.7.0. Starting values, not yet calibrated against the fleet's logs.",
+  "calibrated": false,
+  "axes": {
+    "0": "roll",
+    "1": "pitch",
+    "2": "yaw",
+    "3": "yaw_d"
+  },
+  "axis_params": {
+    "roll": "RLL",
+    "pitch": "PIT",
+    "yaw": "YAW",
+    "yaw_d": "YAW"
+  },
+  "steps": {
+    "0": "rate D up",
+    "1": "rate D down",
+    "2": "rate P up",
+    "3": "rate FF up",
+    "4": "angle P down",
+    "5": "angle P up",
+    "6": "max gains",
+    "7": "tune check",
+    "8": "complete"
+  },
+  "rate_steps": [
+    0,
+    1,
+    2,
+    3
+  ],
+  "d_down_step": 1,
+  "min_d_margin": 0.05,
+  "low_kv": 500,
+  "save_window_s": 3.0,
+  "sources": [
+    "libraries/AC_AutoTune/AC_AutoTune.h at Copter-4.7.0: AxisType ROLL 0, PITCH 1, YAW 2 (tuned with the rate filter, so ATUN.RD is the yaw rate filter), YAW_D 3; TuneType RATE_D_UP 0, RATE_D_DOWN 1, RATE_P_UP 2, RATE_FF_UP 3, ANGLE_P_DOWN 4, ANGLE_P_UP 5, MAX_GAINS 6, TUNE_CHECK 7, TUNE_COMPLETE 8.",
+    "libraries/AC_AutoTune/AC_AutoTune.cpp at Copter-4.7.0: leaving AutoTune before it finishes restores the original gains and logs AUTOTUNE_OFF (stop); every axis in AUTOTUNE_AXES done logs AUTOTUNE_SUCCESS; on disarm the gains of the finished axes are saved (AUTOTUNE_SAVEDGAINS) only when disarmed in AutoTune without the test switch, or with the test switch on the tuned gains (disarmed); failing to level logs AUTOTUNE_FAILED.",
+    "libraries/AC_AutoTune/AC_AutoTune_Multi.cpp at Copter-4.7.0: AUTOTUNE_REACHED_LIMIT when rate P or D reaches its maximum, or the twitch size cannot be found; the rate D search never goes below AUTOTUNE_MIN_D (default 0.0005); AUTOTUNE_AGGR defaults to 0.075 and AUTOTUNE_GMBK to 0.25, the share by which the tuned P and D are reduced at the end.",
+    "ArduPilot Copter docs, AutoTune: 'AutoTune can request very large and fast changes in outputs to the motors which can cause ESC sync issues especially when using SimonK firmware and/or low KV motors (under 500KV)'; a good tune leaves ATC_RAT_RLL_D and ATC_RAT_PIT_D larger than AUTOTUNE_MIN_D; gains are kept only when disarmed in AutoTune (https://ardupilot.org/copter/docs/autotune.html).",
+    "min_d_margin and save_window_s: app starting values. D within 5% of AUTOTUNE_MIN_D at the end of the D search is at its floor; the save is logged at disarm, within a few seconds of the session's end."
+  ]
+}

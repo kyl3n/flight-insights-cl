@@ -1006,8 +1006,8 @@
         {
           "kind": "ground_check",
           "text": {
-            "en": "Put AltHold on one flight-mode switch position and AutoTune on a spare switch (RCn_OPTION 17), and leave that switch LOW. Choose the axes in AUTOTUNE_AXES (1 roll, 2 pitch, 4 yaw: one at a time if a battery cannot finish them all) and keep AUTOTUNE_AGGR at its default 0.1.",
-            "uk": "Призначте AltHold на одне положення перемикача режимів, а AutoTune — на вільний перемикач (RCn_OPTION 17) і залиште його в нижньому положенні. Оберіть осі в AUTOTUNE_AXES (1 крен, 2 тангаж, 4 рискання: по одній, якщо батареї не вистачає на всі) і залиште AUTOTUNE_AGGR стандартним 0.1."
+            "en": "Put AltHold on one flight-mode switch position and AutoTune on a spare switch (RCn_OPTION 17), and leave that switch LOW. Choose the axes in AUTOTUNE_AXES (1 roll, 2 pitch, 4 yaw: one at a time if a battery cannot finish them all) and keep AUTOTUNE_AGGR at its default (0.075 in 4.7).",
+            "uk": "Призначте AltHold на одне положення перемикача режимів, а AutoTune — на вільний перемикач (RCn_OPTION 17) і залиште його в нижньому положенні. Оберіть осі в AUTOTUNE_AXES (1 крен, 2 тангаж, 4 рискання: по одній, якщо батареї не вистачає на всі) і залиште AUTOTUNE_AGGR стандартним (0.075 у 4.7)."
           }
         },
         {

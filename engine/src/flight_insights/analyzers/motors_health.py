@@ -177,11 +177,13 @@ def _held(
     return out
 
 
-def _desync(flight: FlightData, ms: list[Motor], out: Result) -> None:
+def desync_events(flight: FlightData, ms: list[Motor]) -> list[dict[str, Any]] | None:
+    """Each motor's first RPM collapse under a hover-level command: {motor, at_us, rpm,
+    hover_rpm}. None when the log can't show one: no ESC RPM, outputs or steady hover."""
     esc, rcou = flight.table("ESC"), flight.table("RCOU")
     hover = flight.hover()
     if esc is None or rcou is None or not hover or "RPM" not in esc.column_names:
-        return
+        return None
     spans = [(w.start_us, w.end_us) for w in hover]
     et, inst, rpm = (
         _times(esc),
@@ -223,6 +225,11 @@ def _desync(flight: FlightData, ms: list[Motor], out: Result) -> None:
                     "hover_rpm": hover_rpm,
                 }
             )
+    return events
+
+
+def _desync(flight: FlightData, ms: list[Motor], out: Result) -> None:
+    events = desync_events(flight, ms)
     if not events:
         return
     ev = Evidence(
