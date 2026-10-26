@@ -3,6 +3,13 @@
   "calibrated": true,
   "window_s": 1.0,
   "arming_delay_s": 2.0,
+  "timing": {
+    "about": "How soon each failsafe acts once its loss begins: its own wait (FS_GCS_TIMEOUT; BATT_LOW_TIMER, or at once for the capacity stages; RC_FS_TIMEOUT after the receiver flags failsafe, or three frames of throttle under FS_THR_VALUE) plus how often the firmware checks (period_s, from the scheduler table). frame_s is the slowest common receiver frame (PPM, 50 Hz), for the three-frame count. margin_s is added on top of the check period and the log's own sampling around the onset before a failsafe counts as late, or a loss as unanswered.",
+    "margin_s": 0.1,
+    "FAILSAFE_GCS": {"period_s": 0.334},
+    "FAILSAFE_BATT": {"period_s": 0.1},
+    "FAILSAFE_RADIO": {"period_s": 0.004, "frames": 3, "frame_s": 0.02}
+  },
   "failsafes": {
     "FAILSAFE_RADIO": {
       "name": {"en": "Radio", "uk": "Радіо"},
@@ -102,6 +109,12 @@
     "ArduCopter/mode_auto.cpp, mode_rtl.cpp and mode_smart_rtl.cpp at Copter-4.7.0 (Auto needs a position except in NAV_ATTITUDE_TIME; Auto lands in its LAND submode or its RTL submode's landing; RTL and SmartRTL land in their LAND state)",
     "ArduCopter/mode.cpp at Copter-4.7.0 (set_mode returns at once, logging nothing, when already in the mode)",
     "ArduCopter/config.h at Copter-4.7.0 (ARMING_DELAY_SEC 2)",
+    "ArduCopter/Copter.cpp at Copter-4.7.0 (scheduler: rc_loop 250 Hz, update_batt_compass 10 Hz, three_hz_loop 3 Hz with failsafe_gcs_check)",
+    "ArduCopter/radio.cpp at Copter-4.7.0 (read_radio: RC_FS_TIMEOUT after the last new frame, nothing when FS_THR_ENABLE is 0; set_throttle_and_failsafe: FS_COUNTER 3 frames under FS_THR_VALUE) and RC_Channel_Copter.cpp (has_valid_input)",
+    "libraries/AP_RCProtocol/AP_RCProtocol_Backend.cpp at Copter-4.7.0 (add_input: a frame the receiver marks as failsafe is not new input unless RC_OPTIONS bit 2 ignores the flag)",
+    "libraries/AP_Logger/LogFile.cpp and AP_Logger.h at Copter-4.7.0 (Write_RCIN: RCI2.Flags bit 0 valid input, bit 1 in RC failsafe, bit 2 the receiver's protocol failsafe; OMask the MAVLink overrides)",
+    "libraries/GCS_MAVLink/GCS_Common.cpp at Copter-4.7.0 (log_mavlink_stats about once a second per active link: MAV.mgs, the last time the GCS system ID was seen, by heartbeat or manual control)",
+    "libraries/AP_BattMonitor/AP_BattMonitor.cpp read() at Copter-4.7.0 (BAT is logged for each monitor just before check_failsafes, in the same loop) and AP_BattMonitor_Backend.cpp (update_failsafes: the voltage stages wait BATT_LOW_TIMER, which 0 switches off; the capacity stages act at once; BATT_FS_VOLTSRC picks raw or sag-compensated voltage)",
     "libraries/AP_BattMonitor/AP_BattMonitor.cpp and AP_BattMonitor_Backend.cpp at Copter-4.7.0 (check_failsafes: each stage logs its own failsafe with its action; no healthy reading for 5 s is the Unhealthy stage, with no action; the action's place in Copter.h _failsafe_priorities, where FAILSAFE_LAND_PRIORITY is 1, decides when a radio or GCS failsafe keeps landing)",
     "https://ardupilot.org/copter/docs/radio-failsafe.html",
     "https://ardupilot.org/copter/docs/gcs-failsafe.html",

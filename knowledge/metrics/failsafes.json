@@ -33,6 +33,39 @@
         "en": "No reading of this log lets the firmware's own logic choose that response with {setting} {value} and these FS_OPTIONS. Look for a parameter changed in flight, a Lua script or companion computer that changed mode, or a firmware this check does not cover, and do not rely on this failsafe until the cause is found.",
         "uk": "Жодне прочитання цього журналу не дозволяє логіці прошивки обрати таку реакцію при {setting} {value} і цих FS_OPTIONS. Пошукайте параметр, змінений у польоті, скрипт Lua чи бортовий комп'ютер, що змінив режим, або прошивку, яку ця перевірка не охоплює, і не покладайтеся на цей аварійний режим, доки причину не знайдено."
       }
+    },
+    "failsafe.late": {
+      "stage": "operations",
+      "title": {
+        "en": "{failsafe} failsafe at {at_s} s came {late_s} s late: {waited_s} s after its loss began, against a wait of {wait_s} s",
+        "uk": "Аварійний режим «{failsafe}» на {at_s} с спрацював із запізненням {late_s} с: через {waited_s} с після початку втрати замість {wait_s} с"
+      },
+      "action": {
+        "en": "The firmware checks this failsafe on a fixed schedule, so it should act within its wait plus one check. The loss began at {began}. A longer wait points to an overloaded main loop (see the slow-loop findings) or a setting changed in flight; do not count on the wait you set until it is explained.",
+        "uk": "Прошивка перевіряє цей аварійний режим за сталим розкладом, тож він має спрацювати за свій час очікування плюс одну перевірку. Втрата почалася так: {began}. Довше очікування вказує на перевантажений основний цикл (див. висновки про повільні цикли) або на налаштування, змінене в польоті; не покладайтеся на задане очікування, доки причину не з'ясовано."
+      }
+    },
+    "failsafe.missed": {
+      "stage": "operations",
+      "title": {
+        "en": "{failsafe} failsafe was due at {due_s} s but none fired: {what} from {at_s} s for {lasted_s} s",
+        "uk": "Аварійний режим «{failsafe}» мав спрацювати на {due_s} с, але не спрацював: {what} з {at_s} с протягом {lasted_s} с"
+      },
+      "action": {
+        "en": "By its settings ({setting}) the firmware should have acted. Look for a parameter changed in flight, a script, or a firmware this check does not cover, and do not rely on this failsafe until the cause is found.",
+        "uk": "За своїми налаштуваннями ({setting}) прошивка мала зреагувати. Пошукайте параметр, змінений у польоті, скрипт або прошивку, яку ця перевірка не охоплює, і не покладайтеся на цей аварійний режим, доки причину не знайдено."
+      }
+    },
+    "failsafe.off_during_loss": {
+      "stage": "operations",
+      "title": {
+        "en": "{failsafe}: {what} from {at_s} s for {lasted_s} s, with its failsafe switched off ({setting})",
+        "uk": "«{failsafe}»: {what} з {at_s} с протягом {lasted_s} с, а аварійний режим вимкнено ({setting})"
+      },
+      "action": {
+        "en": "Nothing reacted to the loss, because its failsafe is off. Decide whether the aircraft can fly on safely whenever this happens: with no other control link, or a battery that low, it cannot, so switch the failsafe on (the configuration review proposes a setting).",
+        "uk": "На втрату ніщо не зреагувало, бо аварійний режим вимкнено. Вирішіть, чи може апарат безпечно летіти далі щоразу, коли таке стається: без іншого каналу керування чи з такою розрядженою батареєю — ні, тож увімкніть аварійний режим (огляд конфігурації пропонує налаштування)."
+      }
     }
   }
 }
