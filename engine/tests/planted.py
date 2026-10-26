@@ -38,6 +38,10 @@ C_TYPES = {
     "int16_t[32]": "a", "uint8_t flight mode": "M",
 }  # fmt: skip
 POSITION_UNITS = ("deglatitude", "deglongitude", "1e-7 deglatitude", "1e-7 deglongitude")
+POSITION_NAMES = ("lat", "lon", "lng", "latitude", "longitude")
+# Fields that hold a position with neither a position unit nor a position name (ArduPilot
+# 4.7 LogStructure.h): a MAVLink command's coordinates, and replayed GNSS altitude.
+UNITLESS = {"MAVC": {"X": "lat", "Y": "lon", "Z": "alt"}, "RGPJ": {"Alt": "alt"}}
 TEXT = f"home at {PLANT_LAT:.6f}, {PLANT_LON:.6f}"
 LOCATION_PARAMS = {
     "AHRS_ORIGIN_LAT": PLANT_LAT, "AHRS_ORIGIN_LON": PLANT_LON, "AHRS_ORIGIN_ALT": PLANT_ALT,
@@ -46,9 +50,18 @@ LOCATION_PARAMS = {
 }  # fmt: skip
 
 
-def _value(name: str, ch: str, unit: str) -> Any:
-    lat = "lat" in unit.lower() or name.lower() in ("lat", "tlat")
-    lon = "lon" in unit.lower() or "lng" in name.lower() or name.lower() in ("lon", "tlng")
+def _value(name: str, ch: str, unit: str, kind: str | None = None) -> Any:
+    lat = kind == "lat" or "lat" in unit.lower() or name.lower() in ("lat", "tlat")
+    lon = (
+        kind == "lon"
+        or "lon" in unit.lower()
+        or "lng" in name.lower()
+        or name.lower()
+        in (
+            "lon",
+            "tlng",
+        )
+    )
     coord = PLANT_LAT if lat else PLANT_LON if lon else None
     if ch in "nNZ":
         return TEXT.encode()
@@ -59,8 +72,10 @@ def _value(name: str, ch: str, unit: str) -> Any:
             return round(coord * 1e7)
         if ch in "fd":
             return coord
-    if ch in "fd" and ("alt" in name.lower() or name.lower() in ("hgt", "height")):
-        return PLANT_ALT
+    if kind == "alt" or (
+        ch in "fd" and ("alt" in name.lower() or name.lower() in ("hgt", "height"))
+    ):
+        return PLANT_ALT if ch in "fd" else round(PLANT_ALT * 100)
     if name in ("GWk", "Week", "week"):
         return PLANT_WEEK
     if name in ("GMS", "WkMS", "SMS"):
@@ -68,10 +83,11 @@ def _value(name: str, ch: str, unit: str) -> Any:
     return 0
 
 
-def _body(fmt: str, columns: list[str], units: list[str], time_us: int) -> bytes:
+def _body(fmt: str, columns: list[str], units: list[str], time_us: int, message: str) -> bytes:
     values: list[Any] = []
+    kinds = UNITLESS.get(message, {})
     for ch, name, unit in zip(fmt, columns, units, strict=True):
-        v: Any = time_us if name == "TimeUS" else _value(name, ch, unit)
+        v: Any = time_us if name == "TimeUS" else _value(name, ch, unit, kinds.get(name))
         values.extend(v if ch == "a" else [v])
     return struct.pack("<" + "".join(PACK_CHARS[c] for c in fmt), *values)
 
@@ -100,8 +116,9 @@ def plant(source: Path, target: Path, pack: Pack) -> dict[str, int]:
         definitions |= pack.log_messages(version)
     holders = {
         name for name, m in definitions.items()
-        if any(f["units"] in POSITION_UNITS or "latitude/longitude" in f["type"]
-               for f in m["fields"].values())
+        if name in UNITLESS
+        or any(f["units"] in POSITION_UNITS or "latitude/longitude" in f["type"]
+               or field.lower() in POSITION_NAMES for field, f in m["fields"].items())
     }  # fmt: skip
     for name in sorted(holders | {"MSG", "BARO", "GPS"}):
         if name in by_name:  # the log's own layout
@@ -125,7 +142,7 @@ def plant(source: Path, target: Path, pack: Pack) -> dict[str, int]:
                 struct.pack("<BB4s16s64s", type_, size, name.encode(), fmt.encode(),
                             ",".join(columns).encode()),
             )  # fmt: skip
-        message(type_, _body(fmt, columns, units, time_us))
+        message(type_, _body(fmt, columns, units, time_us, name))
         planted[name] = 1
     parm_fmt = by_name["PARM"]
     for pname, value in LOCATION_PARAMS.items():

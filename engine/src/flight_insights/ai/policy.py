@@ -39,6 +39,8 @@ class Policy:
         self.rules = rules
         self.messages = messages
         self._patterns = [re.compile(p) for p in rules["location_field_patterns"]]
+        self._named = re.compile(rules["position_names"])
+        self._unitless: Mapping[str, Mapping[str, str]] = rules["unitless_positions"]
         self._removed = [re.compile(p) for p in rules["removed_parameters"]]
 
     @staticmethod
@@ -53,6 +55,15 @@ class Policy:
     def _position(self, units: str, type_: str) -> bool:
         return units in self.rules["position_units"] or any(
             t in type_ for t in self.rules["position_types"]
+        )
+
+    def _holds(self, message: str, field: str, spec: Mapping[str, str]) -> bool:
+        """A position by its units, its type, its name, or the rules' list of fields that
+        hold one with neither."""
+        return (
+            self._position(spec["units"], spec["type"])
+            or bool(self._named.match(field))
+            or field in self._unitless.get(message, {})
         )
 
     def field(
@@ -74,15 +85,16 @@ class Policy:
         for u, t in ((spec["units"], spec["type"]), (units or "", "")):
             if self._position(u, t):
                 return Decision("deny", "a latitude or longitude")
+        if self._named.match(field):
+            return Decision("deny", "a latitude or longitude, by its name")
+        if field in self._unitless.get(message, {}):
+            return Decision("deny", self._unitless[message][field])
         held = rules["position_messages"].get(message)
         if held is not None:
             if field in held["allow"]:
                 return Decision("allow", "cleared in a message that holds a position")
             return Decision("deny", held["reason"])
-        if any(
-            self._position(u, t)
-            for u, t in ((f["units"], f["type"]) for f in definition["fields"].values())
-        ):
+        if any(self._holds(message, name, f) for name, f in definition["fields"].items()):
             return Decision("deny", "the message holds a position and is not classified")
         if field in rules["location_fields"].get(message, {}):
             return Decision("deny", rules["location_fields"][message][field])
