@@ -42,7 +42,9 @@ from flight_insights.knowledge import KnowledgeError
 from flight_insights.motor_out import output_for, thrust_at, worst
 
 
-def _frame(flight: FlightData, reg: Registry) -> tuple[Mapping[str, Any], str] | str:
+def motor_frame(flight: FlightData, reg: Registry) -> tuple[Mapping[str, Any], str] | str:
+    """The flight's frame from the firmware's table, with its name ("OCTA/X"), or why
+    there is none."""
     p = flight.params
     if "FRAME_CLASS" not in p:
         return "the parameters hold no FRAME_CLASS"
@@ -67,7 +69,7 @@ def _motor_out(flight: FlightData, reg: Registry) -> Result:
     if flight.vehicle != "copter":
         return Result(skipped="the motor-out margin is for Copter")
     rules: Mapping[str, Any] = reg.rules["motor_out"]
-    found = _frame(flight, reg)
+    found = motor_frame(flight, reg)
     if isinstance(found, str):
         return Result(skipped=found)
     frame, name = found
