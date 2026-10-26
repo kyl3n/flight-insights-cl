@@ -319,6 +319,54 @@ def failsafes_off(v: Vehicle) -> None:
     land_and_disarm(v)
 
 
+DEG_PER_M = 1 / 111_320.0  # SIM_GPS1_GLTCH_X is degrees of latitude
+
+
+def gnss_takeoff(v: Vehicle) -> None:
+    """GUIDED take-off to 15 m, then LOITER with the sticks centred, which holds position
+    and height on GNSS: the mode in which a GNSS fault moves the aircraft."""
+    v.mode("GUIDED")
+    v.arm()
+    v.command(ML.MAV_CMD_NAV_TAKEOFF, 0, 0, 0, 0, 0, 0, 15)
+    v.wait_altitude(14.5)
+    v.rc(ch1=1500, ch2=1500, ch3=1500, ch4=1500)
+    v.mode("LOITER")
+    v.hold(10)
+
+
+def gnss_jam(v: Vehicle) -> None:
+    """The simulated receiver jammed for 25 s, then clear for 20 s."""
+    gnss_takeoff(v)
+    v.set_param("SIM_GPS1_JAM", 1)
+    v.hold(25)
+    v.set_param("SIM_GPS1_JAM", 0)
+    v.hold(20)
+    land_and_disarm(v)
+
+
+def gnss_step(v: Vehicle) -> None:
+    """GNSS moved 60 m north at once for 20 s, with the signal healthy, then back."""
+    gnss_takeoff(v)
+    v.set_param("SIM_GPS1_GLTCH_X", 60 * DEG_PER_M)
+    v.hold(20)
+    v.set_param("SIM_GPS1_GLTCH_X", 0)
+    v.hold(15)
+    land_and_disarm(v)
+
+
+def gnss_ramp(v: Vehicle) -> None:
+    """GNSS dragged 80 m north over 60 s, held 10 s, then let go: the slow spoof the
+    estimator follows."""
+    gnss_takeoff(v)
+    for k in range(1, 61):
+        v.set_param("SIM_GPS1_GLTCH_X", 80 * DEG_PER_M * k / 60)
+        v.hold(1)
+    v.hold(10)
+    v.set_param("SIM_GPS1_GLTCH_X", 0)
+    v.hold(10)
+    land_and_disarm(v)
+
+
 COPTER = dict(binary="arducopter", model="+", defaults=["default_params/copter.parm"])
 
 # Motor vibration and ESC telemetry as ArduPilot's DynamicRpmNotches autotest simulates
@@ -759,6 +807,84 @@ SCENARIOS: dict[str, Scenario] = {
                     "description": "GCS and radio failsafes off",
                     "parameters": ["FS_GCS_ENABLE", "FS_THR_ENABLE"],
                 },
+            ],
+            **COPTER,  # type: ignore[arg-type]
+        ),
+        Scenario(
+            name="copter-quad-gnss-jam",
+            vehicle="copter",
+            frame="quad +",
+            description=(
+                "GUIDED take-off to 15 m, LOITER, then the simulated receiver jammed for 25 s"
+                " (SIM_GPS1_JAM 1): the fix flickers, satellites fall to 3 and the position"
+                " wanders by hundreds of metres; the EKF failsafe lands the aircraft."
+            ),
+            expected=[
+                "GPS.Status under 3 and GPS.NSats 3 in bursts, GPA.HAcc up to hundreds of m",
+                "XKF4 SP and SV past 100 (a test ratio past 1) while the estimator rejects GNSS",
+                "ERR GPS 2 (glitch), ERR FAILSAFE_EKFINAV, MODE LAND by EKF_FAILSAFE",
+                "the GNSS analyzer: one event, jamming (no u-blox status in SITL)",
+                "steady hover windows: 21 s in LOITER",
+            ],
+            fly=gnss_jam,
+            params={"RC_OVERRIDE_TIME": -1},
+            boot_params=FAILSAFE_LOGGING,
+            faults=[
+                {"kind": "gnss", "description": "receiver jammed", "parameters": ["SIM_GPS1_JAM"]}
+            ],
+            **COPTER,  # type: ignore[arg-type]
+        ),
+        Scenario(
+            name="copter-quad-gnss-step",
+            vehicle="copter",
+            frame="quad +",
+            description=(
+                "GUIDED take-off to 15 m, LOITER, then GNSS moved 60 m north at once for 20 s"
+                " with the signal healthy (SIM_GPS1_GLTCH_X), then back."
+            ),
+            expected=[
+                "XKF4 SP near 1600 (a test ratio of 16): the estimator rejects the jump",
+                "ERR GPS 2 (glitch); after about 10 s the estimator resets onto GNSS",
+                "the same again when GNSS jumps back",
+                "the GNSS analyzer: spoofing, the estimator rejecting GNSS",
+                "steady hover windows: 48 s in LOITER",
+            ],
+            fly=gnss_step,
+            params={"RC_OVERRIDE_TIME": -1},
+            boot_params=FAILSAFE_LOGGING,
+            faults=[
+                {
+                    "kind": "gnss",
+                    "description": "a 60 m GNSS position step",
+                    "parameters": ["SIM_GPS1_GLTCH_X"],
+                }
+            ],
+            **COPTER,  # type: ignore[arg-type]
+        ),
+        Scenario(
+            name="copter-quad-gnss-ramp",
+            vehicle="copter",
+            frame="quad +",
+            description=(
+                "GUIDED take-off to 15 m, LOITER, then GNSS dragged 80 m north over 60 s with"
+                " the signal healthy (SIM_GPS1_GLTCH_X), held for 10 s, then let go."
+            ),
+            expected=[
+                "XKF4 SP 30 to 60 (test ratios 0.3 to 0.6): the estimator follows the drift",
+                "XKF3 IVN one-sided near 0.4 m/s while it drifts",
+                "when GNSS is let go, an 80 m jump the estimator rejects, then a reset",
+                "the GNSS analyzer: spoofing the estimator followed, then a position jump",
+                "steady hover windows: 108 s in LOITER",
+            ],
+            fly=gnss_ramp,
+            params={"RC_OVERRIDE_TIME": -1},
+            boot_params=FAILSAFE_LOGGING,
+            faults=[
+                {
+                    "kind": "gnss",
+                    "description": "GNSS dragged 80 m over 60 s",
+                    "parameters": ["SIM_GPS1_GLTCH_X"],
+                }
             ],
             **COPTER,  # type: ignore[arg-type]
         ),

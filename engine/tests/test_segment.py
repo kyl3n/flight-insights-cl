@@ -306,6 +306,9 @@ def test_every_fixture_is_one_flight_with_the_modes_its_scenario_flew(
         "copter-quad-fs-battery": ["GUIDED", "RTL", "LAND"],
         "copter-quad-fs-radio": ["GUIDED", "RTL"],
         "copter-quad-fs-off": ["GUIDED", "LAND"],
+        "copter-quad-gnss-jam": ["GUIDED", "LOITER", "LAND"],  # LAND by the EKF failsafe
+        "copter-quad-gnss-step": ["GUIDED", "LOITER", "LAND"],
+        "copter-quad-gnss-ramp": ["GUIDED", "LOITER", "LAND"],
     }[log.stem]
     assert names == expected
     assert flight.end == "disarmed" and flight.duration_s > 20
