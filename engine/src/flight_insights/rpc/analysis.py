@@ -20,6 +20,7 @@
 | filter.workbench | A flight's spectra before, as flown and with candidate filter values |
 | flight.propulsion | A flight's motor outputs, ESC telemetry and battery, reduced for display |
 | flight.system | A flight's loop load and timing, logging drops and errors, for display |
+| flight.tune | A flight's tune against one of its payload group's, and the plan's verdict |
 | review.file | A parameter file's configuration review and plan, with no flight |
 
 Analysing a flight also grades its airframe's earlier recommendations against it.
@@ -35,7 +36,7 @@ from collections.abc import Callable
 from pathlib import Path
 from typing import TYPE_CHECKING, Any, cast
 
-from flight_insights import analyzers, recommend, review, trends, views
+from flight_insights import analyzers, recommend, review, trends, tune_view, views
 from flight_insights.analyzers.registry import LANGUAGES
 from flight_insights.filters import workbench
 from flight_insights.history import attribution
@@ -224,6 +225,35 @@ def add_analysis_methods(server: Server, state: EngineState, guarded: Callable[[
     @guarded
     def flight_system(_ctx: Context, params: dict[str, Any]) -> dict[str, Any]:
         return _view(params, views.system)
+
+    opened: dict[str, analyzers.FlightData] = {}  # the last few flights the Tune view read
+
+    def _open(flight_id: str) -> analyzers.FlightData:
+        store, cache = state.require_store(), state.cache
+        assert cache is not None
+        if flight_id not in opened:
+            if len(opened) >= 4:
+                opened.pop(next(iter(opened)))
+            opened[flight_id] = analyzers.FlightData.load(store, cache, state.pack, flight_id)
+        return opened[flight_id]
+
+    @server.method("flight.tune")
+    @guarded
+    def flight_tune(_ctx: Context, params: dict[str, Any]) -> dict[str, Any]:
+        axis = params.get("axis", "roll")
+        compare, group = params.get("compare_id"), params.get("group")
+        if axis not in ("roll", "pitch", "yaw"):
+            raise RpcError(INVALID_PARAMS, "axis must be roll, pitch or yaw")
+        for name, value in (("compare_id", compare), ("group", group)):
+            if value is not None and not isinstance(value, str):
+                raise RpcError(INVALID_PARAMS, f"{name} must be a string or null")
+        try:
+            return tune_view.tune(
+                state.require_store(), state.pack, analyzers.Registry.load(state.pack),
+                _flight(params), _open, axis, compare, group,
+            )  # fmt: skip
+        except (analyzers.FlightError, tune_view.TuneViewError) as e:
+            raise RpcError(BAD_INPUT, str(e)) from None
 
     @server.method("filter.workbench")
     @guarded

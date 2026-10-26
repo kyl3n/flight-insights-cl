@@ -1303,7 +1303,7 @@ Rules that keep decisions easy:
 | Incident timeline | Onboard events, tlog events, commands, warnings, bus errors, ground station session records, parameter and build changes on one time axis, first fault marked | Jump from any event to its data |
 | Weather | The flight's weather record, aircraft-measured against model wind, the airframe's wind envelope | Compare models; filter trends by wind and density |
 | Filter workbench | Pre- and post-filter spectra, spectrogram over time with motor RPM and notch centres overlaid, predicted spectrum, phase-lag readout | Edit candidate filter values and see the prediction update |
-| Tune | Tracking error per axis with its 95% interval against a flight of the same profile and payload band; step and frequency responses per axis, before and after; the stick inputs counted and those left out, with why; whether the plan improved the tune | Pick the flight to compare with, the payload band and the axis; open the tune-check card |
+| Tune | Attitude tracking error (the tune's measure) and rate tracking error (its guard) per axis, each with its 95% interval, against a tune-check flight of the same payload band; step and frequency responses of one axis, both flights; the stick inputs counted and those left out, with why; whether the plan improved the tune | Pick the flight to compare with (same band), the payload band and the axis; open the tune-check card |
 | Propulsion and power | Per-motor output and RPM, temperatures, sag, battery resistance, thrust-model fit, motor-out margin by payload | Select motors and segments; see which motor loss is worst |
 | System and buses | CPU load, loop timing, latency budget, per-task CPU, bus and interface errors | Align with flight events; compare before and after a change |
 | Navigation and GNSS | Estimator innovations, GPS quality, jamming and spoofing events with their evidence, position-controller error statistics | Select segments |
@@ -1314,6 +1314,30 @@ Rules that keep decisions easy:
 | Sync | Each laptop, last sync, items waiting to upload, quarantined items with reasons | Retry; open a quarantined item's details |
 | Ask | Chat about this flight, airframe or platform | Answers cite evidence and open the matching plot |
 | Compare | Two flights, airframes or platforms side by side | Pick metrics |
+
+**The Tune view** (`flight.tune`, `engine/src/flight_insights/tune_view.py`; mock-up `Tune.dc.html`):
+
+- **Which flights.**
+  - A tune-check flight is one the tune check measured tracking error on.
+  - Flights are compared only within a payload band (Performance trends, "Like with like"), never light against loaded.
+  - In another band than its own, "this flight" stands for that band's tune-check flight flown on the same tune: the same values of every parameter the attribution map ties to the metrics shown (`rules/attribution.json`), nearest in flying order. Learned values such as the hover throttle are not tied, so they split nothing. With none, the view says the band is still to fly on these gains.
+  - Unless a person picks another flight of the band, the comparison is the latest tune-check flight before it on a different tune (before the last change that could move the tune), or else the latest before it.
+- **Tracking error.** Attitude error on roll and pitch comes first, as the gate's measure, then rate tracking error on each axis as its guard. Each change is judged as the AutoTune offer's checks judge a band, by the share its procedure asks (20%):
+  - intervals apart and at least that large;
+  - short of it;
+  - within the spread.
+- **Responses** of the chosen axis:
+  - **Rebuilt from both logs** as the rate-loop analyzer measured them.
+  - **The step:** shown only where the inputs measured past the bandwidth. This flight's step carries a per-sample 95% interval from the same resampled blocks as its figures' intervals.
+  - **The frequency response:** drawn over its measured band only; the range above it is shaded as not measured, and each flight's bandwidth is marked.
+  - **The figures** (rise time, overshoot, settling, bandwidth, sensitivity peak) are the flights' analysed metrics, with this flight's interval.
+- **Stick inputs** of this flight on a time line from arming, counted or left out, with each reason left out said once, with its first time.
+- **The plan's verdict:**
+  - the airframe's AutoTune action and its checks as last graded, or still waiting for a band;
+  - the attitude error per axis, then the guards merged across axes, each with its bands;
+  - the changes that prepared it, with their grades.
+- **The tune-check card:** the profile's ground check, flight and abort steps from the tune-check procedure.
+- **Wind at take-off** joins the comparison with the weather work (F2).
 
 ### Explanations for every metric and data point
 
