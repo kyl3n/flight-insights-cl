@@ -857,7 +857,7 @@ Tlogs are worth analysing in full: the onboard log records what the aircraft exp
 - **Fade margin and asymmetry, SiK firmware only.** MAVLink leaves RSSI and noise in each device's own units, so they are read as decibels (1.9 units a dB) only for SiK firmware radios. Those are radios the platform's setup names as SiK or RFD, or that identify themselves in the tlog with SiK's own system and component IDs ('3', 'D').
   - **Fade margin:** the 5th percentile of RSSI minus noise at each end, with the weaker end reported. 12 dB or more is the target.
   - **Asymmetry:** the median gap between the two ends' RSSI.
-- **Not yet:** latency and command-to-reply times come with the command timeline. Link quality against distance, and the predicted range, need the local position accessor (GNSS work). Geometry and interference come with them.
+- **Not yet:** latency. ArduPilot sends a time-sync request every 10 s, but does not log the round trip, and a QGroundControl tlog holds none of the station's own packets to pair them with. For now the tlog clock fit's delay figures (median and 95th percentile above the least delay) stand in. Link quality against distance, and the predicted range, need the local position accessor (GNSS work). Geometry and interference come with them.
 - **The radios' own logs** (IP mesh radios such as Doodle Labs, Silvus and DigiQ SkyPulse, and wfb-ng) are a later import. The format work waits for sample logs from the radios. Until then their quality is judged from the MAVLink loss and silence above, which hold for every radio.
 
 ### RC link
@@ -884,6 +884,22 @@ Jamming and spoofing are classified in depth in their own section, GNSS jamming 
 - **Command timeline.** Every command sent and its result: accepted, denied, failed or unanswered. Mode requests that did not take, mission uploads with errors, parameter writes that failed (4.7 reports these explicitly), pre-arm failures shown.
 - **Warnings versus response.** Time from each critical status message to the operator's next action, which surfaces alerts that went unseen.
 - **Ground-station health.** Gaps or jumps in tlog timestamps (laptop sleep, USB or serial drops, reconnects) and two stations issuing conflicting commands.
+
+**Measured now** (`analyzers/commands.py`, rules in `knowledge/rules/commands.json`):
+
+- **What the aircraft answered.** ArduPilot logs every command it handles, with its result and its sender (`MAVC`). Only the command, the result and the sender are read, never a command's parameters or coordinates. The location rules deny those on the AI path too.
+  - **In flight:** commands refused while armed (denied, failed, temporarily rejected, or in a frame the aircraft does not take) are a metric. Any refusal is a finding, naming the first and who sent it: the ground station by `MAV_GCS_SYSID` (to `MAV_GCS_SYSID_HI`), the aircraft's own components by `MAV_SYSID`, or another system. Commands the aircraft does not support at all, often a ground station probing on connection, are counted apart.
+  - **Before take-off:** an arm command refused in the 10 minutes before arming is a finding, with how long before arming the first one came.
+- **Commands with no reply.** These need the ground station's own packets in the tlog. Mission Planner records them; QGroundControl records only what it receives.
+  - A command and its resends, each within 1.5 s of the last, count once.
+  - One with no `COMMAND_ACK` within 3 s is unanswered.
+  - `MAVC` then says whether it reached the aircraft, so only its reply was lost on the way down, or never arrived.
+- **Warnings and the operator's answer.**
+  - **Warnings:** the tlog's STATUSTEXT at warning severity or worse while armed, which is where ArduPilot announces its failsafes. One repeated within 5 s counts once. Only severity and time are read; the text stays on the laptop.
+  - **The operator's answer:** the next command from the ground station, or a mode change the pilot or ground station asked for (`RC_COMMAND`, `GCS_COMMAND`). A failsafe's own mode change is not the operator's.
+  - **The finding:** a warning with no answer within 30 s is a finding.
+  - The thresholds are the app's starting points, marked uncalibrated.
+- **Not yet:** ground-station health (timestamp gaps, reconnects, conflicting stations) and the merged incident timeline with first fault come next.
 
 ### Whole-system incident timeline
 

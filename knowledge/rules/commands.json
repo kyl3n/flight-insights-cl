@@ -1,0 +1,24 @@
+{
+  "about": "How the command analyzer reads the commands the aircraft received and what it answered, and how the operator answered critical warnings (spec: Links, ground station and whole-system faults, Ground station and operator). Each command comes from the onboard MAVC record (ArduPilot logs every COMMAND_LONG and COMMAND_INT it handles, with its result and sender); only the command, its result and its sender are read, never its parameters or coordinates. Where the tlog holds the ground station's own packets (Mission Planner records them; QGroundControl records only what it receives), a command with no reply is found, and MAVC says whether it reached the aircraft. Warnings are the tlog's STATUSTEXT at warning severity or worse while armed, which is where ArduPilot announces its failsafes; their text stays on the laptop. The thresholds are the app's starting points, marked uncalibrated.",
+  "calibrated": false,
+  "results": {
+    "0": "accepted", "1": "temporarily rejected", "2": "denied", "3": "not supported",
+    "4": "failed", "5": "in progress", "6": "cancelled", "7": "only as a long command",
+    "8": "only as an int command", "9": "not supported in that frame"
+  },
+  "refused": [1, 2, 4, 9],
+  "arm_disarm": 400,
+  "arming_lookback_s": 600,
+  "ack_timeout_s": 3.0,
+  "resend_s": 1.5,
+  "warning_severity": 4,
+  "warning_repeat_s": 5.0,
+  "response_s": 30.0,
+  "operator_reasons": ["RC_COMMAND", "GCS_COMMAND"],
+  "sources": [
+    "libraries/AP_Logger/LogStructure.h at Copter-4.7.0: MAVC, the MAVLink command just executed, with target and source system and component, the command, and the result returned (Write_Command from GCS_MAVLINK handle_command_long and handle_command_int)",
+    "https://mavlink.io/en/messages/common.html#MAV_RESULT: the results a command can return; #COMMAND_ACK: the reply to every command; #STATUSTEXT and #MAV_SEVERITY: 0 emergency, 1 alert, 2 critical, 3 error, 4 warning; ArduPilot announces its failsafes (\"GCS Failsafe\", a low battery) at warning",
+    "libraries/GCS_MAVLink/GCS_Common.cpp at Copter-4.7.0: MAV_GCS_SYSID (and MAV_GCS_SYSID_HI) names the ground station's system ID; MAV_SYSID the aircraft's",
+    "ArduCopter/mode.h at Copter-4.7.0, ModeReason: RC_COMMAND and GCS_COMMAND are mode changes the pilot or the ground station asked for"
+  ]
+}
