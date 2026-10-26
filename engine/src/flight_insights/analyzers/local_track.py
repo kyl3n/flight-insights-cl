@@ -12,6 +12,7 @@ drift, as scalars. Evidence refuses the track itself, and any array.
 
 from __future__ import annotations
 
+from collections.abc import Mapping
 from typing import Any, NoReturn
 
 import numpy as np
@@ -34,12 +35,19 @@ def _ecef(lat_deg: Array, lon_deg: Array, alt_m: Array) -> tuple[Array, Array, A
 def enu(lat_deg: Array, lon_deg: Array, alt_m: Array) -> tuple[Array, Array, Array]:
     """East, north and up metres from the first point, through Earth-centred coordinates:
     exact for any distance, not a flat-Earth approximation."""
+    return _enu_from(lat_deg, lon_deg, alt_m, lat_deg[:1], lon_deg[:1], alt_m[:1])
+
+
+def _enu_from(
+    lat_deg: Array, lon_deg: Array, alt_m: Array, lat0: Array, lon0: Array, alt0: Array
+) -> tuple[Array, Array, Array]:
     x, y, z = _ecef(lat_deg, lon_deg, alt_m)
-    lat0, lon0 = np.radians(lat_deg[0]), np.radians(lon_deg[0])
-    dx, dy, dz = x - x[0], y - y[0], z - z[0]
-    east = -np.sin(lon0) * dx + np.cos(lon0) * dy
-    north = -np.sin(lat0) * np.cos(lon0) * dx - np.sin(lat0) * np.sin(lon0) * dy + np.cos(lat0) * dz
-    up = np.cos(lat0) * np.cos(lon0) * dx + np.cos(lat0) * np.sin(lon0) * dy + np.sin(lat0) * dz
+    x0, y0, z0 = _ecef(lat0, lon0, alt0)
+    dx, dy, dz = x - x0[0], y - y0[0], z - z0[0]
+    phi, lam = np.radians(lat0[0]), np.radians(lon0[0])
+    east = -np.sin(lam) * dx + np.cos(lam) * dy
+    north = -np.sin(phi) * np.cos(lam) * dx - np.sin(phi) * np.sin(lam) * dy + np.cos(phi) * dz
+    up = np.cos(phi) * np.cos(lam) * dx + np.cos(phi) * np.sin(lam) * dy + np.sin(phi) * dz
     return east, north, up
 
 
@@ -86,18 +94,39 @@ class LocalTrack:
         return self._e.copy(), self._n.copy()
 
 
-def from_coordinates(
-    times_us: np.ndarray[Any, Any], lat_deg: Array, lon_deg: Array, alt_m: Array
-) -> LocalTrack | None:
-    """The track from the first valid fix on (0, 0 is "no position")."""
-    ok = (
+def _valid(lat_deg: Array, lon_deg: Array, alt_m: Array) -> np.ndarray[Any, np.dtype[np.bool_]]:
+    return (
         np.isfinite(lat_deg) & np.isfinite(lon_deg) & np.isfinite(alt_m)
         & (np.abs(lat_deg) <= 90) & (np.abs(lon_deg) <= 180)
         & ((np.abs(lat_deg) > 1e-6) | (np.abs(lon_deg) > 1e-6))
     )  # fmt: skip
-    if np.count_nonzero(ok) < 2:
-        return None
-    order = np.argsort(np.asarray(times_us)[ok], kind="stable")
-    t = np.asarray(times_us)[ok][order]
-    east, north, up = enu(lat_deg[ok][order], lon_deg[ok][order], alt_m[ok][order])
-    return LocalTrack(t, east, north, up)
+
+
+Series = tuple[np.ndarray[Any, Any], Array, Array, Array]  # times, latitude, longitude, altitude
+
+
+def from_coordinates(
+    times_us: np.ndarray[Any, Any], lat_deg: Array, lon_deg: Array, alt_m: Array
+) -> LocalTrack | None:
+    """The track from the first valid fix on (0, 0 is "no position")."""
+    return tracks({"track": (times_us, lat_deg, lon_deg, alt_m)}).get("track")
+
+
+def tracks(series: Mapping[str, Series]) -> dict[str, LocalTrack]:
+    """Several sources' tracks from one origin, so they can be compared: the first valid
+    fix of the first source that has two (in the order given). A source with fewer than
+    two valid fixes is left out. The origin stays here: only metres leave."""
+    valid: dict[str, Series] = {}
+    for name, (t, lat, lon, alt) in series.items():
+        ok = _valid(lat, lon, alt)
+        if np.count_nonzero(ok) < 2:
+            continue
+        order = np.argsort(np.asarray(t)[ok], kind="stable")
+        valid[name] = (np.asarray(t)[ok][order], lat[ok][order], lon[ok][order], alt[ok][order])
+    if not valid:
+        return {}
+    _, lat0, lon0, alt0 = next(iter(valid.values()))
+    return {
+        name: LocalTrack(t, *_enu_from(lat, lon, alt, lat0[:1], lon0[:1], alt0[:1]))
+        for name, (t, lat, lon, alt) in valid.items()
+    }

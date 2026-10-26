@@ -19,6 +19,7 @@ from flight_insights.analyzers.local_track import (
     LocalTrack,
     enu,
     from_coordinates,
+    tracks,
 )
 from flight_insights.analyzers.model import Evidence
 from flight_insights.knowledge import load_pack
@@ -61,6 +62,21 @@ def test_no_position_and_the_first_fix_is_the_origin() -> None:
     assert t.distance_m()[2] == pytest.approx(22.2, abs=0.2)  # 0.0002 degree of latitude
     assert t.height_m().tolist() == pytest.approx([0.0, 1.0, 2.0], abs=1e-3)
     assert from_coordinates(np.array([0]), arr(1.0), arr(2.0), arr(3.0)) is None
+
+
+def test_sources_compared_from_one_origin() -> None:
+    """The estimator's track and a receiver's share the estimator's first fix, so the
+    receiver's 0.0001 degree offset shows; each from its own origin it would not."""
+    t = np.array([0, 1, 2], np.int64) * 1_000_000
+    lon, alt = arr(152.99, 152.99, 152.99), arr(30.0, 30.0, 30.0)
+    found = tracks({
+        "POS": (t, arr(-27.48, -27.48, -27.48), lon, alt),
+        "GPS0": (t, arr(-27.4801, -27.4801, -27.48), lon, alt),
+        "GPS1": (t[:1], arr(1.0), arr(2.0), arr(3.0)),  # one fix: nothing to compare
+    })  # fmt: skip
+    assert set(found) == {"POS", "GPS0"}
+    assert found["POS"].distance_m().tolist() == pytest.approx([0.0, 0.0, 0.0], abs=1e-6)
+    assert found["GPS0"].distance_m().tolist() == pytest.approx([11.1, 11.1, 0.0], abs=0.1)
 
 
 def test_the_track_refuses_to_leave_the_analysis() -> None:

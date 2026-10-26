@@ -1085,6 +1085,51 @@ Each event records its start and end, class and confidence, the evidence behind 
 - **Yaw risk:** an estimator yaw reset driven by GPS velocity during a spoofing event is flagged high severity, since it can corrupt heading.
 - **Configuration audit:** u-blox status and raw logging switched on so evidence exists; estimator source sets with a non-GNSS fallback and switching; GPS glitch and EKF failsafe settings; Copter's dead-reckoning failsafe (4.3 and later, [ArduPilot](https://ardupilot.org/copter/docs/deadreckoning-failsafe.html)) with `FS_DR_TIMEOUT` set from the hold time actually measured; a second receiver of another make or band set; antenna placement and ground plane; a healthy compass so yaw never depends on GNSS.
 
+### Measured now
+
+`analyzers/gnss.py`, rules in `knowledge/rules/gnss.json`. The thresholds are starting points, marked uncalibrated until real disturbances have been seen across the fleet.
+
+- **Signal channels, per receiver:**
+  - the fix below 3D;
+  - satellites under 6, or 4 fewer than the flight's typical count;
+  - horizontal accuracy (GPA) past both 3 m and three times its usual value;
+  - the u-blox status (UBX1):
+    - the continuous-wave jamming indicator past 80 of 255 (MON-HW);
+    - or, on an M10, the jamming state at warning or worse (MON-RF). An M10 does not answer MON-HW, and 4.7.0 logs MON-RF only in builds with `AP_GPS_UBLOX_CFGV2_ENABLED`. The generation comes from the receiver's own version message;
+    - the AGC count 30% below its usual level;
+  - GPS time standing still for 2 s while the log's clock runs.
+- **Consistency checks:**
+  - the primary estimator core rejecting GNSS: a position, velocity or height test ratio (`XKF4`) above 1, or a GPS glitch error. 4.7.0 writes each ratio as 100 times its value in a field whose multiplier says 1 (`Log_Write_XKF4`). The decoder follows the log's own units as always, and the rules hold the scale with its source;
+  - a receiver more than 15 m from the estimator's position, as local tracks from one origin;
+  - **a one-sided velocity innovation** (`XKF3`) averaging over 0.25 m/s for 10 s. This catches the slow drift the estimator follows, which no test ratio trips. In SITL, an 80 m ramp over 60 s was followed at test ratios of 0.3 to 0.6, with an innovation near 0.4 m/s against under 0.03 m/s in calm flight;
+  - GNSS altitude moving 10 m from the barometer's, against their usual offset;
+  - GPS time jumping more than 1 s against the log's clock (not counting the catch-up after it stood still);
+  - two receivers more than 10 m apart.
+- **Events:** a channel's own trips less than 5 s apart are joined first, so a fix that flickers is lost all along; a trip must then last 1 s. Trips within 5 s of each other are one event.
+- **Classes and confidence:**
+  - **Spoofing:** a consistency check failed while the signal looked healthy (no signal trip within 5 s of its start). High when two independent sources agree (the estimator, the barometer, GPS time, a second receiver); medium with two channels from one source, or one lasting 10 s; else low.
+  - **Onboard:** the u-blox status showed jamming and its indicator follows the motor current over the flight (r ≥ 0.6).
+  - **Jamming:** the u-blox status showed it (high with other signal loss as well, else medium); or, with no u-blox status logged, the fix or accuracy went for 10 s or more (medium with two signal channels, else low).
+  - **Receiver:** only one of two receivers degraded (low).
+  - **Obstruction:** the rest. Satellites lost with the accuracy held, brief losses, or a loss while the u-blox status shows a quiet band, since broadband jamming would have moved the AGC (medium then, else low).
+- **How the aircraft coped, per event:**
+  - how long the estimator rejected GNSS, or that it kept following a drifting position;
+  - the failsafes and checks that triggered;
+  - the first mode change within 30 s, with its reason;
+  - the estimator's position resets;
+  - a heading reset from GNSS velocity during spoofing, a safety finding of its own.
+- **Metrics:** time disturbed, fewest satellites, and the 95th-percentile horizontal accuracy.
+- **What leaves the laptop:** times, durations, the class, the channels, test ratios, satellites and accuracy. The metres between position estimates, the altitude gap, GPS time and the status text stay in evidence that cites the fields they came from, so the location policy withholds them from the AI path.
+- **Checked on** five local SITL flights (calm, `SIM_GPS1_JAM`, a 60 m step, an 80 m ramp over 60 s, and 5 satellites), and on synthetic flights for the u-blox status, onboard interference, GPS time, a second receiver and heading resets.
+- **Not yet:**
+  - per-satellite C/N0 and raw measurements;
+  - the inertial prediction and the GPS course against the compass;
+  - optical flow as an independent velocity;
+  - the station clock from the tlog;
+  - what the operator did, from the tlog (the incident timeline covers commands);
+  - the configuration audit;
+  - events across flights and the fleet.
+
 ### Across flights and the fleet
 
 - Events from several airframes at the same time point to an external source; repeated events on one airframe only point to its hardware.
@@ -1304,9 +1349,9 @@ Claude is called on every analysis, but it only sees derived measurements and a 
 - **Location-revealing parameters removed:** AHRS origin, fence and rally settings, magnetic declination, system IDs, serial numbers and board unique IDs.
 - **Side channels coarsened:** altitudes made relative to take-off, timestamps relative to arming with GPS week and time dropped, magnetic field strength and inclination dropped, ambient temperature and pressure rounded. Position-controller data goes out as error statistics, never as trajectories.
 - **Location work stays on the laptop.** Everything that needs a position is computed locally: weather interpolation, distance and bearing to the ground station, GNSS event positions, wind envelope and drift measurements. Only results without coordinates can leave, such as distance bands, rounded wind values, and event class and timing.
-  - **The local track** (`analyzers/local_track.py`, `FlightData.local_track()`) is the one place analysis reads positions.
-    - **What it reads:** the estimator's position (`POS`), else the first GNSS receiver's, through the cache's positions key.
-    - **What it holds:** east, north and up metres from the first fix, converted exactly through Earth-centred coordinates on the WGS84 ellipsoid. It holds no latitude or longitude.
+  - **The local track** (`analyzers/local_track.py`, `FlightData.local_track()` and `local_tracks()`) is the one place analysis reads positions.
+    - **What it reads:** the estimator's position (`POS`), else the first GNSS receiver's, through the cache's positions key. `local_tracks()` gives the estimator's track and each receiver's from one origin, so they can be compared.
+    - **What it holds:** east, north and up metres from the first fix (for several sources, the estimator's first fix), converted exactly through Earth-centred coordinates on the WGS84 ellipsoid. It holds no latitude or longitude, and the origin never leaves `local_track.py`.
     - **What it gives:** distances, heights, and east and north offsets.
     - **What it refuses:** to be pickled, copied or turned into JSON. It shows only its size.
     - **Evidence** refuses an array or a track as a value, so what leaves an analyzer is computed results such as a distance or a drift.
