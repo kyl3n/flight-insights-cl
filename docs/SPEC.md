@@ -1105,6 +1105,7 @@ Each event records its start and end, class and confidence, the evidence behind 
   - GNSS altitude moving 10 m from the barometer's, against their usual offset;
   - GPS time jumping more than 1 s against the log's clock (not counting the catch-up after it stood still);
   - two receivers more than 10 m apart.
+- **Drills are left out:** trips that begin during a GNSS-off drill (aux function 65) are the no-GNSS analyzer's to measure, not disturbances.
 - **Events:** a channel's own trips less than 5 s apart are joined first, so a fix that flickers is lost all along; a trip must then last 1 s. Trips within 5 s of each other are one event.
 - **Classes and confidence:**
   - **Spoofing:** a consistency check failed while the signal looked healthy (no signal trip within 5 s of its start). High when two independent sources agree (the estimator, the barometer, GPS time, a second receiver); medium with two channels from one source, or one lasting 10 s; else low.
@@ -1158,6 +1159,36 @@ The app assumes every aircraft will lose GNSS at some point, through jamming, sp
 - **Drills give clean numbers.** A flight where GNSS is switched off with aux function 65 at a safe height is recognised automatically and scored.
 - **Dead-reckoning range.** From the measured drift per minute, the app works out how long and how far each airframe can fly before its estimate is worse than a set landing tolerance, and compares that with typical mission distances. A multirotor with no other position source holds its estimate for only about 30 seconds ([ArduPilot forum](https://discuss.ardupilot.org/t/dead-reckoning-stops-early-due-to-ekf-failsafe/130207)), so these numbers show plainly what extra sensors and calibration buy.
 - **Trends.** Drift and detection time are tracked per airframe, so a degrading compass or a changed build shows up.
+
+### Measured now
+
+`analyzers/no_gnss.py`, rules in `knowledge/rules/no_gnss.json`. The thresholds are starting points, marked uncalibrated.
+
+- **Outages:** 3 s or more with no receiver holding a 3D fix (gaps under 1 s closed). A second receiver with a fix means no outage. An outage is a **drill** when the GPS-disable switch (aux function 65, logged as `AUXF`) turned GNSS off at its start. The GNSS analyzer leaves drills alone.
+- **Measured from the estimator's own status** (`XKF4.SS` of the primary core):
+  - **detection:** how long after the loss it stopped using GNSS (bit 13);
+  - **hold:** how long it kept a position the aircraft could fly on, whether absolute (bit 4) or relative from optical flow or vision (bit 3). It is the whole outage when it kept one throughout;
+  - how long after GNSS returned it used it again;
+  - the source set in use (aux function 90), the failsafes that triggered, and the mode change during the outage, with its reason.
+- **Drift:** when GNSS returns to an estimator that still claims a position, GNSS's first fixed position is compared with the estimate carried forward from just before the return. The comparison uses local tracks from one origin, because the estimator takes GNSS back within a sample and its position jumps. For outages of 10 s or more it is given per minute too, and against a 10 m landing tolerance. Once the estimator gives its position up, its logged position is a stale value (in SITL it jumped 26 m and stayed), so no drift is read.
+- **Findings:** the position kept (info) or the position given up (caution), each with what happened.
+- **Metrics:**
+  - the shortest hold (30 s or more is the target; under 10 s is out);
+  - the longest detection;
+  - the worst drift per minute.
+- **What leaves the laptop:** times, flags, the source set and words. Drift stays in evidence that cites the position fields.
+- **Checked on** local SITL flights at 4.7.0, LOITER at 15 m:
+  - **A GNSS-off drill and a simulated receiver loss:** the estimator stopped using GNSS 3.9 s after the loss and gave up its position at 6.9 s; the EKF failsafe landed the aircraft.
+  - **The same drill in a 6 m/s wind:** the same timing; the aircraft blew 27 m downwind.
+  - **On optical flow and a rangefinder (source set 2):** a 30 s drill kept a relative position throughout, 1.1 m from GNSS on its return, and 0.2 m in the same wind.
+- **Not yet:**
+  - heading drift;
+  - drift against optical flow or vision during the outage;
+  - whether the aircraft got home;
+  - trends per airframe;
+  - the readiness review beyond the existing parameter checks;
+  - the recovery card;
+  - settings sized from the measured hold (`FS_DR_TIMEOUT`).
 
 ### Recommendations and recovery
 

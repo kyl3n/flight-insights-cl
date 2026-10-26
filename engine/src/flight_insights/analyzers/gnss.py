@@ -36,6 +36,9 @@ losses, or a quiet band). Each event also says how the aircraft coped: whether a
 long the estimator rejected GNSS, whether it kept following a drifting position, the
 mode it changed to, and a heading reset driven by GNSS velocity.
 
+A GNSS-off drill (the GPS-disable switch, aux function 65) is not a disturbance: its
+trips are left out, and the no-GNSS analyzer measures it.
+
 Positions, absolute altitudes, GPS time and status text are read on this laptop only.
 Findings carry times, durations, counts, test ratios and the class; evidence that read a
 position, an altitude, GPS time or text says so, and the location policy withholds its
@@ -147,7 +150,7 @@ def _floats(table: pa.Table, name: str) -> Array:
     return np.asarray(table.column(name).to_numpy(zero_copy_only=False), np.float64)
 
 
-def _instances(table: pa.Table, column: str) -> Iterator[tuple[int, Array]]:
+def instances(table: pa.Table, column: str) -> Iterator[tuple[int, Array]]:
     if column not in table.column_names:
         yield 0, np.ones(table.num_rows, bool)
         return
@@ -156,7 +159,7 @@ def _instances(table: pa.Table, column: str) -> Iterator[tuple[int, Array]]:
         yield int(i), instance == i
 
 
-def _spans(t: Array, mask: Array) -> list[tuple[int, int]]:
+def spans(t: Array, mask: Array) -> list[tuple[int, int]]:
     """Each run of True as row indices: its first row, and the row that ended it (one
     past its last; the log's last row when it ends there)."""
     edges = np.flatnonzero(np.diff(np.concatenate(([0], mask.astype(np.int8), [0]))))
@@ -171,7 +174,7 @@ def _trips(
     that flickers is lost all along), kept when they last min_trip_s."""
     merge_us, min_us = float(rules["merge_s"]) * 1e6, float(rules["min_trip_s"]) * 1e6
     joined: list[tuple[int, int]] = []
-    for a, b in _spans(t, mask):
+    for a, b in spans(t, mask):
         if joined and t[a] - t[joined[-1][1]] <= merge_us:
             joined[-1] = (joined[-1][0], b)
         else:
@@ -182,7 +185,7 @@ def _trips(
     ]  # fmt: skip
 
 
-def _at(t: Array, values: Array, at: Array, within_us: float) -> tuple[Array, Array]:
+def sample_at(t: Array, values: Array, at: Array, within_us: float) -> tuple[Array, Array]:
     """`values` sampled at `at` by interpolation, and which `at` had a sample within
     `within_us` on both sides to interpolate from."""
     if len(t) < 2:
@@ -212,7 +215,7 @@ def receivers(flight: FlightData, rules: Mapping[str, Any]) -> dict[int, Receive
         return {}
     out: dict[int, Receiver] = {}
     min_fix = int(rules["signal"]["min_fix"])
-    for i, rows in _instances(gps, "I"):
+    for i, rows in instances(gps, "I"):
         t, status = _ints(gps, "TimeUS")[rows], _ints(gps, "Status")[rows]
         fixed = np.flatnonzero(status >= min_fix)
         out[i] = Receiver(i, t, status, int(t[fixed[0]]) if len(fixed) else None)
@@ -226,7 +229,7 @@ def signal(flight: FlightData, rules: Mapping[str, Any], found: Mapping[int, Rec
     out: list[Trip] = []
     if gps is None or "NSats" not in gps.column_names:
         return out
-    for i, rows in _instances(gps, "I"):
+    for i, rows in instances(gps, "I"):
         r = found.get(i)
         if r is None or r.first_fix_us is None:
             continue
@@ -245,7 +248,7 @@ def signal(flight: FlightData, rules: Mapping[str, Any], found: Mapping[int, Rec
             out += _gps_time(t, _ints(gps, "GWk")[rows], _ints(gps, "GMS")[rows], fixed, s, c, i)
     gpa = flight.table("GPA", ["TimeUS", "I", "HAcc"])
     if gpa is not None and gpa.num_rows and "HAcc" in gpa.column_names:
-        for i, rows in _instances(gpa, "I"):
+        for i, rows in instances(gpa, "I"):
             r = found.get(i)
             if r is None or r.first_fix_us is None:
                 continue
@@ -271,13 +274,35 @@ def _gps_time(
     still = np.concatenate(([False], np.diff(gps_us) == 0))
     stop_us = float(s["time_stop_s"]) * 1e6
     out = [Trip("time_stopped", int(t[a]), int(t[b]), (t[b] - t[a]) / 1e6, receiver)
-           for a, b in _spans(t, still) if t[b] - t[a] >= stop_us]  # fmt: skip
+           for a, b in spans(t, still) if t[b] - t[a] >= stop_us]  # fmt: skip
     # a jump: GPS time against the log's clock, between fixed samples, not where it
     # resumes after standing still (catching up is not a jump)
     slip = (np.diff(gps_us) - np.diff(t)) / 1e6
     jump = (np.abs(slip) > float(c["time_jump_s"])) & fixed[1:] & fixed[:-1] & ~still[:-1]
     out += [Trip("time_jump", int(t[k + 1]), int(t[k + 1]), float(slip[k]), receiver)
             for k in np.flatnonzero(jump)]  # fmt: skip
+    return out
+
+
+def switched_off(flight: FlightData, function: int) -> list[tuple[int, int]]:
+    """When an aux function's switch was high: AUXF from position 2 to the next change
+    (or disarming)."""
+    auxf = flight.table("AUXF", ["TimeUS", "function", "pos"])
+    if auxf is None or auxf.num_rows == 0 or "function" not in auxf.column_names:
+        return []
+    t, fn, pos = _ints(auxf, "TimeUS"), _ints(auxf, "function"), _ints(auxf, "pos")
+    out: list[tuple[int, int]] = []
+    began: int | None = None
+    for k in np.argsort(t, kind="stable"):
+        if fn[k] != function:
+            continue
+        if pos[k] == 2 and began is None:
+            began = int(t[k])
+        elif pos[k] != 2 and began is not None:
+            out.append((began, int(t[k])))
+            began = None
+    if began is not None:
+        out.append((began, max(began, flight.disarm_us)))
     return out
 
 
@@ -308,7 +333,7 @@ def ublox(flight: FlightData, rules: Mapping[str, Any], found: Mapping[int, Rece
         return []
     gens = generations(flight, rules)
     out: list[Trip] = []
-    for i, rows in _instances(ubx, "Instance"):
+    for i, rows in instances(ubx, "Instance"):
         t, jam = _ints(ubx, "TimeUS")[rows], _floats(ubx, "jamInd")[rows]
         state = gens.get(i) in u["state_generations"] and np.max(jam) <= 3
         if state:
@@ -339,7 +364,7 @@ def _current_r(flight: FlightData, t: Array, indicator: Array) -> float | None:
     rows = _ints(bat, "Inst") == 0 if "Inst" in bat.column_names else np.ones(bat.num_rows, bool)
     bt, curr = _ints(bat, "TimeUS")[rows], si.values(bat, "Curr")[rows]
     armed = (t >= flight.arm_us) & (t <= flight.disarm_us)
-    current, near = _at(bt, curr, t, 1e6)
+    current, near = sample_at(bt, curr, t, 1e6)
     keep = armed & near & np.isfinite(current) & np.isfinite(indicator)
     if np.count_nonzero(keep) < 20 or np.std(current[keep]) == 0 or np.std(indicator[keep]) == 0:
         return None
@@ -450,15 +475,15 @@ def positions(flight: FlightData, rules: Mapping[str, Any], found: Mapping[int, 
         fixed[r.instance] = (t[ok], e[ok], n[ok])
         if pos is not None:
             pe, pn = pos.east_north_m()
-            at_e, near = _at(pos.times_us, pe, t, 0.5e6)
-            at_n, _ = _at(pos.times_us, pn, t, 0.5e6)
+            at_e, near = sample_at(pos.times_us, pe, t, 0.5e6)
+            at_n, _ = sample_at(pos.times_us, pn, t, 0.5e6)
             gap = np.hypot(e - at_e, n - at_n)
             out.trips += _trips("track", t, ok & near & (gap > float(c["track_m"])), gap, np.max,
                                 rules, r.instance)  # fmt: skip
     if len(fixed) >= 2:
         (t0, e0, n0), (t1, e1, n1) = (fixed[i] for i in sorted(fixed)[:2])
-        at_e, near = _at(t1, e1, t0, 0.5e6)
-        at_n, _ = _at(t1, n1, t0, 0.5e6)
+        at_e, near = sample_at(t1, e1, t0, 0.5e6)
+        at_n, _ = sample_at(t1, n1, t0, 0.5e6)
         gap = np.hypot(e0 - at_e, n0 - at_n)
         out.trips += _trips(
             "receivers", t0, near & (gap > float(c["receivers_m"])), gap, np.max, rules
@@ -488,12 +513,12 @@ def baro(flight: FlightData, rules: Mapping[str, Any], found: Mapping[int, Recei
         or "Alt" not in bar.column_names
     ):
         return []
-    rows = next((rows for i, rows in _instances(gps, "I") if i == 0), None)
+    rows = next((rows for i, rows in instances(gps, "I") if i == 0), None)
     if rows is None:
         return []
     t, alt = _ints(gps, "TimeUS")[rows], si.values(gps, "Alt")[rows]
-    brows = next((rows for i, rows in _instances(bar, "I") if i == 0), np.ones(bar.num_rows, bool))
-    baro_alt, near = _at(_ints(bar, "TimeUS")[brows], si.values(bar, "Alt")[brows], t, 0.5e6)
+    brows = next((rows for i, rows in instances(bar, "I") if i == 0), np.ones(bar.num_rows, bool))
+    baro_alt, near = sample_at(_ints(bar, "TimeUS")[brows], si.values(bar, "Alt")[brows], t, 0.5e6)
     k = np.clip(np.searchsorted(r.t, t), 0, len(r.t) - 1)
     ok = near & (r.t[k] == t) & (r.status[k] >= int(rules["signal"]["min_fix"])) & np.isfinite(alt)
     armed = ok & (t >= flight.arm_us) & (t <= flight.disarm_us)
@@ -752,7 +777,7 @@ def _first(flight: FlightData, name: str, columns: list[str], since_us: int
     table = flight.table(name, ["TimeUS", "I", *columns])
     if table is None or any(c not in table.column_names for c in columns):
         return None
-    rows = next((rows for i, rows in _instances(table, "I") if i == 0), None)
+    rows = next((rows for i, rows in instances(table, "I") if i == 0), None)
     if rows is None:
         return None
     t = _ints(table, "TimeUS")
@@ -806,6 +831,10 @@ def _gnss(flight: FlightData, reg: Registry) -> Result:
     pos = positions(flight, rules, found)
     trips = [*signal(flight, rules, found), *ublox(flight, rules, found),
              *estimator(flight, rules, names), *pos.trips, *baro(flight, rules, found)]  # fmt: skip
+    # a GNSS-off drill is not a disturbance: the no-GNSS analyzer measures it
+    off = switched_off(flight, int(reg.rules["no_gnss"]["aux"]["gps_disable"]))
+    merge_us = float(rules["merge_s"]) * 1e6
+    trips = [t for t in trips if not any(a <= t.start_us <= b + merge_us for a, b in off)]
     events = disturbances(trips, flight, rules, found)
     yaw = yaw_resets(flight, rules)
     out = Result()
@@ -849,7 +878,7 @@ def _gnss(flight: FlightData, reg: Registry) -> Result:
 
 GNSS = Analyzer(
     name="gnss",
-    version=1,
+    version=2,
     run=_gnss,
     metrics=("gnss.disturbed_s", "gnss.sats_min", "gnss.hacc_p95"),
     findings=("gnss.jamming", "gnss.spoofing", "gnss.obstruction", "gnss.onboard",
