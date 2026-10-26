@@ -6,6 +6,8 @@ within each payload band, so a loaded flight is never read against a light one.
   with it, and there the metric must be better by at least `by` (a share of its value
   before), with the two 95% intervals apart where the metric has them. A band still
   waiting for its flight leaves the check unanswered; a band clearly worse marks it worse.
+- **metric_not_worse**: the same bands, flown again with it, none worse by `by` with
+  the intervals apart: a guard on what the change is not meant to improve.
 - **metric_vs_lightest**: with the change, the heaviest band's value against the
   lightest's: at most `max_ratio` times it, or at most `max_above` over it. ArduPilot
   tunes light and expects the same gains to fly heavier aircraft slower, not unstable.
@@ -28,6 +30,7 @@ from flight_insights.knowledge import Pack
 from flight_insights.store.db import Store
 
 TOLERANCE = 1e-6
+CHECKS = ("metric_improves", "metric_not_worse", "metric_vs_lightest")  # judged here
 
 
 @dataclass(frozen=True)
@@ -162,4 +165,17 @@ def judge(
     ms = measurements(store, pack, reg, rec, flight_id, metric.id, check.get("segment"))
     if check["check"] == "metric_improves":
         return improves(check, ms, metric.direction)
+    if check["check"] == "metric_not_worse":
+        return not_worse(check, ms, metric.direction)
     return versus_lightest(check, ms)
+
+
+def not_worse(
+    check: Mapping[str, Any], ms: list[Measured], direction: str
+) -> tuple[bool | None, dict[str, Any]]:
+    """Passes once every band flown before is flown again and none is clearly worse;
+    one clearly worse fails it at once (and marks it worse)."""
+    passed, info = improves(check, ms, direction)
+    if info["worse"]:
+        return False, info
+    return (None if passed is None else True), info

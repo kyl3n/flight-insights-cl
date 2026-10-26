@@ -57,6 +57,7 @@ export interface PlanRec {
   reboot: boolean;
   temporary?: boolean; // for the test flight only
   revert?: number | null; // what a test-flight setting goes back to, the firmware's units
+  undo?: string[]; // an action's: what its work may change by itself, kept in the undo file
   verify: Text | null;
   procedure?: ProcedureStep[];
   source: string;
@@ -150,6 +151,15 @@ export function groupDecision(g: RecGroup): RecordStatus | "mixed" | "none" {
 }
 
 /** Accepted changes, and the ones on offer still to decide. */
+/** Whether the undo file has anything to put back: an accepted change, or an action on
+ * offer whose work may change values by itself (the gains AutoTune saves). */
+export function hasUndo(plan: Plan): boolean {
+  return (
+    decisionCounts(plan).accepted > 0 ||
+    plan.recommendations.some((r) => r.status === "next" && r.param === null && !!r.undo?.length)
+  );
+}
+
 export function decisionCounts(plan: Plan): { accepted: number; open: number } {
   const offered = plan.recommendations.filter((r) => r.status === "next" && r.param !== null);
   return {

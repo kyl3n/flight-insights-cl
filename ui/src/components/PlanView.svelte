@@ -13,6 +13,7 @@
   import type { MessageKey } from "../lib/i18n";
   import {
     checksPassed,
+    hasUndo,
     decisionCounts,
     groupByFinding,
     groupDecision,
@@ -212,7 +213,7 @@
             <button type="button" class="secondary" disabled={!hasRevert(plan) || !inDesktopApp()} onclick={() => exportFile("revert")}>
               {t("plan.export.revert")}
             </button>
-            <button type="button" class="secondary" disabled={!counts.accepted || !inDesktopApp()} onclick={() => exportFile("undo")}>
+            <button type="button" class="secondary" disabled={!(plan && hasUndo(plan)) || !inDesktopApp()} onclick={() => exportFile("undo")}>
               {t("plan.export.undo")}
             </button>
           </div>

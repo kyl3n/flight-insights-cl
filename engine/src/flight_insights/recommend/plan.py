@@ -127,6 +127,9 @@ class Recommendation:
     revert: float | None = None  # what a test-flight setting goes back to, canonical
     native_revert: float | None = None
     alternatives: list[Alternative] = field(default_factory=list[Alternative])
+    # For an action: what its work may change on its own (AutoTune saves gains), as the
+    # flight had them, in this firmware's names and units, for the undo file.
+    undo: dict[str, float] = field(default_factory=dict[str, float])
 
     @property
     def lead(self) -> Source:
@@ -580,7 +583,12 @@ def _build_plan(
         shown_done = bool(procedures.get(source.code, {}).get("applied_when"))
         if needs_person and (source.finding not in answered or shown_done):
             stage = str(f.get("stage") or "mechanical")
-            recs.append(Recommendation(None, None, None, None, stage, [source]))
+            action = Recommendation(None, None, None, None, stage, [source])
+            for name in procedures.get(source.code, {}).get("undo_also", ()):
+                if params.get(name) is not None:
+                    nname, nvalue = native(name, params[name])
+                    action.undo[nname] = float(params[name] if nvalue is None else nvalue)
+            recs.append(action)
 
     # The earliest stage with a problem left is on offer, with safety at any stage, and
     # the rule pack's any-stage findings (failsafes found off). A better option fixes no
@@ -801,6 +809,7 @@ def to_json(plan: Plan, reg: Registry) -> dict[str, Any]:
             "reboot": r.reboot,
             "temporary": r.temporary,
             "revert": r.native_revert,
+            "undo": sorted(r.undo),  # an action's: what its work may change, kept in the undo file
             "verify": dict(rules["verify"][r.stage]) if r.stage in rules["verify"] else None,
             "procedure": procedure.to_json(procedure.procedure(plan, reg, r)),
             "applied_when": reg.procedures.get(lead.code, {}).get("applied_when"),

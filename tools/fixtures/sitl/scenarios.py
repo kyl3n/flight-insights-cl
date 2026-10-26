@@ -145,10 +145,12 @@ def tune_check(
     each_way: float = 0.4,
     centred: float = 1.0,
     altitude: float = 5,
+    hands_off: float = 3,
 ) -> Callable[[Vehicle], None]:
     """The tune-check profile, shortened so the log stays small: take off, hold AltHold
-    hands-off, then doublets on each axis's stick (`deflection` µs from centre, 160 is 40%
-    of the throw), with the rate loop logged every loop during them only; then land."""
+    hands-off for `hands_off` s (10 s or more gives the hover thrust a payload band needs),
+    then doublets on each axis's stick (`deflection` µs from centre, 160 is 40% of the
+    throw), with the rate loop logged every loop during them only; then land."""
 
     def fly(v: Vehicle) -> None:
         v.mode("GUIDED")
@@ -158,7 +160,7 @@ def tune_check(
         centre = {"ch1": 1500, "ch2": 1500, "ch3": 1500, "ch4": 1500}
         v.rc(**centre)
         v.mode("ALT_HOLD")
-        sticks(v, 3, centre)
+        sticks(v, hands_off, centre)
         bitmask = v.get_param("LOG_BITMASK")
         v.set_param("LOG_BITMASK", LOG_RATE_LOOP(bitmask))
         for ch in axes:
@@ -193,6 +195,7 @@ def autotune(
         v.rc(**centre)
         v.mode("ALT_HOLD")
         sticks(v, 3, centre)
+        v.texts = []  # an earlier tune's "AutoTune: Success" is not this one's
         v.mode("AUTOTUNE")
         if not finish:
             sticks(v, before_stop, centre)

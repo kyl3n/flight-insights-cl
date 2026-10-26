@@ -772,6 +772,40 @@ def test_test_flight_settings_name_real_bits(reg: Registry) -> None:
     assert (names["19"], names["21"]) == ("Raw IMU", "Fast harmonic notch logging")
 
 
+def test_what_a_procedures_work_may_change_names_real_parameters(reg: Registry) -> None:
+    meta = reg.pack.metadata("4.7.0", "copter")
+    named = {n for template in reg.procedures.values() for n in template["undo_also"]}
+    assert named and named <= set(meta)
+
+
+def autotune_offer(*changes: tuple[str, float]) -> dict[str, Any]:
+    offer = finding("tune.autotune_offer", *changes, severity="info")
+    offer["params"] = {"axes": "roll, pitch", "large_props": bool(changes)}
+    return offer
+
+
+def test_the_undo_file_keeps_the_gains_autotune_may_save(reg: Registry) -> None:
+    """AutoTune saves gains by itself: the undo file puts back the flight's, so a tune
+    that flies worse is undone like any change the plan made."""
+    p = plan(reg, autotune_offer(("ATC_RAT_RLL_FLTT", 10.0)), ATC_RAT_RLL_FLTT=20.0,
+             ATC_RAT_RLL_I=0.12, ATC_ANG_RLL_P=4.5)  # fmt: skip
+    [action] = [r for r in p.recommendations if r.param is None]
+    assert action.status == "next" and one(p, "ATC_RAT_RLL_FLTT").status == "next"
+    undo = parse_params(export_undo(p, reg, "mission planner")["text"]).values()
+    assert undo == {"ATC_RAT_RLL_FLTT": 20.0, "ATC_RAT_RLL_P": 0.1, "ATC_RAT_RLL_I": 0.12,
+                    "ATC_ANG_RLL_P": 4.5}  # fmt: skip
+    [step] = [s for s in session(p, reg) if s.kind == "undo"]
+    assert set(step.params) == set(undo) and "ATC_ANG_RLL_P" in step.text["en"]
+
+
+def test_an_action_alone_still_has_an_undo_file(reg: Registry) -> None:
+    """Small propellers, a fixed payload: nothing to load first, and the undo file holds
+    only the gains the flight had."""
+    p = plan(reg, autotune_offer())
+    undo = parse_params(export_undo(p, reg, "qgroundcontrol")["text"]).values()
+    assert undo == {"ATC_RAT_RLL_P": 0.1}
+
+
 def test_each_step_is_worded_with_its_own_findings_values(reg: Registry) -> None:
     lead = finding("filter.better_source", ("INS_HNTCH_MODE", 3.0))
     lead["params"] = {

@@ -25,7 +25,9 @@ checks): AutoTune, say, is graded on whether tracking improved in every payload 
 cannot judge yet, such as a band not flown again, keeps the grade pending, unless a
 band already flown again is worse: that is regressed at once. An action whose
 procedure names the finding that shows it done (`applied_when`, with the axes it must
-cover) is marked applied by the flight that raised it, without a person.
+cover) is marked applied by the flight that raised it, without a person. Its finding's
+changes (rate filters set for AutoTune) prepare that work: they are graded only on
+flights after it was done.
 """
 
 from __future__ import annotations
@@ -272,6 +274,22 @@ def _shown_done(rec: dict[str, Any], flight_id: str, analysis: Mapping[str, Any]
     return False
 
 
+def _work_done(store: Store, rec: Mapping[str, Any], flight: Mapping[str, Any]) -> bool:
+    """Whether the action a change prepares for (its finding's, kept for the airframe)
+    was done before this flight: the rate filters AutoTune is flown with are graded on
+    the flights after the AutoTune, never on the AutoTune flights themselves."""
+    row = store.conn.execute(
+        "SELECT status, detail_json FROM recommendation WHERE airframe_id = ? "
+        "AND finding_code IS ? AND param IS NULL ORDER BY created_hlc DESC LIMIT 1",
+        (rec["airframe_id"], rec["finding_code"]),
+    ).fetchone()
+    if row is None or row[0] not in ("applied", *GRADES):
+        return False
+    done = json.loads(row[1]).get("applied_flight")
+    at = store.get("flight", done) if done else None
+    return at is None or (at["id"] != flight["id"] and flew_before(at, flight))
+
+
 def grade_flight(
     store: Store,
     pack: Pack,
@@ -301,9 +319,13 @@ def grade_flight(
             if source is None or source["id"] == flight_id or not flew_before(source, flight):
                 continue
             was = json.dumps(rec["detail"], sort_keys=True)
+            prepares = False  # a change made ready for work not yet done
             if rec["param"] is not None:
                 if not _same(params.get(rec["param"]), rec["proposed_value"]):
                     continue  # not flown with the change (yet)
+                prepares = bool(rec["detail"].get("applied_when")) and not _work_done(
+                    store, rec, flight
+                )
             elif rec["status"] != "applied":
                 done = _shown_done(rec, flight_id, analysis)
                 if done or (done is False and json.dumps(rec["detail"], sort_keys=True) != was):
@@ -319,8 +341,8 @@ def grade_flight(
             lead = sources[0] if sources else {"code": rec["detail"]["code"], "severity": "info"}
             grade: str | None = None
             status: str = rec["status"]
-            if any(s.get("analyzer") not in judged for s in sources):
-                status = "applied"  # the later log cannot judge it
+            if prepares or any(s.get("analyzer") not in judged for s in sources):
+                status = "applied"  # the later log cannot judge it, or not yet
             else:
                 before = SEVERITY_RANK[lead["severity"]]
                 after = {s["code"]: raised[s["code"]] for s in sources if s["code"] in raised}
@@ -331,7 +353,7 @@ def grade_flight(
                     if step.get("kind") != "verify":
                         continue
                     for c in step.get("checks", ()):
-                        if c.get("check") in ("metric_improves", "metric_vs_lightest"):
+                        if c.get("check") in measured.CHECKS:
                             reg = reg or Registry.load(pack)
                             passed, info = measured.judge(store, pack, reg, rec, flight_id, c)
                             checks.append(dict(c) | info | {"passed": passed})
