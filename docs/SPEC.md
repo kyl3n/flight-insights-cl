@@ -920,10 +920,25 @@ Failsafe events come from the per-subsystem error codes in the onboard log, the 
   - **Unexpected** (out): no reading of the log allows it. Look for a parameter changed in flight, a script, or a firmware the check does not cover.
 
   That a failsafe fired at all stays the system health finding. Evidence names what was read. Mission commands are position messages, so evidence that read them is withheld from AI packets by the location policy.
-- **Next:**
-  - the trigger time against its timeout, measured from the onset of loss (the receiver's valid-input flag, the ground station's heartbeats in the tlog, the battery voltage under its threshold, the estimator's variances);
-  - failsafes that should have fired but did not;
-  - lead time and near misses, as above.
+- **When the loss began, and whether it fired on time.** Each failsafe waits a set time after its loss begins, checked at its scheduler's rate. The onboard log shows the onset for three of them:
+  - **Ground station:** `MAV.mgs`, when each link last heard the GCS's system ID (heartbeat or manual control), logged about once a second. The failsafe is due `FS_GCS_TIMEOUT` after the newest, checked at 3 Hz.
+  - **Battery:** `BAT` is logged in the same loop, just before the check, so its samples are what the firmware judged. The voltage stages are due `BATT_LOW_TIMER` after the voltage the settings name (`Volt`, or `VoltR` with `BATT_FS_VOLTSRC` 1) went under its threshold. The capacity stages are due at once. The stage whose condition held at the failsafe, and was most recently due, explains it.
+  - **Radio:**
+    - the receiver's own failsafe flag (`RCI2.Flags` bit 2), after which frames stop counting as input (unless `RC_OPTIONS` ignores the flag), so `RC_FS_TIMEOUT` runs out;
+    - or the throttle channel under `FS_THR_VALUE`, which trips within three frames.
+    - A receiver that just stops leaves no trace before the failsafe, so that onset is reported as not measurable.
+
+  A failsafe later than its wait, plus one check, the log's sampling and a 0.1 s margin, is **late** (caution). That points to an overloaded main loop or a setting changed in flight. The EKF failsafe's onset needs the estimator's filtered variances and comes with the GNSS work.
+- **Losses no failsafe answered.** Losses read the same way while armed:
+  - a GCS not heard for longer than its timeout;
+  - a battery stage past its wait;
+  - a receiver flagging failsafe past `RC_FS_TIMEOUT`;
+  - the throttle under `FS_THR_VALUE` past three frames. This is read only where `FS_THR_VALUE` sits at least 10 under the stick's lowest, so a stick at its lowest is never mistaken for it, and never on a MAVLink-overridden channel.
+
+  A loss counts as answered when a failsafe of its kind started from about when it was due until the loss ended, or was already in force, even one from before arming. For the battery, any battery failsafe by then answers it, because which monitor and stage one was raised for is not logged.
+  - **Off during loss:** the failsafe is switched off (`FS_GCS_ENABLE` 0, `FS_THR_ENABLE` 0, `BATT_LOW_TIMER` 0). For a radio loss that is a safety finding, and for a battery loss it is out. For a GCS loss it is a safety finding when the ground station is the only control link (`RC_OPTIONS` bit 0), and info when a pilot's radio is in hand.
+  - **Missed** (out): the failsafe is on but none fired.
+- **Next:** lead time and near misses, as above.
 
 ### RF early warning
 
