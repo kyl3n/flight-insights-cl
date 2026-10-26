@@ -176,7 +176,7 @@ button{font-family:inherit}
 <span style="display: flex; flex-wrap: wrap; gap: 4px 14px; font-size: 12px; color: #A3ACB6;">
 <span><span aria-hidden="true" style="color: #6B7682;">┅</span> Flight 149</span>
 <span><span aria-hidden="true" style="color: #5AB0E8;">━</span> This flight</span>
-<span><span aria-hidden="true" style="color: #3A424B;">▮</span> Coherence under 0.6: not measured</span>
+<span><span aria-hidden="true" style="color: #3A424B;">▮</span> Above the measured band (error over 10%): not measured</span>
 </span>
 </figcaption>
 <svg role="img" aria-label="{{freq.aria}}" width="100%" viewBox="0 0 460 210" style="display: block;">
@@ -338,10 +338,10 @@ class Component extends DCLogic {
     const FX0 = 44, FX1 = 452, FY0 = 10, FY1 = 186, F0 = 0.5, F1 = 40, D0 = -24, D1 = 9;
     const fxp = (f) => FX0 + Math.log(f / F0) / Math.log(F1 / F0) * (FX1 - FX0);
     const fyp = (d) => FY1 - (Math.min(D1, Math.max(D0, d)) - D0) / (D1 - D0) * (FY1 - FY0);
-    const coherent = 22;  // Hz: above it the inputs held too little energy
+    const measuredTo = 12;  // Hz: above it the stick inputs held too little energy to measure
     const fcurve = (z, fn) => {
       let d = '';
-      for (let i = 0; i <= 200; i++) { const f = F0 * Math.pow(F1 / F0, i / 200); if (f > coherent) break; d += (i ? 'L' : 'M') + fxp(f).toFixed(1) + ' ' + fyp(db(Tj(z, fn, f))).toFixed(1) + ' '; }
+      for (let i = 0; i <= 200; i++) { const f = F0 * Math.pow(F1 / F0, i / 200); if (f > measuredTo) break; d += (i ? 'L' : 'M') + fxp(f).toFixed(1) + ' ' + fyp(db(Tj(z, fn, f))).toFixed(1) + ' '; }
       return d;
     };
     const ffig = (z, fn) => {
@@ -357,7 +357,7 @@ class Component extends DCLogic {
     const qB = ffig(zb, fb), qA = ffig(za, fa);
     const freq = {
       before: fcurve(zb, fb), after: fcurve(za, fa),
-      noX: fxp(coherent).toFixed(1), noW: (FX1 - fxp(coherent)).toFixed(1),
+      noX: fxp(measuredTo).toFixed(1), noW: (FX1 - fxp(measuredTo)).toFixed(1),
       m3: fyp(-3).toFixed(1), m3t: (fyp(-3) - 4).toFixed(1),
       bwB: fxp(qB.bw).toFixed(1), bwA: fxp(qA.bw).toFixed(1),
       grid: [-20, -10, 0, 5].map((v) => ({ y: fyp(v).toFixed(1), ty: (fyp(v) + 3).toFixed(1), l: v + ' dB' })),
