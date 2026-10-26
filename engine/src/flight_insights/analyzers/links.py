@@ -239,7 +239,7 @@ def _gcs_silence(
 # --- the radios' own status -------------------------------------------------------------
 
 
-def _radio_table(flight: FlightData) -> tuple[pa.Table, str] | None:
+def radio_table(flight: FlightData) -> tuple[pa.Table, str] | None:
     """RADIO_STATUS as the aircraft's radio sent it (RAD), else as the ground radio sent
     it to the station (tlog); with which end reported, and whether it is a SiK radio."""
     rad = flight.table("RAD")
@@ -262,7 +262,7 @@ def _is_sik(flight: FlightData, rules: Mapping[str, Any]) -> bool:
 
 
 def _radio_status(flight: FlightData, reg: Registry, rules: Mapping[str, Any], out: Result) -> bool:
-    found = _radio_table(flight)
+    found = radio_table(flight)
     if found is None:
         return False
     table, end = found

@@ -911,6 +911,25 @@ Failsafe events come from the per-subsystem error codes in the onboard log, the 
 
 **Near misses.** Most flights never trip a failsafe, but many come close: RC signal within a few dB of the sensitivity limit, estimator variances near the threshold, a landing with less energy than the return margin. These are recorded as near misses and analysed the same way, so the fleet learns from far more events than actual failsafes.
 
+**Measured now** (`analyzers/precursors.py`, rules in `knowledge/rules/precursors.json`), for Copter, while armed:
+
+- **Precursors.** Each is a series with a caution band. Where a metric already defines the band, the series is judged by that metric's target zone, so a flight's metric and its warnings agree.
+  - **Ground station:**
+    - the GCS unheard, as a share of `FS_GCS_TIMEOUT` (`MAV.mgs`);
+    - packets missed on the way up (`MAV.rxdp`) and lost on the way down (the tlog's sequence numbers), each over a 10 s sliding window that needs at least 20 packets;
+    - the radio's buffer under half free.
+  - **Battery,** per monitor:
+    - how long the failsafe's own voltage has stayed under `BATT_LOW_VOLT`, as a share of `BATT_LOW_TIMER`;
+    - the sag-compensated voltage (`VoltR`) within 3% of `BATT_LOW_VOLT`;
+    - the charge used, as a share of `BATT_CAPACITY` less `BATT_LOW_MAH`.
+  - **Radio:** the receiver's own failsafe flag.
+- **Lead time.** Before each failsafe, the first time each of its precursors left its band within 300 s, or since arming, is that precursor's lead. A finding names the earliest. A failsafe that none of the logged precursors warned of is recorded as unwarned, which points to a sudden cause.
+- **Near misses.**
+  - **The battery's:** the longest low-voltage spell against `BATT_LOW_TIMER`, and the charge used against the failsafe's budget. Each is a metric with the airframe's trend. A caution on a flight with no battery failsafe is a near miss.
+  - **The ground station's and the receiver's:** these are the link analyzer's (see Telemetry link and RC link), so one event raises one finding.
+  - **The EKF's:** these come with the GNSS work.
+- **Not yet:** the fleet ranking of which precursors warn earliest, and how often they warn with nothing following, waits for enough failsafes across the fleet. The bands are the app's starting points and are marked uncalibrated until then.
+
 **Did the failsafe work?** Each event is checked: the action matched the configuration, the trigger time matched the timeout, the vehicle recovered or landed as intended, and the failsafe option bits combined as expected with any other failsafe active at the time.
 
 - **Events.** Each failsafe runs from its error (ERR, `FAILSAFE_OCCURRED`) to the one that resolves it. A second error before then is an event of its own, because the firmware acts on it again: a battery's critical stage after its low stage, or another monitor's. Failsafes that fire while disarmed are not judged.
