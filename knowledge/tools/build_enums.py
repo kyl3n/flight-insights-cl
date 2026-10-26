@@ -10,6 +10,10 @@ checkout of the release tag, not typed by hand:
 - Plane modes (QuadPlane included): `enum Number` in ArduPlane/mode.h
 - Log events: `enum class LogEvent` in libraries/AP_Logger/AP_Logger.h
 - Error subsystems: `enum class LogErrorSubsystem` in the same file
+- Why a mode changed (MODE.Rsn): `enum class ModeReason` in
+  libraries/AP_Vehicle/ModeReason.h
+- How the vehicle was armed or disarmed (ARM.Method): `enum class Method` in
+  libraries/AP_Arming/AP_Arming.h
 - Error codes: `enum class LogErrorCode`, whose numbers mean different things in
   different subsystems, so each number keeps every name it has
 - Internal errors: `enum class error_t` in libraries/AP_InternalError/AP_InternalError.h,
@@ -39,6 +43,14 @@ SOURCES = {
     ("error_subsystems", None): (
         "libraries/AP_Logger/AP_Logger.h",
         r"enum\s+class\s+LogErrorSubsystem\s*:\s*uint8_t\s*\{",
+    ),
+    ("mode_reasons", None): (
+        "libraries/AP_Vehicle/ModeReason.h",
+        r"enum\s+class\s+ModeReason\s*:\s*uint8_t\s*\{",
+    ),
+    ("arming_methods", None): (
+        "libraries/AP_Arming/AP_Arming.h",
+        r"enum\s+class\s+Method\s*\{",
     ),
 }
 CODES = ("libraries/AP_Logger/AP_Logger.h", r"enum\s+class\s+LogErrorCode\s*:\s*uint8_t\s*\{")

@@ -21,6 +21,7 @@ from flight_insights import __version__
 from flight_insights.analyzers.autotune import AUTOTUNE
 from flight_insights.analyzers.buses import BUSES
 from flight_insights.analyzers.esc_rpm import ESC_RPM
+from flight_insights.analyzers.failsafes import FAILSAFES
 from flight_insights.analyzers.filter_model import FILTER_MODEL
 from flight_insights.analyzers.filters import FILTERS
 from flight_insights.analyzers.flight import FlightData
@@ -45,8 +46,8 @@ from flight_insights.tlog import sessions as tlog_sessions
 log = logging.getLogger(__name__)
 
 ANALYZERS: tuple[Analyzer, ...] = (
-    LOG_ADEQUACY, SYSTEM, VIBRATION, ESC_RPM, FILTER_MODEL, FILTERS, POWER, MOTORS_HEALTH,
-    BUSES, PAYLOAD, TUNE, RATE_TUNE, RATE_HEALTH, AUTOTUNE, OPTIONS, PARAMS_AUDIT,
+    LOG_ADEQUACY, SYSTEM, FAILSAFES, VIBRATION, ESC_RPM, FILTER_MODEL, FILTERS, POWER,
+    MOTORS_HEALTH, BUSES, PAYLOAD, TUNE, RATE_TUNE, RATE_HEALTH, AUTOTUNE, OPTIONS, PARAMS_AUDIT,
 )  # fmt: skip
 
 

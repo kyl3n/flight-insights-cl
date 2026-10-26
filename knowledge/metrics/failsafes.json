@@ -1,0 +1,38 @@
+{
+  "about": "Did the failsafe work? (spec: Failsafe causes and RF early warning, 'Did the failsafe work?'). Each failsafe that fired while armed is judged against what ArduCopter's own decision logic (rules/failsafes.json) does with the flight's settings and the vehicle's state as it fired: its mode, whether it was on the ground or landing, what the mission was doing and which other failsafes were active. That it fired at all is the system health analyzer's finding (system.failsafe).",
+  "findings": {
+    "failsafe.as_configured": {
+      "stage": "operations",
+      "title": {
+        "en": "{failsafe} failsafe at {at_s} s in {mode}: the aircraft did what its settings say ({response})",
+        "uk": "Аварійний режим «{failsafe}» на {at_s} с у {mode}: апарат діяв так, як задають налаштування ({response})"
+      },
+      "action": {
+        "en": "Nothing to change in how it responded. Check what set it off in the timeline before it, and whether this is still the response you want for this aircraft and mission ({setting} {value}, FS_OPTIONS).",
+        "uk": "У реакції нічого змінювати не потрібно. Перевірте на часовій шкалі, що його викликало, і чи це досі та реакція, яку ви хочете для цього апарата й місії ({setting} {value}, FS_OPTIONS)."
+      }
+    },
+    "failsafe.fell_back": {
+      "stage": "operations",
+      "title": {
+        "en": "{failsafe} failsafe at {at_s} s in {mode}: {wanted} could not start, so the aircraft fell back ({response})",
+        "uk": "Аварійний режим «{failsafe}» на {at_s} с у {mode}: не вдалося запустити {wanted}, тож апарат перейшов до запасного варіанта ({response})"
+      },
+      "action": {
+        "en": "The firmware tries the next mode when one cannot start: SmartRTL without a recorded return path (it needs a position from take-off on, and SRTL_POINTS large enough for the flight), RTL without a home position or a position estimate. Check which was missing in the timeline before the failsafe and fix it before relying on {setting} {value} again, or choose a response the aircraft can always fly.",
+        "uk": "Прошивка пробує наступний режим, коли попередній не може запуститися: SmartRTL без записаного шляху повернення (потрібна позиція від самого зльоту та достатній SRTL_POINTS для польоту), RTL без домашньої точки чи оцінки позиції. Перевірте на часовій шкалі перед аварійним режимом, чого бракувало, і виправте це, перш ніж знову покладатися на {setting} {value}, або оберіть реакцію, яку апарат може виконати завжди."
+      }
+    },
+    "failsafe.unexpected": {
+      "stage": "operations",
+      "title": {
+        "en": "{failsafe} failsafe at {at_s} s in {mode}: the aircraft {response}, but its settings call for {wanted}",
+        "uk": "Аварійний режим «{failsafe}» на {at_s} с у {mode}: апарат відреагував інакше ({response}), ніж вимагають налаштування ({wanted})"
+      },
+      "action": {
+        "en": "No reading of this log lets the firmware's own logic choose that response with {setting} {value} and these FS_OPTIONS. Look for a parameter changed in flight, a Lua script or companion computer that changed mode, or a firmware this check does not cover, and do not rely on this failsafe until the cause is found.",
+        "uk": "Жодне прочитання цього журналу не дозволяє логіці прошивки обрати таку реакцію при {setting} {value} і цих FS_OPTIONS. Пошукайте параметр, змінений у польоті, скрипт Lua чи бортовий комп'ютер, що змінив режим, або прошивку, яку ця перевірка не охоплює, і не покладайтеся на цей аварійний режим, доки причину не знайдено."
+      }
+    }
+  }
+}
