@@ -323,7 +323,7 @@ def _late_frame(flight: FlightData, names: Mapping[str, Any], t: int) -> bool:
     return False
 
 
-def _flagged(flight: FlightData) -> tuple[Array, Array] | None:
+def receiver_flagged(flight: FlightData) -> tuple[Array, Array] | None:
     """When the receiver said it was in failsafe (RCI2), unless RC_OPTIONS ignores that."""
     if int(_param(flight, "RC_OPTIONS")) & (IGNORE_RECEIVER | IGNORE_RECEIVER_FAILSAFE):
         return None
@@ -334,7 +334,7 @@ def _flagged(flight: FlightData) -> tuple[Array, Array] | None:
     return times, (_ints(rci2, "Flags") & PROTOCOL_FAILSAFE) > 0
 
 
-def _low_throttle(flight: FlightData) -> tuple[Array, Array, str] | None:
+def low_throttle(flight: FlightData) -> tuple[Array, Array, str] | None:
     """When the throttle channel read under FS_THR_VALUE: a receiver's failsafe output,
     since FS_THR_VALUE sits under the stick's lowest (by 10 or more: Copter's own check),
     and only while the channel was not overridden over MAVLink."""
@@ -369,7 +369,7 @@ def radio_onset(
 ) -> Onset | None:
     period = float(timing["period_s"])
     if _late_frame(flight, names, t):
-        flagged = _flagged(flight)
+        flagged = receiver_flagged(flight)
         if flagged is None:
             return None  # the receiver stopped: its last frame is not logged
         times, flag = flagged
@@ -380,7 +380,7 @@ def radio_onset(
         wait = round(_param(flight, "RC_FS_TIMEOUT", 1.0) * 1e6)
         what = "the receiver's failsafe flag (RCI2.Flags)"
         return Onset(at, at + wait, _resolution(times, k), period, what, ("RCI2",), ("Flags",))
-    low = _low_throttle(flight)
+    low = low_throttle(flight)
     if low is None:
         return None
     times, below, what = low
@@ -419,14 +419,14 @@ def radio_losses(
     margin = float(timing["margin_s"])
     period = float(timing["period_s"])
     found: list[Loss] = []
-    flagged = _flagged(flight)
+    flagged = receiver_flagged(flight)
     if flagged is not None:
         times, flag = flagged
         wait = round(_param(flight, "RC_FS_TIMEOUT", 1.0) * 1e6)
         found += _held(flight, times, flag, wait, margin, period, fired, off,
                        "FS_THR_ENABLE 0" if off else f"RC_FS_TIMEOUT {wait / 1e6:g}",
                        "the receiver in failsafe", ("RCI2",), ("Flags",))  # fmt: skip
-    low = _low_throttle(flight)
+    low = low_throttle(flight)
     if low is not None:
         times, below, what = low
         wait = round(float(timing["frames"]) * float(timing["frame_s"]) * 1e6)

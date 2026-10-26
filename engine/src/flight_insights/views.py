@@ -17,10 +17,13 @@ import numpy as np
 import pyarrow as pa
 
 from flight_insights.analyzers.flight import FlightData
+from flight_insights.analyzers.incident import Event, events, first_fault, words
 from flight_insights.analyzers.motors_health import motors
+from flight_insights.analyzers.registry import Registry
 from flight_insights.analyzers.system import error_name
 from flight_insights.dataflash import si
 from flight_insights.knowledge import Pack
+from flight_insights.tlog.names import command_name
 
 BINS = 600  # display bins per trace; the screen is narrower than this
 MARGIN_US = 5_000_000  # shown either side of the armed span
@@ -249,3 +252,107 @@ def _errors(flight: FlightData, pack: Pack, start: float, end: float) -> list[di
                  "meaning": error_name(name, int(code), codes)}
             )  # fmt: skip
     return out
+
+
+# --- the incident timeline -----------------------------------------------------------------
+
+
+def _after(flight: FlightData, t_us: float) -> float:
+    return round((t_us - flight.arm_us) / 1e6, 2)
+
+
+def _spans(flight: FlightData, t: np.ndarray[Any, Any], values: list[Any]) -> list[dict[str, Any]]:
+    """Runs of equal values as {from_s, to_s, value}, in seconds after arming."""
+    out: list[dict[str, Any]] = []
+    for k in range(len(t)):
+        if out and out[-1]["value"] == values[k]:
+            out[-1]["to_s"] = _after(flight, float(t[k]))
+            continue
+        out.append({"from_s": _after(flight, float(t[k])), "to_s": _after(flight, float(t[k])),
+                    "value": values[k]})  # fmt: skip
+    return out
+
+
+def timeline(
+    flight: FlightData, pack: Pack, span: tuple[float, float] | None = None
+) -> dict[str, Any]:
+    """The incident timeline's lanes (spec: Whole-system incident timeline), in seconds
+    after arming, with the first fault that explains the rest. Warning text is the
+    ground station's and stays on this laptop. `span` is not used: the timeline is
+    always the whole flight."""
+    del span
+    reg = Registry.load(pack)
+    rules: Mapping[str, Any] = reg.rules["incident"]
+    results: Mapping[str, str] = reg.rules["commands"]["results"]
+    names = reg.names(flight.firmware)
+    found = events(flight, reg)
+
+    def event(e: Event) -> dict[str, Any]:
+        out: dict[str, Any] = {"at_s": _after(flight, e.t_us), "kind": e.kind,
+                               "words": words(rules, e)}  # fmt: skip
+        if e.end_us is not None:
+            out["to_s"] = _after(flight, e.end_us)
+        return out | dict(e.detail)
+
+    lanes: dict[str, Any] = {
+        "link": [event(e) for e in found if e.kind in ("link_outage", "gcs_unheard")],
+        "receiver": [event(e) for e in found if e.kind.startswith("receiver_")],
+        "errors": [event(e) for e in found if e.kind.startswith("error:")],
+        "battery": [event(e) for e in found if e.kind == "battery_low"],
+        "gnss_lost": [event(e) for e in found if e.kind == "gps_lost"],
+        "params": [event(e) for e in found if e.kind == "param_changed"],
+    }
+    mode = flight.table("MODE")
+    if mode is not None and mode.num_rows:
+        modes: Mapping[str, str] = names.get("modes", {}).get("copter", {})
+        reasons: Mapping[str, str] = names.get("mode_reasons", {})
+        t = _times(mode)
+        rsn = _ints(mode, "Rsn") if "Rsn" in mode.column_names else np.zeros(len(t), np.int64)
+        lanes["mode"] = [
+            {"at_s": _after(flight, float(t[k])),
+             "mode": modes.get(str(int(n)), f"MODE_{int(n)}"),
+             "reason": reasons.get(str(int(rsn[k])), "UNKNOWN")}
+            for k, n in enumerate(_ints(mode, "ModeNum"))
+        ]  # fmt: skip
+    rci2 = flight.table("RCI2")
+    if rci2 is not None and rci2.num_rows and "OMask" in rci2.column_names:
+        overridden = [bool(x) for x in _ints(rci2, "OMask") != 0]
+        lanes["pilot_overrides"] = [s for s in _spans(flight, _times(rci2), overridden)
+                                    if s["value"]]  # fmt: skip
+    mavc = flight.table("MAVC", ["TimeUS", "Cmd", "Res", "SS"])
+    if mavc is not None and mavc.num_rows:
+        lanes["commands"] = [
+            {"at_s": _after(flight, float(t_us)), "command": command_name(int(cmd)),
+             "result": results.get(str(int(res)), str(int(res))), "sender": int(ss)}
+            for t_us, cmd, res, ss in zip(_times(mavc), _ints(mavc, "Cmd"), _ints(mavc, "Res"),
+                                          _ints(mavc, "SS"), strict=True)
+        ]  # fmt: skip
+    warnings: list[dict[str, Any]] = []
+    for session, table in flight.tlog("STATUSTEXT", ["severity", "text"]):
+        t = np.asarray(table.column("TimeUS").to_numpy(zero_copy_only=False), np.float64)
+        sev = _ints(table, "severity")
+        text = table.column("text").to_pylist()
+        mine = _ints(table, "src_sysid") == session["sysid"]
+        warnings += [{"at_s": _after(flight, float(t[k])), "severity": int(sev[k]),
+                      "text": str(text[k])}
+                     for k in np.flatnonzero(mine & np.isfinite(t) & (sev <= 4))]  # fmt: skip
+    lanes["warnings"] = sorted(warnings, key=lambda w: w["at_s"])
+    gps = flight.table("GPS", ["TimeUS", "Status", "I"])
+    if gps is not None and gps.num_rows and "Status" in gps.column_names:
+        rows = _ints(gps, "I") == 0 if "I" in gps.column_names else np.ones(gps.num_rows, bool)
+        lanes["gnss_fix"] = _spans(flight, _times(gps)[rows],
+                                   [int(s) for s in _ints(gps, "Status")[rows]])  # fmt: skip
+    incident = first_fault(found, flight.arm_us, rules["rules"])
+    first: dict[str, Any] | None = None
+    if incident is not None:
+        first = {
+            "chain": [event(e) for e in incident.chain],
+            "main": event(incident.main),
+            "explained": [event(e) for e in incident.explained],
+        }
+    return {
+        "flight_id": flight.id,
+        "armed_s": _after(flight, flight.disarm_us),
+        "lanes": lanes,
+        "first_fault": first,
+    }

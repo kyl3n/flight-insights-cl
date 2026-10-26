@@ -1,0 +1,27 @@
+{
+  "about": "The first fault of a flight's incident (spec: Links, ground station and whole-system faults, Whole-system incident timeline).",
+  "findings": {
+    "incident.first_fault": {
+      "stage": "operations",
+      "title": {
+        "en": "First fault: {first} at {first_at_s} s, leading to {main} at {main_at_s} s",
+        "uk": "Перша несправність: {first} на {first_at_s} с, що призвело до «{main}» на {main_at_s} с"
+      },
+      "action": {
+        "en": "The chain the logs show: {chain}; it also explains {explained} later events. Deal with the first fault first: the rest followed from it. Order and timing point to the cause, but check it against the timeline before acting.",
+        "uk": "Ланцюжок, який показують журнали: {chain}; він також пояснює ще {explained} подальших подій. Спершу усуньте першу несправність: решта випливає з неї. Порядок і час вказують на причину, але перевірте її на часовій шкалі, перш ніж діяти."
+      }
+    },
+    "incident.unexplained": {
+      "stage": "operations",
+      "title": {
+        "en": "{main} at {main_at_s} s, with no earlier sign in the logs that explains it",
+        "uk": "«{main}» на {main_at_s} с, і жодна ранніша ознака в журналах цього не пояснює"
+      },
+      "action": {
+        "en": "Nothing the logs hold led up to it within the rule windows, and it explains {explained} later events. Look for a cause the logs do not record: a cable, a connector, power to a radio or sensor, or the ground station itself.",
+        "uk": "Ніщо в журналах не передувало цьому в межах вікон правил, і воно пояснює ще {explained} подальших подій. Шукайте причину, якої журнали не записують: кабель, роз'єм, живлення радіомодема чи датчика або саму наземну станцію."
+      }
+    }
+  }
+}
