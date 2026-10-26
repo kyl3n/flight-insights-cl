@@ -1153,6 +1153,30 @@ The app assumes every aircraft will lose GNSS at some point, through jamming, sp
 | Failsafes | Copter's dead-reckoning failsafe (`FS_DR_ENABLE`, `FS_DR_TIMEOUT`), the EKF failsafe action and threshold, GNSS glitch settings, and the mode the aircraft ends in |
 | Pilot fallback | A mode that needs no position, such as AltHold, on a switch, and a GNSS-disable switch (aux function 65) set up for drills |
 
+### Readiness checked now
+
+`analyzers/no_gnss_readiness.py`, rules in `knowledge/rules/no_gnss.json` (readiness), each with its ArduPilot 4.7.0 source. It reads the parameters and the platform setup, so it runs on a parameter file as well as a flight.
+
+- **Each area gets a status:** ready, gap (something to fix), none (nothing set up) or unavailable (not in this firmware build). Its facts go with it as evidence, for the readiness screen.
+- **Position without GNSS:** a source set copes without GNSS when one of its horizontal sources is not GNSS (beacons, optical flow, external navigation, wheel encoders). Each source needs its sensor set up (its type parameter). Optical flow also needs a downward rangefinder and `EK3_FLOW_USE` 1.
+- **Switching:** a coping set other than set 1 needs something to select it, an aux function 90 switch. A joystick flown through a ground station drives channels 1 to 4 only (`MANUAL_CONTROL`), so the finding also names the station's source-set command (`MAV_CMD_SET_EKF_SOURCE_SET`).
+- **Heading:** set 1, and each coping set, must keep a heading once GNSS goes: not GPS yaw (2) or the GPS-driven yaw estimator (8), and a compass yaw needs a compass in use.
+- **Height:** reported only. EKF3 falls back to the barometer when its height source is lost.
+- **Wind:** drag fusion is on when `EK3_DRAG_BCOEF_X` or `_Y` is above 1, or `EK3_DRAG_MCOEF` above 0.001. It is unavailable on helicopters and in builds for 1 MB boards. Without it the estimator never dead-reckons, so `FS_DR_ENABLE` and `FS_DR_TIMEOUT` never act.
+- **Failsafes:** the EKF failsafe's action and threshold, and whether the dead-reckoning failsafe can act.
+- **Pilot fallback:** Stabilize, Acro, AltHold or Sport (FlowHold with optical flow) on the flight-mode switch or an aux mode switch. A craft flown from the ground station (`RC_OPTIONS` bit 0) changes modes there. The drill switch (aux 65) is reported.
+- **Findings:**
+  - a set naming sensors not set up (caution);
+  - nothing to select the non-GNSS set (caution);
+  - a heading that goes with GNSS (caution);
+  - drag fusion off (info, or caution when the platform setup says it flies without GNSS);
+  - no position-free mode on a switch (info).
+
+  Each finding carries a procedure. Drag fusion's follows the ArduPilot wiki: mass over frontal and side area, then the drag test flight for `EK3_DRAG_MCOEF`.
+- **Changes to existing parameter checks:**
+  - "no fallback source set" now looks at all three sets, so a third set on visual odometry counts and a second set on GNSS does not;
+  - "dead-reckoning failsafe off" is raised only when drag fusion lets that failsafe act.
+
 ### Performance, from the logs
 
 - **Every GNSS outage is measured:** time to detection, how the estimator responded (lane switch, source switch, failsafe), how far the position estimate drifted (from the jump when GNSS returns, or against optical flow or vision), heading drift, and whether the aircraft got home.
@@ -1186,7 +1210,7 @@ The app assumes every aircraft will lose GNSS at some point, through jamming, sp
   - drift against optical flow or vision during the outage;
   - whether the aircraft got home;
   - trends per airframe;
-  - the readiness review beyond the existing parameter checks;
+  - readiness from the logs (compass health and interference, barometer error) and drag coefficients computed from the take-off weight and measured areas;
   - the recovery card;
   - settings sized from the measured hold (`FS_DR_TIMEOUT`).
 
