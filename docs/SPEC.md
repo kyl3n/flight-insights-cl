@@ -1120,7 +1120,7 @@ Each event records its start and end, class and confidence, the evidence behind 
   - a heading reset from GNSS velocity during spoofing, a safety finding of its own.
 - **Metrics:** time disturbed, fewest satellites, and the 95th-percentile horizontal accuracy.
 - **What leaves the laptop:** times, durations, the class, the channels, test ratios, satellites and accuracy. The metres between position estimates, the altitude gap, GPS time and the status text stay in evidence that cites the fields they came from, so the location policy withholds them from the AI path.
-- **Checked on** five local SITL flights (calm, `SIM_GPS1_JAM`, a 60 m step, an 80 m ramp over 60 s, and 5 satellites), and on synthetic flights for the u-blox status, onboard interference, GPS time, a second receiver and heading resets.
+- **Checked on** committed SITL fixtures with golden tests (`copter-quad-gnss-jam`, `-step` and `-ramp`: jamming; spoofing the estimator rejected; a drift it followed, then the jump back), a local SITL flight on 5 satellites (an obstruction), every other committed fixture (no events), and synthetic flights for the u-blox status, onboard interference, GPS time, a second receiver and heading resets.
 - **Not yet:**
   - per-satellite C/N0 and raw measurements;
   - the inertial prediction and the GPS course against the compass;
