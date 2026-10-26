@@ -1,0 +1,107 @@
+{
+  "about": "Flying without GNSS: each outage and drill, measured from the estimator's own status (spec: Flying without GNSS, Performance from the logs). Rules and their sources in knowledge/rules/no_gnss.json.",
+  "metrics": {
+    "no_gnss.hold_s": {
+      "name": {
+        "en": "Position held without GNSS",
+        "uk": "Утримання положення без GNSS"
+      },
+      "unit": "s",
+      "direction": "higher",
+      "definition": {
+        "en": "The shortest time the estimator kept a position the aircraft could fly on after GNSS went, over the flight's outages and drills: absolute, or relative from optical flow or vision. An outage it came through still holding one counts its whole length, so the true hold is at least that.",
+        "uk": "Найкоротший час, протягом якого оцінювач зберігав положення, придатне для польоту, після зникнення GNSS, серед втрат і тренувань польоту: абсолютне або відносне від оптичного потоку чи візуальної навігації. Втрата, яку він пережив, зберігши таке положення, рахується всією тривалістю, тож справжнє утримання не менше за неї."
+      },
+      "method": {
+        "en": "From the primary core's solution status (XKF4.SS, where C is PI): the time from the outage's start until its horizontal absolute position flag (bit 4) clears, or the whole outage when that or the relative position flag (bit 3) stayed set throughout.",
+        "uk": "За станом розв'язку основного ядра (XKF4.SS, де C дорівнює PI): час від початку втрати до скидання прапорця горизонтального абсолютного положення (біт 4) або вся втрата, якщо цей прапорець чи прапорець відносного положення (біт 3) залишався встановленим увесь час."
+      },
+      "messages": ["XKF4", "GPS"],
+      "zones": {
+        "target": [30, null],
+        "caution": [10, 30],
+        "out": [null, 10]
+      },
+      "source": {
+        "kind": "app",
+        "title": "The app's bands: 30 s is what a multirotor with no other position source holds at best (ArduPilot forum, spec: Dead-reckoning range) and FS_DR_TIMEOUT's default; under 10 s the aircraft has little time to switch to another source"
+      }
+    },
+    "no_gnss.detection_s": {
+      "name": {
+        "en": "Time to notice GNSS was gone",
+        "uk": "Час, щоб помітити зникнення GNSS"
+      },
+      "unit": "s",
+      "direction": "lower",
+      "definition": {
+        "en": "The longest time, over the flight's outages, from GNSS going to the estimator no longer using it.",
+        "uk": "Найдовший час серед втрат польоту від зникнення GNSS до моменту, коли оцінювач перестав його використовувати."
+      },
+      "method": {
+        "en": "From the primary core's solution status (XKF4.SS): the time from the outage's start until its using-GPS flag (bit 13) clears. Outages it never used GNSS for (another source set) are left out.",
+        "uk": "За станом розв'язку основного ядра (XKF4.SS): час від початку втрати до скидання прапорця використання GPS (біт 13). Втрати, коли GNSS не використовувався (інший набір джерел), не враховуються."
+      },
+      "messages": ["XKF4", "GPS"],
+      "zones": {
+        "target": [null, 5],
+        "caution": [5, 10],
+        "out": [10, null]
+      },
+      "source": {
+        "kind": "app",
+        "title": "The app's bands: ArduPilot's estimator stops using GNSS about 4 s after it goes (local SITL, rules/no_gnss.json); much longer means it kept fusing a position that was no longer there"
+      }
+    },
+    "no_gnss.drift_rate": {
+      "name": {
+        "en": "Drift without GNSS",
+        "uk": "Дрейф без GNSS"
+      },
+      "unit": "m/min",
+      "direction": "lower",
+      "definition": {
+        "en": "How far the position estimate had drifted from GNSS when it returned, per minute of outage: the worst over the flight's outages of 10 s or more. A landing tolerance divided by it is how long the aircraft can fly without GNSS.",
+        "uk": "Наскільки оцінка положення відійшла від GNSS на момент його повернення, у розрахунку на хвилину втрати: найгірша серед втрат польоту тривалістю від 10 с. Допуск посадки, поділений на неї, — це скільки апарат може летіти без GNSS."
+      },
+      "method": {
+        "en": "At the first sample with a 3D fix after the outage, the horizontal distance between the receiver's position and the estimator's, as local tracks from one origin on this laptop, divided by the outage's length in minutes.",
+        "uk": "У першому зразку з 3D-фіксацією після втрати — горизонтальна відстань між положенням приймача й оцінювача, як локальні траєкторії від одного початку на цьому ноутбуці, поділена на тривалість втрати у хвилинах."
+      },
+      "messages": ["GPS", "POS"],
+      "zones": {
+        "target": [null, 5],
+        "caution": [5, 30],
+        "out": [30, null]
+      },
+      "source": {
+        "kind": "app",
+        "title": "The app's bands against a 10 m landing tolerance: under 5 m a minute gives two minutes or more to get home; past 30 m a minute, under 20 s"
+      }
+    }
+  },
+  "findings": {
+    "no_gnss.position_held": {
+      "stage": "navigation",
+      "title": {
+        "en": "{what} at {start_s} s for {duration_s} s: the aircraft kept a position",
+        "uk": "{what} на {start_s} с протягом {duration_s} с: апарат зберіг положення"
+      },
+      "action": {
+        "en": "What happened: {response}. This is the behaviour to keep. Repeat the drill now and then, at a safe height, so a change to the build or the compass shows up.",
+        "uk": "Що сталося: {response}. Цю поведінку варто зберегти. Повторюйте тренування час від часу на безпечній висоті, щоб помітити зміни в збірці чи компасі."
+      }
+    },
+    "no_gnss.position_lost": {
+      "stage": "navigation",
+      "title": {
+        "en": "{what} at {start_s} s for {duration_s} s: the estimator gave up its position after {hold_s} s",
+        "uk": "{what} на {start_s} с протягом {duration_s} с: оцінювач втратив положення через {hold_s} с"
+      },
+      "action": {
+        "en": "What happened: {response}. Without another position source the aircraft cannot hold or navigate once GNSS goes. Fit optical flow with a rangefinder, or visual odometry, set them up as a second estimator source set (EK3_SRC2_*) with a switch to change to it (aux function 90), calibrate drag fusion so the estimator knows the wind, and practise with the GPS-disable switch (aux function 65) at a safe height.",
+        "uk": "Що сталося: {response}. Без іншого джерела положення апарат не може утримуватися чи навігувати після зникнення GNSS. Встановіть оптичний потік із далекоміром або візуальну одометрію, налаштуйте їх як другий набір джерел оцінювача (EK3_SRC2_*) з перемикачем (допоміжна функція 90), відкалібруйте злиття аеродинамічного опору, щоб оцінювач знав вітер, і тренуйтеся з перемикачем вимкнення GPS (допоміжна функція 65) на безпечній висоті."
+      }
+    }
+  }
+}
