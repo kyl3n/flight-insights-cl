@@ -26,12 +26,21 @@ def definitions(pack: Pack = PACK) -> Iterator[tuple[str, str, dict[str, Any]]]:
             yield version, name, message
 
 
-def holds_position(message: dict[str, Any]) -> bool:
-    return any(
-        f["units"] in RULES["position_units"]
-        or any(t in f["type"] for t in RULES["position_types"])
-        for f in message["fields"].values()
+NAMED = re.compile(RULES["position_names"])
+
+
+def is_position(name: str, field: str, spec: dict[str, Any]) -> bool:
+    """By its units or type, its name, or the rules' list of unitless positions."""
+    return (
+        spec["units"] in RULES["position_units"]
+        or any(t in spec["type"] for t in RULES["position_types"])
+        or bool(NAMED.match(field))
+        or field in RULES["unitless_positions"].get(name, {})
     )
+
+
+def holds_position(name: str, message: dict[str, Any]) -> bool:
+    return any(is_position(name, field, f) for field, f in message["fields"].items())
 
 
 def defined(message: str, field: str) -> bool:
@@ -48,7 +57,7 @@ def test_every_message_that_holds_a_position_is_classified() -> None:
         {
             f"{version} {name}"
             for version, name, message in definitions()
-            if holds_position(message)
+            if holds_position(name, message)
             and name not in RULES["position_messages"]
             and name not in RULES["blocked_messages"]
         }
@@ -61,11 +70,36 @@ def test_no_position_field_is_ever_readable() -> None:
         policy = Policy.load(PACK, version)
         for name, message in PACK.log_messages(version).items():
             for field, spec in message["fields"].items():
-                position = spec["units"] in RULES["position_units"] or any(
-                    t in spec["type"] for t in RULES["position_types"]
-                )
-                if position:
+                if is_position(name, field, spec):
                     assert not policy.field(name, field).readable, (version, name, field)
+
+
+def test_every_unitless_position_is_a_real_field_with_no_position_unit() -> None:
+    for name, fields in RULES["unitless_positions"].items():
+        assert name in RULES["position_messages"], name
+        for field, holds in fields.items():
+            assert holds and defined(name, field), f"{name}.{field}"
+            for _, n, m in definitions():
+                if n == name and field in m["fields"]:
+                    assert m["fields"][field]["units"] not in RULES["position_units"]
+
+
+def test_a_coordinate_with_no_position_unit_is_still_denied() -> None:
+    policy = Policy.load(PACK, VERSIONS[-1])
+    for name, field in (
+        ("MAVC", "X"),
+        ("MAVC", "Y"),
+        ("MAVC", "Z"),
+        ("VNKF", "Lat"),
+        ("VNKF", "Lon"),
+        ("RGPJ", "Lat"),
+        ("RGPJ", "Lon"),
+        ("RGPJ", "Alt"),
+    ):
+        assert not policy.field(name, field).readable, (name, field)
+    # What a command did, and who sent it, stays readable.
+    for field in ("Cmd", "Res", "SS", "SC"):
+        assert policy.field("MAVC", field).readable, field
 
 
 ALTITUDE = re.compile(r"(?i)alt|hgt|height|elev")
