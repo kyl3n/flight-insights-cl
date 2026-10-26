@@ -892,6 +892,39 @@ Failsafe events come from the per-subsystem error codes in the onboard log, the 
 
 **Did the failsafe work?** Each event is checked: the action matched the configuration, the trigger time matched the timeout, the vehicle recovered or landed as intended, and the failsafe option bits combined as expected with any other failsafe active at the time.
 
+- **Events.** Each failsafe runs from its error (ERR, `FAILSAFE_OCCURRED`) to the one that resolves it. A second error before then is an event of its own, because the firmware acts on it again: a battery's critical stage after its low stage, or another monitor's. Failsafes that fire while disarmed are not judged.
+- **The response the log shows.** The firmware acts in the same loop that logs the error, so the response is the first of these within 1 s:
+  - a mode change logged with the failsafe's reason (`MODE.Rsn`, ModeReason, from the generated enum tables);
+  - a disarm logged with the failsafe's method (`ARM.Method`);
+  - otherwise the aircraft carried on.
+- **The response the settings call for** is rebuilt from ArduCopter's own source, kept in the rule pack (`rules/failsafes.json`) with the source lines it came from. Copter only; Plane and QuadPlane come with Phase 3.
+  1. **The setting:** `FS_THR_ENABLE`, `FS_GCS_ENABLE` (numbered differently from the radio's), the battery stage actions (`BATT*_FS_LOW_ACT` and `BATT*_FS_CRT_ACT` on every monitor), or `FS_EKF_ACTION`.
+  2. **The firmware's deviations, in its order:**
+     - on the ground it disarms: in the arming delay, landed, in Stabilize or Acro with the throttle at zero, or in Auto before the mission started;
+     - while landing, with a battery failsafe already active whose action is Land or Terminate, it keeps landing;
+     - with `FS_OPTIONS` "continue if landing" it keeps landing; for the battery failsafe, only when its own action is not None;
+     - other `FS_OPTIONS` bits let it carry on: in Auto (not Auto RTL), in a Guided mode, or under pilot control for the GCS failsafe.
+  3. **The modes it tries in turn**, each falling back to the next when it cannot start: SmartRTL, then RTL, then Land; Auto's landing sequence, then RTL; Brake, then Land. Asking for the mode it is already in logs no change.
+  4. **The EKF failsafe** acts only in modes that need a position, unless `FS_EKF_ACTION` is 3. It lands instead of holding altitude when the radio is lost too.
+- **What the log leaves open counts every way.** Some things are not logged: whether RTL was already landing, which battery stage fired, or whether the throttle had been at zero for the firmware's 0.4 s debounce. These are read where the log holds them:
+  - the land detector's events (EV);
+  - the mission command running (CMD);
+  - the pilot's throttle (`CTUN.ThI`);
+  - battery health (`BAT.H`), since a monitor with no healthy reading for 5 s raises a failsafe with no action.
+
+  What is still open widens the responses allowed. It lowers the finding's confidence only where it could change the answer. A response is never called wrong when a reading of the log allows it.
+- **Battery stages.** A first battery failsafe is most likely the low stage, and a later one the critical stage. Each monitor's stage only rises, so with one monitor a later failsafe is a higher stage than the one before could have been.
+- **Findings:**
+  - **As configured** (info): a first response the settings allow.
+  - **Fell back** (caution): a later mode, so the first could not start. Examples are SmartRTL with no return path, or RTL with no home.
+  - **Unexpected** (out): no reading of the log allows it. Look for a parameter changed in flight, a script, or a firmware the check does not cover.
+
+  That a failsafe fired at all stays the system health finding. Evidence names what was read. Mission commands are position messages, so evidence that read them is withheld from AI packets by the location policy.
+- **Next:**
+  - the trigger time against its timeout, measured from the onset of loss (the receiver's valid-input flag, the ground station's heartbeats in the tlog, the battery voltage under its threshold, the estimator's variances);
+  - failsafes that should have fired but did not;
+  - lead time and near misses, as above.
+
 ### RF early warning
 
 - **RC link margin (ExpressLRS).** Margin is RSSI minus the sensitivity limit for the active packet rate, for example −108 dBm at 250 Hz and −105 dBm at 500 Hz on 2.4 GHz. ExpressLRS suggests warning 5 to 10 dB above the limit, and notes that link quality falling while RSSI still has margin means interference rather than range ([ExpressLRS signal health](https://www.expresslrs.org/info/signal-health/)). SNR is checked against ExpressLRS's own per-rate thresholds.
