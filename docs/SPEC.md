@@ -1076,6 +1076,7 @@ Claude is called on every analysis, but it only sees derived measurements and a 
   - **The field rules are knowledge-pack data** (`knowledge/rules/scrubber.json`): messages that hold a position and the few fields of each that may be read, messages blocked whole, location-revealing fields and units, the ambient readings to round, and the removed parameters.
   - **Every message is covered.** A test checks the rules against every message each release can log (`knowledge/logs`, generated from ArduPilot's own log metadata, because 4.7 writes a message's definition only when it logs that message). A release that adds a message holding a position fails the build until the message is classified.
   - **On the AI path, every field is read through one gate** that denies anything the release does not define.
+  - **Analyzer evidence goes through the same gate.** Each piece of evidence names the log fields it read, and its summary and values reach a packet only when every one of those fields is allowed whole, in a message the evidence cites. A field the gate denies or rounds (a magnetic field, a GPS week or time, an absolute altitude, an ambient pressure), a field its messages do not define, or a message with any such field when no fields are named, withholds that evidence's summary and values; its reference stays, so the finding still says what it rests on. A metric measured from withheld evidence is left out. Evidence about parameters names parameters, and is withheld when one is a removed parameter.
 - **Proof, not promise.** A test corpus plants known coordinates in every message type; the build fails if any outgoing packet holds a value matching them, including scaled-integer forms. A self-test runs at start-up, and AI calls stay blocked until it passes.
   - **Shared corpus:** clean and leaky packets in `tests/scrubber/`, read by both the engine's and the shell's tests, which must give the same verdict on each.
   - **Its own CI check:** the **Scrubber gate**, zero tolerance.
@@ -1089,8 +1090,8 @@ Claude is called on every analysis, but it only sees derived measurements and a 
   - the aircraft from the fingerprint;
   - the platform's answers that are choices, numbers or yes/no (never free text);
   - flight duration, hover time and time in each mode;
-  - every metric;
-  - every finding with the evidence it cites, under packet-local references (no ids or hashes);
+  - every metric whose evidence is not withheld;
+  - every finding with the evidence it cites, under packet-local references (no ids or hashes), evidence withheld as above;
   - the parameters a person tunes or configures, with calibration, learned values, counters, hardware IDs and every removed parameter left out.
 
   A chat packet also holds `question` (at most 500 characters, as typed) and `conversation` (up to 20 earlier turns, each at most 2000 characters, as asked and as answered). Both are checked like every other text in the packet.
