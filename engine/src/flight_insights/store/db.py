@@ -12,7 +12,7 @@ import re
 import secrets
 import sqlite3
 import threading
-from collections.abc import Generator, Mapping
+from collections.abc import Generator, Iterable, Iterator, Mapping, Sequence
 from contextlib import contextmanager
 from importlib import resources
 from pathlib import Path
@@ -29,6 +29,66 @@ RECORD_COLUMNS = ("id", "created_hlc", "updated_hlc", "version", "laptop_id")
 
 class StoreError(RuntimeError):
     """The store could not be opened, or a change could not be made."""
+
+
+class Rows:
+    """A statement's results, read in full while the store's lock was held."""
+
+    def __init__(
+        self, rows: list[Any], description: Any, rowcount: int, lastrowid: int | None
+    ) -> None:
+        self._rows = iter(rows)
+        self.description = description
+        self.rowcount = rowcount
+        self.lastrowid = lastrowid
+
+    def __iter__(self) -> Iterator[Any]:
+        return self._rows
+
+    def fetchone(self) -> Any:
+        return next(self._rows, None)
+
+    def fetchall(self) -> list[Any]:
+        return list(self._rows)
+
+
+class Connection:
+    """The database connection, one statement at a time across threads.
+
+    The engine's request threads share one connection, and sqlite3 connections are not
+    safe for concurrent use: two threads stepping statements at once corrupt the
+    connection's statement cache. Every statement here runs, and has its rows read in
+    full, under the store's lock, which a transaction holds from BEGIN to COMMIT, so no
+    thread interleaves with another's statement or sees another's open transaction.
+    """
+
+    def __init__(self, raw: sqlite3.Connection, lock: threading.RLock) -> None:
+        self._raw = raw
+        self._lock = lock
+
+    def execute(self, sql: str, params: Sequence[Any] | Mapping[str, Any] = ()) -> Rows:
+        with self._lock:
+            cur = self._raw.execute(sql, params)
+            rows = cur.fetchall() if cur.description is not None else []
+            return Rows(rows, cur.description, cur.rowcount, cur.lastrowid)
+
+    def executemany(self, sql: str, params: Iterable[Sequence[Any]]) -> Rows:
+        with self._lock:
+            cur = self._raw.executemany(sql, params)
+            return Rows([], None, cur.rowcount, cur.lastrowid)
+
+    def executescript(self, script: str) -> None:
+        with self._lock:
+            self._raw.executescript(script)
+
+    @property
+    def in_transaction(self) -> bool:
+        with self._lock:
+            return self._raw.in_transaction
+
+    def close(self) -> None:
+        with self._lock:
+            self._raw.close()
 
 
 def new_id() -> str:
@@ -53,11 +113,11 @@ class Store:
 
     def __init__(self, conn: sqlite3.Connection, laptop_id: str, laptop_name: str | None) -> None:
         """Use open_store(). Brings the schema up to date and records this laptop."""
-        self.conn = conn
+        self._lock = threading.RLock()  # one thread at a time; nested calls join in
+        self.conn = Connection(conn, self._lock)
         self.laptop_id = laptop_id
         self.clock = HybridClock(laptop_id)
         self._depth = 0
-        self._lock = threading.RLock()  # one thread at a time; nested calls join in
         self._applying = 0  # inside sync's apply: changes from another laptop, not captured
         self._record_tables: frozenset[str] = frozenset()
         self._tables: frozenset[str] = frozenset()
@@ -85,7 +145,7 @@ class Store:
     # --- transactions ---------------------------------------------------------------
 
     @contextmanager
-    def transaction(self) -> Generator[sqlite3.Connection]:
+    def transaction(self) -> Generator[Connection]:
         """All of it or none of it. Nested calls join the outermost transaction; other
         threads wait until it ends."""
         with self._lock:
@@ -183,7 +243,7 @@ class Store:
     # --- sync capture ---------------------------------------------------------------
 
     @contextmanager
-    def applying(self) -> Generator[sqlite3.Connection]:
+    def applying(self) -> Generator[Connection]:
         """A transaction applying another laptop's changes: they are not captured to be
         sent again, and foreign keys are checked when it commits, so records that refer
         to each other can arrive in one object in any order."""
@@ -203,7 +263,7 @@ class Store:
         )
 
     def _pending(
-        self, conn: sqlite3.Connection, table: str, rid: str, field: str, base: str | None
+        self, conn: Connection, table: str, rid: str, field: str, base: str | None
     ) -> None:
         # The first change since the last object keeps the field's earlier clock.
         conn.execute(
