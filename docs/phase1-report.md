@@ -1,12 +1,12 @@
 # Phase 1 report: Copter filters and health
 
-Status on 2026-10-25. **Phase 1 is built and green in CI** (PRs #27–#88, including the step-by-step procedures of section 2.1). Two of its three gate checks pass. The third passes after three clean nights of the soak on the real drive:
+Status on 2026-10-26. **Phase 1 is built, green in CI, and its gate passes** (PRs #27–#89, including the step-by-step procedures of section 2.1):
 
-| Gate check | State | What it needs |
+| Gate check | State | Still to come |
 | --- | --- | --- |
 | Zero scrubber leaks | **passes**, in CI on every change | nothing |
-| Sync soak test clean | clean on a local folder drive, and on the real test drive on 2026-10-25 | **three clean nightly runs in a row** (your decision), from 26 October |
-| Filter prediction on target | **passes**, closed on 2026-10-25 against the provisional target per class (your decision) | nothing; the first HL2 flight and the first flight with fast notch logging confirm the targets later |
+| Sync soak test clean | **passes**: three clean runs in a row on the real test drive, 25–26 October, nine seeds (your decision) | nothing; the nightly run keeps watching |
+| Filter prediction on target | **passes**, closed on 2026-10-25 against the provisional target per class (your decision) | the first HL2 flight and the first flight with fast notch logging confirm the targets |
 
 The roadmap line for Phase 1 (`docs/SPEC.md`, "Roadmap and milestones"):
 
@@ -57,13 +57,15 @@ The soak found three real divergences while it was built (#62), all fixed, and a
 - **The first two runs stopped at their first request** with a bare 404: the drive ID secret held more than the test drive's ID. #87 builds the sign-in helper ready to run. #88 adds Google's own reason to every Drive error, and makes the soak check that the test account belongs to the drive before writing.
 - **With the ID corrected, the first full run was clean** (run 40191572447: seed 1, 30 rounds, 3 laptops and one enrolled mid-run, 18 minutes). The result: "sync soak clean: 77 actions, 13 bad objects refused".
 
-**The gate passes after three clean nights in a row** (your decision, 2026-10-25):
+**The gate: three clean runs in a row** (your decision, 2026-10-25, in place of three nights). They were started by hand one after another, each with new seeds, so they cover nine different mixes of work. Every seed ran 30 rounds with 3 laptops and one enrolled mid-run, and every one ended "sync soak clean":
 
-| Night | Run | Seeds clean |
-| --- | --- | --- |
-| 2026-10-26 | | |
-| 2026-10-27 | | |
-| 2026-10-28 | | |
+| Run | Seeds | Actions per seed | Bad objects refused per seed |
+| --- | --- | --- | --- |
+| 40236061319 | 1, 2, 3 | 77, 71, 77 | 13, 7, 5 |
+| 40239705952 | 4, 5, 6 | 79, 74, 66 | 13, 9, 8 |
+| 40243754947 | 7, 8, 9 | 74, 70, 74 | 9, 13, 13 |
+
+**Result: the gate passes.** The nightly run (01:41 UTC, seeds 1 to 3) keeps watching, and a failure there is handled like any other bug.
 
 ### 1.3 Filter prediction
 
@@ -166,6 +168,7 @@ The next flight grades the change and runs the procedure's checks. Every Copter 
 | Procedure rehearsal in SITL | #86 |
 | The Google sign-in helper, built ready to run | #87 |
 | Drive errors carry Google's reason; the soak checks its drive first | #88 |
+| The AI reply schema tells Claude each text and list limit | #89 |
 
 **The SITL rehearsal** (`tools/procedures/rehearse.py`) carries out the procedures as a person would:
 - it flies a weaker setup, loads the plan's files with the refreshes and reboots the procedure gives, and flies the test flight;
@@ -185,11 +188,20 @@ Building it found the four app bugs fixed in #82, #84 and #85, and the ordering 
 - **Then the operations stage:** the arming charge check and the geofence.
 - **A question:** the ESC firmware, which decides whether Extended DShot Telemetry can be offered.
 
+### 2.2 The AI layer on the real Claude API
+
+With the Claude API key added on 2026-10-25, the live smoke test (#57) sent a simulator flight's analysis and one chat question through both location checks.
+- **The first run** reached the API but lost its analysis to our own check: one question's reason was longer than the 300 characters the reply allows. The structured-output schema cannot carry length limits, so Claude had never been told them. #89 states each limit in the field's description, asking for text at 80% of its limit, and the local check is unchanged.
+- **With #89, both parts were accepted:**
+  - **analysis:** `claude-opus-5-5`, 12 local tool calls, 0.37 USD. It proposed 12 changes that the plan validated: 5 ready for the next step, 2 left for a person where they disagree with the app's findings, and 5 waiting for the filters stage;
+  - **chat:** `claude-sonnet-5-5`, 0.06 USD;
+  - **packets:** 14 built, all passing both checks before they were sent.
+
+The smoke test now runs every night.
+
 ## 3. What waits on the team
 
-Nothing blocks the gate: the nightly soak runs on its own. Neither of these holds it up:
-1. **An HL2 flight and a flight with fast notch logging,** when they are flown, to confirm the filter targets (section 1.3). Upload them to the session as before. They are never committed or shown.
-2. **The Claude API key** as the `ANTHROPIC_API_KEY` GitHub secret. It turns on the nightly live smoke test from #57, which skips itself without the key.
+Nothing. When they are flown, these confirm the filter targets (section 1.3) without holding anything up: an HL2 flight, and a flight with fast notch logging on. Upload them to the session as before. They are never committed or shown.
 
 ## 4. Open follow-ups
 

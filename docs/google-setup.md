@@ -86,7 +86,7 @@ The token stays valid while the account exists and its access is not revoked. If
 ## 7. Check it
 
 1. **Actions → Sync soak on the drive → Run workflow**, with the defaults. It should end with "sync soak clean" for each seed, and the test drive gains `soak-<run>-<seed>` folders.
-2. After that it runs every night at 01:41 UTC. Clean runs on three nights in a row are the Phase 1 sync gate.
+2. After that it runs every night at 01:41 UTC. Three clean runs in a row, started by hand, are the Phase 1 sync gate; the nightly runs keep watching after that.
 3. On a laptop with a new installer: **Sync → Sign in with Google**, choose the fleet's drive, and **Set up a new fleet** on the first laptop. The 24 recovery words go to an admin, who keeps them offline in two places. Other laptops then join from their own Sync view.
 
 ## Network
