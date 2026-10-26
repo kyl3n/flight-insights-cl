@@ -1,5 +1,5 @@
 {
-  "about": "The tune check (spec: Copter analyzers, 'Rate-loop tune'): how closely each axis's rate follows its target through the pilot's stick inputs.",
+  "about": "The tune check and the rate loop's responses (spec: Copter analyzers, 'Rate-loop tune'): how closely each axis's rate follows its target through the pilot's stick inputs, and how the rate loop answers its target across frequency and to a step.",
   "metrics": {
     "tune.tracking_error_roll": {
       "name": {
@@ -81,6 +81,426 @@
         "kind": "baseline",
         "title": "No universal range: judged against this airframe's own flights of the same tune-check profile and payload"
       }
+    },
+    "tune.bandwidth_roll": {
+      "name": {
+        "en": "Roll rate loop bandwidth",
+        "uk": "Смуга пропускання контуру швидкості крену"
+      },
+      "unit": "Hz",
+      "direction": "higher",
+      "definition": {
+        "en": "The highest frequency the roll rate loop still follows its target at, before its response falls 3 dB (to 71%). A wider bandwidth follows quick inputs and rejects gusts sooner; a heavy aircraft or soft gains narrow it.",
+        "uk": "Найвища частота, на якій контур швидкості крену ще відстежує ціль, перш ніж відповідь падає на 3 дБ (до 71%). Ширша смуга відстежує швидкі рухи й раніше гасить пориви; важкий апарат чи м'які коефіцієнти її звужують."
+      },
+      "method": {
+        "en": "From every stretch that measures the roll rate loop alone (a stick mode, above 2 m, no gap in the log, PIDR not saturated within 0.25 s), with PIDR and ANG logged at 200 Hz or more (LOG_BITMASK bits 0 and 12). The loop's own target and measured rate are PIDR.Tar and PIDR.Act. Through the attitude loop, gusts move the target as well as the rate, so the response is read through the rate of the attitude target (ANG.DesRoll), which the stick sets and gusts do not. The frequency response H = Giy/Gix from Welch cross-spectra (5 s Hann windows, half overlapped, at least 8), where i is that instrument, x the target and y the rate. Each bin's random error is estimated from the instrument's coherence with the target and with the rate and the number of windows; the measured band runs up from 0.3 Hz to the first bin whose error is over 10%. The first measured frequency where |H| drops under 0.707, with a seeded 95% bootstrap interval over the windows.",
+        "uk": "З кожного відрізка, що вимірює лише контур швидкості крену (режим стіків, вище 2 м, без пропусків у журналі, PIDR не в насиченні в межах 0,25 с), з PIDR і ANG від 200 Гц (LOG_BITMASK біти 0 і 12). Власні ціль і виміряна швидкість контуру — PIDR.Tar і PIDR.Act. Через контур положення пориви рухають і ціль, і швидкість, тож відповідь читається через швидкість цільового положення (ANG.DesRoll), яку задає стік, а не пориви. Частотна характеристика H = Giy/Gix із взаємних спектрів Велча (вікна Ганна 5 с з половинним перекриттям, щонайменше 8), де i — цей інструмент, x — ціль, y — швидкість. Випадкова похибка кожної частоти оцінюється з когерентності інструмента з ціллю і зі швидкістю та кількості вікон; виміряна смуга йде від 0,3 Гц до першої частоти з похибкою понад 10%. Перша виміряна частота, де |H| падає нижче 0,707, з відтворюваним 95% бутстреп-інтервалом за вікнами."
+      },
+      "messages": [
+        "PIDR",
+        "ANG",
+        "MODE",
+        "CTUN"
+      ],
+      "source": {
+        "kind": "baseline",
+        "title": "No universal range: judged against this airframe's own flights of the same tune-check profile and payload"
+      }
+    },
+    "tune.sensitivity_peak_roll": {
+      "name": {
+        "en": "Roll rate loop sensitivity peak",
+        "uk": "Пік чутливості контуру швидкості крену"
+      },
+      "unit": "",
+      "direction": "lower",
+      "definition": {
+        "en": "How much the roll rate loop can amplify a disturbance at its worst frequency (Ms, the peak of |1 − H|). 1 amplifies nothing; under 2 is a reasonable margin; above it the loop is close to oscillating, and a heavier payload or a gust can tip it over.",
+        "uk": "Наскільки контур швидкості крену може підсилити збурення на найгіршій частоті (Ms, пік |1 − H|). 1 нічого не підсилює; до 2 — розумний запас; вище контур близький до коливань, і важчий вантаж чи порив можуть їх викликати."
+      },
+      "method": {
+        "en": "From every stretch that measures the roll rate loop alone (a stick mode, above 2 m, no gap in the log, PIDR not saturated within 0.25 s), with PIDR and ANG logged at 200 Hz or more (LOG_BITMASK bits 0 and 12). The loop's own target and measured rate are PIDR.Tar and PIDR.Act. Through the attitude loop, gusts move the target as well as the rate, so the response is read through the rate of the attitude target (ANG.DesRoll), which the stick sets and gusts do not. The frequency response H = Giy/Gix from Welch cross-spectra (5 s Hann windows, half overlapped, at least 8), where i is that instrument, x the target and y the rate. Each bin's random error is estimated from the instrument's coherence with the target and with the rate and the number of windows; the measured band runs up from 0.3 Hz to the first bin whose error is over 10%. The peak of |1 − H| over the measured band, given only when the rate loop has no feed-forward (ATC_RAT_RLL_FF and ATC_RAT_RLL_D_FF both 0, Copter's default), when it is the loop's sensitivity peak, and only when the band reaches 1.2 times its frequency with |1 − H| falling to 90% of it on the way: a peak still rising at the top of the band lies above what the stick inputs measured. A seeded 95% bootstrap interval over the windows.",
+        "uk": "З кожного відрізка, що вимірює лише контур швидкості крену (режим стіків, вище 2 м, без пропусків у журналі, PIDR не в насиченні в межах 0,25 с), з PIDR і ANG від 200 Гц (LOG_BITMASK біти 0 і 12). Власні ціль і виміряна швидкість контуру — PIDR.Tar і PIDR.Act. Через контур положення пориви рухають і ціль, і швидкість, тож відповідь читається через швидкість цільового положення (ANG.DesRoll), яку задає стік, а не пориви. Частотна характеристика H = Giy/Gix із взаємних спектрів Велча (вікна Ганна 5 с з половинним перекриттям, щонайменше 8), де i — цей інструмент, x — ціль, y — швидкість. Випадкова похибка кожної частоти оцінюється з когерентності інструмента з ціллю і зі швидкістю та кількості вікон; виміряна смуга йде від 0,3 Гц до першої частоти з похибкою понад 10%. Пік |1 − H| у виміряній смузі, лише коли в контурі швидкості немає прямого зв'язку (ATC_RAT_RLL_FF і ATC_RAT_RLL_D_FF обидва 0, стандартно для Copter), бо тоді це пік чутливості контуру, і лише коли смуга сягає 1,2 його частоти, а |1 − H| дорогою спадає до 90% від нього: пік, що ще зростає на верхньому краю смуги, лежить вище за те, що виміряли рухи стіків. Відтворюваний 95% бутстреп-інтервал за вікнами."
+      },
+      "messages": [
+        "PIDR",
+        "ANG",
+        "MODE",
+        "CTUN"
+      ],
+      "zones": {
+        "target": [
+          null,
+          2.0
+        ],
+        "caution": [
+          2.0,
+          null
+        ]
+      },
+      "source": {
+        "kind": "research",
+        "title": "Åström and Murray, Feedback Systems (2008), section 12.2: reasonable sensitivity peaks are 1.2 to 2"
+      }
+    },
+    "tune.rise_time_roll": {
+      "name": {
+        "en": "Roll rate step rise time",
+        "uk": "Час наростання швидкості крену на стрибок"
+      },
+      "unit": "ms",
+      "direction": "lower",
+      "definition": {
+        "en": "How long the roll rate takes to go from 10% to 90% of a step in its target. Shorter is a more responsive aircraft; heavy aircraft and low gains are slower.",
+        "uk": "Скільки часу швидкість крену іде від 10% до 90% стрибка цілі. Коротший — чутливіший апарат; важкі апарати й низькі коефіцієнти повільніші."
+      },
+      "method": {
+        "en": "From every stretch that measures the roll rate loop alone (a stick mode, above 2 m, no gap in the log, PIDR not saturated within 0.25 s), with PIDR and ANG logged at 200 Hz or more (LOG_BITMASK bits 0 and 12). The loop's own target and measured rate are PIDR.Tar and PIDR.Act. Through the attitude loop, gusts move the target as well as the rate, so the response is read through the rate of the attitude target (ANG.DesRoll), which the stick sets and gusts do not. The step response: the 1.5 s impulse response from the instrumental-variable form of the Wiener-Hopf equations (the instrument's correlations with the target and with the rate, with 0.1% diagonal loading), summed. Given only when the frequency response is measured past the bandwidth: a step's rise and overshoot rest on the response up to it and beyond. Its final level is the mean of its last 0.45 s; the figure is 10% to 90% of the step's final level, with a seeded 95% bootstrap interval over 5 s blocks.",
+        "uk": "З кожного відрізка, що вимірює лише контур швидкості крену (режим стіків, вище 2 м, без пропусків у журналі, PIDR не в насиченні в межах 0,25 с), з PIDR і ANG від 200 Гц (LOG_BITMASK біти 0 і 12). Власні ціль і виміряна швидкість контуру — PIDR.Tar і PIDR.Act. Через контур положення пориви рухають і ціль, і швидкість, тож відповідь читається через швидкість цільового положення (ANG.DesRoll), яку задає стік, а не пориви. Перехідна характеристика: імпульсна характеристика тривалістю 1,5 с з рівнянь Вінера — Гопфа у формі інструментальних змінних (кореляції інструмента з ціллю і зі швидкістю, з діагональним навантаженням 0,1%), підсумована. Лише коли частотну характеристику виміряно за межу смуги пропускання: наростання й перерегулювання залежать від відповіді до неї і вище. Її кінцевий рівень — середнє останніх 0,45 с; показник — від 10% до 90% кінцевого рівня стрибка, з відтворюваним 95% бутстреп-інтервалом за блоками по 5 с."
+      },
+      "messages": [
+        "PIDR",
+        "ANG",
+        "MODE",
+        "CTUN"
+      ],
+      "source": {
+        "kind": "baseline",
+        "title": "No universal range: judged against this airframe's own flights of the same tune-check profile and payload"
+      }
+    },
+    "tune.overshoot_roll": {
+      "name": {
+        "en": "Roll rate step overshoot",
+        "uk": "Перерегулювання швидкості крену на стрибок"
+      },
+      "unit": "%",
+      "direction": "lower",
+      "definition": {
+        "en": "How far the roll rate goes past a step in its target before it settles, as a share of the step. Some is normal; a lot means too much P or too little D, and usually a low margin.",
+        "uk": "Наскільки швидкість крену проскакує стрибок цілі, перш ніж встановитися, як частка стрибка. Трохи — нормально; багато означає забагато P чи замало D і зазвичай малий запас."
+      },
+      "method": {
+        "en": "From every stretch that measures the roll rate loop alone (a stick mode, above 2 m, no gap in the log, PIDR not saturated within 0.25 s), with PIDR and ANG logged at 200 Hz or more (LOG_BITMASK bits 0 and 12). The loop's own target and measured rate are PIDR.Tar and PIDR.Act. Through the attitude loop, gusts move the target as well as the rate, so the response is read through the rate of the attitude target (ANG.DesRoll), which the stick sets and gusts do not. The step response: the 1.5 s impulse response from the instrumental-variable form of the Wiener-Hopf equations (the instrument's correlations with the target and with the rate, with 0.1% diagonal loading), summed. Given only when the frequency response is measured past the bandwidth: a step's rise and overshoot rest on the response up to it and beyond. Its final level is the mean of its last 0.45 s; the figure is the step's peak over its final level, with a seeded 95% bootstrap interval over 5 s blocks.",
+        "uk": "З кожного відрізка, що вимірює лише контур швидкості крену (режим стіків, вище 2 м, без пропусків у журналі, PIDR не в насиченні в межах 0,25 с), з PIDR і ANG від 200 Гц (LOG_BITMASK біти 0 і 12). Власні ціль і виміряна швидкість контуру — PIDR.Tar і PIDR.Act. Через контур положення пориви рухають і ціль, і швидкість, тож відповідь читається через швидкість цільового положення (ANG.DesRoll), яку задає стік, а не пориви. Перехідна характеристика: імпульсна характеристика тривалістю 1,5 с з рівнянь Вінера — Гопфа у формі інструментальних змінних (кореляції інструмента з ціллю і зі швидкістю, з діагональним навантаженням 0,1%), підсумована. Лише коли частотну характеристику виміряно за межу смуги пропускання: наростання й перерегулювання залежать від відповіді до неї і вище. Її кінцевий рівень — середнє останніх 0,45 с; показник — пік стрибка понад кінцевий рівень, з відтворюваним 95% бутстреп-інтервалом за блоками по 5 с."
+      },
+      "messages": [
+        "PIDR",
+        "ANG",
+        "MODE",
+        "CTUN"
+      ],
+      "source": {
+        "kind": "baseline",
+        "title": "No universal range: judged against this airframe's own flights of the same tune-check profile and payload"
+      }
+    },
+    "tune.settling_roll": {
+      "name": {
+        "en": "Roll rate step settling time",
+        "uk": "Час встановлення швидкості крену на стрибок"
+      },
+      "unit": "ms",
+      "direction": "lower",
+      "definition": {
+        "en": "How long the roll rate takes after a step in its target to stay within 5% of where it ends up. Oscillation and a slow tail both lengthen it.",
+        "uk": "Скільки часу після стрибка цілі швидкість крену потребує, щоб залишатися в межах 5% від кінцевого рівня. Коливання й повільний хвіст його подовжують."
+      },
+      "method": {
+        "en": "From every stretch that measures the roll rate loop alone (a stick mode, above 2 m, no gap in the log, PIDR not saturated within 0.25 s), with PIDR and ANG logged at 200 Hz or more (LOG_BITMASK bits 0 and 12). The loop's own target and measured rate are PIDR.Tar and PIDR.Act. Through the attitude loop, gusts move the target as well as the rate, so the response is read through the rate of the attitude target (ANG.DesRoll), which the stick sets and gusts do not. The step response: the 1.5 s impulse response from the instrumental-variable form of the Wiener-Hopf equations (the instrument's correlations with the target and with the rate, with 0.1% diagonal loading), summed. Given only when the frequency response is measured past the bandwidth: a step's rise and overshoot rest on the response up to it and beyond. Its final level is the mean of its last 0.45 s; the figure is the last moment the step is more than 5% from its final level, with a seeded 95% bootstrap interval over 5 s blocks.",
+        "uk": "З кожного відрізка, що вимірює лише контур швидкості крену (режим стіків, вище 2 м, без пропусків у журналі, PIDR не в насиченні в межах 0,25 с), з PIDR і ANG від 200 Гц (LOG_BITMASK біти 0 і 12). Власні ціль і виміряна швидкість контуру — PIDR.Tar і PIDR.Act. Через контур положення пориви рухають і ціль, і швидкість, тож відповідь читається через швидкість цільового положення (ANG.DesRoll), яку задає стік, а не пориви. Перехідна характеристика: імпульсна характеристика тривалістю 1,5 с з рівнянь Вінера — Гопфа у формі інструментальних змінних (кореляції інструмента з ціллю і зі швидкістю, з діагональним навантаженням 0,1%), підсумована. Лише коли частотну характеристику виміряно за межу смуги пропускання: наростання й перерегулювання залежать від відповіді до неї і вище. Її кінцевий рівень — середнє останніх 0,45 с; показник — останній момент, коли стрибок відхиляється від кінцевого рівня більше ніж на 5%, з відтворюваним 95% бутстреп-інтервалом за блоками по 5 с."
+      },
+      "messages": [
+        "PIDR",
+        "ANG",
+        "MODE",
+        "CTUN"
+      ],
+      "source": {
+        "kind": "baseline",
+        "title": "No universal range: judged against this airframe's own flights of the same tune-check profile and payload"
+      }
+    },
+    "tune.bandwidth_pitch": {
+      "name": {
+        "en": "Pitch rate loop bandwidth",
+        "uk": "Смуга пропускання контуру швидкості тангажу"
+      },
+      "unit": "Hz",
+      "direction": "higher",
+      "definition": {
+        "en": "The highest frequency the pitch rate loop still follows its target at, before its response falls 3 dB (to 71%). A wider bandwidth follows quick inputs and rejects gusts sooner; a heavy aircraft or soft gains narrow it.",
+        "uk": "Найвища частота, на якій контур швидкості тангажу ще відстежує ціль, перш ніж відповідь падає на 3 дБ (до 71%). Ширша смуга відстежує швидкі рухи й раніше гасить пориви; важкий апарат чи м'які коефіцієнти її звужують."
+      },
+      "method": {
+        "en": "From every stretch that measures the pitch rate loop alone (a stick mode, above 2 m, no gap in the log, PIDP not saturated within 0.25 s), with PIDP and ANG logged at 200 Hz or more (LOG_BITMASK bits 0 and 12). The loop's own target and measured rate are PIDP.Tar and PIDP.Act. Through the attitude loop, gusts move the target as well as the rate, so the response is read through the rate of the attitude target (ANG.DesPitch), which the stick sets and gusts do not. The frequency response H = Giy/Gix from Welch cross-spectra (5 s Hann windows, half overlapped, at least 8), where i is that instrument, x the target and y the rate. Each bin's random error is estimated from the instrument's coherence with the target and with the rate and the number of windows; the measured band runs up from 0.3 Hz to the first bin whose error is over 10%. The first measured frequency where |H| drops under 0.707, with a seeded 95% bootstrap interval over the windows.",
+        "uk": "З кожного відрізка, що вимірює лише контур швидкості тангажу (режим стіків, вище 2 м, без пропусків у журналі, PIDP не в насиченні в межах 0,25 с), з PIDP і ANG від 200 Гц (LOG_BITMASK біти 0 і 12). Власні ціль і виміряна швидкість контуру — PIDP.Tar і PIDP.Act. Через контур положення пориви рухають і ціль, і швидкість, тож відповідь читається через швидкість цільового положення (ANG.DesPitch), яку задає стік, а не пориви. Частотна характеристика H = Giy/Gix із взаємних спектрів Велча (вікна Ганна 5 с з половинним перекриттям, щонайменше 8), де i — цей інструмент, x — ціль, y — швидкість. Випадкова похибка кожної частоти оцінюється з когерентності інструмента з ціллю і зі швидкістю та кількості вікон; виміряна смуга йде від 0,3 Гц до першої частоти з похибкою понад 10%. Перша виміряна частота, де |H| падає нижче 0,707, з відтворюваним 95% бутстреп-інтервалом за вікнами."
+      },
+      "messages": [
+        "PIDP",
+        "ANG",
+        "MODE",
+        "CTUN"
+      ],
+      "source": {
+        "kind": "baseline",
+        "title": "No universal range: judged against this airframe's own flights of the same tune-check profile and payload"
+      }
+    },
+    "tune.sensitivity_peak_pitch": {
+      "name": {
+        "en": "Pitch rate loop sensitivity peak",
+        "uk": "Пік чутливості контуру швидкості тангажу"
+      },
+      "unit": "",
+      "direction": "lower",
+      "definition": {
+        "en": "How much the pitch rate loop can amplify a disturbance at its worst frequency (Ms, the peak of |1 − H|). 1 amplifies nothing; under 2 is a reasonable margin; above it the loop is close to oscillating, and a heavier payload or a gust can tip it over.",
+        "uk": "Наскільки контур швидкості тангажу може підсилити збурення на найгіршій частоті (Ms, пік |1 − H|). 1 нічого не підсилює; до 2 — розумний запас; вище контур близький до коливань, і важчий вантаж чи порив можуть їх викликати."
+      },
+      "method": {
+        "en": "From every stretch that measures the pitch rate loop alone (a stick mode, above 2 m, no gap in the log, PIDP not saturated within 0.25 s), with PIDP and ANG logged at 200 Hz or more (LOG_BITMASK bits 0 and 12). The loop's own target and measured rate are PIDP.Tar and PIDP.Act. Through the attitude loop, gusts move the target as well as the rate, so the response is read through the rate of the attitude target (ANG.DesPitch), which the stick sets and gusts do not. The frequency response H = Giy/Gix from Welch cross-spectra (5 s Hann windows, half overlapped, at least 8), where i is that instrument, x the target and y the rate. Each bin's random error is estimated from the instrument's coherence with the target and with the rate and the number of windows; the measured band runs up from 0.3 Hz to the first bin whose error is over 10%. The peak of |1 − H| over the measured band, given only when the rate loop has no feed-forward (ATC_RAT_PIT_FF and ATC_RAT_PIT_D_FF both 0, Copter's default), when it is the loop's sensitivity peak, and only when the band reaches 1.2 times its frequency with |1 − H| falling to 90% of it on the way: a peak still rising at the top of the band lies above what the stick inputs measured. A seeded 95% bootstrap interval over the windows.",
+        "uk": "З кожного відрізка, що вимірює лише контур швидкості тангажу (режим стіків, вище 2 м, без пропусків у журналі, PIDP не в насиченні в межах 0,25 с), з PIDP і ANG від 200 Гц (LOG_BITMASK біти 0 і 12). Власні ціль і виміряна швидкість контуру — PIDP.Tar і PIDP.Act. Через контур положення пориви рухають і ціль, і швидкість, тож відповідь читається через швидкість цільового положення (ANG.DesPitch), яку задає стік, а не пориви. Частотна характеристика H = Giy/Gix із взаємних спектрів Велча (вікна Ганна 5 с з половинним перекриттям, щонайменше 8), де i — цей інструмент, x — ціль, y — швидкість. Випадкова похибка кожної частоти оцінюється з когерентності інструмента з ціллю і зі швидкістю та кількості вікон; виміряна смуга йде від 0,3 Гц до першої частоти з похибкою понад 10%. Пік |1 − H| у виміряній смузі, лише коли в контурі швидкості немає прямого зв'язку (ATC_RAT_PIT_FF і ATC_RAT_PIT_D_FF обидва 0, стандартно для Copter), бо тоді це пік чутливості контуру, і лише коли смуга сягає 1,2 його частоти, а |1 − H| дорогою спадає до 90% від нього: пік, що ще зростає на верхньому краю смуги, лежить вище за те, що виміряли рухи стіків. Відтворюваний 95% бутстреп-інтервал за вікнами."
+      },
+      "messages": [
+        "PIDP",
+        "ANG",
+        "MODE",
+        "CTUN"
+      ],
+      "zones": {
+        "target": [
+          null,
+          2.0
+        ],
+        "caution": [
+          2.0,
+          null
+        ]
+      },
+      "source": {
+        "kind": "research",
+        "title": "Åström and Murray, Feedback Systems (2008), section 12.2: reasonable sensitivity peaks are 1.2 to 2"
+      }
+    },
+    "tune.rise_time_pitch": {
+      "name": {
+        "en": "Pitch rate step rise time",
+        "uk": "Час наростання швидкості тангажу на стрибок"
+      },
+      "unit": "ms",
+      "direction": "lower",
+      "definition": {
+        "en": "How long the pitch rate takes to go from 10% to 90% of a step in its target. Shorter is a more responsive aircraft; heavy aircraft and low gains are slower.",
+        "uk": "Скільки часу швидкість тангажу іде від 10% до 90% стрибка цілі. Коротший — чутливіший апарат; важкі апарати й низькі коефіцієнти повільніші."
+      },
+      "method": {
+        "en": "From every stretch that measures the pitch rate loop alone (a stick mode, above 2 m, no gap in the log, PIDP not saturated within 0.25 s), with PIDP and ANG logged at 200 Hz or more (LOG_BITMASK bits 0 and 12). The loop's own target and measured rate are PIDP.Tar and PIDP.Act. Through the attitude loop, gusts move the target as well as the rate, so the response is read through the rate of the attitude target (ANG.DesPitch), which the stick sets and gusts do not. The step response: the 1.5 s impulse response from the instrumental-variable form of the Wiener-Hopf equations (the instrument's correlations with the target and with the rate, with 0.1% diagonal loading), summed. Given only when the frequency response is measured past the bandwidth: a step's rise and overshoot rest on the response up to it and beyond. Its final level is the mean of its last 0.45 s; the figure is 10% to 90% of the step's final level, with a seeded 95% bootstrap interval over 5 s blocks.",
+        "uk": "З кожного відрізка, що вимірює лише контур швидкості тангажу (режим стіків, вище 2 м, без пропусків у журналі, PIDP не в насиченні в межах 0,25 с), з PIDP і ANG від 200 Гц (LOG_BITMASK біти 0 і 12). Власні ціль і виміряна швидкість контуру — PIDP.Tar і PIDP.Act. Через контур положення пориви рухають і ціль, і швидкість, тож відповідь читається через швидкість цільового положення (ANG.DesPitch), яку задає стік, а не пориви. Перехідна характеристика: імпульсна характеристика тривалістю 1,5 с з рівнянь Вінера — Гопфа у формі інструментальних змінних (кореляції інструмента з ціллю і зі швидкістю, з діагональним навантаженням 0,1%), підсумована. Лише коли частотну характеристику виміряно за межу смуги пропускання: наростання й перерегулювання залежать від відповіді до неї і вище. Її кінцевий рівень — середнє останніх 0,45 с; показник — від 10% до 90% кінцевого рівня стрибка, з відтворюваним 95% бутстреп-інтервалом за блоками по 5 с."
+      },
+      "messages": [
+        "PIDP",
+        "ANG",
+        "MODE",
+        "CTUN"
+      ],
+      "source": {
+        "kind": "baseline",
+        "title": "No universal range: judged against this airframe's own flights of the same tune-check profile and payload"
+      }
+    },
+    "tune.overshoot_pitch": {
+      "name": {
+        "en": "Pitch rate step overshoot",
+        "uk": "Перерегулювання швидкості тангажу на стрибок"
+      },
+      "unit": "%",
+      "direction": "lower",
+      "definition": {
+        "en": "How far the pitch rate goes past a step in its target before it settles, as a share of the step. Some is normal; a lot means too much P or too little D, and usually a low margin.",
+        "uk": "Наскільки швидкість тангажу проскакує стрибок цілі, перш ніж встановитися, як частка стрибка. Трохи — нормально; багато означає забагато P чи замало D і зазвичай малий запас."
+      },
+      "method": {
+        "en": "From every stretch that measures the pitch rate loop alone (a stick mode, above 2 m, no gap in the log, PIDP not saturated within 0.25 s), with PIDP and ANG logged at 200 Hz or more (LOG_BITMASK bits 0 and 12). The loop's own target and measured rate are PIDP.Tar and PIDP.Act. Through the attitude loop, gusts move the target as well as the rate, so the response is read through the rate of the attitude target (ANG.DesPitch), which the stick sets and gusts do not. The step response: the 1.5 s impulse response from the instrumental-variable form of the Wiener-Hopf equations (the instrument's correlations with the target and with the rate, with 0.1% diagonal loading), summed. Given only when the frequency response is measured past the bandwidth: a step's rise and overshoot rest on the response up to it and beyond. Its final level is the mean of its last 0.45 s; the figure is the step's peak over its final level, with a seeded 95% bootstrap interval over 5 s blocks.",
+        "uk": "З кожного відрізка, що вимірює лише контур швидкості тангажу (режим стіків, вище 2 м, без пропусків у журналі, PIDP не в насиченні в межах 0,25 с), з PIDP і ANG від 200 Гц (LOG_BITMASK біти 0 і 12). Власні ціль і виміряна швидкість контуру — PIDP.Tar і PIDP.Act. Через контур положення пориви рухають і ціль, і швидкість, тож відповідь читається через швидкість цільового положення (ANG.DesPitch), яку задає стік, а не пориви. Перехідна характеристика: імпульсна характеристика тривалістю 1,5 с з рівнянь Вінера — Гопфа у формі інструментальних змінних (кореляції інструмента з ціллю і зі швидкістю, з діагональним навантаженням 0,1%), підсумована. Лише коли частотну характеристику виміряно за межу смуги пропускання: наростання й перерегулювання залежать від відповіді до неї і вище. Її кінцевий рівень — середнє останніх 0,45 с; показник — пік стрибка понад кінцевий рівень, з відтворюваним 95% бутстреп-інтервалом за блоками по 5 с."
+      },
+      "messages": [
+        "PIDP",
+        "ANG",
+        "MODE",
+        "CTUN"
+      ],
+      "source": {
+        "kind": "baseline",
+        "title": "No universal range: judged against this airframe's own flights of the same tune-check profile and payload"
+      }
+    },
+    "tune.settling_pitch": {
+      "name": {
+        "en": "Pitch rate step settling time",
+        "uk": "Час встановлення швидкості тангажу на стрибок"
+      },
+      "unit": "ms",
+      "direction": "lower",
+      "definition": {
+        "en": "How long the pitch rate takes after a step in its target to stay within 5% of where it ends up. Oscillation and a slow tail both lengthen it.",
+        "uk": "Скільки часу після стрибка цілі швидкість тангажу потребує, щоб залишатися в межах 5% від кінцевого рівня. Коливання й повільний хвіст його подовжують."
+      },
+      "method": {
+        "en": "From every stretch that measures the pitch rate loop alone (a stick mode, above 2 m, no gap in the log, PIDP not saturated within 0.25 s), with PIDP and ANG logged at 200 Hz or more (LOG_BITMASK bits 0 and 12). The loop's own target and measured rate are PIDP.Tar and PIDP.Act. Through the attitude loop, gusts move the target as well as the rate, so the response is read through the rate of the attitude target (ANG.DesPitch), which the stick sets and gusts do not. The step response: the 1.5 s impulse response from the instrumental-variable form of the Wiener-Hopf equations (the instrument's correlations with the target and with the rate, with 0.1% diagonal loading), summed. Given only when the frequency response is measured past the bandwidth: a step's rise and overshoot rest on the response up to it and beyond. Its final level is the mean of its last 0.45 s; the figure is the last moment the step is more than 5% from its final level, with a seeded 95% bootstrap interval over 5 s blocks.",
+        "uk": "З кожного відрізка, що вимірює лише контур швидкості тангажу (режим стіків, вище 2 м, без пропусків у журналі, PIDP не в насиченні в межах 0,25 с), з PIDP і ANG від 200 Гц (LOG_BITMASK біти 0 і 12). Власні ціль і виміряна швидкість контуру — PIDP.Tar і PIDP.Act. Через контур положення пориви рухають і ціль, і швидкість, тож відповідь читається через швидкість цільового положення (ANG.DesPitch), яку задає стік, а не пориви. Перехідна характеристика: імпульсна характеристика тривалістю 1,5 с з рівнянь Вінера — Гопфа у формі інструментальних змінних (кореляції інструмента з ціллю і зі швидкістю, з діагональним навантаженням 0,1%), підсумована. Лише коли частотну характеристику виміряно за межу смуги пропускання: наростання й перерегулювання залежать від відповіді до неї і вище. Її кінцевий рівень — середнє останніх 0,45 с; показник — останній момент, коли стрибок відхиляється від кінцевого рівня більше ніж на 5%, з відтворюваним 95% бутстреп-інтервалом за блоками по 5 с."
+      },
+      "messages": [
+        "PIDP",
+        "ANG",
+        "MODE",
+        "CTUN"
+      ],
+      "source": {
+        "kind": "baseline",
+        "title": "No universal range: judged against this airframe's own flights of the same tune-check profile and payload"
+      }
+    },
+    "tune.bandwidth_yaw": {
+      "name": {
+        "en": "Yaw rate loop bandwidth",
+        "uk": "Смуга пропускання контуру швидкості рискання"
+      },
+      "unit": "Hz",
+      "direction": "higher",
+      "definition": {
+        "en": "The highest frequency the yaw rate loop still follows its target at, before its response falls 3 dB (to 71%). A wider bandwidth follows quick inputs and rejects gusts sooner; a heavy aircraft or soft gains narrow it.",
+        "uk": "Найвища частота, на якій контур швидкості рискання ще відстежує ціль, перш ніж відповідь падає на 3 дБ (до 71%). Ширша смуга відстежує швидкі рухи й раніше гасить пориви; важкий апарат чи м'які коефіцієнти її звужують."
+      },
+      "method": {
+        "en": "From every stretch that measures the yaw rate loop alone (a stick mode, above 2 m, no gap in the log, PIDY not saturated within 0.25 s), with PIDY and ANG logged at 200 Hz or more (LOG_BITMASK bits 0 and 12). The loop's own target and measured rate are PIDY.Tar and PIDY.Act. Through the attitude loop, gusts move the target as well as the rate, so the response is read through the rate of the attitude target (ANG.DesYaw), which the stick sets and gusts do not. The frequency response H = Giy/Gix from Welch cross-spectra (5 s Hann windows, half overlapped, at least 8), where i is that instrument, x the target and y the rate. Each bin's random error is estimated from the instrument's coherence with the target and with the rate and the number of windows; the measured band runs up from 0.3 Hz to the first bin whose error is over 10%. The first measured frequency where |H| drops under 0.707, with a seeded 95% bootstrap interval over the windows.",
+        "uk": "З кожного відрізка, що вимірює лише контур швидкості рискання (режим стіків, вище 2 м, без пропусків у журналі, PIDY не в насиченні в межах 0,25 с), з PIDY і ANG від 200 Гц (LOG_BITMASK біти 0 і 12). Власні ціль і виміряна швидкість контуру — PIDY.Tar і PIDY.Act. Через контур положення пориви рухають і ціль, і швидкість, тож відповідь читається через швидкість цільового положення (ANG.DesYaw), яку задає стік, а не пориви. Частотна характеристика H = Giy/Gix із взаємних спектрів Велча (вікна Ганна 5 с з половинним перекриттям, щонайменше 8), де i — цей інструмент, x — ціль, y — швидкість. Випадкова похибка кожної частоти оцінюється з когерентності інструмента з ціллю і зі швидкістю та кількості вікон; виміряна смуга йде від 0,3 Гц до першої частоти з похибкою понад 10%. Перша виміряна частота, де |H| падає нижче 0,707, з відтворюваним 95% бутстреп-інтервалом за вікнами."
+      },
+      "messages": [
+        "PIDY",
+        "ANG",
+        "MODE",
+        "CTUN"
+      ],
+      "source": {
+        "kind": "baseline",
+        "title": "No universal range: judged against this airframe's own flights of the same tune-check profile and payload"
+      }
+    },
+    "tune.sensitivity_peak_yaw": {
+      "name": {
+        "en": "Yaw rate loop sensitivity peak",
+        "uk": "Пік чутливості контуру швидкості рискання"
+      },
+      "unit": "",
+      "direction": "lower",
+      "definition": {
+        "en": "How much the yaw rate loop can amplify a disturbance at its worst frequency (Ms, the peak of |1 − H|). 1 amplifies nothing; under 2 is a reasonable margin; above it the loop is close to oscillating, and a heavier payload or a gust can tip it over.",
+        "uk": "Наскільки контур швидкості рискання може підсилити збурення на найгіршій частоті (Ms, пік |1 − H|). 1 нічого не підсилює; до 2 — розумний запас; вище контур близький до коливань, і важчий вантаж чи порив можуть їх викликати."
+      },
+      "method": {
+        "en": "From every stretch that measures the yaw rate loop alone (a stick mode, above 2 m, no gap in the log, PIDY not saturated within 0.25 s), with PIDY and ANG logged at 200 Hz or more (LOG_BITMASK bits 0 and 12). The loop's own target and measured rate are PIDY.Tar and PIDY.Act. Through the attitude loop, gusts move the target as well as the rate, so the response is read through the rate of the attitude target (ANG.DesYaw), which the stick sets and gusts do not. The frequency response H = Giy/Gix from Welch cross-spectra (5 s Hann windows, half overlapped, at least 8), where i is that instrument, x the target and y the rate. Each bin's random error is estimated from the instrument's coherence with the target and with the rate and the number of windows; the measured band runs up from 0.3 Hz to the first bin whose error is over 10%. The peak of |1 − H| over the measured band, given only when the rate loop has no feed-forward (ATC_RAT_YAW_FF and ATC_RAT_YAW_D_FF both 0, Copter's default), when it is the loop's sensitivity peak, and only when the band reaches 1.2 times its frequency with |1 − H| falling to 90% of it on the way: a peak still rising at the top of the band lies above what the stick inputs measured. A seeded 95% bootstrap interval over the windows.",
+        "uk": "З кожного відрізка, що вимірює лише контур швидкості рискання (режим стіків, вище 2 м, без пропусків у журналі, PIDY не в насиченні в межах 0,25 с), з PIDY і ANG від 200 Гц (LOG_BITMASK біти 0 і 12). Власні ціль і виміряна швидкість контуру — PIDY.Tar і PIDY.Act. Через контур положення пориви рухають і ціль, і швидкість, тож відповідь читається через швидкість цільового положення (ANG.DesYaw), яку задає стік, а не пориви. Частотна характеристика H = Giy/Gix із взаємних спектрів Велча (вікна Ганна 5 с з половинним перекриттям, щонайменше 8), де i — цей інструмент, x — ціль, y — швидкість. Випадкова похибка кожної частоти оцінюється з когерентності інструмента з ціллю і зі швидкістю та кількості вікон; виміряна смуга йде від 0,3 Гц до першої частоти з похибкою понад 10%. Пік |1 − H| у виміряній смузі, лише коли в контурі швидкості немає прямого зв'язку (ATC_RAT_YAW_FF і ATC_RAT_YAW_D_FF обидва 0, стандартно для Copter), бо тоді це пік чутливості контуру, і лише коли смуга сягає 1,2 його частоти, а |1 − H| дорогою спадає до 90% від нього: пік, що ще зростає на верхньому краю смуги, лежить вище за те, що виміряли рухи стіків. Відтворюваний 95% бутстреп-інтервал за вікнами."
+      },
+      "messages": [
+        "PIDY",
+        "ANG",
+        "MODE",
+        "CTUN"
+      ],
+      "zones": {
+        "target": [
+          null,
+          2.0
+        ],
+        "caution": [
+          2.0,
+          null
+        ]
+      },
+      "source": {
+        "kind": "research",
+        "title": "Åström and Murray, Feedback Systems (2008), section 12.2: reasonable sensitivity peaks are 1.2 to 2"
+      }
+    },
+    "tune.rise_time_yaw": {
+      "name": {
+        "en": "Yaw rate step rise time",
+        "uk": "Час наростання швидкості рискання на стрибок"
+      },
+      "unit": "ms",
+      "direction": "lower",
+      "definition": {
+        "en": "How long the yaw rate takes to go from 10% to 90% of a step in its target. Shorter is a more responsive aircraft; heavy aircraft and low gains are slower.",
+        "uk": "Скільки часу швидкість рискання іде від 10% до 90% стрибка цілі. Коротший — чутливіший апарат; важкі апарати й низькі коефіцієнти повільніші."
+      },
+      "method": {
+        "en": "From every stretch that measures the yaw rate loop alone (a stick mode, above 2 m, no gap in the log, PIDY not saturated within 0.25 s), with PIDY and ANG logged at 200 Hz or more (LOG_BITMASK bits 0 and 12). The loop's own target and measured rate are PIDY.Tar and PIDY.Act. Through the attitude loop, gusts move the target as well as the rate, so the response is read through the rate of the attitude target (ANG.DesYaw), which the stick sets and gusts do not. The step response: the 1.5 s impulse response from the instrumental-variable form of the Wiener-Hopf equations (the instrument's correlations with the target and with the rate, with 0.1% diagonal loading), summed. Given only when the frequency response is measured past the bandwidth: a step's rise and overshoot rest on the response up to it and beyond. Its final level is the mean of its last 0.45 s; the figure is 10% to 90% of the step's final level, with a seeded 95% bootstrap interval over 5 s blocks.",
+        "uk": "З кожного відрізка, що вимірює лише контур швидкості рискання (режим стіків, вище 2 м, без пропусків у журналі, PIDY не в насиченні в межах 0,25 с), з PIDY і ANG від 200 Гц (LOG_BITMASK біти 0 і 12). Власні ціль і виміряна швидкість контуру — PIDY.Tar і PIDY.Act. Через контур положення пориви рухають і ціль, і швидкість, тож відповідь читається через швидкість цільового положення (ANG.DesYaw), яку задає стік, а не пориви. Перехідна характеристика: імпульсна характеристика тривалістю 1,5 с з рівнянь Вінера — Гопфа у формі інструментальних змінних (кореляції інструмента з ціллю і зі швидкістю, з діагональним навантаженням 0,1%), підсумована. Лише коли частотну характеристику виміряно за межу смуги пропускання: наростання й перерегулювання залежать від відповіді до неї і вище. Її кінцевий рівень — середнє останніх 0,45 с; показник — від 10% до 90% кінцевого рівня стрибка, з відтворюваним 95% бутстреп-інтервалом за блоками по 5 с."
+      },
+      "messages": [
+        "PIDY",
+        "ANG",
+        "MODE",
+        "CTUN"
+      ],
+      "source": {
+        "kind": "baseline",
+        "title": "No universal range: judged against this airframe's own flights of the same tune-check profile and payload"
+      }
+    },
+    "tune.overshoot_yaw": {
+      "name": {
+        "en": "Yaw rate step overshoot",
+        "uk": "Перерегулювання швидкості рискання на стрибок"
+      },
+      "unit": "%",
+      "direction": "lower",
+      "definition": {
+        "en": "How far the yaw rate goes past a step in its target before it settles, as a share of the step. Some is normal; a lot means too much P or too little D, and usually a low margin.",
+        "uk": "Наскільки швидкість рискання проскакує стрибок цілі, перш ніж встановитися, як частка стрибка. Трохи — нормально; багато означає забагато P чи замало D і зазвичай малий запас."
+      },
+      "method": {
+        "en": "From every stretch that measures the yaw rate loop alone (a stick mode, above 2 m, no gap in the log, PIDY not saturated within 0.25 s), with PIDY and ANG logged at 200 Hz or more (LOG_BITMASK bits 0 and 12). The loop's own target and measured rate are PIDY.Tar and PIDY.Act. Through the attitude loop, gusts move the target as well as the rate, so the response is read through the rate of the attitude target (ANG.DesYaw), which the stick sets and gusts do not. The step response: the 1.5 s impulse response from the instrumental-variable form of the Wiener-Hopf equations (the instrument's correlations with the target and with the rate, with 0.1% diagonal loading), summed. Given only when the frequency response is measured past the bandwidth: a step's rise and overshoot rest on the response up to it and beyond. Its final level is the mean of its last 0.45 s; the figure is the step's peak over its final level, with a seeded 95% bootstrap interval over 5 s blocks.",
+        "uk": "З кожного відрізка, що вимірює лише контур швидкості рискання (режим стіків, вище 2 м, без пропусків у журналі, PIDY не в насиченні в межах 0,25 с), з PIDY і ANG від 200 Гц (LOG_BITMASK біти 0 і 12). Власні ціль і виміряна швидкість контуру — PIDY.Tar і PIDY.Act. Через контур положення пориви рухають і ціль, і швидкість, тож відповідь читається через швидкість цільового положення (ANG.DesYaw), яку задає стік, а не пориви. Перехідна характеристика: імпульсна характеристика тривалістю 1,5 с з рівнянь Вінера — Гопфа у формі інструментальних змінних (кореляції інструмента з ціллю і зі швидкістю, з діагональним навантаженням 0,1%), підсумована. Лише коли частотну характеристику виміряно за межу смуги пропускання: наростання й перерегулювання залежать від відповіді до неї і вище. Її кінцевий рівень — середнє останніх 0,45 с; показник — пік стрибка понад кінцевий рівень, з відтворюваним 95% бутстреп-інтервалом за блоками по 5 с."
+      },
+      "messages": [
+        "PIDY",
+        "ANG",
+        "MODE",
+        "CTUN"
+      ],
+      "source": {
+        "kind": "baseline",
+        "title": "No universal range: judged against this airframe's own flights of the same tune-check profile and payload"
+      }
+    },
+    "tune.settling_yaw": {
+      "name": {
+        "en": "Yaw rate step settling time",
+        "uk": "Час встановлення швидкості рискання на стрибок"
+      },
+      "unit": "ms",
+      "direction": "lower",
+      "definition": {
+        "en": "How long the yaw rate takes after a step in its target to stay within 5% of where it ends up. Oscillation and a slow tail both lengthen it.",
+        "uk": "Скільки часу після стрибка цілі швидкість рискання потребує, щоб залишатися в межах 5% від кінцевого рівня. Коливання й повільний хвіст його подовжують."
+      },
+      "method": {
+        "en": "From every stretch that measures the yaw rate loop alone (a stick mode, above 2 m, no gap in the log, PIDY not saturated within 0.25 s), with PIDY and ANG logged at 200 Hz or more (LOG_BITMASK bits 0 and 12). The loop's own target and measured rate are PIDY.Tar and PIDY.Act. Through the attitude loop, gusts move the target as well as the rate, so the response is read through the rate of the attitude target (ANG.DesYaw), which the stick sets and gusts do not. The step response: the 1.5 s impulse response from the instrumental-variable form of the Wiener-Hopf equations (the instrument's correlations with the target and with the rate, with 0.1% diagonal loading), summed. Given only when the frequency response is measured past the bandwidth: a step's rise and overshoot rest on the response up to it and beyond. Its final level is the mean of its last 0.45 s; the figure is the last moment the step is more than 5% from its final level, with a seeded 95% bootstrap interval over 5 s blocks.",
+        "uk": "З кожного відрізка, що вимірює лише контур швидкості рискання (режим стіків, вище 2 м, без пропусків у журналі, PIDY не в насиченні в межах 0,25 с), з PIDY і ANG від 200 Гц (LOG_BITMASK біти 0 і 12). Власні ціль і виміряна швидкість контуру — PIDY.Tar і PIDY.Act. Через контур положення пориви рухають і ціль, і швидкість, тож відповідь читається через швидкість цільового положення (ANG.DesYaw), яку задає стік, а не пориви. Перехідна характеристика: імпульсна характеристика тривалістю 1,5 с з рівнянь Вінера — Гопфа у формі інструментальних змінних (кореляції інструмента з ціллю і зі швидкістю, з діагональним навантаженням 0,1%), підсумована. Лише коли частотну характеристику виміряно за межу смуги пропускання: наростання й перерегулювання залежать від відповіді до неї і вище. Її кінцевий рівень — середнє останніх 0,45 с; показник — останній момент, коли стрибок відхиляється від кінцевого рівня більше ніж на 5%, з відтворюваним 95% бутстреп-інтервалом за блоками по 5 с."
+      },
+      "messages": [
+        "PIDY",
+        "ANG",
+        "MODE",
+        "CTUN"
+      ],
+      "source": {
+        "kind": "baseline",
+        "title": "No universal range: judged against this airframe's own flights of the same tune-check profile and payload"
+      }
     }
   },
   "findings": {
@@ -93,6 +513,17 @@
       "action": {
         "en": "Of the inputs flown, {saturated} drove the motors to their limit, {low} were under 2 m, {mode_change} crossed a mode change, {gaps} had a gap in the log and {no_stick} had the stick still. Fly the tune-check profile again in AltHold at 10 to 15 m, with smaller inputs if the motors reached their limit.",
         "uk": "З виконаних рухів {saturated} довели мотори до межі, {low} були нижче 2 м, {mode_change} припали на зміну режиму, {gaps} мали пропуск у журналі, а в {no_stick} стік не рухався. Повторіть профіль перевірки налаштування в AltHold на висоті 10–15 м, з меншими рухами, якщо мотори досягали межі."
+      }
+    },
+    "tune.low_margin": {
+      "stage": "rate tune",
+      "title": {
+        "en": "A rate loop has little stability margin: sensitivity peak {ms} near {hz} Hz",
+        "uk": "Контур швидкості має малий запас стійкості: пік чутливості {ms} поблизу {hz} Гц"
+      },
+      "action": {
+        "en": "The loop amplifies disturbances near that frequency and is close to oscillating; a heavier payload or a gust can tip it over. Lower that axis's rate P and D by about a quarter, or run AutoTune (with AUTOTUNE_GMBK raised on a variable payload), then fly the tune check again to confirm the peak is under 2.",
+        "uk": "Контур підсилює збурення поблизу цієї частоти й близький до коливань; важчий вантаж чи порив можуть їх викликати. Зменште P і D швидкості цієї осі приблизно на чверть або запустіть AutoTune (з підвищеним AUTOTUNE_GMBK для змінного вантажу), потім повторіть перевірку налаштування, щоб пік був нижче 2."
       }
     }
   }

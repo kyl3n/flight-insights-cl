@@ -238,6 +238,16 @@ VIBRATING = {
 }
 RAW_SPEEDUP = 2  # full-rate raw IMU logging drops data at the default speed-up
 
+# The default quad's roll and pitch rate gains (P, I and D: 0.135, 0.135 and 0.0036 in
+# 4.7.0) at 0.4 of their defaults: a soft rate loop, slow enough (bandwidth near 2.5 Hz)
+# for the tune check's doublets to measure its frequency and step responses. The default
+# quad's own loop reaches past 20 Hz, above anything a stick doublet excites.
+SOFT_RATE_GAINS = {
+    f"ATC_RAT_{axis}_{term}": round(default * 0.4, 6)
+    for axis in ("RLL", "PIT")
+    for term, default in (("P", 0.135), ("I", 0.135), ("D", 0.0036))
+}
+
 # ArduPilot's heavy-lift SITL model: Callisto, a 32.5 kg coaxial octocopter on 30-inch
 # props, with the autotest's own defaults (which turn hover learning off).
 CALLISTO = dict(
@@ -387,6 +397,27 @@ SCENARIOS: dict[str, Scenario] = {
             fly=tune_check(6, axes=("ch1", "ch2")),
             boot_params={"LOG_DISARMED": 0, "SIM_ESC_TELEM": 0},  # no ESC log: a smaller file
             speedup=RAW_SPEEDUP,  # the logger drops the loop-rate messages at the default
+            **COPTER,  # type: ignore[arg-type]
+        ),
+        Scenario(
+            name="copter-quad-tune-low",
+            vehicle="copter",
+            frame="quad +",
+            description=(
+                "The same shortened tune-check profile as copter-quad-tune-default, with the"
+                " roll and pitch rate gains (P, I, D) at 0.4 of their defaults: a soft rate"
+                " loop."
+            ),
+            expected=[
+                "LOG_BITMASK bits 0 and 12 during the doublets: RATE, ANG and PIDR/P/Y at 400 Hz",
+                "6 doublets on roll and on pitch in ALT_HOLD, 0.4 s each way and 1 s centred",
+                "roll and pitch tracking error clearly above the default quad's",
+                "roll and pitch rate-loop bandwidth near 2.5 Hz, measured with the step response;"
+                " the sensitivity peak lies above what the doublets measure",
+            ],
+            fly=tune_check(6, axes=("ch1", "ch2")),
+            boot_params={"LOG_DISARMED": 0, "SIM_ESC_TELEM": 0} | SOFT_RATE_GAINS,
+            speedup=RAW_SPEEDUP,
             **COPTER,  # type: ignore[arg-type]
         ),
         Scenario(

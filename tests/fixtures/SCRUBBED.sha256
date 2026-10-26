@@ -22,6 +22,10 @@ a5ba1e4386b8a8659c693b550889e6a6b946ce8c4ac87021b99bc51fc01547a9  sitl/4.7.0/cop
 13b90ae5f6501ba38ac0337436753123a04bc8b91a94a2f3dd2dae1f16039483  sitl/4.7.0/copter-quad-tune-default.param
 f42eb48bdc0d7fafb4c7dd712bf4a53f18b31da9b7b1332c3dc73a1760e3a713  sitl/4.7.0/copter-quad-tune-default.params
 4dff920869403611a071cf7f544b4336245ef411a23f48a9c80bbf95407e4bd5  sitl/4.7.0/copter-quad-tune-default.tlog
+38ac1ee2620cee860a7a169afce71c7ca959fe28a73b78ad97cfa64313b87e78  sitl/4.7.0/copter-quad-tune-low.bin
+815723ff390a89bb217f3511d638f5519e001209da1d37b7a717af990d57c4ab  sitl/4.7.0/copter-quad-tune-low.param
+0f3d7e87ea8dc0908bdac21d7e4d0213f88ae8c99e88d40c751b309121233178  sitl/4.7.0/copter-quad-tune-low.params
+29be83d548c1318e657ec96451ab28981e907610cee4275f3eb2a2e96158e217  sitl/4.7.0/copter-quad-tune-low.tlog
 3eb0b7501abee5ed4fe3a9049226cb04562e7e437987528e9b58114de6b8b3a1  sitl/4.7.0/heli-hover.bin
 6fdf15278974435b862accd9c03c408c66c8641ca99ed7078650249dd27f6787  sitl/4.7.0/heli-hover.param
 22834fb793e3267d3a702a4bfa15aa52cc2667320c8840db9ac4370f391f41eb  sitl/4.7.0/heli-hover.params

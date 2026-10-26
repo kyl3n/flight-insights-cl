@@ -1,0 +1,24 @@
+source: sitl
+vehicle: copter
+frame: quad +
+firmware: 4.7.0
+ardupilot_commit: 1511f27194f1dcc3728270883047bdf022b3fd53
+scenario: copter-quad-tune-low
+description: 'The same shortened tune-check profile as copter-quad-tune-default, with
+  the roll and pitch rate gains (P, I, D) at 0.4 of their defaults: a soft rate loop.'
+parameters_set:
+  LOG_DISARMED: 0
+  SIM_ESC_TELEM: 0
+  ATC_RAT_RLL_P: 0.054
+  ATC_RAT_RLL_I: 0.054
+  ATC_RAT_RLL_D: 0.00144
+  ATC_RAT_PIT_P: 0.054
+  ATC_RAT_PIT_I: 0.054
+  ATC_RAT_PIT_D: 0.00144
+faults: []
+expected:
+- 'LOG_BITMASK bits 0 and 12 during the doublets: RATE, ANG and PIDR/P/Y at 400 Hz'
+- 6 doublets on roll and on pitch in ALT_HOLD, 0.4 s each way and 1 s centred
+- roll and pitch tracking error clearly above the default quad's
+- roll and pitch rate-loop bandwidth near 2.5 Hz, measured with the step response;
+  the sensitivity peak lies above what the doublets measure
