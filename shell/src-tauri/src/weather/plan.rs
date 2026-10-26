@@ -155,12 +155,15 @@ pub fn due(
     held: &Held,
     grids: &Grids,
 ) -> Vec<Request> {
-    let mut out = vec![Request {
-        source: Source::Kp,
-        tile: String::new(),
-        period: hour_label(slot),
-        query: Vec::new(),
-    }];
+    let mut out = Vec::new();
+    if !held.contains(&(Source::Kp, String::new(), hour_label(slot))) {
+        out.push(Request {
+            source: Source::Kp,
+            tile: String::new(),
+            period: hour_label(slot),
+            query: Vec::new(),
+        });
+    }
     let at = schedule.instant(slot);
     let mut tiles: Vec<&Tile> = tiles.iter().collect();
     tiles.sort_by(|a, b| a.name.cmp(&b.name));
@@ -460,6 +463,10 @@ mod tests {
         for r in &all {
             held.insert((r.source, r.tile.clone(), r.period.clone()));
         }
+        // the same slot again: no space weather or forecast twice, only more backfill
+        let again = due(slot, &s, std::slice::from_ref(&tile), &held, &GRIDS);
+        let periods: Vec<&str> = again.iter().map(|r| r.period.as_str()).collect();
+        assert_eq!(periods, ["2026-07", "2026-06"]);
         let next = due(
             slot + SLOT_MS,
             &s,
@@ -467,8 +474,11 @@ mod tests {
             &held,
             &GRIDS,
         );
-        let periods: Vec<&str> = next.iter().skip(1).map(|r| r.period.as_str()).collect();
-        assert_eq!(periods, ["2026-10-26T06", "2026-07", "2026-06"]);
+        let periods: Vec<&str> = next.iter().map(|r| r.period.as_str()).collect();
+        assert_eq!(
+            periods,
+            ["2026-10-26T18", "2026-10-26T06", "2026-07", "2026-06"]
+        );
     }
 
     #[test]
