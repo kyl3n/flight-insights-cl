@@ -1,7 +1,8 @@
 //! The fleet's service keys on the drive (spec: Security, "Service keys, with no server
-//! to run"). An admin enters the Claude API key once; it travels to every enrolled
-//! laptop as an object like any other, encrypted with the fleet key and signed, and
-//! lands in each laptop's OS keychain. It never reaches the engine or the interface.
+//! to run"). An admin enters the Claude API key and the Open-Meteo key once; they travel
+//! to every enrolled laptop as an object like any other, encrypted with the fleet key
+//! and signed, and land in each laptop's OS keychain. They never reach the engine or
+//! the interface.
 //!
 //! ```text
 //! keys/<laptop-id>/<sequence>-<object-key>.fio
@@ -12,6 +13,11 @@
 //! when it is written with the current fleet key by a laptop still in the fleet:
 //! removing a laptop rotates the fleet key, which retires every set written before, and
 //! the app asks for new keys, because the removed laptop held copies.
+//!
+//! A set written as `fi.keys/2` holds both keys; one written as `fi.keys/1`, by an app
+//! from before weather, holds only the Claude key. Each key comes from the newest set
+//! that holds it, so an older app's set changes the Claude key and leaves the
+//! Open-Meteo key as it was. An older app reads only `fi.keys/1` sets.
 
 use std::fs::{self, File};
 use std::io::{self, BufWriter, Cursor};
@@ -27,26 +33,37 @@ use crate::sync::keyring::{Keyring, Registry};
 use crate::sync::object::{self, Keys, Name, Refusal};
 
 pub const FOLDER: &str = "keys";
-const FORMAT: &str = "fi.keys/1";
+const FORMAT: &str = "fi.keys/2";
+const FORMAT_CLAUDE_ONLY: &str = "fi.keys/1";
 
-/// One set of service keys. Absent means "none": a set without the Claude key removes
-/// it from every laptop.
+/// One set of service keys. Absent means "none": a set without a key removes it from
+/// every laptop.
 #[derive(Serialize, Deserialize)]
 struct Plain {
     format: String,
     claude: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    open_meteo: Option<String>,
 }
 
 pub struct ServiceKeys {
     pub claude: Option<Zeroizing<String>>,
-    /// Where the set lies, to tell a new one from the one already applied.
+    /// None when no set that counts holds the Open-Meteo key yet (only older apps'
+    /// sets): the key held here stays as it is. Some(None): removed.
+    pub open_meteo: Option<Option<Zeroizing<String>>>,
+    /// Where the newest set lies, to tell a new one from the one already applied.
     pub path: String,
 }
 
 impl std::fmt::Debug for ServiceKeys {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        let shown = |k: Option<&Zeroizing<String>>| k.map_or("none", |_| "set");
         f.debug_struct("ServiceKeys")
-            .field("claude", &self.claude.as_ref().map(|_| "set"))
+            .field("claude", &shown(self.claude.as_ref()))
+            .field(
+                "open_meteo",
+                &self.open_meteo.as_ref().map(|k| shown(k.as_ref())),
+            )
             .field("path", &self.path)
             .finish()
     }
@@ -98,9 +115,10 @@ fn names(drive: &dyn Drive) -> io::Result<Vec<(Name, String)>> {
     Ok(out)
 }
 
-/// The newest set that holds: written with the current fleet key by a laptop still in
-/// the fleet. Sets that do not hold are passed over, never applied. `seen` is the set
-/// already applied: when it is still the newest, nothing is downloaded.
+/// The keys as the sets that hold give them: written with the current fleet key by a
+/// laptop still in the fleet, each key from the newest such set that holds it. Sets
+/// that do not hold are passed over, never applied. `seen` is the newest set already
+/// applied: when it is still the newest, nothing is downloaded.
 pub fn latest(
     drive: &dyn Drive,
     staging: &Path,
@@ -114,39 +132,73 @@ pub fn latest(
         object_keys: keyring.object_keys(),
     };
     fs::create_dir_all(staging).map_err(|e| e.to_string())?;
+    let mut found: Option<ServiceKeys> = None;
     for (name, path) in names(drive).map_err(|e| e.to_string())? {
-        if seen == Some(path.as_str()) {
+        if found.is_none() && seen == Some(path.as_str()) {
             return Ok(None);
         }
-        let local = staging.join(format!("keys-{}.fio", name.sequence));
-        drive.download(&path, &local).map_err(|e| e.to_string())?;
-        let mut out = Zeroizing::new(Vec::new());
-        let read = object::read(&local, &name, &keys, &mut *out);
-        let _ = fs::remove_file(&local);
-        if read.is_err() {
+        let Some(plain) = open(drive, staging, &keys, &name, &path)? else {
             continue; // an old fleet key, a removed laptop, or tampering: never applied
-        }
-        let Ok(plain) = serde_json::from_slice::<Plain>(&out) else {
-            continue;
         };
-        if plain.format != FORMAT {
-            continue;
-        }
-        return Ok(Some(ServiceKeys {
-            claude: plain.claude.map(Zeroizing::new),
+        let both = plain.format == FORMAT;
+        let set = found.get_or_insert_with(|| ServiceKeys {
+            claude: plain.claude.clone().map(Zeroizing::new),
+            open_meteo: None,
             path,
-        }));
+        });
+        if both {
+            set.open_meteo = Some(plain.open_meteo.map(Zeroizing::new));
+            break;
+        }
     }
-    Ok(None)
+    Ok(found)
 }
 
-/// Writes a new set for every laptop in the fleet. Returns where it lies.
+/// A set's contents, or None when it does not hold.
+fn open(
+    drive: &dyn Drive,
+    staging: &Path,
+    keys: &Current<'_>,
+    name: &Name,
+    path: &str,
+) -> Result<Option<Plain>, String> {
+    let local = staging.join(format!("keys-{}.fio", name.sequence));
+    drive.download(path, &local).map_err(|e| e.to_string())?;
+    let mut out = Zeroizing::new(Vec::new());
+    let read = object::read(&local, name, keys, &mut *out);
+    let _ = fs::remove_file(&local);
+    if read.is_err() {
+        return Ok(None);
+    }
+    Ok(serde_json::from_slice::<Plain>(&out)
+        .ok()
+        .filter(|p| p.format == FORMAT || p.format == FORMAT_CLAUDE_ONLY))
+}
+
+/// Writes a new set, with both keys as this laptop holds them, for every laptop in the
+/// fleet. Returns where it lies.
 pub fn publish(
     drive: &dyn Drive,
     staging: &Path,
     identity: &LaptopIdentity,
     keyring: &Keyring,
     claude: Option<&str>,
+    open_meteo: Option<&str>,
+) -> Result<String, String> {
+    let plain = Plain {
+        format: FORMAT.into(),
+        claude: claude.map(str::to_owned),
+        open_meteo: open_meteo.map(str::to_owned),
+    };
+    write_set(drive, staging, identity, keyring, &plain)
+}
+
+fn write_set(
+    drive: &dyn Drive,
+    staging: &Path,
+    identity: &LaptopIdentity,
+    keyring: &Keyring,
+    plain: &Plain,
 ) -> Result<String, String> {
     let err = |e: io::Error| e.to_string();
     let newest = names(drive)
@@ -157,13 +209,7 @@ pub fn publish(
         .duration_since(UNIX_EPOCH)
         .map_or(0, |d| d.as_secs());
     let sequence = now.max(newest + 1);
-    let plain = Zeroizing::new(
-        serde_json::to_vec(&Plain {
-            format: FORMAT.into(),
-            claude: claude.map(str::to_owned),
-        })
-        .map_err(|e| e.to_string())?,
-    );
+    let plain = Zeroizing::new(serde_json::to_vec(plain).map_err(|e| e.to_string())?);
     let mut laptop = [0u8; 16];
     hex::decode_to_slice(identity.laptop_id_hex(), &mut laptop).map_err(|e| e.to_string())?;
     fs::create_dir_all(staging).map_err(err)?;
@@ -238,7 +284,7 @@ mod tests {
         );
 
         // A enters the key once; B and C receive it
-        let at = publish(&drive, &staging, &a, &made.keyring, Some(KEY)).unwrap();
+        let at = publish(&drive, &staging, &a, &made.keyring, Some(KEY), None).unwrap();
         let got = latest(&drive, &staging, &registry, &keys_b, None)
             .unwrap()
             .unwrap();
@@ -280,14 +326,14 @@ mod tests {
             "a removal asks for new keys"
         );
         // C still holds the old fleet key, but what it writes now is never applied
-        publish(&drive, &staging, &c, &keys_c, Some("sk-ant-planted")).unwrap();
+        publish(&drive, &staging, &c, &keys_c, Some("sk-ant-planted"), None).unwrap();
         assert!(
             latest(&drive, &staging, &registry, &keys_b, None)
                 .unwrap()
                 .is_none()
         );
         // the new key, under the new fleet key, reaches B
-        let at = publish(&drive, &staging, &a, &rotated, Some(NEW_KEY)).unwrap();
+        let at = publish(&drive, &staging, &a, &rotated, Some(NEW_KEY), None).unwrap();
         let got = latest(&drive, &staging, &registry, &keys_b, None)
             .unwrap()
             .unwrap();
@@ -295,11 +341,99 @@ mod tests {
         assert_eq!(got.path, at);
 
         // removing the key is a set without it, and the newest set wins
-        publish(&drive, &staging, &b, &keys_b, None).unwrap();
+        publish(&drive, &staging, &b, &keys_b, None, None).unwrap();
         let got = latest(&drive, &staging, &registry, &rotated, None)
             .unwrap()
             .unwrap();
         assert!(got.claude.is_none());
+    }
+
+    const OM_KEY: &str = "om0123456789abcdef";
+
+    #[test]
+    fn each_key_comes_from_the_newest_set_that_holds_it() {
+        let root = temp("drive");
+        let drive = FolderDrive::new(&root).unwrap();
+        let staging = temp("staging");
+        let (a, b) = (laptop(), laptop());
+        let made = app::create(&drive, &staging, &a, "Bench").unwrap();
+        let (code_b, _) = app::code(&b, "Field");
+        app::approve(
+            &drive,
+            &staging,
+            &made.fingerprint,
+            &made.keyring,
+            &a,
+            &code_b,
+        )
+        .unwrap();
+        let registry = read_registry(&drive, &staging, Some(&made.fingerprint)).unwrap();
+        let keys_b = app::join(&drive, &staging, &b, &made.fingerprint).unwrap();
+        let get = |seen: Option<&str>| latest(&drive, &staging, &registry, &keys_b, seen).unwrap();
+
+        // an older app's set holds only the Claude key: the Open-Meteo key is unknown
+        let plain = |format: &str, claude: &str| Plain {
+            format: format.into(),
+            claude: Some(claude.into()),
+            open_meteo: None,
+        };
+        write_set(
+            &drive,
+            &staging,
+            &a,
+            &made.keyring,
+            &plain("fi.keys/1", KEY),
+        )
+        .unwrap();
+        let got = get(None).unwrap();
+        assert_eq!(got.claude.as_deref().map(|s| s.as_str()), Some(KEY));
+        assert!(got.open_meteo.is_none());
+
+        // both keys, entered once, reach the other laptop
+        let at = publish(&drive, &staging, &a, &made.keyring, Some(KEY), Some(OM_KEY)).unwrap();
+        let got = get(None).unwrap();
+        assert_eq!(got.path, at);
+        let om = got
+            .open_meteo
+            .as_ref()
+            .and_then(|k| k.as_deref().map(|s| s.as_str()));
+        assert_eq!(om, Some(OM_KEY));
+        assert!(!format!("{got:?}").contains(OM_KEY), "never in a log line");
+        assert!(get(Some(&at)).is_none(), "already applied");
+
+        // an older app changes the Claude key: the Open-Meteo key is kept
+        let older = write_set(&drive, &staging, &b, &keys_b, &plain("fi.keys/1", NEW_KEY)).unwrap();
+        let got = get(Some(&at)).unwrap();
+        assert_eq!(got.path, older);
+        assert_eq!(got.claude.as_deref().map(|s| s.as_str()), Some(NEW_KEY));
+        let om = got
+            .open_meteo
+            .as_ref()
+            .and_then(|k| k.as_deref().map(|s| s.as_str()));
+        assert_eq!(om, Some(OM_KEY));
+
+        // removing the Open-Meteo key is a set without it
+        publish(&drive, &staging, &b, &keys_b, Some(NEW_KEY), None).unwrap();
+        let got = get(None).unwrap();
+        assert!(matches!(got.open_meteo, Some(None)));
+        // an unknown format is never applied
+        write_set(
+            &drive,
+            &staging,
+            &a,
+            &made.keyring,
+            &plain("fi.keys/9", "sk-ant-x"),
+        )
+        .unwrap();
+        let got = get(None).unwrap();
+        assert_eq!(got.claude.as_deref().map(|s| s.as_str()), Some(NEW_KEY));
+        // nothing on the drive holds either key in the clear
+        for e in drive.list("keys/").unwrap() {
+            let bytes = fs::read(root.join(&e.path)).unwrap();
+            for k in [KEY, NEW_KEY, OM_KEY] {
+                assert!(!bytes.windows(k.len()).any(|w| w == k.as_bytes()));
+            }
+        }
     }
 
     #[test]
@@ -310,8 +444,8 @@ mod tests {
         let a = laptop();
         let made = app::create(&drive, &staging, &a, "Bench").unwrap();
         let registry = read_registry(&drive, &staging, Some(&made.fingerprint)).unwrap();
-        publish(&drive, &staging, &a, &made.keyring, Some(KEY)).unwrap();
-        let second = publish(&drive, &staging, &a, &made.keyring, Some(NEW_KEY)).unwrap();
+        publish(&drive, &staging, &a, &made.keyring, Some(KEY), None).unwrap();
+        let second = publish(&drive, &staging, &a, &made.keyring, Some(NEW_KEY), None).unwrap();
         let file = root.join(&second);
         let mut bytes = fs::read(&file).unwrap();
         let mid = bytes.len() / 2;

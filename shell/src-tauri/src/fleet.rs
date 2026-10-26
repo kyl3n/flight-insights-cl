@@ -20,6 +20,7 @@ use crate::sync::keyring::{Keyring, Registry};
 use crate::sync::oauth::{self, Endpoints};
 use crate::sync::run::read_registry;
 use crate::sync::service_keys;
+use crate::weather;
 
 const SIGN_IN_WAIT: std::time::Duration = std::time::Duration::from_secs(300);
 
@@ -184,8 +185,9 @@ pub fn round(app: &AppHandle) {
     );
 }
 
-/// The fleet's service keys: a key entered here goes out first, then the newest set
-/// on the drive comes into the keychain. Neither reaches the engine or the interface.
+/// The fleet's service keys: keys entered or removed here go out first, then the
+/// newest sets on the drive come into the keychain. Neither reaches the engine or the
+/// interface.
 fn service_keys(
     shell: &Shell,
     p: &Parts,
@@ -194,24 +196,22 @@ fn service_keys(
     keys: &Keyring,
 ) -> Result<(), String> {
     let staging = staging(&p.data_dir);
-    let out = shell.sync.keys_out.lock().expect("keys out").take();
-    if let Some(claude) = out {
+    let out = std::mem::take(&mut *shell.sync.keys_out.lock().expect("keys out"));
+    if out {
+        let claude = ai::key(p.keychain.as_ref())?;
+        let open_meteo = weather::key(p.keychain.as_ref())?;
         match service_keys::publish(
             drive,
             &staging,
             &p.identity,
             keys,
-            claude.as_deref().map(|s| s.as_str()),
+            claude.as_deref().map(String::as_str),
+            open_meteo.as_deref().map(String::as_str),
         ) {
             Ok(path) => *shell.sync.keys_seen.lock().expect("keys seen") = Some(path),
             Err(e) => {
                 // still to go: kept for the next round
-                shell
-                    .sync
-                    .keys_out
-                    .lock()
-                    .expect("keys out")
-                    .get_or_insert(claude);
+                *shell.sync.keys_out.lock().expect("keys out") = true;
                 return Err(e);
             }
         }
@@ -221,6 +221,11 @@ fn service_keys(
         match &set.claude {
             Some(k) => ai::set_key(p.keychain.as_ref(), k)?,
             None => p.keychain.delete(ai::KEY_NAME)?,
+        }
+        match &set.open_meteo {
+            Some(Some(k)) => weather::set_key(p.keychain.as_ref(), k)?,
+            Some(None) => p.keychain.delete(weather::KEY_NAME)?,
+            None => {} // no set that counts speaks of it yet: kept as it is
         }
         shell
             .key_rejected

@@ -21,6 +21,7 @@ pub mod scrub;
 pub mod station;
 pub mod sync;
 pub mod watch;
+pub mod weather;
 
 use std::path::PathBuf;
 use std::sync::atomic::{AtomicBool, Ordering};
@@ -460,9 +461,7 @@ async fn ai_key_set(app: AppHandle, key: String) -> Result<(), String> {
         // In a fleet, the key is entered once and reaches every laptop (spec: Security,
         // "Service keys").
         if fleet::in_fleet(&shell) {
-            shell
-                .sync
-                .share_claude_key(Some(zeroize::Zeroizing::new(key.trim().to_owned())));
+            shell.sync.share_keys();
         }
         Ok(())
     })
@@ -479,9 +478,61 @@ async fn ai_key_clear(app: AppHandle) -> Result<(), String> {
             .ok_or("the OS keychain is not available")?
             .delete(ai::KEY_NAME)?;
         if fleet::in_fleet(&shell) {
-            shell.sync.share_claude_key(None);
+            shell.sync.share_keys();
         }
         Ok(())
+    })
+    .await
+    .map_err(|e| e.to_string())?
+}
+
+/// Keeps the Open-Meteo key in the OS keychain. The interface can set or remove it,
+/// never read it back; in a fleet it goes to every laptop.
+#[tauri::command]
+async fn weather_key_set(app: AppHandle, key: String) -> Result<(), String> {
+    let key = zeroize::Zeroizing::new(key);
+    tauri::async_runtime::spawn_blocking(move || {
+        let shell = app.state::<Shell>();
+        let keychain = shell.keychain.lock().expect("keychain").clone();
+        let keychain = keychain.ok_or("the OS keychain is not available")?;
+        weather::set_key(keychain.as_ref(), &key)?;
+        if fleet::in_fleet(&shell) {
+            shell.sync.share_keys();
+        }
+        Ok(())
+    })
+    .await
+    .map_err(|e| e.to_string())?
+}
+
+#[tauri::command]
+async fn weather_key_clear(app: AppHandle) -> Result<(), String> {
+    tauri::async_runtime::spawn_blocking(move || {
+        let shell = app.state::<Shell>();
+        let keychain = shell.keychain.lock().expect("keychain").clone();
+        keychain
+            .ok_or("the OS keychain is not available")?
+            .delete(weather::KEY_NAME)?;
+        if fleet::in_fleet(&shell) {
+            shell.sync.share_keys();
+        }
+        Ok(())
+    })
+    .await
+    .map_err(|e| e.to_string())?
+}
+
+/// What the interface may know of weather: whether a key is set (never the key).
+#[tauri::command]
+async fn weather_status(app: AppHandle) -> Result<Value, String> {
+    tauri::async_runtime::spawn_blocking(move || {
+        let shell = app.state::<Shell>();
+        let keychain = shell.keychain.lock().expect("keychain").clone();
+        let key_set = keychain
+            .map(|k| weather::key(k.as_ref()).map(|k| k.is_some()))
+            .transpose()?
+            .unwrap_or(false);
+        Ok(serde_json::json!({ "key_set": key_set }))
     })
     .await
     .map_err(|e| e.to_string())?
@@ -711,6 +762,9 @@ pub fn run() {
             ai_chat_prepare,
             ai_chat_send,
             ai_chat_cancel,
+            weather_status,
+            weather_key_set,
+            weather_key_clear,
             fleet::sync_status,
             fleet::sync_now,
             fleet::sync_choose_drive,
