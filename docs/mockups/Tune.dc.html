@@ -1,0 +1,408 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Tune check</title>
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&amp;family=IBM+Plex+Sans:wght@400;500;600&amp;display=swap" rel="stylesheet">
+<style>
+body{margin:0;background:#0E1114}
+a{color:#7CC4F0}a:hover{color:#A9D9F7}
+button{font-family:inherit}
+:focus-visible{outline:2px solid #7CC4F0;outline-offset:2px}
+@media (max-width:720px){.rail{flex:1 1 100% !important;width:100% !important;flex-direction:row !important;overflow-x:auto;padding:8px !important}.rail-spacer{display:none !important}}
+</style>
+</helmet>
+<div style="min-height: 100vh; display: flex; flex-wrap: wrap; background: #0E1114; color: #E7EAEE; font-family: 'IBM Plex Sans', system-ui, sans-serif; font-size: 14px; line-height: 1.45;">
+
+<nav class="rail" aria-label="Main navigation" style="flex: 0 0 76px; width: 76px; box-sizing: border-box; background: #0A0C0F; border-right: 1px solid #1E242B; display: flex; flex-direction: column; align-items: center; gap: 4px; padding: 14px 0 16px;">
+<svg role="img" aria-label="Flight Insights" width="36" height="36" viewBox="0 0 36 36" style="flex: 0 0 auto; margin-bottom: 14px;"><rect x="1" y="1" width="34" height="34" rx="9" fill="#13222D" stroke="#2A4558"></rect><path d="M8 25l6-7 5 4 9-12" fill="none" stroke="#5AB0E8" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"></path><circle cx="28" cy="10" r="2.4" fill="#5AB0E8"></circle></svg>
+<a href="Main.dc.html" style="flex: 0 0 auto; width: 60px; padding: 8px 0 7px; border-radius: 10px; display: flex; flex-direction: column; align-items: center; gap: 4px; font-size: 11px; font-weight: 500; text-decoration: none; color: #A3ACB6;"><svg aria-hidden="true" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="7" height="7" rx="1.5"></rect><rect x="14" y="3" width="7" height="7" rx="1.5"></rect><rect x="3" y="14" width="7" height="7" rx="1.5"></rect><rect x="14" y="14" width="7" height="7" rx="1.5"></rect></svg>Fleet</a>
+<a href="FlightReport.dc.html" aria-current="page" style="flex: 0 0 auto; width: 60px; padding: 8px 0 7px; border-radius: 10px; display: flex; flex-direction: column; align-items: center; gap: 4px; font-size: 11px; font-weight: 500; text-decoration: none; color: #9BD3F5; background: rgba(90,176,232,0.15);"><svg aria-hidden="true" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M6 3h9l4 4v14H6z"></path><path d="M14 3v5h5"></path><path d="M9 13h7M9 17h5"></path></svg>Flights</a>
+<a href="Trends.dc.html" style="flex: 0 0 auto; width: 60px; padding: 8px 0 7px; border-radius: 10px; display: flex; flex-direction: column; align-items: center; gap: 4px; font-size: 11px; font-weight: 500; text-decoration: none; color: #A3ACB6;"><svg aria-hidden="true" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M3 17l5-5 4 3 8-8"></path><path d="M15 7h5v5"></path></svg>Trends</a>
+<a href="ConfigReview.dc.html" style="flex: 0 0 auto; width: 60px; padding: 8px 0 7px; border-radius: 10px; display: flex; flex-direction: column; align-items: center; gap: 4px; font-size: 11px; font-weight: 500; text-decoration: none; color: #A3ACB6;"><svg aria-hidden="true" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M4 6h10M18 6h2M4 12h4M12 12h8M4 18h12"></path><circle cx="16" cy="6" r="2"></circle><circle cx="10" cy="12" r="2"></circle><circle cx="18" cy="18" r="2"></circle></svg>Params</a>
+<a href="Plan.dc.html" style="flex: 0 0 auto; width: 60px; padding: 8px 0 7px; border-radius: 10px; display: flex; flex-direction: column; align-items: center; gap: 4px; font-size: 11px; font-weight: 500; text-decoration: none; color: #A3ACB6;"><svg aria-hidden="true" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M10 6h10M10 12h10M10 18h10"></path><path d="M3.5 6l1.5 1.5L7.5 5"></path><path d="M3.5 12l1.5 1.5L7.5 11"></path><circle cx="5" cy="18" r="1.5"></circle></svg>Plan</a>
+<button type="button" style="flex: 0 0 auto; width: 60px; padding: 8px 0 7px; border: 0; border-radius: 10px; background: transparent; display: flex; flex-direction: column; align-items: center; gap: 4px; font-size: 11px; font-weight: 500; color: #A3ACB6; cursor: pointer;"><svg aria-hidden="true" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M4 5h16v11H9l-5 4z"></path><path d="M8 10h8"></path></svg>Ask</button>
+<div class="rail-spacer" style="flex: 1 1 auto;"></div>
+<button type="button" style="flex: 0 0 auto; width: 60px; padding: 8px 0 7px; border: 0; border-radius: 10px; background: transparent; display: flex; flex-direction: column; align-items: center; gap: 4px; font-size: 11px; font-weight: 500; color: #A3ACB6; cursor: pointer;"><svg aria-hidden="true" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3v11"></path><path d="M7 9l5 5 5-5"></path><path d="M4 17v3h16v-3"></path></svg>Imports</button>
+<button type="button" style="flex: 0 0 auto; width: 60px; padding: 8px 0 7px; border: 0; border-radius: 10px; background: transparent; display: flex; flex-direction: column; align-items: center; gap: 4px; font-size: 11px; font-weight: 500; color: #A3ACB6; cursor: pointer;"><svg aria-hidden="true" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"></circle><path d="M12 2v3M12 19v3M2 12h3M19 12h3M4.9 4.9L7 7M17 17l2.1 2.1M4.9 19.1L7 17M17 7l2.1-2.1"></path></svg>Settings</button>
+</nav>
+
+<div style="flex: 999 1 560px; min-width: 0; display: flex; flex-direction: column;">
+
+<header style="display: flex; flex-wrap: wrap; align-items: center; gap: 12px 16px; padding: 10px 24px; min-height: 60px; box-sizing: border-box; border-bottom: 1px solid #1E242B;">
+<nav aria-label="Scope" style="display: flex; align-items: center; gap: 4px; flex-wrap: wrap;">
+<button type="button" style="display: flex; align-items: center; gap: 6px; padding: 6px 10px; border: 1px solid transparent; border-radius: 8px; background: transparent; font-size: 13px; color: #CBD2D9; cursor: pointer;">Heavy-lift X8<svg aria-hidden="true" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#7C8691" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M6 9l6 6 6-6"></path></svg></button>
+<svg aria-hidden="true" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#4A535D" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 6l6 6-6 6"></path></svg>
+<button type="button" style="display: flex; align-items: center; gap: 6px; padding: 6px 10px; border: 1px solid transparent; border-radius: 8px; background: transparent; font-family: 'IBM Plex Mono', ui-monospace, monospace; font-size: 13px; color: #CBD2D9; cursor: pointer;">HL-07<svg aria-hidden="true" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#7C8691" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M6 9l6 6 6-6"></path></svg></button>
+<svg aria-hidden="true" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#4A535D" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 6l6 6-6 6"></path></svg>
+<button type="button" style="display: flex; align-items: center; gap: 6px; padding: 6px 10px; border: 1px solid #262D35; border-radius: 8px; background: #151A1F; font-size: 13px; color: #E7EAEE; cursor: pointer;">Flight 156 · 24 Oct 10:12<svg aria-hidden="true" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#7C8691" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M6 9l6 6 6-6"></path></svg></button>
+</nav>
+<button type="button" style="flex: 1 1 200px; max-width: 360px; display: flex; align-items: center; gap: 8px; padding: 8px 12px; border: 1px solid #262D35; border-radius: 8px; background: #12161A; color: #8A949E; font-size: 13px; text-align: left; cursor: pointer;"><svg aria-hidden="true" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><circle cx="11" cy="11" r="6"></circle><path d="M20 20l-4.5-4.5"></path></svg><span style="flex: 1 1 auto;">Search or jump</span><kbd style="font-family: 'IBM Plex Mono', ui-monospace, monospace; font-size: 11px; padding: 2px 6px; border: 1px solid #333B45; border-radius: 5px; color: #A3ACB6;">Ctrl K</kbd></button>
+<div style="margin-left: auto; display: flex; align-items: center; gap: 8px; flex-wrap: wrap;">
+<span style="display: flex; align-items: center; gap: 6px; padding: 5px 10px; border-radius: 999px; background: #151A1F; border: 1px solid #222930; font-size: 12px; color: #A3ACB6;"><span aria-hidden="true" style="width: 7px; height: 7px; border-radius: 50%; background: #3DBE8B;"></span>Claude API</span>
+<button type="button" style="display: flex; align-items: center; gap: 8px; padding: 9px 14px; border: 0; border-radius: 8px; background: #5AB0E8; color: #06121A; font-size: 13px; font-weight: 600; cursor: pointer;"><svg aria-hidden="true" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3v11"></path><path d="M7 9l5 5 5-5"></path><path d="M4 17v3h16v-3"></path></svg>Import logs</button>
+</div>
+</header>
+
+<div style="display: flex; flex-direction: column; gap: 10px; padding: 18px 24px 0;">
+<div style="display: flex; flex-wrap: wrap; align-items: baseline; gap: 8px 16px;">
+<h1 style="margin: 0; font-size: 22px; font-weight: 600; letter-spacing: -0.01em;">Flight 156 · Tune</h1>
+<p style="margin: 0; font-size: 13px; color: #A3ACB6;">How closely each axis follows the pilot's stick, against an earlier flight of the same profile and payload.</p>
+</div>
+<nav aria-label="Flight views" style="display: flex; flex-wrap: wrap; gap: 2px; border-bottom: 1px solid #1E242B;">
+<sc-for list="{{tabs}}" as="t" hint-placeholder-count="10">
+<a href="{{t.href}}" style="padding: 9px 12px 10px; font-size: 13px; font-weight: 500; text-decoration: none; color: {{t.c}}; border-bottom: 2px solid {{t.line}}; margin-bottom: -1px;">{{t.label}}</a>
+</sc-for>
+</nav>
+</div>
+
+<main style="display: flex; flex-wrap: wrap; gap: 20px; padding: 18px 24px 24px; align-items: flex-start;">
+
+<aside aria-labelledby="cmp-title" style="flex: 1 1 280px; max-width: 320px; min-width: 0; display: flex; flex-direction: column; gap: 16px; padding: 16px; border-radius: 12px; background: #12161A; border: 1px solid #262D35;">
+<h2 id="cmp-title" style="margin: 0; font-size: 14px; font-weight: 600;">Comparison</h2>
+
+<div style="display: flex; flex-direction: column; gap: 6px;">
+<span style="font-size: 12px; color: #A3ACB6;">Compared with</span>
+<button type="button" style="display: flex; align-items: center; justify-content: space-between; gap: 8px; padding: 8px 10px; border: 1px solid #262D35; border-radius: 8px; background: #151A1F; font-size: 13px; color: #E7EAEE; text-align: left; cursor: pointer;"><span>Flight 149 · 21 Oct 16:40<br><span style="font-size: 12px; color: #8A949E;">before the plan · same profile</span></span><svg aria-hidden="true" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#7C8691" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M6 9l6 6 6-6"></path></svg></button>
+</div>
+
+<div role="group" aria-labelledby="pl-l" style="display: flex; flex-direction: column; gap: 6px;">
+<span id="pl-l" style="font-size: 12px; color: #A3ACB6;">Payload band</span>
+<div style="display: flex; gap: 6px;">
+<sc-for list="{{bands}}" as="b" hint-placeholder-count="2">
+<button type="button" aria-pressed="{{b.on}}" onClick="{{b.pick}}" style="flex: 1 1 0; padding: 6px 10px; border: 1px solid {{b.bd}}; border-radius: 7px; background: {{b.bg}}; font-size: 12px; color: {{b.c}}; cursor: pointer;">{{b.label}}</button>
+</sc-for>
+</div>
+</div>
+
+<div role="group" aria-labelledby="ax-l" style="display: flex; flex-direction: column; gap: 6px;">
+<span id="ax-l" style="font-size: 12px; color: #A3ACB6;">Axis for the response plots</span>
+<div style="display: flex; gap: 6px;">
+<sc-for list="{{axes}}" as="a" hint-placeholder-count="3">
+<button type="button" aria-pressed="{{a.on}}" onClick="{{a.pick}}" style="flex: 1 1 0; padding: 6px 10px; border: 1px solid {{a.bd}}; border-radius: 7px; background: {{a.bg}}; font-size: 12px; color: {{a.c}}; cursor: pointer;">{{a.label}}</button>
+</sc-for>
+</div>
+</div>
+
+<div style="display: flex; flex-direction: column; gap: 6px; font-size: 12px; padding-top: 12px; border-top: 1px solid #222930;">
+<div style="display: flex; justify-content: space-between; gap: 8px;"><span style="color: #A3ACB6;">Profile</span><span style="color: #3DBE8B;">● Tune check, both flights</span></div>
+<div style="display: flex; justify-content: space-between; gap: 8px;"><span style="color: #A3ACB6;">Rate loop logged</span><span style="color: #E7EAEE;">400 Hz, both flights</span></div>
+<div style="display: flex; justify-content: space-between; gap: 8px;"><span style="color: #A3ACB6;">Stick inputs counted</span><span style="font-family: 'IBM Plex Mono', ui-monospace, monospace; color: #E7EAEE;">31 of 32 · 32 of 32</span></div>
+<div style="display: flex; justify-content: space-between; gap: 8px;"><span style="color: #A3ACB6;">Wind at take-off</span><span style="color: #E7EAEE;">2.8 m/s · 3.1 m/s</span></div>
+<p style="margin: 2px 0 0; font-size: 12px; line-height: 1.45; color: #8A949E;">Inputs are matched on stick size, so gentler flying does not look like a better tune.</p>
+</div>
+
+<div style="display: flex; gap: 8px; flex-wrap: wrap;">
+<a href="Plan.dc.html" style="flex: 1 1 auto; display: flex; align-items: center; justify-content: center; min-height: 40px; padding: 0 14px; border-radius: 8px; background: #5AB0E8; color: #06121A; font-size: 13px; font-weight: 600; text-decoration: none;">Tune-check card</a>
+<button type="button" style="min-height: 40px; padding: 0 14px; border: 1px solid #333B45; border-radius: 8px; background: transparent; font-size: 13px; color: #CBD2D9; cursor: pointer;">Compare another</button>
+</div>
+</aside>
+
+<section aria-label="Tune results" style="flex: 999 1 560px; min-width: 0; display: flex; flex-direction: column; gap: 14px;">
+
+<section aria-labelledby="te-title" style="padding: 14px 16px; border-radius: 12px; background: #12161A; border: 1px solid #262D35; display: flex; flex-direction: column; gap: 10px;">
+<div style="display: flex; flex-wrap: wrap; align-items: baseline; gap: 6px 16px;">
+<h2 id="te-title" style="margin: 0; font-size: 14px; font-weight: 600;">Rate tracking error · {{bandLabel}}</h2>
+<sc-if value="{{hasData}}" hint-placeholder-val="{{ true }}">
+<span style="display: flex; flex-wrap: wrap; gap: 4px 14px; font-size: 12px; color: #A3ACB6;">
+<span><span aria-hidden="true" style="color: #6B7682;">━●━</span> Flight 149, 95% interval</span>
+<span><span aria-hidden="true" style="color: #5AB0E8;">━●━</span> This flight</span>
+</span>
+</sc-if>
+</div>
+<sc-if value="{{noLoaded}}" hint-placeholder-val="{{ false }}">
+<p style="margin: 0; padding: 10px 12px; border-radius: 9px; background: #1F1A12; border: 1px solid #4A3A1E; font-size: 13px; color: #E8C27A;">▲ No loaded tune check yet. Fly the tune-check profile carrying the 8 kg payload to compare loaded flights.</p>
+</sc-if>
+<sc-if value="{{hasData}}" hint-placeholder-val="{{ true }}">
+<div role="table" aria-label="Rate tracking error by axis" style="display: grid; grid-template-columns: 44px minmax(0, 1fr) auto; align-items: center; gap: 8px 16px;">
+<sc-for list="{{rows}}" as="r" hint-placeholder-count="3">
+<div role="row" style="display: contents;">
+<span role="rowheader" style="font-size: 13px; font-weight: 500;">{{r.axis}}</span>
+<div role="cell" aria-label="{{r.aria}}" style="position: relative; height: 34px; border-top: 1px solid #1E242B;">
+<span aria-hidden="true" style="position: absolute; top: 9px; left: {{r.bLo}}%; width: {{r.bW}}%; height: 3px; border-radius: 2px; background: #6B7682;"></span>
+<span aria-hidden="true" style="position: absolute; top: 5px; left: calc({{r.bMid}}% - 5px); width: 7px; height: 7px; border-radius: 50%; background: #0E1114; border: 2px solid #8A949E;"></span>
+<span aria-hidden="true" style="position: absolute; top: 23px; left: {{r.aLo}}%; width: {{r.aW}}%; height: 3px; border-radius: 2px; background: #5AB0E8;"></span>
+<span aria-hidden="true" style="position: absolute; top: 19px; left: calc({{r.aMid}}% - 5px); width: 11px; height: 11px; border-radius: 50%; background: #5AB0E8;"></span>
+</div>
+<div role="cell" style="display: flex; flex-direction: column; align-items: flex-end; gap: 2px;">
+<span style="font-family: 'IBM Plex Mono', ui-monospace, monospace; font-size: 13px; white-space: nowrap;"><span style="color: #8A949E;">{{r.before}}</span> <span aria-hidden="true" style="color: #6E7883;">→</span> <span style="color: #E7EAEE;">{{r.after}}</span></span>
+<span style="font-size: 12px; color: {{r.vc}}; white-space: nowrap;">{{r.verdict}}</span>
+</div>
+</div>
+</sc-for>
+<span aria-hidden="true"></span>
+<div aria-hidden="true" style="position: relative; height: 14px; font-family: 'IBM Plex Mono', ui-monospace, monospace; font-size: 11px; color: #6E7883;">
+<sc-for list="{{scaleTicks}}" as="s" hint-placeholder-count="5"><span style="position: absolute; left: {{s.x}}%; transform: translateX({{s.shift}}); white-space: nowrap;">{{s.l}}</span></sc-for>
+</div>
+</div>
+<p style="margin: 0; font-size: 12px; color: #8A949E;">RMS of (target − measured rate) over RMS of the target, for each counted stick input; the mean, with a 95% interval over the inputs. Lower is closer tracking.</p>
+</sc-if>
+</section>
+
+<sc-if value="{{hasData}}" hint-placeholder-val="{{ true }}">
+<div style="display: flex; flex-wrap: wrap; gap: 14px;">
+
+<figure style="flex: 1 1 380px; min-width: 0; margin: 0; padding: 14px 16px 10px; border-radius: 12px; background: #12161A; border: 1px solid #262D35; display: flex; flex-direction: column; gap: 8px;">
+<figcaption style="display: flex; flex-wrap: wrap; align-items: baseline; gap: 6px 16px;">
+<span style="font-size: 14px; font-weight: 600;">Step response · {{axisLabel}}</span>
+<span style="display: flex; flex-wrap: wrap; gap: 4px 14px; font-size: 12px; color: #A3ACB6;">
+<span><span aria-hidden="true" style="color: #6B7682;">┅</span> Flight 149</span>
+<span><span aria-hidden="true" style="color: #5AB0E8;">━</span> This flight, with interval</span>
+</span>
+</figcaption>
+<svg role="img" aria-label="{{step.aria}}" width="100%" viewBox="0 0 460 210" style="display: block;">
+<sc-for list="{{step.grid}}" as="g" hint-placeholder-count="4"><line x1="44" y1="{{g.y}}" x2="452" y2="{{g.y}}" stroke="#1E242B"></line><text x="38" y="{{g.ty}}" fill="#6E7883" font-size="10" font-family="IBM Plex Mono, monospace" text-anchor="end">{{g.l}}</text></sc-for>
+<line x1="44" y1="{{step.y1}}" x2="452" y2="{{step.y1}}" stroke="#2D5068" stroke-dasharray="3 3"></line>
+<path d="{{step.band}}" fill="rgba(90,176,232,0.16)"></path>
+<path d="{{step.before}}" fill="none" stroke="#8A949E" stroke-width="1.6" stroke-dasharray="5 4"></path>
+<path d="{{step.after}}" fill="none" stroke="#5AB0E8" stroke-width="2"></path>
+<sc-for list="{{step.ticks}}" as="t" hint-placeholder-count="4"><text x="{{t.x}}" y="204" fill="#6E7883" font-size="10" font-family="IBM Plex Mono, monospace" text-anchor="middle">{{t.l}}</text></sc-for>
+</svg>
+<dl style="margin: 0; display: grid; grid-template-columns: repeat(auto-fit, minmax(120px, 1fr)); gap: 6px 14px; font-size: 12px;">
+<sc-for list="{{step.stats}}" as="s" hint-placeholder-count="4">
+<div style="display: flex; flex-direction: column; gap: 2px;"><dt style="color: #A3ACB6;">{{s.n}}</dt><dd style="margin: 0; font-family: 'IBM Plex Mono', ui-monospace, monospace;"><span style="color: #8A949E;">{{s.b}}</span> <span aria-hidden="true" style="color: #6E7883;">→</span> <span style="color: #E7EAEE;">{{s.a}}</span></dd></div>
+</sc-for>
+</dl>
+</figure>
+
+<figure style="flex: 1 1 380px; min-width: 0; margin: 0; padding: 14px 16px 10px; border-radius: 12px; background: #12161A; border: 1px solid #262D35; display: flex; flex-direction: column; gap: 8px;">
+<figcaption style="display: flex; flex-wrap: wrap; align-items: baseline; gap: 6px 16px;">
+<span style="font-size: 14px; font-weight: 600;">Frequency response · {{axisLabel}}</span>
+<span style="display: flex; flex-wrap: wrap; gap: 4px 14px; font-size: 12px; color: #A3ACB6;">
+<span><span aria-hidden="true" style="color: #6B7682;">┅</span> Flight 149</span>
+<span><span aria-hidden="true" style="color: #5AB0E8;">━</span> This flight</span>
+<span><span aria-hidden="true" style="color: #3A424B;">▮</span> Above the measured band (error over 10%): not measured</span>
+</span>
+</figcaption>
+<svg role="img" aria-label="{{freq.aria}}" width="100%" viewBox="0 0 460 210" style="display: block;">
+<rect x="{{freq.noX}}" y="8" width="{{freq.noW}}" height="178" fill="rgba(58,66,75,0.35)"></rect>
+<sc-for list="{{freq.grid}}" as="g" hint-placeholder-count="4"><line x1="44" y1="{{g.y}}" x2="452" y2="{{g.y}}" stroke="#1E242B"></line><text x="38" y="{{g.ty}}" fill="#6E7883" font-size="10" font-family="IBM Plex Mono, monospace" text-anchor="end">{{g.l}}</text></sc-for>
+<line x1="44" y1="{{freq.m3}}" x2="452" y2="{{freq.m3}}" stroke="#2D5068" stroke-dasharray="3 3"></line>
+<text x="450" y="{{freq.m3t}}" fill="#6E8FA8" font-size="10" font-family="IBM Plex Mono, monospace" text-anchor="end">−3 dB</text>
+<path d="{{freq.before}}" fill="none" stroke="#8A949E" stroke-width="1.6" stroke-dasharray="5 4"></path>
+<path d="{{freq.after}}" fill="none" stroke="#5AB0E8" stroke-width="2"></path>
+<line x1="{{freq.bwB}}" y1="{{freq.m3}}" x2="{{freq.bwB}}" y2="186" stroke="#8A949E" stroke-dasharray="2 3"></line>
+<line x1="{{freq.bwA}}" y1="{{freq.m3}}" x2="{{freq.bwA}}" y2="186" stroke="#5AB0E8" stroke-dasharray="2 3"></line>
+<sc-for list="{{freq.ticks}}" as="t" hint-placeholder-count="5"><text x="{{t.x}}" y="204" fill="#6E7883" font-size="10" font-family="IBM Plex Mono, monospace" text-anchor="{{t.anchor}}">{{t.l}}</text></sc-for>
+</svg>
+<dl style="margin: 0; display: grid; grid-template-columns: repeat(auto-fit, minmax(120px, 1fr)); gap: 6px 14px; font-size: 12px;">
+<sc-for list="{{freq.stats}}" as="s" hint-placeholder-count="3">
+<div style="display: flex; flex-direction: column; gap: 2px;"><dt style="color: #A3ACB6;">{{s.n}}</dt><dd style="margin: 0; font-family: 'IBM Plex Mono', ui-monospace, monospace;"><span style="color: #8A949E;">{{s.b}}</span> <span aria-hidden="true" style="color: #6E7883;">→</span> <span style="color: #E7EAEE;">{{s.a}}</span></dd></div>
+</sc-for>
+</dl>
+</figure>
+
+</div>
+
+<figure style="margin: 0; padding: 14px 16px 10px; border-radius: 12px; background: #12161A; border: 1px solid #262D35; display: flex; flex-direction: column; gap: 8px;">
+<figcaption style="display: flex; flex-wrap: wrap; align-items: baseline; gap: 6px 16px;">
+<span style="font-size: 14px; font-weight: 600;">Stick inputs · this flight</span>
+<span style="display: flex; flex-wrap: wrap; gap: 4px 14px; font-size: 12px; color: #A3ACB6;">
+<span><span aria-hidden="true" style="color: #5AB0E8;">▮</span> Counted</span>
+<span><span aria-hidden="true" style="color: #E8A33D;">▯</span> Left out</span>
+</span>
+</figcaption>
+<svg role="img" aria-label="{{lane.aria}}" width="100%" viewBox="0 0 960 118" style="display: block;">
+<sc-for list="{{lane.rows}}" as="r" hint-placeholder-count="3">
+<text x="0" y="{{r.ty}}" fill="#A3ACB6" font-size="12" font-family="IBM Plex Sans, sans-serif">{{r.label}}</text>
+<line x1="70" y1="{{r.y}}" x2="956" y2="{{r.y}}" stroke="#1E242B"></line>
+<sc-for list="{{r.marks}}" as="m" hint-placeholder-count="12"><rect x="{{m.x}}" y="{{m.top}}" width="{{m.w}}" height="16" rx="2" fill="{{m.fill}}" stroke="{{m.stroke}}" stroke-width="1.4"></rect></sc-for>
+</sc-for>
+<sc-for list="{{lane.ticks}}" as="t" hint-placeholder-count="6"><text x="{{t.x}}" y="114" fill="#6E7883" font-size="10" font-family="IBM Plex Mono, monospace" text-anchor="{{t.anchor}}">{{t.l}}</text></sc-for>
+</svg>
+<p style="margin: 0; font-size: 12px; color: #CBD2D9;"><span style="color: #E8A33D;">▲</span> One roll input left out at 2:23: at about 70% stick the motors reached their limit (PIDR limit flag), so it measures the aircraft's authority, not its gains. Nothing was left out for mode changes, height, gaps in the log or a still stick.</p>
+</figure>
+</sc-if>
+
+<section aria-labelledby="vd-title" style="padding: 14px 16px; border-radius: 12px; background: #12161A; border: 1px solid #262D35; display: flex; flex-direction: column; gap: 10px;">
+<div style="display: flex; flex-wrap: wrap; align-items: baseline; gap: 6px 16px;">
+<h2 id="vd-title" style="margin: 0; font-size: 14px; font-weight: 600;">Did the plan improve the tune?</h2>
+<span style="font-size: 12px; color: #E8C27A;">▲ 4 of 5 met · the loaded comparison is still to fly</span>
+</div>
+<ul style="margin: 0; padding: 0; list-style: none; display: flex; flex-direction: column; gap: 6px;">
+<sc-for list="{{verdict}}" as="v" hint-placeholder-count="5">
+<li style="display: flex; gap: 10px; align-items: baseline; font-size: 13px;"><span aria-hidden="true" style="flex: 0 0 14px; color: {{v.c}};">{{v.g}}</span><span style="color: #E7EAEE;">{{v.t}} <span style="color: #8A949E;">{{v.d}}</span></span></li>
+</sc-for>
+</ul>
+</section>
+
+</section>
+</main>
+
+</div>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":1440,"height":1400}}'>
+class Component extends DCLogic {
+  renderVals() {
+    const axis = (this.state && this.state.axis) || 'roll';
+    const band = (this.state && this.state.band) || 'light';
+    const tabNames = [['Overview', 'FlightReport.dc.html'], ['Timeline', 'FlightReport.dc.html'], ['Filters', 'Workbench.dc.html'], ['Tune', 'Tune.dc.html'], ['Propulsion', 'FlightReport.dc.html'], ['Navigation and GNSS', 'FlightReport.dc.html'], ['Links', 'FlightReport.dc.html'], ['System and buses', 'FlightReport.dc.html'], ['Weather', 'FlightReport.dc.html'], ['Parameters', 'Trends.dc.html']];
+    const tabs = tabNames.map((t, i) => ({ label: t[0], href: t[1], c: i === 3 ? '#E7EAEE' : '#A3ACB6', line: i === 3 ? '#5AB0E8' : 'transparent' }));
+    const pill = (on) => ({ bd: on ? '#2D5068' : '#262D35', bg: on ? 'rgba(90,176,232,0.14)' : 'transparent', c: on ? '#9BD3F5' : '#A3ACB6' });
+    const bands = [['light', 'Light'], ['loaded', 'Loaded, 8 kg']].map((b) => ({ label: b[1], on: b[0] === band, ...pill(b[0] === band), pick: () => this.setState({ band: b[0] }) }));
+    const axes = [['roll', 'Roll'], ['pitch', 'Pitch'], ['yaw', 'Yaw']].map((a) => ({ label: a[1], on: a[0] === axis, ...pill(a[0] === axis), pick: () => this.setState({ axis: a[0] }) }));
+    const axisLabel = { roll: 'roll', pitch: 'pitch', yaw: 'yaw' }[axis];
+
+    // Tracking error, % : before [lo, mid, hi], after [lo, mid, hi]
+    const TE = {
+      roll: [[29.6, 31.4, 33.3], [20.5, 21.7, 22.9]],
+      pitch: [[28.1, 29.8, 31.6], [21.4, 22.9, 24.5]],
+      yaw: [[16.9, 18.2, 19.6], [16.2, 17.6, 19.1]]
+    };
+    const sx = (v) => (v / 40 * 100).toFixed(2);
+    const scaleTicks = [0, 20, 40].map((v) => ({ x: sx(v), l: v + '%', shift: v === 0 ? '0' : v === 40 ? '-100%' : '-50%' }));
+    const noLoaded = band === 'loaded';
+    const pct = (n) => (n < 0 ? '−' + -n : '+' + n) + '%';
+    const rows = noLoaded ? [] : ['roll', 'pitch', 'yaw'].map((k) => {
+      const [b, a] = TE[k];
+      const change = Math.round((a[1] - b[1]) / b[1] * 100);
+      const apart = a[2] < b[0];
+      const better = apart && change <= -20;
+      return {
+        axis: k[0].toUpperCase() + k.slice(1),
+        bLo: sx(b[0]), bMid: sx(b[1]), bW: sx(b[2] - b[0]), aLo: sx(a[0]), aMid: sx(a[1]), aW: sx(a[2] - a[0]),
+        before: b[1].toFixed(1) + '%', after: a[1].toFixed(1) + '%',
+        verdict: better ? `● ${pct(change)}, intervals apart` : apart ? `● ${pct(change)}, under 20%` : `▲ ${pct(change)}, within the spread`,
+        vc: better ? '#3DBE8B' : '#E8C27A',
+        aria: `${k}: ${b[1]}% (${b[0]} to ${b[2]}) before, ${a[1]}% (${a[0]} to ${a[2]}) now`
+      };
+    });
+    const bandLabel = noLoaded ? 'loaded' : 'light';
+
+    // A second-order loop with a little dead time: the step and frequency responses
+    // drawn and their figures computed from the same model, so they agree.
+    const M = { roll: [[0.48, 3.2], [0.67, 5.2]], pitch: [[0.50, 3.0], [0.66, 4.6]], yaw: [[0.85, 1.6], [0.86, 1.7]] }[axis];
+    const tau = 0.03;
+    const stepAt = (z, fn, t) => {
+      const w = 2 * Math.PI * fn, s = t - tau;
+      if (s <= 0) return 0;
+      if (z >= 1) return 1 - Math.exp(-w * s) * (1 + w * s);
+      const wd = w * Math.sqrt(1 - z * z);
+      return 1 - Math.exp(-z * w * s) * (Math.cos(wd * s) + z / Math.sqrt(1 - z * z) * Math.sin(wd * s));
+    };
+    const SX0 = 44, SX1 = 452, SY0 = 10, SY1 = 186, T = 1.5;
+    const stx = (t) => SX0 + t / T * (SX1 - SX0);
+    const sty = (y) => SY1 - y / 1.4 * (SY1 - SY0);
+    const curve = (z, fn, off) => {
+      let d = '';
+      for (let i = 0; i <= 150; i++) { const t = i / 100; d += (i ? 'L' : 'M') + stx(t).toFixed(1) + ' ' + sty(stepAt(z, fn, t) + off).toFixed(1) + ' '; }
+      return d;
+    };
+    const bandPath = (z, fn) => {
+      let up = '', dn = '';
+      for (let i = 0; i <= 150; i++) { const t = i / 100, y = stepAt(z, fn, t); up += (i ? 'L' : 'M') + stx(t).toFixed(1) + ' ' + sty(y + 0.04).toFixed(1) + ' '; }
+      for (let i = 150; i >= 0; i--) { const t = i / 100, y = stepAt(z, fn, t); dn += 'L' + stx(t).toFixed(1) + ' ' + sty(y - 0.04).toFixed(1) + ' '; }
+      return up + dn + 'Z';
+    };
+    const figures = (z, fn) => {
+      let t10 = null, t90 = null, peak = 0, settle = 0;
+      for (let i = 0; i <= 3000; i++) {
+        const t = i / 2000, y = stepAt(z, fn, t);
+        if (t10 === null && y >= 0.1) t10 = t;
+        if (t90 === null && y >= 0.9) t90 = t;
+        peak = Math.max(peak, y);
+        if (Math.abs(y - 1) > 0.05) settle = t;
+      }
+      return { rise: t90 - t10, over: Math.max(0, peak - 1) * 100, settle };
+    };
+    const [zb, fb] = M[0], [za, fa] = M[1];
+    const fB = figures(zb, fb), fA = figures(za, fa);
+    const step = {
+      before: curve(zb, fb, 0), after: curve(za, fa, 0), band: bandPath(za, fa), y1: sty(1).toFixed(1),
+      grid: [0, 0.5, 1, 1.4].map((v) => ({ y: sty(v).toFixed(1), ty: (sty(v) + 3).toFixed(1), l: v.toFixed(1) })),
+      ticks: [0, 0.5, 1, 1.5].map((t) => ({ x: stx(t).toFixed(1), l: t + ' s' })),
+      stats: [
+        ['Rise time, 10–90%', (fB.rise * 1000).toFixed(0) + ' ms', (fA.rise * 1000).toFixed(0) + ' ms'],
+        ['Overshoot', fB.over.toFixed(0) + '%', fA.over.toFixed(0) + '%'],
+        ['Settling, ±5%', (fB.settle * 1000).toFixed(0) + ' ms', (fA.settle * 1000).toFixed(0) + ' ms']
+      ].map((s) => ({ n: s[0], b: s[1], a: s[2] })),
+      aria: `Step response, ${axisLabel}: rise time ${(fB.rise * 1000).toFixed(0)} to ${(fA.rise * 1000).toFixed(0)} milliseconds, overshoot ${fB.over.toFixed(0)} to ${fA.over.toFixed(0)} percent`
+    };
+
+    // |T(jw)| of the same model, and |S| = |1 - T| for the sensitivity peak.
+    const Tj = (z, fn, f) => {
+      const w = 2 * Math.PI * f, wn = 2 * Math.PI * fn;
+      const re = wn * wn - w * w, im = 2 * z * wn * w;
+      const den = re * re + im * im;
+      const tr = wn * wn * re / den, ti = -wn * wn * im / den;  // wn^2 / (wn^2 - w^2 + j2zwnw)
+      const c = Math.cos(w * tau), s = Math.sin(w * tau);       // times e^(-jw tau)
+      return [tr * c + ti * s, ti * c - tr * s];
+    };
+    const db = (c) => 20 * Math.log10(Math.hypot(c[0], c[1]));
+    const FX0 = 44, FX1 = 452, FY0 = 10, FY1 = 186, F0 = 0.5, F1 = 40, D0 = -24, D1 = 9;
+    const fxp = (f) => FX0 + Math.log(f / F0) / Math.log(F1 / F0) * (FX1 - FX0);
+    const fyp = (d) => FY1 - (Math.min(D1, Math.max(D0, d)) - D0) / (D1 - D0) * (FY1 - FY0);
+    const measuredTo = 12;  // Hz: above it the stick inputs held too little energy to measure
+    const fcurve = (z, fn) => {
+      let d = '';
+      for (let i = 0; i <= 200; i++) { const f = F0 * Math.pow(F1 / F0, i / 200); if (f > measuredTo) break; d += (i ? 'L' : 'M') + fxp(f).toFixed(1) + ' ' + fyp(db(Tj(z, fn, f))).toFixed(1) + ' '; }
+      return d;
+    };
+    const ffig = (z, fn) => {
+      let bw = null, peak = -99, ms = 0;
+      for (let i = 0; i <= 2000; i++) {
+        const f = F0 * Math.pow(F1 / F0, i / 2000), c = Tj(z, fn, f);
+        if (bw === null && db(c) < -3) bw = f;
+        peak = Math.max(peak, db(c));
+        ms = Math.max(ms, Math.hypot(1 - c[0], -c[1]));
+      }
+      return { bw, peak, ms };
+    };
+    const qB = ffig(zb, fb), qA = ffig(za, fa);
+    const freq = {
+      before: fcurve(zb, fb), after: fcurve(za, fa),
+      noX: fxp(measuredTo).toFixed(1), noW: (FX1 - fxp(measuredTo)).toFixed(1),
+      m3: fyp(-3).toFixed(1), m3t: (fyp(-3) - 4).toFixed(1),
+      bwB: fxp(qB.bw).toFixed(1), bwA: fxp(qA.bw).toFixed(1),
+      grid: [-20, -10, 0, 5].map((v) => ({ y: fyp(v).toFixed(1), ty: (fyp(v) + 3).toFixed(1), l: v + ' dB' })),
+      ticks: [0.5, 1, 2, 5, 10, 20, 40].map((f) => ({ x: fxp(f).toFixed(1), l: f + ' Hz', anchor: f === 40 ? 'end' : f === 0.5 ? 'start' : 'middle' })),
+      stats: [
+        ['Bandwidth, −3 dB', qB.bw.toFixed(1) + ' Hz', qA.bw.toFixed(1) + ' Hz'],
+        ['Resonant peak', qB.peak.toFixed(1) + ' dB', qA.peak.toFixed(1) + ' dB'],
+        ['Sensitivity peak Ms', qB.ms.toFixed(2), qA.ms.toFixed(2)]
+      ].map((s) => ({ n: s[0], b: s[1], a: s[2] })),
+      aria: `Frequency response, ${axisLabel}: bandwidth ${qB.bw.toFixed(1)} to ${qA.bw.toFixed(1)} hertz, sensitivity peak ${qB.ms.toFixed(2)} to ${qA.ms.toFixed(2)}`
+    };
+
+    // The flight's stick inputs, 0 to 6:40.
+    const LX0 = 70, LX1 = 956, total = 400;
+    const lx = (s) => LX0 + s / total * (LX1 - LX0);
+    const seq = (start, n, every, big) => Array.from({ length: n }, (_, i) => ({ t: start + i * every, big: i >= big }));
+    const inputs = {
+      Roll: seq(50, 12, 5, 8), Pitch: seq(125, 12, 5, 8), Yaw: seq(200, 8, 5, 8)
+    };
+    const lane = {
+      rows: Object.keys(inputs).map((k, r) => {
+        const y = 22 + r * 30;
+        return {
+          label: k, y: y.toFixed(1), ty: (y + 4).toFixed(1),
+          marks: inputs[k].map((m, i) => {
+            const out = k === 'Roll' && i === 9;
+            return { x: lx(m.t).toFixed(1), w: (lx(m.t + 2) - lx(m.t)).toFixed(1), top: (y - 8).toFixed(1), fill: out ? 'none' : (m.big ? '#5AB0E8' : 'rgba(90,176,232,0.6)'), stroke: out ? '#E8A33D' : 'none' };
+          })
+        };
+      }),
+      ticks: [0, 80, 160, 240, 320, 400].map((s) => ({ x: lx(s).toFixed(1), l: Math.floor(s / 60) + ':' + String(s % 60).padStart(2, '0'), anchor: s === 400 ? 'end' : 'middle' })),
+      aria: '32 stick inputs: 12 on roll, 12 on pitch, 8 on yaw; one roll input at 2:23 left out because the motors reached their limit'
+    };
+
+    const verdict = [
+      ['#3DBE8B', '●', 'Roll tracking error down 31%,', 'needs 20%; the intervals do not overlap'],
+      ['#3DBE8B', '●', 'Pitch tracking error down 23%,', 'needs 20%; the intervals do not overlap'],
+      ['#E8C27A', '▲', 'Loaded: not flown yet.', 'Fly the tune check carrying the payload, on the same gains'],
+      ['#3DBE8B', '●', 'Nothing else worse beyond this airframe\'s spread:', 'vibration, hover throttle, ESC peak temperature, motor output spread'],
+      ['#3DBE8B', '●', 'The plan\'s changes graded confirmed:', 'AutoTune roll and pitch gains, saved 22 Oct']
+    ].map((v) => ({ c: v[0], g: v[1], t: v[2], d: v[3] }));
+
+    return { tabs, bands, axes, axisLabel, bandLabel, noLoaded, hasData: !noLoaded, rows, scaleTicks, step, freq, lane, verdict };
+  }
+}
+</script>
+</body>
+</html>
