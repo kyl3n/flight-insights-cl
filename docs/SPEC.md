@@ -905,6 +905,43 @@ Jamming and spoofing are classified in depth in their own section, GNSS jamming 
 
 All sources merge into one timeline per flight: onboard log, every tlog, parameter change sets and the app's recommendations. First-fault detection picks the earliest abnormal event that explains the rest, for example a link outage leading to a GCS failsafe, an RTL, and a battery failsafe far from home. The AI layer reasons over this merged timeline, not over each log separately.
 
+**Measured now** (`analyzers/incident.py`, `views.timeline`, rules in `knowledge/rules/incident.json`):
+
+- **Abnormal events** are put on the flight's clock, from a minute before arming to disarming:
+  - telemetry link outages: more than 2 s with no packet from the vehicle in any tlog;
+  - the ground station unheard, from 0.4 of `FS_GCS_TIMEOUT`, timed from when it was last heard;
+  - the receiver's own failsafe flag, and its failsafe throttle under `FS_THR_VALUE`;
+  - the battery failsafe's voltage under `BATT_LOW_VOLT`;
+  - GNSS fix lost (below 3D after having it);
+  - parameters changed in flight;
+  - commands refused;
+  - errors (ERR), until resolved;
+  - the mode changes failsafes and checks make.
+- **First fault.**
+  - **The main event:** the flight's first failsafe or crash check while armed, else its first error.
+  - **Walking back:** from the main event, each step takes the nearest earlier event that the rule table names as a possible cause within its window, so the chain keeps every step. For example: link outage, then the ground station unheard, then the GCS failsafe.
+  - **The first fault** is where the chain starts.
+  - **Walking forward:** the events the rules tie to the main event are the ones it explains.
+  - **The finding:** `incident.first_fault` (caution) when there is a chain, or `incident.unexplained` (info) when nothing earlier explains the main event.
+  - **Confidence:** order and timing point to a cause but do not prove it, so the confidence is medium. The windows are marked uncalibrated.
+- **The timeline view** (`flight.timeline`, for the incident screen) gives the lanes in seconds after arming:
+  - link, receiver, errors and battery;
+  - GNSS fix (lost, and its status);
+  - parameters changed;
+  - mode, with each change's reason;
+  - pilot overrides arriving over MAVLink;
+  - commands, with results;
+  - warnings;
+  - the first fault's chain, and what it explains.
+
+  The ground station's warning text is shown, since it stays on this laptop. The screen itself waits for its mock-up's approval.
+- **Not yet:**
+  - the radios' own logs;
+  - distance and the station's bearing in the event detail (they need the local position accessor);
+  - the AI packet's timeline, which needs a scrubber-tested packet field.
+
+  The AI layer sees the first-fault finding meanwhile.
+
 Ground-station position and distances are computed on the machine; only distance bands and correlations can pass the scrubber.
 
 ## Failsafe causes and RF early warning

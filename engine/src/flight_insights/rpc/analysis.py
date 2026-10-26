@@ -228,6 +228,11 @@ def add_analysis_methods(server: Server, state: EngineState, guarded: Callable[[
     def flight_system(_ctx: Context, params: dict[str, Any]) -> dict[str, Any]:
         return _view(params, views.system)
 
+    @server.method("flight.timeline")
+    @guarded
+    def flight_timeline(_ctx: Context, params: dict[str, Any]) -> dict[str, Any]:
+        return _view(params, views.timeline)
+
     @server.method("flight.tlogs")
     @guarded
     def flight_tlogs(_ctx: Context, params: dict[str, Any]) -> list[dict[str, Any]]:
