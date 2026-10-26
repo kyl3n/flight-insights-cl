@@ -150,7 +150,7 @@ class FlightData:
         if self.has("POS"):
             pos = self.cache.read(self.key, "POS", ["TimeUS", "Lat", "Lng", "Alt"], positions=True)
             if pos.num_rows and {"Lat", "Lng", "Alt"} <= set(pos.column_names):
-                series["POS"] = (_times(pos), _degrees(pos, "Lat"), _degrees(pos, "Lng"),
+                series["POS"] = (_times(pos), si.degrees(pos, "Lat"), si.degrees(pos, "Lng"),
                                  si.values(pos, "Alt"))  # fmt: skip
         if self.has("GPS"):
             gps = self.cache.read(self.key, "GPS", ["TimeUS", "I", "Lat", "Lng", "Alt"],
@@ -159,7 +159,7 @@ class FlightData:
                 instance = np.zeros(gps.num_rows, np.int64)
                 if "I" in gps.column_names:
                     instance = np.asarray(gps.column("I").to_numpy(zero_copy_only=False), np.int64)
-                t, lat, lon = _times(gps), _degrees(gps, "Lat"), _degrees(gps, "Lng")
+                t, lat, lon = _times(gps), si.degrees(gps, "Lat"), si.degrees(gps, "Lng")
                 alt = si.values(gps, "Alt")
                 for i in np.unique(instance):
                     rows = instance == i
@@ -208,10 +208,3 @@ class FlightData:
 
 def _times(table: pa.Table) -> np.ndarray[Any, np.dtype[np.int64]]:
     return np.asarray(table.column("TimeUS").to_numpy(zero_copy_only=False), np.int64)
-
-
-def _degrees(table: pa.Table, name: str) -> np.ndarray[Any, np.dtype[np.float64]]:
-    values = si.values(table, name)
-    if "e7" in si.unit(table, name).lower() and np.nanmax(np.abs(values), initial=0.0) > 180:
-        values = values * 1e-7  # degE7 not yet scaled by its multiplier
-    return values
