@@ -234,8 +234,10 @@ def test_the_shell_gets_tile_names_and_nothing_else(tmp_path: Path) -> None:
     scanned = rpc("import.scan", paths=[str(log)])
     rpc("import.commit", batch=scanned["batch"], decisions=[{"log": "f1", "airframe_id": af["id"]}])
     got = rpc("weather.tiles")
-    assert len(got["tiles"]) == 9 and all(tiles.TILE.match(t) for t in got["tiles"])
+    names = [t["tile"] for t in got["tiles"]]
+    assert len(names) == 9 and all(tiles.TILE.match(t) for t in names)
     assert set(got) == {"tile_deg", "grids_deg", "tiles"}
-    text = json.dumps(got)
+    assert all(set(t) == {"tile", "added_ms"} for t in got["tiles"])
+    text = json.dumps({**got, "tiles": names})  # added_ms: a time, kept apart
     numbers = re.findall(r"-?\d+\.\d+", text)
     assert sorted(numbers) == ["0.1", "0.25"]  # no position in any form
