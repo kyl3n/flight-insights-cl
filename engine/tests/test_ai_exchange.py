@@ -95,6 +95,34 @@ def test_the_contract_is_what_the_api_takes() -> None:
     assert set(spec["language"]) == {"en", "uk"}
 
 
+def test_claude_is_told_each_limit_the_local_check_holds_it_to() -> None:
+    # The first live run lost a whole analysis to one question's "why" past 300
+    # characters: the API schema had dropped the limit, so Claude never saw it.
+    reply = exchange.api_schema(exchange.REPLY)
+    question = reply["properties"]["questions"]
+    assert question["description"] == "At most 6 items."
+    why = question["items"]["properties"]["why"]
+    assert why == {"type": "string", "description": "At most 240 characters."}
+    assert reply["properties"]["summary"]["description"] == "At most 1600 characters."
+    refs = reply["properties"]["root_causes"]["items"]["properties"]["refs"]
+    assert refs["description"] == "At most 16 items."
+    chat = exchange.api_schema(exchange.CHAT_REPLY)
+    assert chat["properties"]["answer"]["description"] == "At most 3200 characters."
+
+    def said(local: Any, api: Any) -> None:
+        # every limit the local check holds is said where the API schema has the field
+        if isinstance(local, dict):
+            node = cast(dict[str, Any], local)
+            if "maxLength" in node or "maxItems" in node:
+                assert "At most" in api["description"]
+            for k, v in node.items():
+                if k in api:
+                    said(v, api[k])
+
+    said(exchange.REPLY, reply)
+    said(exchange.CHAT_REPLY, chat)
+
+
 def test_every_tool_result_is_a_packet_that_may_leave(engine: tuple[Any, Any, Path]) -> None:
     flight = flown(engine, FIXTURES / "copter-heavylift-loaded.bin")
     parent = sent_packet(engine, flight)

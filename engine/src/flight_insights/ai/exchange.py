@@ -8,7 +8,8 @@ before the first request, like any other text it sends.
 
 The reply schema is kept twice: with limits (lengths, list sizes, reference forms) for
 the local check, and without them for the API, whose structured outputs do not take
-string or array limits. The local check is the one that decides.
+string or array limits; there each length and list limit is said in the field's
+description, text with some room to spare. The local check is the one that decides.
 """
 
 from __future__ import annotations
@@ -78,19 +79,36 @@ CHAT = (
 )
 
 LIMITS = ("maxLength", "maxItems", "maxProperties", "pattern")
+# The share of a text limit the API schema asks for. Claude cannot count characters
+# exactly, and one text over its limit makes the local check refuse the whole reply.
+ASKED = 0.8
 LANGUAGE = {
     "en": "Write every text in the reply in English.",
     "uk": "Пиши всі тексти відповіді українською мовою.",
 }
 
 
+def _asked(node: Mapping[str, Any]) -> list[str]:
+    """A node's length and list limits, said in words for its description."""
+    said: list[str] = []
+    if "maxLength" in node:
+        said.append(f"At most {int(node['maxLength'] * ASKED)} characters.")
+    if "maxItems" in node:
+        said.append(f"At most {node['maxItems']} items.")
+    return said
+
+
 def api_schema(schema: Mapping[str, Any]) -> Any:
-    """The schema as the API's structured outputs take it: the same shape, no limits."""
+    """The schema as the API's structured outputs take it: the same shape, without the
+    limits they refuse. A text or list limit is said in the field's description instead,
+    so Claude keeps to it; text is asked for within ASKED of its limit."""
 
     def strip(node: Any) -> Any:
         if isinstance(node, dict):
-            items = cast(dict[str, Any], node).items()
-            out: dict[str, Any] = {k: strip(v) for k, v in items if k not in LIMITS}
+            obj = cast(dict[str, Any], node)
+            out: dict[str, Any] = {k: strip(v) for k, v in obj.items() if k not in LIMITS}
+            if said := _asked(obj):
+                out["description"] = " ".join([*filter(None, [out.get("description")]), *said])
             if "enum" in out:
                 values = cast(list[Any], out["enum"])
                 kinds = sorted(
