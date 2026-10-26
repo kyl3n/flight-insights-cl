@@ -7,6 +7,7 @@ flies.
 | weather.tiles | Every tile to download, when this laptop first listed it, each grid's step |
 | weather.store | Keeps one download the shell received, as it came |
 | weather.held | Which downloads of a source are kept, by tile and period |
+| flight.weather | A flight's weather record: values only, no place (made when missing or stale) |
 """
 
 from __future__ import annotations
@@ -17,7 +18,7 @@ from pathlib import Path
 from typing import TYPE_CHECKING, Any
 
 from flight_insights.rpc.server import BAD_INPUT, INVALID_PARAMS, Context, RpcError, Server
-from flight_insights.weather import downloads, tiles
+from flight_insights.weather import downloads, record, tiles
 
 if TYPE_CHECKING:
     from flight_insights.rpc.methods import EngineState
@@ -76,3 +77,14 @@ def add_weather_methods(server: Server, state: EngineState, guarded: Callable[[A
         except downloads.DownloadError as e:
             raise RpcError(INVALID_PARAMS, str(e)) from None
         return {"held": [[t, p] for t, p in got]}
+
+    @server.method("flight.weather")
+    @guarded
+    def flight_weather(_ctx: Context, params: dict[str, Any]) -> dict[str, Any]:
+        flight = _text(params, "flight_id")
+        store, cache = state.require_store(), state.cache
+        assert cache is not None
+        if store.get("flight", flight) is None:
+            raise RpcError(BAD_INPUT, "no such flight")
+        tiles.scan(store, cache, tiles.TileRules.load(state.pack))
+        return {"record": record.current(store, cache, state.pack, flight)}

@@ -56,6 +56,7 @@ LOCAL: tuple[str, ...] = (
     "tlog_session",  # likewise, from the tlogs and onboard logs
     "flight_tiles",  # likewise, the weather tiles from each flight's positions
     "weather_tile", "weather_download",  # downloads travel as drive objects, not records
+    "flight_weather",  # derived from the downloads and the flight's track
     "station_folder", "ignored_file", "source_location",  # this laptop's own folders and files
     "schema_migrations", "sync_state", "sync_pending", "field_clock", "sync_outbox",
     "sync_ledger", "sync_quarantine", "sync_conflict", "sync_alias",
