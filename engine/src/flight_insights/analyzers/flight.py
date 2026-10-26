@@ -142,6 +142,18 @@ class FlightData:
                 out.append((s, table))
         return out
 
+    def tlog_packets(self) -> list[tuple[Mapping[str, Any], pa.Table]]:
+        """Every packet each tlog session recorded, in the order the station recorded them,
+        with sender, sequence and `TimeUS` on the flight's own clock (no message fields)."""
+        if self.cache is None:
+            return []
+        out: list[tuple[Mapping[str, Any], pa.Table]] = []
+        for s in self.tlogs:
+            table = tlog_sessions.session_packets(self.cache, s)
+            if table is not None and table.num_rows:
+                out.append((s, table))
+        return out
+
     @property
     def armed(self) -> Segment:
         return Segment("flight", self.arm_us, self.disarm_us)

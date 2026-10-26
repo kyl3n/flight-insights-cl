@@ -109,7 +109,7 @@ def _mav(flight: FlightData) -> pa.Table | None:
     return mav
 
 
-def _last_seen(times: Array, chan: Array, mgs: Array) -> Array:
+def last_seen(times: Array, chan: Array, mgs: Array) -> Array:
     """The GCS's last-seen time (µs) as each row was logged: the newest of every link's."""
     latest: dict[int, int] = {}
     out = np.zeros(len(times), np.int64)
@@ -127,7 +127,7 @@ def gcs_onset(flight: FlightData, timing: Mapping[str, Any], t: int) -> Onset | 
         return None
     times = _ints(mav, "TimeUS")
     order = np.argsort(times, kind="stable")
-    seen = _last_seen(times[order], _ints(mav, "chan")[order], _ints(mav, "mgs")[order])
+    seen = last_seen(times[order], _ints(mav, "chan")[order], _ints(mav, "mgs")[order])
     before = np.flatnonzero(times[order] <= t)
     if not len(before) or seen[before[-1]] <= 0:
         return None
@@ -150,7 +150,7 @@ def gcs_losses(
     times = _ints(mav, "TimeUS")
     order = np.argsort(times, kind="stable")
     times = times[order]
-    seen = _last_seen(times, _ints(mav, "chan")[order], _ints(mav, "mgs")[order])
+    seen = last_seen(times, _ints(mav, "chan")[order], _ints(mav, "mgs")[order])
     timeout = round(_param(flight, "FS_GCS_TIMEOUT", 5.0) * 1e6)
     slack = round((float(timing["period_s"]) + float(timing["margin_s"])) * 1e6)
     gone = (seen > 0) & (times - seen > timeout + slack)

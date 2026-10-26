@@ -299,3 +299,21 @@ def session_table(
         [None if not np.isfinite(v) else round(float(v)) for v in boot], pa.int64()
     )  # fmt: skip
     return table.append_column(pa.field("TimeUS", pa.int64(), metadata={"unit": "us"}), mapped)
+
+
+def session_packets(cache: ColumnCache, session: Mapping[str, Any]) -> pa.Table | None:
+    """Every packet the station recorded during the session's boot, from every sender:
+    when it was recorded, its record number, sender and sequence, and `TimeUS` as in
+    `session_table`, in recorded order. None when the session has no clock."""
+    if session["offset_us"] is None or session["first_record"] is None:
+        return None
+    key = cache_key(str(session["source_file_id"]))
+    parts = [
+        table for name in cache.names(key)
+        if name != SOURCES and (table := session_table(cache, session, name, [])) is not None
+    ]  # fmt: skip
+    if not parts:
+        return None
+    packets = pa.concat_tables(parts)
+    records = np.asarray(packets.column("tlog_record").to_numpy(zero_copy_only=False), np.int64)
+    return packets.take(np.argsort(records, kind="stable"))
