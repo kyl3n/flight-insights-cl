@@ -63,7 +63,7 @@ def _flying(flight: FlightData, reg: Registry, t: Array) -> Array:
     return ok
 
 
-def _quiet(flight: FlightData, reg: Registry) -> list[tuple[int, int]]:
+def quiet_hover(flight: FlightData, reg: Registry) -> list[tuple[int, int]]:
     """Steady hover with the pilot's stick inputs, on any axis, taken out."""
     hover = [(s.start_us, s.end_us) for s in flight.hover()]
     rate = flight.table("RATE")
@@ -365,7 +365,7 @@ def _rate_health(flight: FlightData, reg: Registry) -> Result:
     out = Result()
     _i_limit(flight, reg, out)
     _slew(flight, reg, out)
-    quiet = _quiet(flight, reg)
+    quiet = quiet_hover(flight, reg)
     if quiet:
         _d_noise(flight, reg, quiet, out)
         _oscillation(flight, reg, quiet, out)

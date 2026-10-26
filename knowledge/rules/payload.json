@@ -1,0 +1,17 @@
+{
+  "about": "How the payload estimate weighs an aircraft from its steady hover (spec: Vehicle fingerprinting, 'Payload estimation without a scale'). Starting values, not yet calibrated against the fleet's logs.",
+  "calibrated": false,
+  "min_height_m": 3.0,
+  "min_hover_s": 10.0,
+  "saturated": 0.01,
+  "full_cell_v": 4.2,
+  "standard_density": 1.225,
+  "gas_constant": 287.05,
+  "sources": [
+    "libraries/AP_Motors/AP_Motors_Thrust_Linearization.cpp at Copter-4.7.0: thrust_to_actuator gives an output between MOT_SPIN_MIN and MOT_SPIN_MAX whose thrust is (1 - e) x + e x^2 of full thrust at MOT_BAT_VOLT_MAX, with x the output times the battery voltage scale; MOT_THST_EXPO is constrained to -1..1.",
+    "libraries/AP_Motors/AP_MotorsMulticopter.cpp at Copter-4.7.0: MOT_PWM_MIN and MOT_PWM_MAX of 0 fall back to the throttle channel's RC3_MIN and RC3_MAX.",
+    "ICAO Doc 7488, Manual of the ICAO Standard Atmosphere: sea-level density 1.225 kg/m3; specific gas constant of dry air 287.05 J/(kg K).",
+    "Cheeseman and Bennett, The effect of the ground on a helicopter rotor in forward flight, ARC R&M 3021 (1955): in hover, thrust rises by 1/(1 - (R/4z)^2) near the ground, under 0.3% at 3 m for a 30-inch rotor.",
+    "min_hover_s and saturated: app starting values. A motor within 1% of either end of its range no longer shows what it was asked for."
+  ]
+}
