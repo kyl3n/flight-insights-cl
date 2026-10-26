@@ -36,6 +36,9 @@ LOG_IMU_RAW_FAST_NOTCH = SetBits(
 # Copter's bits 0 and 12 log RATE and the rate PIDs every loop (ArduCopter/Copter.cpp
 # loop_rate_logging), for a tune check.
 LOG_RATE_LOOP = SetBits(1 << 0 | 1 << 12, "default with bits 0 (fast attitude) and 12 (PID) set")
+# Bit 0 alone logs RATE every loop without the four PID messages, which a measurement of
+# the motors' response does not need.
+LOG_RATE_ONLY = SetBits(1 << 0, "default with bit 0 (fast attitude) set")
 
 
 @dataclass(frozen=True)
@@ -146,11 +149,12 @@ def tune_check(
     centred: float = 1.0,
     altitude: float = 5,
     hands_off: float = 3,
+    bits: SetBits = LOG_RATE_LOOP,
 ) -> Callable[[Vehicle], None]:
     """The tune-check profile, shortened so the log stays small: take off, hold AltHold
     hands-off for `hands_off` s (10 s or more gives the hover thrust a payload band needs),
     then doublets on each axis's stick (`deflection` µs from centre, 160 is 40% of the
-    throw), with the rate loop logged every loop during them only; then land."""
+    throw), with the rate loop logged every loop (`bits`) during them only; then land."""
 
     def fly(v: Vehicle) -> None:
         v.mode("GUIDED")
@@ -162,7 +166,7 @@ def tune_check(
         v.mode("ALT_HOLD")
         sticks(v, hands_off, centre)
         bitmask = v.get_param("LOG_BITMASK")
-        v.set_param("LOG_BITMASK", LOG_RATE_LOOP(bitmask))
+        v.set_param("LOG_BITMASK", bits(bitmask))
         for ch in axes:
             for _ in range(doublets):
                 sticks(v, each_way, centre | {ch: 1500 + deflection})
@@ -463,6 +467,16 @@ THROTTLE_NOTCH = {
     "INS_HNTCH_HMNCS": 3,
     "INS_HNTCH_ATT": 40,
 }
+# For timing the motors: ESC RPM, which SITL reports only with SIM_VIB_MOT_MAX set
+# (SIM_Frame.cpp: the slewed command times SIM_VIB_MOT_MAX times 60), with the light
+# flight's vibration; and SITL's LOG_BITMASK (180222) without bit 12, so no PID messages.
+HEAVY_LIFT_TIMING = {
+    "LOG_DISARMED": 0,
+    "SIM_ESC_TELEM": 1,
+    "LOG_BITMASK": 176126,
+    "SIM_VIB_MOT_MAX": 350,
+    **X8_VIBRATION,
+}
 HEAVY_LIFT_FAULTS = [
     {
         "kind": "filter-setting",
@@ -692,6 +706,27 @@ SCENARIOS: dict[str, Scenario] = {
             boot_params=VIBRATING | THROTTLE_NOTCH | X8_VIBRATION,
             payload_kg=8.0,
             faults=HEAVY_LIFT_FAULTS,
+            **CALLISTO,  # type: ignore[arg-type]
+        ),
+        Scenario(
+            name="copter-heavylift-tune",
+            vehicle="copter",
+            frame="octo coaxial X8",
+            description=(
+                "The tune-check profile on the heavy-lift X8 without payload, shortened to keep"
+                " the log small: AltHold at 5 m, 3 doublets each on roll, pitch and yaw at 40%"
+                " stick, with RATE logged every loop and ESC RPM from all eight motors."
+            ),
+            expected=[
+                "LOG_BITMASK bit 0 during the doublets: RATE at 400 Hz (no PID messages)",
+                "ESC RPM from all eight motors, about 100 Hz each",
+                "each motor's RPM follows its command with no lag beyond the simulator's slew"
+                " limit and the log's timing: SITL models no motor or rotor dynamics",
+                "about 33 s of steady hover in ALT_HOLD: the short doublets stay inside the"
+                " hover limits",
+            ],
+            fly=tune_check(3, axes=("ch1", "ch2", "ch4"), bits=LOG_RATE_ONLY),
+            boot_params=HEAVY_LIFT_TIMING,
             **CALLISTO,  # type: ignore[arg-type]
         ),
         Scenario(

@@ -1,0 +1,33 @@
+{
+  "about": "How fast each motor follows its command (spec: Copter analyzers, heavy-lift, 'Actuator response'; engine/src/flight_insights/analyzers/motor_lag.py). The command is rebuilt from the mixer's inputs logged every loop in RATE and the frame's mixer factors; the answer is the ESC's RPM. Uncalibrated: the thresholds for a slow motor are the app's starting points until real heavy-lift flights have been compared.",
+  "calibrated": false,
+  "loop_gap_us": 5000,
+  "min_span_s": 5.0,
+  "min_esc_hz": 50.0,
+  "grid_hz": 100.0,
+  "window": 256,
+  "band_hz": [
+    1.0,
+    8.0
+  ],
+  "max_error": 0.2,
+  "min_bins": 5,
+  "command_range": [
+    0.05,
+    0.95
+  ],
+  "time_constant_max_s": 0.5,
+  "time_constant_step_s": 0.001,
+  "dead_time_max_s": 0.08,
+  "dead_time_step_s": 0.0005,
+  "bootstrap": 100,
+  "seed": 20261026,
+  "slow_ms": 10.0,
+  "slow_share": 0.5,
+  "sources": [
+    "ArduCopter/Copter.cpp at Copter-4.7.0: with LOG_BITMASK bit 0 (fast attitude) RATE is logged every loop, its ROut, POut, YOut and AOut being the mixer's roll, pitch, yaw and throttle inputs (AC_AttitudeControl_Logging.cpp Write_Rate: motors get_roll() + get_roll_ff() and so on); RCOU is logged at 10 Hz (ten_hz_logging_loop)",
+    "libraries/AP_ESC_Telem/AP_ESC_Telem.cpp at Copter-4.7.0: ESC rows are written by a 100 Hz task (AP_Vehicle.cpp scheduler) whenever an ESC's RPM or telemetry is new, timestamped when written",
+    "knowledge/frames/<version>.json, read from AP_MotorsMatrix.cpp and checked against SITL (knowledge/tools/check_motor_frames_sitl.py): each motor's command is its throttle, roll, pitch and yaw factors times the mixer's inputs while no motor is at a limit",
+    "copter/source/docs/autotune.rst (ArduPilot wiki): AutoTune can request very large and fast changes in output, which can cause ESC sync issues with low-KV motors (under 500 KV): large props and low-KV motors respond slowly"
+  ]
+}

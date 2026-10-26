@@ -59,7 +59,8 @@
         "esc.edt_status",
         "esc.telemetry_errors",
         "esc.telemetry_dropouts",
-        "esc.supply_drop"
+        "esc.supply_drop",
+        "motors.slow_motor"
       ]
     },
     "thrust_model": {
