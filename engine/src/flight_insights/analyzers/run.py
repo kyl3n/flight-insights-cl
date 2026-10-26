@@ -40,6 +40,7 @@ from flight_insights.analyzers.vibration import VIBRATION
 from flight_insights.knowledge import Pack
 from flight_insights.store.cache import ColumnCache
 from flight_insights.store.db import Store
+from flight_insights.tlog import sessions as tlog_sessions
 
 log = logging.getLogger(__name__)
 
@@ -104,6 +105,8 @@ def run_analysis(
         latest = analysis_results(store, flight_id, reg, analyzers)
         if latest is not None and latest["current"]:
             return latest
+    if tlog_sessions.needs_refresh(store, flight_id):  # a tlog linked before sessions were kept
+        tlog_sessions.refresh(store, cache, flight_id)
     flight = FlightData.load(store, cache, pack, flight_id)
     outcomes: dict[str, dict[str, Any]] = {}
     results: list[tuple[Analyzer, Result]] = []

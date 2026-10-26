@@ -39,9 +39,10 @@ ARROW_TYPES: dict[str, pa.DataType] = {
     "double": pa.float64(),
 }
 
-# Columns every table starts with: when it was recorded and who sent it. Named so
-# that no MAVLink field (MISSION_CURRENT has its own "seq") can collide with them.
-RECORD_COLUMNS = ["tlog_time_us", "src_sysid", "src_compid", "src_seq"]
+# Columns every table starts with: when it was recorded, its place in the file and who
+# sent it. Named so that no MAVLink field (MISSION_CURRENT has its own "seq") can collide
+# with them.
+RECORD_COLUMNS = ["tlog_time_us", "tlog_record", "src_sysid", "src_compid", "src_seq"]
 
 
 @dataclass(frozen=True)
@@ -53,6 +54,36 @@ class Source:
     messages: int
     first_us: int
     last_us: int
+    # Packets missing between the ones recorded, and those that arrived late or twice
+    # (SeqCounter).
+    lost: int = 0
+    out_of_order: int = 0
+
+
+class SeqCounter:
+    """Packets lost and out of order from one sender's MAVLink sequence numbers (0-255,
+    one counter a sender across message types), in the order the station recorded them.
+    A number ahead of the last by k means k - 1 packets went missing; a number behind it
+    is a late packet, or a duplicate: it fills a gap counted as lost before, and the
+    latest number stays."""
+
+    def __init__(self) -> None:
+        self.last: int | None = None
+        self.lost = 0
+        self.out_of_order = 0
+
+    def add(self, seq: int) -> None:
+        if self.last is None:
+            self.last = seq
+            return
+        ahead = (seq - self.last) % 256
+        if 0 < ahead < 128:
+            self.lost += ahead - 1
+            self.last = seq
+        else:  # behind, or the same number again
+            self.out_of_order += 1
+            if ahead:
+                self.lost = max(0, self.lost - 1)
 
 
 class TlogError(ValueError):
@@ -91,6 +122,7 @@ def _schema(cls: type) -> pa.Schema:
     positions = position_columns(cls)
     fields: list[pa.Field[Any]] = [
         pa.field("tlog_time_us", pa.int64(), metadata={"unit": "us"}),
+        pa.field("tlog_record", pa.int64()),  # the packet's number in the file, from 0
         pa.field("src_sysid", pa.uint8()),
         pa.field("src_compid", pa.uint8()),
         pa.field("src_seq", pa.uint8()),
@@ -118,7 +150,8 @@ def read_tlog(path: Path | str) -> TlogLog:
     spans: dict[tuple[int, int], list[int]] = {}
     roles: dict[tuple[int, int], tuple[str, int]] = {}
     per_source: Counter[tuple[int, int]] = Counter()
-    bad = bad_times = 0
+    counters: defaultdict[tuple[int, int], SeqCounter] = defaultdict(SeqCounter)
+    bad = bad_times = record = 0
     read_error: str | None = None
     # pymavlink prints notices about unparseable data to stdout.
     with contextlib.redirect_stdout(io.StringIO()):
@@ -148,6 +181,8 @@ def read_tlog(path: Path | str) -> TlogLog:
                 sysid, compid = msg.get_srcSystem(), msg.get_srcComponent()
                 src = (sysid, compid)
                 per_source[src] += 1
+                seq = msg.get_seq()
+                counters[src].add(seq)
                 counts[(sysid, compid, name)] += 1
                 if t is not None:
                     first_last = spans.setdefault(src, [t, t])
@@ -159,9 +194,11 @@ def read_tlog(path: Path | str) -> TlogLog:
                     columns[name] = defaultdict(list)
                 col = columns[name]
                 col["tlog_time_us"].append(t)
+                col["tlog_record"].append(record)
+                record += 1
                 col["src_sysid"].append(sysid)
                 col["src_compid"].append(compid)
-                col["src_seq"].append(msg.get_seq())
+                col["src_seq"].append(seq)
                 for f in type(msg).fieldnames:
                     value = getattr(msg, f)
                     col[f].append(list(value) if isinstance(value, bytes | bytearray) else value)
@@ -183,6 +220,8 @@ def read_tlog(path: Path | str) -> TlogLog:
             messages=n,
             first_us=spans.get(s, [0, 0])[0],
             last_us=spans.get(s, [0, 0])[1],
+            lost=counters[s].lost,
+            out_of_order=counters[s].out_of_order,
         )
         for s, n in sorted(per_source.items())
     ]

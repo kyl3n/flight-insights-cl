@@ -28,6 +28,7 @@ from flight_insights.segment import boot_identities, find_boots, flight_key, fli
 from flight_insights.store.db import Store
 from flight_insights.store.register import file_sha256
 from flight_insights.tlog import read_tlog
+from flight_insights.tlog.align import SAME_BOOT_US
 from flight_insights.tlog.decode import TlogLog
 from flight_insights.tlog.params import ParamDownload, ParamWrite, param_downloads, param_writes
 
@@ -38,7 +39,6 @@ SUFFIXES: dict[str, Kind] = {
     ".param": "param",
     ".params": "params",
 }
-SAME_BOOT_US = 2_000_000  # boot times from SYSTEM_TIME agree to well within this
 SYSID_PARAMS = ("MAV_SYSID", "SYSID_THISMAV")  # renamed in 4.7
 
 

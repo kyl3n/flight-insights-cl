@@ -53,6 +53,7 @@ LOCAL_FIELDS: dict[str, frozenset[str]] = {
 
 LOCAL: tuple[str, ...] = (
     "analysis_run", "finding", "metric_value",  # recomputed from the logs on each laptop
+    "tlog_session",  # likewise, from the tlogs and onboard logs
     "station_folder", "ignored_file", "source_location",  # this laptop's own folders and files
     "schema_migrations", "sync_state", "sync_pending", "field_clock", "sync_outbox",
     "sync_ledger", "sync_quarantine", "sync_conflict", "sync_alias",

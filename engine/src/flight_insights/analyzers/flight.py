@@ -20,6 +20,7 @@ from flight_insights.history.persist import load_snapshot
 from flight_insights.knowledge import Pack
 from flight_insights.store.cache import ColumnCache
 from flight_insights.store.db import Store
+from flight_insights.tlog import sessions as tlog_sessions
 
 
 def build_answers(store: Store, build_id: str | None) -> dict[str, Any]:
@@ -63,6 +64,9 @@ class FlightData:
     answers: Mapping[str, Any] = field(default_factory=dict[str, Any])
     # The firmware's default for each parameter, canonical, where the log recorded it.
     defaults: Mapping[str, float] = field(default_factory=dict[str, float])
+    # The flight's tlog sessions (tlog/sessions.py): each tlog that recorded its boot,
+    # with the station's clock fitted against the vehicle's.
+    tlogs: list[dict[str, Any]] = field(default_factory=list[dict[str, Any]])
     _tables: dict[tuple[str, tuple[str, ...] | None], pa.Table | None] = field(
         default_factory=dict[tuple[str, tuple[str, ...] | None], pa.Table | None]
     )
@@ -91,6 +95,7 @@ class FlightData:
             validation=json.loads(row["validation_json"]) if row["validation_json"] else None,
             answers=build_answers(store, row["build_version_id"]),
             defaults=defaults,
+            tlogs=tlog_sessions.sessions(store, flight_id),
         )
 
     @property
@@ -121,6 +126,21 @@ class FlightData:
                 else None
             )
         return self._tables[key]
+
+    def tlog(
+        self, name: str, columns: list[str] | None = None
+    ) -> list[tuple[Mapping[str, Any], pa.Table]]:
+        """A message type as each tlog session of the flight recorded it, with `TimeUS`
+        on the flight's own clock; sessions with no clock or no such packets are left
+        out. Positions are never returned."""
+        if self.cache is None:
+            return []
+        out: list[tuple[Mapping[str, Any], pa.Table]] = []
+        for s in self.tlogs:
+            table = tlog_sessions.session_table(self.cache, s, name, columns)
+            if table is not None and table.num_rows:
+                out.append((s, table))
+        return out
 
     @property
     def armed(self) -> Segment:

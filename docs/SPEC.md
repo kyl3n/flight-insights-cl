@@ -801,7 +801,27 @@ Tlogs are worth analysing in full: the onboard log records what the aircraft exp
 - **Onboard .bin:** high-rate and complete, but lost with the aircraft or its SD card, and blind to most of what happens on the ground side.
 - **tlog:** written by the ground station (Mission Planner on every connection, QGroundControl when its save settings are on), as MAVLink packets with wall-clock timestamps ([pymavlink format note](https://docs.ros.org/en/melodic/api/mavlink/html/mavlogdump_8py_source.html)). Too low-rate and lossy for filter or tune work, but the only record of downlink loss as seen on the ground, commands and their replies, what the operator was shown, and parameter edits. After a loss it is often the only record left.
 
-**Pairing and alignment.** The app pairs tlogs with the onboard log of the same flight by vehicle system ID and time overlap; one flight can have several tlogs from several ground stations. Clocks are aligned from the system-time messages that map boot time to wall-clock time, then refined by cross-correlating attitude in both logs. The result is one incident timeline per flight.
+**Pairing and alignment.** The result is one incident timeline per flight (`tlog/align.py`, `tlog/sessions.py`).
+
+- **Pairing.** A tlog joins the flights of each vehicle boot it recorded. The boot's UTC time comes from the vehicle's own system-time messages (GPS time less the time since boot), and must lie within 2 s of the onboard log's. One flight can have several tlogs from several ground stations, and one tlog several flights.
+- **Kept once.** A tlog's decoded tables are kept once, under the tlog's own key in the column cache, with position columns under the positions key. Every flight of its boots reads them, and they are rebuilt from the file when evicted.
+- **The station's clock against the vehicle's.** Every vehicle message carrying its time since boot pairs when it was sent with when the station recorded it:
+  - **The model:** recorded = offset + (1 + drift) × sent + delay, and the delay is never negative, so the least delay lies on a line.
+  - **The fit:** the least value of each 10 s window, fitted by least squares. Windows far above the line (a station stall, or packets held back) are dropped.
+  - **What the offset includes:** the link's least delay, which one-way timestamps cannot separate.
+  - **Reboots:** a reboot inside a tlog starts a new boot, fitted on its own.
+  - **Tested:** a planted 3.217 s offset and 50 ppm drift come back within 20 ms and 0.5 ppm.
+- **Checked against the onboard attitude.** The attitude the station recorded is cross-correlated with the onboard attitude, both on the vehicle's boot clock:
+  - **aligned:** a correlation of at least 0.9 within 50 ms of zero lag confirms the pairing;
+  - **corrected:** clear agreement at another lag is applied as a correction;
+  - **unconfirmed:** an aircraft that barely moved leaves the pairing resting on the boot time alone.
+- **Packets lost on the way down.** They are counted per sender from MAVLink sequence numbers, in the order the station recorded them. A late or repeated packet is counted apart, and fills the gap it left.
+- **Sessions** (`tlog_session`) are kept on each laptop and never synced, like analysis results. Each holds:
+  - the fit and its quality: windows fitted and dropped, the spread about the line, and the delay's median and 95th percentile;
+  - the attitude lag and correlation;
+  - the packets received, lost and out of order.
+
+  Analyzers read a session's packets with the vehicle boot time each one maps to.
 
 | Fault area | Onboard .bin | tlog | What gets flagged |
 | --- | --- | --- | --- |
@@ -1587,7 +1607,7 @@ The airframe, not the log, is the unit the app reasons about: every flight, para
 - **When it joins,** its hashes are made again with the fleet's key, derived from the fleet's root key. Raw IDs are never stored, so each flight's hash is remade by reading its log again from where it was imported. The flight key, the cached columns, the airframe's board and this computer's ground-station hash follow it.
 - **A flight whose log is no longer on disk** keeps its old hash. Imports on that laptop also hash a board with its old key, so the airframe is still recognised there.
 
-**Storage.** SQLite for entities, Parquet per flight for decoded columns. The shared Google Drive folder is the permanent record (see Shared storage and sync); each laptop's database is a complete working copy that can be rebuilt from it. Decoded columns can be evicted and rebuilt from the original log; findings and snapshots are kept.
+**Storage.** SQLite for entities, Parquet per flight (and per tlog) for decoded columns. The shared Google Drive folder is the permanent record (see Shared storage and sync); each laptop's database is a complete working copy that can be rebuilt from it. Decoded columns can be evicted and rebuilt from the original log; findings and snapshots are kept.
 
 **Encryption at rest.** Local logs and caches contain full GPS tracks. The app requires OS full-disk encryption on the machine and encrypts its own database with SQLCipher, using a key held in the OS keychain. The Parquet cache uses Parquet modular encryption, with position columns under their own key, so analysis and AI paths never touch them. The shell reads both keys from the keychain and passes them to the engine at start-up; they are never written to disk. Nothing is deleted: positions are kept, encrypted, like everything else.
 
