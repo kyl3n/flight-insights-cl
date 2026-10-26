@@ -12,7 +12,9 @@ status (XKF4.SS):
 - the source set in use (aux function 90), the failsafes that triggered, and the first mode
   change within `response_s`, with its reason;
 - drift: when GNSS returns, how far the estimate is from it, compared as local tracks
-  from one origin, and per minute of outage for outages of `drift_min_s` or more.
+  from one origin, and per minute of outage for outages of `drift.min_outage_s` or more;
+  only when GNSS comes back trustworthy (its fix held, its accuracy good, no drift
+  faster than an aircraft could move).
 
 Drift is position-derived. It stays in evidence that cites the position fields, so the
 location policy withholds it from the AI path; the rest is times, flags and words.
@@ -38,6 +40,7 @@ from flight_insights.analyzers.model import (
     Segment,
 )
 from flight_insights.analyzers.registry import Registry
+from flight_insights.dataflash import si
 
 Array = np.ndarray[Any, Any]
 
@@ -187,10 +190,14 @@ def _response(flight: FlightData, o: Outage, after_us: float, names: Mapping[str
     return tuple(failsafes), mode, reason
 
 
-def _drift(flight: FlightData, o: Outage, first: Receiver) -> float | None:
+def _drift(flight: FlightData, o: Outage, first: Receiver, rules: Mapping[str, Any]
+           ) -> float | None:  # fmt: skip
     """GNSS's first fixed position after the outage against the estimate from before it
     returned, carried forward from its last two samples: the estimator takes GNSS back
-    within a sample or two and its position jumps, so the error is read before that."""
+    within a sample or two and its position jumps, so the error is read before that.
+    Only when GNSS comes back trustworthy: its fix held for `stable_s`, its accuracy
+    within `hacc_m`, and no drift faster than `max_mps` implied."""
+    d = rules["drift"]
     tracks = flight.local_tracks()
     pos, gps = tracks.get("POS"), tracks.get(f"GPS{first.instance}")
     if pos is None or gps is None:
@@ -202,13 +209,34 @@ def _drift(flight: FlightData, o: Outage, first: Receiver) -> float | None:
     before = np.flatnonzero(pt < o.end_us)
     if not len(back) or len(before) < 2 or t[back[0]] - pt[before[-1]] > 1_000_000:
         return None
+    since = (first.t >= t[back[0]]) & (first.t <= t[back[0]] + float(d["stable_s"]) * 1e6)
+    if np.any(first.status[since] < 3) or first.t[-1] < t[back[0]] + float(d["stable_s"]) * 1e6:
+        return None
+    hacc = _accuracy(flight, first.instance, int(t[back[0]]))
+    if hacc is not None and hacc > float(d["hacc_m"]):
+        return None
     a, b = before[-2], before[-1]
     e, n = gps.east_north_m()
     pe, pn = pos.east_north_m()
     ahead = (t[back[0]] - pt[b]) / max(int(pt[b] - pt[a]), 1)
     est_e = pe[b] + (pe[b] - pe[a]) * ahead
     est_n = pn[b] + (pn[b] - pn[a]) * ahead
-    return float(np.hypot(e[back[0]] - est_e, n[back[0]] - est_n))
+    drift = float(np.hypot(e[back[0]] - est_e, n[back[0]] - est_n))
+    seconds = (o.end_us - o.start_us) / 1e6
+    return drift if drift <= float(d["max_mps"]) * seconds else None
+
+
+def _accuracy(flight: FlightData, instance: int, at_us: int) -> float | None:
+    """The receiver's reported horizontal accuracy at its sample nearest `at_us`."""
+    gpa = flight.table("GPA", ["TimeUS", "I", "HAcc"])
+    if gpa is None or gpa.num_rows == 0 or "HAcc" not in gpa.column_names:
+        return None
+    rows = _ints(gpa, "I") == instance if "I" in gpa.column_names else np.ones(gpa.num_rows, bool)
+    t = _ints(gpa, "TimeUS")[rows]
+    if not len(t):
+        return None
+    k = int(np.argmin(np.abs(t - at_us)))
+    return float(si.values(gpa, "HAcc")[rows][k])
 
 
 def measure(
@@ -248,9 +276,9 @@ def measure(
     )
     # drift means something only while the estimator still claimed a position when GNSS
     # came back: once it gives one up, the position it logs is a stale value
-    drift = _drift(flight, o, first) if held or relative else None
-    rate = (drift / (duration / 60) if drift is not None and duration >= float(rules["drift_min_s"])
-            else None)  # fmt: skip
+    drift = _drift(flight, o, first, rules) if held or relative else None
+    long = duration >= float(rules["drift"]["min_outage_s"])
+    rate = drift / (duration / 60) if drift is not None and long else None
     return Measured(
         using_at_start=using, detection_s=detection, duration_s=round(duration, 1),
         hold_s=round(hold, 1), held=held,

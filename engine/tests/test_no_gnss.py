@@ -143,6 +143,28 @@ def test_a_drill_on_optical_flow_keeps_a_relative_position(reg: Registry) -> Non
     assert "no_gnss.detection_s" not in metrics  # it was not using GNSS to begin with
 
 
+def test_no_drift_from_a_return_that_cannot_be_trusted(reg: Registry) -> None:
+    """A jammed receiver's first fix back can be kilometres off: drift is read only when
+    GNSS holds its fix after returning and implies no impossible speed."""
+
+    def flow_drill() -> dict[str, Columns]:
+        cols = hover()
+        cols["AUXF"] = {"TimeUS": np.array([20_000_000, 50_000_000]),
+                        "function": np.array([65, 65]), "pos": np.array([2, 0])}  # fmt: skip
+        set_(cols, "XKF4", "SS", 20, 52, REL | 0b111)
+        lost_gnss(cols, 20, 50)
+        return cols
+
+    far = flow_drill()
+    set_(far, "GPS", "Lat", 50, 50.3, LAT + 1000 * M)  # 1 km in 30 s: 33 m/s
+    flicker = flow_drill()
+    lost_gnss(flicker, 52, 52.5)  # the fix goes again within 3 s
+    for cols in (far, flicker):
+        out = run(cols, reg)
+        assert [f.code for f in out.findings] == ["no_gnss.position_held"]
+        assert not any(e.id.endswith(":drift") for e in out.evidence)
+
+
 def test_a_second_receiver_with_a_fix_means_no_outage(reg: Registry) -> None:
     cols = hover(receivers=2)
     set_(cols, "GPS", "Status", 20, 40, 1, receiver=0)

@@ -1,5 +1,5 @@
 {
-  "about": "How the no-GNSS analyzer measures each GNSS outage (spec: Flying without GNSS, Performance from the logs). An outage is a stretch with no receiver holding a 3D fix, or GNSS switched off with the GPS-disable switch (a drill). For each it reads the primary estimator core's own solution status (XKF4.SS): when it stopped using GNSS (detection), how long it kept an absolute position (hold), whether it kept a relative one (optical flow or vision), and when it took GNSS back; the failsafes, mode change and source-set switch around it; and, when GNSS returns to an estimator that still claims a position, how far that position had drifted from it, compared as local tracks from one origin. Once the estimator gives its position up, the position it logs is a stale value (in SITL it jumped 26 m and stayed), so no drift is read then. The thresholds are the app's starting points, marked uncalibrated.",
+  "about": "How the no-GNSS analyzer measures each GNSS outage (spec: Flying without GNSS, Performance from the logs). An outage is a stretch with no receiver holding a 3D fix, or GNSS switched off with the GPS-disable switch (a drill). For each it reads the primary estimator core's own solution status (XKF4.SS): when it stopped using GNSS (detection), how long it kept an absolute position (hold), whether it kept a relative one (optical flow or vision), and when it took GNSS back; the failsafes, mode change and source-set switch around it; and, when GNSS returns to an estimator that still claims a position, how far that position had drifted from it, compared as local tracks from one origin. GNSS must come back trustworthy for that: holding its fix for drift.stable_s with an accuracy within drift.hacc_m, and implying no drift faster than drift.max_mps (a jammed receiver's first fix can be kilometres off). Once the estimator gives its position up, the position it logs is a stale value (in SITL it jumped 26 m and stayed), so no drift is read then. The thresholds are the app's starting points, marked uncalibrated.",
   "calibrated": false,
   "aux": {
     "gps_disable": 65,
@@ -9,7 +9,12 @@
   "join_s": 1.0,
   "response_s": 2.0,
   "resume_s": 30.0,
-  "drift_min_s": 10.0,
+  "drift": {
+    "min_outage_s": 10.0,
+    "stable_s": 3.0,
+    "hacc_m": 3.0,
+    "max_mps": 20.0
+  },
   "landing_tolerance_m": 10.0,
   "status_bits": {
     "horiz_pos_rel": 3,
