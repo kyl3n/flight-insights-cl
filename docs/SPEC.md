@@ -1100,10 +1100,11 @@ The numbers above are illustrative. `expected_effect` comes from simulation wher
 - **Measured checks** (`recommend/measured.py`) compare a metric before the change and with it, within each payload band, never a loaded flight against a light one. "Before" is each band's latest flight without the change and "with" its latest flight with it, up to the flight being graded. A parameter change is in the flights that flew with its proposed value; an action is in the flights after the one that showed it done.
   - `metric_improves {metric, by}`: every band flown before the change is flown again with it, and there the metric is better by at least `by` (a share of its value before), with the two 95% intervals apart where the metric has them. A band worse by the same margin, intervals apart, marks the check worse.
   - `metric_not_worse {metric, by}`: the same bands, flown again with it, none worse by `by` with the intervals apart. A guard on what the change is not meant to improve; one band clearly worse fails it at once.
+  - `no_shift_worse`: no metric shifted worse after the change beyond the airframe's spread (change attribution, below).
   - `metric_vs_lightest {metric, max_ratio | max_above}`: with the change, the heaviest band's value is at most `max_ratio` times the lightest's, or at most `max_above` over it. ArduPilot tunes light, and the same gains may fly a heavier aircraft slower, but not less stable.
 - **Required checks.** A check marked `required` that cannot judge yet (a band not flown again, a metric not measured) keeps the grade pending: the recommendation stays applied, with what was measured so far kept beside it. A band already flown again that is worse is graded regressed at once, without waiting for the others: no loaded test flight is needed on gains a light one already showed worse. A check that is not required and cannot judge does not hold the grade back.
 - **Graded by its checks.** Some findings are offers that a later flight raises again whatever happened (AutoTune can always be run). A procedure marked `graded_by: checks` is graded on its checks alone: worse in any band is **regressed**, a failed check is **no effect**, and all checks passed is **confirmed**.
-  - The AutoTune offer is graded this way. It is confirmed when roll and pitch attitude tracking error are each at least 20% lower in every payload band flown before, with the intervals apart (required), and rate tracking error is no worse. Where they are measured, the sensitivity peak must also be under 2 on the graded flight, loaded rise time within 1.5 times the light flight's, and the loaded sensitivity peak within 0.2 of the light one's. This is the Phase 2 gate's measure (the tune check, "Attitude tracking error", says why attitude).
+  - The AutoTune offer is graded this way. It is confirmed when roll and pitch attitude tracking error are each at least 20% lower in every payload band flown before, with the intervals apart (required), rate tracking error is no worse, and no other metric shifted worse (`no_shift_worse`). Where they are measured, the sensitivity peak must also be under 2 on the graded flight, loaded rise time within 1.5 times the light flight's, and the loaded sensitivity peak within 0.2 of the light one's. This is the Phase 2 gate's measure (the tune check, "Attitude tracking error", says why attitude).
 - **Shown done by a later finding.** A procedure's `applied_when` names the finding that shows its work done, and the axes that finding must cover. The AutoTune offer is applied once `autotune.saved` has covered roll and pitch, over one flight or several (one axis a pack), with no person needed to mark it. The finding's own changes (rate filters at 10 Hz, more gain back-off) prepare that work: they are flown on the AutoTune flights, which measure no tracking, so they are graded only on flights after the work was done, with the same checks.
 - **Not offered again once done** (`rules/recommend.json`, `held_once_done`). A tune check's AutoTune offer is held back from the plan once a flight of the same airframe and build, flown no later, saved an AutoTune. The plan says what it held back and why, and the flight report still shows the finding. A new build version offers it again.
 
@@ -1862,6 +1863,27 @@ The AI layer can propose links the map lacks; those are shown as hypotheses unti
 5. **Propose the test that settles it.** Usually the top candidate reverted on its own, exported as a `.param` file, with the same flight profile repeated. Where safe, an in-flight A/B with a transmitter tuning knob or a parameter switch tests both values in one flight under the same conditions.
 6. **Bisect when several changes landed together.** The app orders single-change test flights from most to least likely and stops once the shift is explained.
 7. **Credit improvements the same way,** so a change that helped is confirmed and kept, not just remembered.
+
+**How a shift is measured and ranked** (`history/attribution.py`; numbers in `rules/attribution.json`, uncalibrated):
+
+- **Series.** Each metric, per airframe, segment and payload group, one point per flight, never a loaded flight against a light one.
+- **Boundaries.** A boundary is where changes first apply: a parameter change set, a build change, a firmware change. One whose changes are all context (learned values, counters) is none.
+- **Windows.** At each boundary, the flights since the last boundary that could move this metric (a parameter the map ties to it, a build or a firmware change), and until the next one, at most 5 each side. A change that cannot move the metric does not cut its series short.
+- **The test.** With 3 flights before and 2 after, the effect is the median after minus the median before. It is compared with the flights' spread before (1.4826 times their median absolute deviation, at least 1% of the median), with a seeded percentile bootstrap interval of the difference of medians.
+  - It is a shift when the effect is at least twice the spread and the interval leaves out 0, and inconclusive when it is that large but the interval holds 0.
+  - With fewer flights, a metric measured with an interval on each flight (the tune check's) compares the last flight before with the first after: a shift when the intervals are apart and the change is at least 10%.
+  - A shift is worse or better by the metric's direction; a band metric only moved. Where two boundaries' windows overlap, the better-linked, larger shift is kept.
+- **Bracketing.** Every change applied after the last flight before the shift and by the first flight after it is a candidate.
+- **Ranking.** Each candidate's score multiplies four things:
+  - the map's strength for this metric;
+  - how well its direction fits: a match counts 1.0, either-way 0.6, and a change that would have pushed the metric the other way 0.2;
+  - its size: the relative change over 25%, at most 1;
+  - its timing: 1 at the shift's own boundary, 0.5 for one the windows spanned.
+
+  A parameter the map does not tie to the metric scores 0.05, a build change 0.5 and a firmware change 0.3. Learned values, counters, hardware IDs and ground-station settings are listed as context, unscored.
+- **Confidence.** High when the top candidate is linked, scores at least twice the next, and no build or firmware change sits with it; medium when it is linked; low otherwise.
+- **Where it shows.** The engine gives the shifts with their ranked candidates and each link's reason (`trend.attribution`). The trend marker and the inspector come with the trends and history screen, whose mock-up waits for approval.
+- **In grading.** A procedure's check `no_shift_worse` fails when a metric shifted worse between the first flight with the change and the one graded. When the shift's top-ranked cause is the change's own parameter, or a value its work saves (the gains AutoTune saves), the grade is regressed. The AutoTune offer carries it: this is the Phase 2 gate's "nothing else regresses". A metric with too few flights to judge is no shift, so it passes until those flights are flown.
 
 **Example of what the user sees** (illustrative values):
 

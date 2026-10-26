@@ -581,6 +581,8 @@ def _bands(checks: Sequence[Mapping[str, Any]]) -> list[Any]:
         if c.get("check") == "metric_improves":
             bands = [(b["group"], b["verdict"], b.get("change")) for b in c.get("bands", ())]
             out.append((c["metric"], c["passed"], bands))
+        elif c.get("check") == "no_shift_worse":
+            out.append(("no_shift_worse", c["passed"], c.get("shifts")))
         else:
             out.append((c.get("metric"), c["passed"], c.get("light"), c.get("heavy")))
     return out

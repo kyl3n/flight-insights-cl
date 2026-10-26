@@ -111,6 +111,8 @@ CHECKS: Mapping[str, tuple[str, ...]] = {
     "metric_improves": ("metric", "by"),
     # the same bands, flown again with it: no band worse by `by` with intervals apart
     "metric_not_worse": ("metric", "by"),
+    # no metric shifted worse after the change, beyond the airframe's spread (attribution)
+    "no_shift_worse": (),
     # with the change, the heaviest band's value within max_ratio times, or max_above
     # over, the lightest band's
     "metric_vs_lightest": ("metric",),

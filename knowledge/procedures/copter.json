@@ -1256,6 +1256,9 @@
               "by": 0.2
             },
             {
+              "check": "no_shift_worse"
+            },
+            {
               "check": "metric",
               "metric": "tune.sensitivity_peak_roll",
               "below": 2.0
@@ -1287,8 +1290,8 @@
             }
           ],
           "text": {
-            "en": "The tune check after AutoTune, in each payload band flown before it, shows roll and pitch attitude tracking error at least 20% lower than before, with the 95% intervals apart, and rate tracking error no worse. Where they are measured: the sensitivity peak under 2, and loaded, the rate loop may be slower, not less stable: rise time within 1.5 times the light flight's and the sensitivity peak within 0.2 of it.",
-            "uk": "Перевірка налаштування після AutoTune в кожному діапазоні навантаження, у якому літали раніше, показує похибку відстеження кута крену й тангажу щонайменше на 20% меншу, ніж до того, з 95% інтервалами, що не перетинаються, а похибку відстеження швидкості — не гіршу. Де їх виміряно: пік чутливості менше 2, а з вантажем контур швидкості може бути повільнішим, але не менш стійким: час наростання не більше 1,5 від польоту без вантажу, а пік чутливості — не більше ніж на 0,2 вищий."
+            "en": "The tune check after AutoTune, in each payload band flown before it, shows roll and pitch attitude tracking error at least 20% lower than before, with the 95% intervals apart, rate tracking error no worse, and nothing else shifted worse beyond the airframe's spread. Where they are measured: the sensitivity peak under 2, and loaded, the rate loop may be slower, not less stable: rise time within 1.5 times the light flight's and the sensitivity peak within 0.2 of it.",
+            "uk": "Перевірка налаштування після AutoTune в кожному діапазоні навантаження, у якому літали раніше, показує похибку відстеження кута крену й тангажу щонайменше на 20% меншу, ніж до того, з 95% інтервалами, що не перетинаються, похибку відстеження швидкості — не гіршу, і жоден інший показник не погіршився понад звичайний розкид апарата. Де їх виміряно: пік чутливості менше 2, а з вантажем контур швидкості може бути повільнішим, але не менш стійким: час наростання не більше 1,5 від польоту без вантажу, а пік чутливості — не більше ніж на 0,2 вищий."
           }
         }
       ]
