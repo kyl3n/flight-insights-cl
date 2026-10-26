@@ -35,6 +35,8 @@ from typing import Any, Literal
 import numpy as np
 import pyarrow as pa
 
+from flight_insights.analyzers import failsafe_onset
+from flight_insights.analyzers.failsafe_onset import Loss, Onset
 from flight_insights.analyzers.flight import FlightData
 from flight_insights.analyzers.model import Analyzer, Evidence, Finding, Result, Segment
 from flight_insights.analyzers.registry import Registry
@@ -490,13 +492,15 @@ def _failsafes(flight: FlightData, reg: Registry) -> Result:
     names = reg.names(flight.firmware)
     if "mode_reasons" not in names:
         return Result(skipped="the knowledge pack has no mode-change reasons for this firmware")
-    found = [
-        o for o in occurrences(flight, names, tuple(rules["failsafes"]))
-        if flight.arm_us <= o.start_us <= flight.disarm_us
-    ]  # fmt: skip
+    every = occurrences(flight, names, tuple(rules["failsafes"]))
+    found = [o for o in every if flight.arm_us <= o.start_us <= flight.disarm_us]
+    timing: Mapping[str, Any] = rules["timing"]
     out = Result()
-    if not found:
-        return out  # nothing fired while armed: nothing to judge
+    fired: dict[str, list[tuple[int, int | None]]] = {}
+    for o in every:  # those before arming too: one in force at take-off answers its loss
+        fired.setdefault(o.kind, []).append((o.start_us, o.end_us))
+    for k, loss in enumerate(failsafe_onset.losses(flight, timing, fired), 1):
+        _report_loss(flight, rules, loss, k, out)
     changes, disarms = _modes(flight, names), _disarms(flight, names)
     window = float(rules["window_s"]) * 1e6
     raised: dict[Occurrence, list[str]] = {}
@@ -516,7 +520,9 @@ def _failsafes(flight: FlightData, reg: Registry) -> Result:
         allowed = expected(o.kind, rules, flight.params, ctx, configured)
         what, at = observed(rule, changes, disarms, o.start_us, window)
         match = next((a for a in allowed if a.what == what), None)
-        _report(flight, rule, Judged(o, n, ctx, what, at, match, allowed), out)
+        began = failsafe_onset.onset(flight, names, timing, o.kind, o.start_us)
+        judged = Judged(o, n, ctx, what, at, match, allowed, began)
+        _report(flight, rule, judged, float(timing["margin_s"]), out)
     return out
 
 
@@ -529,6 +535,7 @@ class Judged:
     at: int | None  # when it was logged
     match: Outcome | None  # the allowed outcome it was, if any
     allowed: Sequence[Outcome]
+    onset: Onset | None = None  # when its loss began, where the log shows it
 
     @property
     def verdict(self) -> str:
@@ -555,10 +562,20 @@ def _setting(flight: FlightData, rule: Mapping[str, Any]) -> tuple[str, str]:
     return ", ".join(names), ", ".join("" if v is None else f"{v:g}" for v in values)
 
 
-def _report(flight: FlightData, rule: Mapping[str, Any], j: Judged, out: Result) -> None:
+def _after(flight: FlightData, t: int) -> float:
+    return round((t - flight.arm_us) / 1e6, 1)
+
+
+def _report(
+    flight: FlightData, rule: Mapping[str, Any], j: Judged, margin_s: float, out: Result
+) -> None:
     setting, value = _setting(flight, rule)
     read = j.ctx.read + ([("BAT", "H")] if j.o.kind == "FAILSAFE_BATT" else [])
-    at_s = round((j.o.start_us - flight.arm_us) / 1e6, 1)
+    began = j.onset
+    if began is not None:
+        read += list(zip(began.messages, began.fields, strict=True))
+    late = 0.0 if began is None else began.late_s(j.o.start_us, margin_s)
+    at_s = _after(flight, j.o.start_us)
     allowed = list(dict.fromkeys(a.what for a in j.allowed))
     ev = Evidence(
         id=f"failsafe:{j.n}",
@@ -583,6 +600,13 @@ def _report(flight: FlightData, rule: Mapping[str, Any], j: Judged, out: Result)
             "fs_options": int(flight.params.get("FS_OPTIONS", 0)),
             "left_open": j.ctx.open,
             "responded_after_s": None if j.at is None else round((j.at - j.o.start_us) / 1e6, 3),
+            "loss_from": None if began is None else began.source,
+            "loss_began_s": None
+            if began is None
+            else round((began.start_us - flight.arm_us) / 1e6, 3),
+            "waited_s": None if began is None else round((j.o.start_us - began.start_us) / 1e6, 3),
+            "wait_s": None if began is None else round((began.due_us - began.start_us) / 1e6, 3),
+            "late_s": None if began is None else late,
         },
     )
     severity = {"as_configured": "info", "fell_back": "caution", "unexpected": "out"}[j.verdict]
@@ -603,6 +627,73 @@ def _report(flight: FlightData, rule: Mapping[str, Any], j: Judged, out: Result)
             },
         )
     )
+    if began is not None and late > 0:
+        out.findings.append(
+            Finding(
+                code="failsafe.late",
+                severity="caution",
+                confidence="high",
+                evidence=(ev,),
+                params={
+                    "failsafe": rule["name"]["en"],
+                    "at_s": at_s,
+                    "late_s": late,
+                    "waited_s": round((j.o.start_us - began.start_us) / 1e6, 1),
+                    "wait_s": round((began.due_us - began.start_us) / 1e6, 1),
+                    "began": began.source,
+                },
+            )
+        )
+
+
+def _report_loss(
+    flight: FlightData, rules: Mapping[str, Any], loss: Loss, k: int, out: Result
+) -> None:
+    """A loss no failsafe answered: one switched off, or one that should have fired."""
+    rule: Mapping[str, Any] = rules["failsafes"][loss.kind]
+    lasted = round((loss.end_us - loss.start_us) / 1e6, 1)
+    ev = Evidence(
+        id=f"failsafe:loss:{k}",
+        kind="fact",
+        summary=(
+            f"{loss.kind}: {loss.what} from {_after(flight, loss.start_us)} s for {lasted} s; "
+            f"due at {_after(flight, loss.due_us)} s by {loss.setting}, "
+            + ("switched off" if loss.off else "none fired")
+        ),
+        messages=(*loss.messages, "ERR"),
+        fields=(*loss.fields, "Subsys", "ECode"),
+        segment=Segment("loss", loss.start_us, loss.end_us),
+        values={
+            "failsafe": loss.kind,
+            "loss": loss.what,
+            "began_s": _after(flight, loss.start_us),
+            "due_s": _after(flight, loss.due_us),
+            "lasted_s": lasted,
+            "setting": loss.setting,
+            "switched_off": loss.off,
+        },
+    )
+    params = {
+        "failsafe": rule["name"]["en"],
+        "what": loss.what,
+        "at_s": _after(flight, loss.start_us),
+        "due_s": _after(flight, loss.due_us),
+        "lasted_s": lasted,
+        "setting": loss.setting,
+    }
+    if not loss.off:
+        out.findings.append(Finding("failsafe.missed", "out", "high", (ev,), params))
+        return
+    # Off by choice: with the ground station the only control link (RC_OPTIONS bit 0
+    # ignores the receiver), or a receiver that said it was lost, nothing flew the
+    # aircraft; with a pilot's radio in hand, a ground-station loss is the owner's call.
+    gcs_only = int(flight.params.get("RC_OPTIONS", 0)) & 1
+    severity = (
+        "info" if loss.kind == "FAILSAFE_GCS" and not gcs_only
+        else "out" if loss.kind == "FAILSAFE_BATT"
+        else "safety"
+    )  # fmt: skip
+    out.findings.append(Finding("failsafe.off_during_loss", severity, "high", (ev,), params))
 
 
 def _did(what: str, mode: str) -> str:
@@ -619,8 +710,15 @@ def _asked(what: str) -> str:
 
 FAILSAFES = Analyzer(
     name="failsafes",
-    version=1,
+    version=2,
     run=_failsafes,
     metrics=(),
-    findings=("failsafe.as_configured", "failsafe.fell_back", "failsafe.unexpected"),
+    findings=(
+        "failsafe.as_configured",
+        "failsafe.fell_back",
+        "failsafe.unexpected",
+        "failsafe.late",
+        "failsafe.missed",
+        "failsafe.off_during_loss",
+    ),
 )
