@@ -19,6 +19,7 @@
 | fleet.overview | Each airframe's status, stage, key metrics and last flight; what is urgent |
 | filter.workbench | A flight's spectra before, as flown and with candidate filter values |
 | flight.propulsion | A flight's motor outputs, ESC telemetry and battery, reduced for display |
+| flight.margin | A flight's payload and motor-out margin, with its frame's motor layout |
 | flight.system | A flight's loop load and timing, logging drops and errors, for display |
 | flight.tlogs | A flight's tlog sessions: each station clock against the vehicle's, and loss |
 | flight.tune | A flight's tune against one of its payload group's, and the plan's verdict |
@@ -45,7 +46,16 @@ from collections.abc import Callable
 from pathlib import Path
 from typing import TYPE_CHECKING, Any, cast
 
-from flight_insights import analyzers, recommend, recovery, review, trends, tune_view, views
+from flight_insights import (
+    analyzers,
+    margin_view,
+    recommend,
+    recovery,
+    review,
+    trends,
+    tune_view,
+    views,
+)
 from flight_insights.analyzers.registry import LANGUAGES
 from flight_insights.filters import workbench
 from flight_insights.history import ab, attribution, credit, fleet, revert
@@ -239,6 +249,17 @@ def add_analysis_methods(server: Server, state: EngineState, guarded: Callable[[
     @guarded
     def flight_propulsion(_ctx: Context, params: dict[str, Any]) -> dict[str, Any]:
         return _view(params, views.propulsion)
+
+    @server.method("flight.margin")
+    @guarded
+    def flight_margin(_ctx: Context, params: dict[str, Any]) -> dict[str, Any]:
+        store, cache = state.require_store(), state.cache
+        assert cache is not None
+        try:
+            flight = analyzers.FlightData.load(store, cache, state.pack, _flight(params))
+        except analyzers.FlightError as e:
+            raise RpcError(BAD_INPUT, str(e)) from None
+        return margin_view.margin(store, flight, analyzers.Registry.load(state.pack))
 
     @server.method("flight.system")
     @guarded
