@@ -426,8 +426,12 @@ def stem(ex: Export) -> str:
     return f"{name}-{ex.model['mass']:g}kg"
 
 
-def files(ex: Export) -> list[dict[str, str]]:
-    """The model, its boot parameters and how to fly them, as files for a person to save."""
+FLIGHT_SCRIPT = "fly_sitl.py"  # in the pack's sim/: flies the model in ArduPilot's simulator
+
+
+def files(ex: Export, pack: Pack) -> list[dict[str, str]]:
+    """The model, its boot parameters, the script that flies them and how, as files for a
+    person to save."""
     base = stem(ex)
     model_text = json.dumps(ex.model, indent=2) + "\n"
     header = [
@@ -441,7 +445,14 @@ def files(ex: Export) -> list[dict[str, str]]:
         "",
         f"Frame {ex.frame}, the simulator's '{ex.sitl}' model, at {ex.model['mass']:g} kg.",
         "",
-        "Fly it with ArduPilot's own simulator, from a checkout of the same release:",
+        "Fly it with ArduPilot's own simulator, from a checkout of the same release with the",
+        "copter simulator built (./waf configure --board sitl && ./waf copter):",
+        f"  uv run {FLIGHT_SCRIPT} --ardupilot <checkout> --model {base}.json \\",
+        f"    --frame {ex.sitl} --params {base}.param --flight motors --out {base}-motors.bin",
+        "Flights: hover (the hover and power the model came from), legs (what the drag is",
+        "measured from) and motors (each motor stopped in turn, against the motor-out",
+        "margin). Import the log it keeps to compare it with the airframe's flights. Or",
+        "start the simulator yourself:",
         f"  build/sitl/bin/arducopter --model {ex.sitl}:{base}.json \\",
         f"    --defaults Tools/autotest/default_params/copter.parm,{base}.param",
         "",
@@ -464,4 +475,6 @@ def files(ex: Export) -> list[dict[str, str]]:
         {"filename": f"{base}.json", "text": model_text},
         {"filename": f"{base}.param", "text": params_text},
         {"filename": f"{base}-README.txt", "text": "\n".join(lines) + "\n"},
-    ]
+        {"filename": FLIGHT_SCRIPT,
+         "text": (pack.root / "sim" / FLIGHT_SCRIPT).read_text(encoding="utf-8")},
+    ]  # fmt: skip
