@@ -68,7 +68,7 @@ def test_the_corpus_files_are_the_self_tests_own_cases() -> None:
 
 def test_the_self_test_passes(engine: tuple[Any, Any, Path]) -> None:
     result = rpc(engine, "ai.selftest")["result"]
-    assert result == {"ok": True, "cases": 31, "failed": []}
+    assert result == {"ok": True, "cases": 33, "failed": []}
 
 
 def test_numbers_are_rounded_to_what_reasoning_needs() -> None:

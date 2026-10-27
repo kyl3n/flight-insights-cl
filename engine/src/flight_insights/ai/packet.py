@@ -8,6 +8,9 @@ Built only from feature objects the engine made, never from raw log messages:
 - the platform's answers that are choices, numbers or yes/no (never free text, which
   could name a place or a person);
 - the flight: its duration, hover time and time in each mode;
+- its modelled weather, from the record kept for it: wind, gusts, precipitation, the
+  boundary layer and the planetary K-index, rounded. Temperature, humidity, pressure,
+  density altitude and cloud base stay on the laptop: they narrow down the place;
 - the analysis: every metric, and every finding with the evidence it cites, under
   packet-local references (no flight, run or evidence ids, no hashes);
 - the parameters a person tunes or configures, with calibration, learned values,
@@ -35,6 +38,7 @@ from flight_insights.knowledge import Pack
 from flight_insights.platforms.schema import load_schema
 from flight_insights.store.cache import ColumnCache
 from flight_insights.store.db import Store
+from flight_insights.weather import record as weather_record
 
 PURPOSES = ("analysis", "chat", "explain")
 KEY = re.compile(r"^[a-z][a-z0-9_]{0,40}$")
@@ -142,6 +146,31 @@ def _flight(row: Mapping[str, Any], fp: Mapping[str, Any]) -> dict[str, Any]:
             if re.fullmatch(r"[A-Z0-9_]{1,24}", name)
         ],
     }
+
+
+# What the packet carries of the flight's weather record, and the step each is rounded
+# to: nothing that narrows down where the aircraft flew.
+WEATHER_STEPS = {
+    "wind_ms": 0.5, "wind_max_ms": 0.5, "surface_wind_ms": 0.5, "gust_max_ms": 0.5,
+    "precipitation_mm_h": 0.1, "boundary_layer_m": 100.0, "kp_max": 0.01,
+}  # fmt: skip
+
+
+def _weather(store: Store, flight_id: str) -> dict[str, Any] | None:
+    rec = weather_record.kept(store, [flight_id]).get(flight_id)
+    if rec is None:
+        return None
+    out: dict[str, Any] = {
+        "quality": str(rec.get("quality") or "none"),
+        "coverage": round(float(rec.get("coverage") or 0.0), 2),
+    }
+    for name, step in WEATHER_STEPS.items():
+        x = rec.get(name)
+        if isinstance(x, int | float) and math.isfinite(x):
+            out[name] = number(round(x / step) * step)
+        else:
+            out[name] = None
+    return out
 
 
 def _segment(segment: Any, arm_us: int) -> dict[str, Any] | None:
@@ -278,6 +307,7 @@ def build(
         "aircraft": _aircraft(row, fp),
         "answers": _answers(store, pack, row["build_version_id"]),
         "flight": _flight(row, fp),
+        **({"weather": w} if (w := _weather(store, flight_id)) is not None else {}),
         "metrics": metrics,
         "findings": findings,
         "evidence": evidence,

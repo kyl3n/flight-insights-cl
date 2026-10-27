@@ -255,6 +255,25 @@ PACKET: dict[str, Any] = {
             },
             "additionalProperties": False,
         },
+        # The flight's modelled weather, values only (spec: Weather and wind): what
+        # narrows down the place (temperature, humidity, pressure, density altitude, cloud
+        # base) stays on the laptop.
+        "weather": {
+            "type": "object",
+            "properties": {
+                "quality": {"enum": ["forecast", "reanalysis", "mixed", "none"]},
+                "coverage": {"type": "number"},
+                "wind_ms": MAYBE_NUMBER,
+                "wind_max_ms": MAYBE_NUMBER,
+                "surface_wind_ms": MAYBE_NUMBER,
+                "gust_max_ms": MAYBE_NUMBER,
+                "precipitation_mm_h": MAYBE_NUMBER,
+                "boundary_layer_m": MAYBE_NUMBER,
+                "kp_max": MAYBE_NUMBER,
+            },
+            "required": ["quality", "coverage"],
+            "additionalProperties": False,
+        },
         "metrics": {
             "type": "array",
             "maxItems": 512,

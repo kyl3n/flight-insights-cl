@@ -57,6 +57,8 @@ struct Packet {
     aircraft: Aircraft,
     answers: Option<BTreeMap<String, Atom>>,
     flight: Option<Flight>,
+    #[allow(dead_code)]
+    weather: Option<Weather>,
     metrics: Option<Vec<Metric>>,
     findings: Option<Vec<Finding>>,
     evidence: Option<Vec<Evidence>>,
@@ -148,6 +150,33 @@ struct Flight {
     duration_s: Option<f64>,
     hover_s: Option<f64>,
     modes: Option<Vec<Mode>>,
+}
+
+/// The flight's modelled weather: wind, gusts, precipitation, the boundary layer and
+/// the K-index. Temperature, humidity, pressure, density altitude and cloud base narrow
+/// down the place, so they have no field here and a packet holding one is refused.
+#[derive(Deserialize)]
+#[serde(deny_unknown_fields)]
+#[allow(dead_code)]
+struct Weather {
+    quality: Quality,
+    coverage: f64,
+    wind_ms: Option<f64>,
+    wind_max_ms: Option<f64>,
+    surface_wind_ms: Option<f64>,
+    gust_max_ms: Option<f64>,
+    precipitation_mm_h: Option<f64>,
+    boundary_layer_m: Option<f64>,
+    kp_max: Option<f64>,
+}
+
+#[derive(Deserialize)]
+#[serde(rename_all = "lowercase")]
+enum Quality {
+    Forecast,
+    Reanalysis,
+    Mixed,
+    None,
 }
 
 #[derive(Deserialize)]
@@ -901,7 +930,7 @@ const CLEAN: [(&str, &str); 5] = [
         include_str!("../../../tests/scrubber/packets/clean/tool_spectrum.json"),
     ),
 ];
-const LEAKY: [(&str, &str); 26] = [
+const LEAKY: [(&str, &str); 28] = [
     (
         "bool_as_number",
         include_str!("../../../tests/scrubber/packets/leaky/bool_as_number.json"),
@@ -1005,6 +1034,14 @@ const LEAKY: [(&str, &str); 26] = [
     (
         "unknown_key",
         include_str!("../../../tests/scrubber/packets/leaky/unknown_key.json"),
+    ),
+    (
+        "weather_density_altitude",
+        include_str!("../../../tests/scrubber/packets/leaky/weather_density_altitude.json"),
+    ),
+    (
+        "weather_tripwire",
+        include_str!("../../../tests/scrubber/packets/leaky/weather_tripwire.json"),
     ),
 ];
 const TRIPWIRE: &str = include_str!("../../../tests/scrubber/tripwire.json");

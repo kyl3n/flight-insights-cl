@@ -36,6 +36,17 @@
     }
    ]
   },
+  "weather": {
+   "quality": "reanalysis",
+   "coverage": 0.95,
+   "wind_ms": 6.5,
+   "wind_max_ms": 9,
+   "surface_wind_ms": 4.5,
+   "gust_max_ms": 11.5,
+   "precipitation_mm_h": 0,
+   "boundary_layer_m": 900,
+   "kp_max": 5.33
+  },
   "metrics": [
    {
     "metric": "vibration.p95",
