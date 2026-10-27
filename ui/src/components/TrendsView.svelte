@@ -3,7 +3,8 @@
   // "Performance dashboard"; mock-up Trends): its metric cards, then one metric as a
   // point per flight against its zones and the airframe's own baseline, with every
   // change on the same axis, the platform's other airframes on request, and the same
-  // subsystem's other metrics over the same flights.
+  // subsystem's other metrics over the same flights. Its History tab is the airframe's
+  // parameter history (HistoryView), with the measured effect of every change.
   import { app, t } from "../lib/app.svelte";
   import { getRegistry } from "../lib/data";
   import type { MessageKey } from "../lib/i18n";
@@ -32,6 +33,7 @@
     type TrendEvent,
   } from "../lib/trends";
   import AirframePicker from "./AirframePicker.svelte";
+  import HistoryView from "./HistoryView.svelte";
   import PlatformMultiples from "./PlatformMultiples.svelte";
   import TrendChart from "./TrendChart.svelte";
 
@@ -162,6 +164,16 @@
   const xAt = (i: number) => (layout ? layout.left + ((i + 0.5) / Math.max(layout.count, 1)) * layout.width : 0);
   const when = (i: number) => formatTakeoff(series?.points[i]?.utc_us ?? null, app.locale) ?? t("trends.point", { n: i + 1 });
 
+  // From the history: the metric's trend, in the payload group it shifted in.
+  function openTrend(metric: string, segment: string, group: string) {
+    const wanted = cards.find((c) => c.metric === metric && c.segment === segment);
+    if (wanted) {
+      key = cardKey(wanted);
+      payloadGroup = group;
+    }
+    app.trendsTab = "metrics";
+  }
+
   function openFlight(flight: string) {
     app.scope.flight = flight;
     app.view = "flights";
@@ -170,13 +182,25 @@
 
 <main>
   <div class="heading">
-    <h1>{airframe ? t("trends.title", { airframe: airframe.name }) : t("nav.trends")}</h1>
+    <h1>
+      {#if !airframe}{t("nav.trends")}
+      {:else if app.trendsTab === "history"}{t("history.heading", { airframe: airframe.name })}
+      {:else}{t("trends.title", { airframe: airframe.name })}{/if}
+    </h1>
     <AirframePicker />
   </div>
-  <p class="faint">{t("trends.about")}</p>
+  <div class="tabs" role="group" aria-label={t("trends.tabs")}>
+    <button type="button" aria-pressed={app.trendsTab === "metrics"} onclick={() => (app.trendsTab = "metrics")}>{t("trends.tab.metrics")}</button>
+    <button type="button" aria-pressed={app.trendsTab === "history"} onclick={() => (app.trendsTab = "history")}>{t("trends.tab.history")}</button>
+  </div>
+  <p class="faint">{app.trendsTab === "history" ? t("history.about") : t("trends.about")}</p>
   {#if error}<p class="error">{error}</p>{/if}
 
-  {#if app.scope.airframe !== null && !loading && cards.length === 0 && !error}
+  {#if app.trendsTab === "history"}
+    {#if app.scope.airframe !== null}
+      <HistoryView airframeId={app.scope.airframe} platformId={airframe?.platform.id ?? null} onopentrend={openTrend} />
+    {/if}
+  {:else if app.scope.airframe !== null && !loading && cards.length === 0 && !error}
     <p class="faint">{t("trends.none")}</p>
   {:else if card && registry}
     <div class="layout">
@@ -377,6 +401,29 @@
     margin: 0;
     font-size: 24px;
     font-weight: 600;
+  }
+  .tabs {
+    display: inline-flex;
+    align-self: flex-start;
+    gap: 2px;
+    padding: 3px;
+    border: 1px solid var(--border);
+    border-radius: 9px;
+    background: var(--surface-2);
+  }
+  .tabs button {
+    padding: 5px 14px;
+    border: 0;
+    border-radius: 7px;
+    font-size: 13px;
+    font-weight: 500;
+    cursor: pointer;
+    color: var(--text-muted);
+    background: transparent;
+  }
+  .tabs button[aria-pressed="true"] {
+    color: var(--text);
+    background: var(--raised);
   }
   h2 {
     margin: 0;

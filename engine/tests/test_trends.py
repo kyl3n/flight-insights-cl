@@ -249,13 +249,21 @@ def test_the_event_lane(store: Store, reg: Registry) -> None:
         "change_set",
         {"airframe_id": af, "kind": "parameter", "origin": "loaded file",
          "before_flight_id": first, "after_flight_id": second,
-         "details_json": json.dumps({"changes": [{"name": "INS_HNTCH_FREQ"}]})},
+         "details_json": json.dumps({"changes": [
+             {"name": "INS_HNTCH_FREQ"},
+             {"name": "INS_HNTCH_BW", "before": 40.0, "after": 20.0, "class": "tuning"},
+         ]})},
     )  # fmt: skip
     found: list[dict[str, Any]] = events(store, af)
     assert [(e["kind"], e["flight"]) for e in found] == [
         ("parameter change", second), ("firmware", third),
     ]  # fmt: skip
-    assert found[0]["params"] == ["INS_HNTCH_FREQ"]
+    assert found[0]["params"] == ["INS_HNTCH_FREQ", "INS_HNTCH_BW"]
+    # Each change with its values, for the history: a record with none still reads.
+    assert found[0]["changes"] == [
+        {"name": "INS_HNTCH_FREQ", "before": None, "after": None, "class": None},
+        {"name": "INS_HNTCH_BW", "before": 40.0, "after": 20.0, "class": "tuning"},
+    ]
     assert (found[1]["from"], found[1]["to"]) == ("4.7.0", "4.7.2")
 
 

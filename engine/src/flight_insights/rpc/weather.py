@@ -1,6 +1,7 @@
-"""Weather's engine methods (spec: Weather and wind). Shell-only: the shell downloads the
-fleet's tiles on a fixed schedule, and the interface has no use for where the fleet
-flies.
+"""Weather's engine methods (spec: Weather and wind). The download methods are the
+shell's alone: the shell downloads the fleet's tiles on a fixed schedule, and the
+interface has no use for where the fleet flies. `flight.weather` is the interface's: it
+holds values only, never a tile or a coordinate.
 
 | Method | What it does |
 | --- | --- |
@@ -9,7 +10,7 @@ flies.
 | weather.held | Which downloads of a source are kept, by tile and period |
 | weather.export | Writes one kept download, gzipped, to a file for the shell to share |
 | weather.refresh | Makes again every flight's record whose downloads changed, after a round |
-| flight.weather | A flight's weather record (values only), the wind it measured, and the gap |
+| flight.weather | A flight's record (values only), its measured wind, the gap, NOAA's Kp level |
 """
 
 from __future__ import annotations
@@ -116,4 +117,8 @@ def add_weather_methods(server: Server, state: EngineState, guarded: Callable[[A
         tiles.scan(store, cache, tiles.TileRules.load(state.pack))
         made = record.current(store, cache, state.pack, flight)
         own = measured.measured(store, cache, state.pack, flight)
-        return {"record": made, "measured": own, "difference": measured.difference(own, made)}
+        kp = float(state.pack.json("rules/weather.json")["space_weather"]["kp_elevated"])
+        return {
+            "record": made, "measured": own, "difference": measured.difference(own, made),
+            "kp_elevated": kp,
+        }  # fmt: skip

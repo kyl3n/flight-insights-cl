@@ -289,6 +289,7 @@ pub const UI_METHODS: &[&str] = &[
     "flight.tune",
     "flight.links",
     "flight.ab",
+    "flight.weather",
     "review.file",
     "filter.workbench",
     "ai.results",
