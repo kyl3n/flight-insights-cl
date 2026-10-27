@@ -329,3 +329,37 @@ def test_elevated_space_weather_is_context_on_gnss_findings(tmp_path: Path) -> N
     assert rpc("weather.refresh") == {"made": 1}
     calm = rpc("analysis.get", flight_id=flight)["findings"]
     assert all("context" not in f for f in calm)
+
+
+def test_the_ai_packet_carries_only_weather_that_cannot_place_the_flight(
+    flown: tuple[Store, ColumnCache, str],
+) -> None:
+    """Wind, gusts, rain, the boundary layer and the K-index, rounded; nothing that gives
+    away the field's elevation or climate, and the scrubber lets it through."""
+    from flight_insights.ai.packet import build_packet
+    from flight_insights.ai.policy import Policy
+    from flight_insights.ai.scrubber import check
+    from flight_insights.ai.tripwire import flight_points
+
+    store, cache, flight = flown
+    kept = {
+        "quality": "reanalysis", "coverage": 0.968, "height_band_m": [0.0, 31.2],
+        "wind_ms": 6.27, "wind_max_ms": 8.91, "wind_from_deg": 243.0, "surface_wind_ms": 4.4,
+        "gust_max_ms": 11.63, "precipitation_mm_h": 0.04, "cloud_cover_pct": 62.0,
+        "boundary_layer_m": 874.0, "temperature_c": 21.37, "pressure_hpa": 912.4,
+        "humidity_pct": 48.0, "dew_point_c": 9.8, "density_altitude_m": 1720.0,
+        "cloud_base_m": 1450.0, "density_altitude_top_m": 1760.0, "kp_max": 5.33,
+    }  # fmt: skip
+    assert set(kept) == RECORD_KEYS
+    store.conn.execute(
+        "INSERT INTO flight_weather (flight_id, basis, record_json) VALUES (?, 'b', ?)",
+        (flight, json.dumps(kept)),
+    )
+    packet = build_packet(store, cache, PACK, flight)
+    assert packet["weather"] == {
+        "quality": "reanalysis", "coverage": 0.97, "wind_ms": 6.5, "wind_max_ms": 9,
+        "surface_wind_ms": 4.5, "gust_max_ms": 11.5, "precipitation_mm_h": 0,
+        "boundary_layer_m": 900, "kp_max": 5.33,
+    }  # fmt: skip
+    key = str(store.get("flight", flight)["flight_key"])  # type: ignore[index]
+    assert check(packet, flight_points(cache, key), Policy.load(PACK, "4.7.0")) == []
