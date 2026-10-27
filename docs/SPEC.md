@@ -2329,6 +2329,7 @@ The AI layer can propose links the map lacks; those are shown as hypotheses unti
   - its timing: 1 at the shift's own boundary, 0.5 for one the windows spanned.
 
   A parameter the map does not tie to the metric scores 0.05, a build change 0.5 and a firmware change 0.3. Learned values, counters, hardware IDs and ground-station settings are listed as context, unscored.
+- **The fleet.** What the platform's other airframes showed for the same change then weighs in (Fleet evidence, below): confirmed multiplies the score by 1.5, contradicted by 0.5, and a change the map does not tie to the metric but the fleet confirmed scores 0.6 as a learned link.
 - **Confidence.** High when the top candidate is linked, scores at least twice the next, and no build or firmware change sits with it; medium when it is linked; low otherwise.
 - **Weather.** For a metric the weather can move (`rules/attribution.json`, "weather": wind and gusts for tracking, attitude and response errors, hover power, current and motor saturation; density altitude for power, hover throttle, saturation and the motor-out margin; temperature for ESC temperature and battery resistance), the shift lists each variable's median over the flights before and after it, from the records that cover at least half of their flight. A difference of at least 3 m/s of wind, 4 m/s of gusts, 300 m of density altitude or 8 °C lowers the confidence one step (high to medium, medium to low). Uncalibrated; with no records nothing changes.
 - **Where it shows.** The engine gives the shifts with their ranked candidates and each link's reason (`trend.attribution`). The trend marker and the inspector come with the trends and history screen, whose mock-up waits for approval.
@@ -2381,6 +2382,22 @@ The AI layer can propose links the map lacks; those are shown as hypotheses unti
 *Suggested test: revert `INS_HNTCH_BW` alone and repeat the hover profile.*
 
 **Fleet evidence.** When the same parameter change is made on several airframes of a platform, their before-and-after results are pooled. A change that consistently moves a metric across airframes is ranked higher everywhere it appears, and the platform's parameter map gains a confirmed link.
+
+- **Measured now** (`history/fleet.py`; numbers in `rules/attribution.json` "fleet", uncalibrated). Each of the platform's other airframes votes once per parameter, the way it was changed and metric, with the way the metric moved. An airframe's own shifts never count towards its own ranking.
+- **What counts as a vote.** A shift, not inconclusive, gives one when either:
+  - its top-ranked candidate is tied to the metric by the map and the shift is at medium or high confidence;
+  - or the change was the only one at that boundary, tied or not, since nothing else changed with it.
+- **Confirmed and contradicted.**
+  - **Confirmed:** at least 3 airframes agree, and at most a quarter of the votes disagree.
+  - **Contradicted:** the same the other way round.
+  - **Learned link:** a change the map does not tie to the metric, once confirmed. This is how the platform's map gains a link from its own flights.
+- **Where it shows.** Each ranked candidate carries its votes. The engine method `trend.fleet` lists the platform's confirmed links, with whether the map already holds each.
+
+**Credit for improvements** (`history/credit.py`). Step 7 of "pointing at the cause", measured:
+
+- **What is credited.** A shift that made a metric better, at medium or high confidence, credits its top-ranked parameter change when the map or the fleet ties that change to the metric.
+- **Following the change.** The credit is kept while every later flight still has the value the change set. The first later flight with any other value undoes it, and is named with the value it had instead, because putting back a change that helped is where a regression starts.
+- **Where it shows.** The engine method `trend.credits` lists an airframe's credits, each kept or since undone. A worse shift is never credited: it gets the revert test.
 
 ### History and upgrades
 
