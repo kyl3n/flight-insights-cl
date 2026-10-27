@@ -23,6 +23,7 @@ const card = (sections: CardSection[]): RecoveryCard => ({
   measured: { alone: { ...none, outages: 2 }, on_set: { ...none, outages: 1 }, tolerance_m: 10 },
   sections,
   gaps: [],
+  goal: null,
   footer: text("footer"),
 });
 
