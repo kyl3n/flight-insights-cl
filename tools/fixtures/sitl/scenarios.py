@@ -410,6 +410,38 @@ def nognss_flow(v: Vehicle) -> None:
     land_and_disarm(v)
 
 
+# GUIDED velocity and yaw targets (SET_POSITION_TARGET_LOCAL_NED): use vx, vy, vz and yaw
+VELOCITY_YAW_MASK = 0b0000_1001_1100_0111
+
+
+def guided_velocity(v: Vehicle, north: float, east: float, yaw_deg: float, seconds: float) -> None:
+    """Hold a velocity and heading in GUIDED for `seconds` of simulated time, resent every
+    0.5 s (GUIDED drops a velocity target after 3 s)."""
+    for _ in range(round(seconds / 0.5)):
+        v.conn.mav.set_position_target_local_ned_send(
+            0, v.sys, v.comp, ML.MAV_FRAME_LOCAL_NED, VELOCITY_YAW_MASK,
+            0, 0, 0, north, east, 0, 0, 0, 0, math.radians(yaw_deg), 0,
+        )  # fmt: skip
+        v.hold(0.5)
+
+
+def wind_legs(v: Vehicle) -> None:
+    """Take off to 20 m, fly 6 s legs at 3, 6 and 9 m/s on eight courses, the nose turned
+    0, 30 or 60 degrees off the course, then hover facing eight ways, 5 s each, and land."""
+    v.mode("GUIDED")
+    v.arm()
+    v.command(ML.MAV_CMD_NAV_TAKEOFF, 0, 0, 0, 0, 0, 0, 20)
+    v.wait_altitude(19.5)
+    for speed in (3.0, 6.0, 9.0):
+        for k in range(8):
+            course = math.radians(45.0 * k)
+            yaw = (45.0 * k + 30.0 * (k % 3)) % 360.0
+            guided_velocity(v, speed * math.cos(course), speed * math.sin(course), yaw, 6)
+    for k in range(8):
+        guided_velocity(v, 0, 0, 45.0 * k, 5)
+    land_and_disarm(v)
+
+
 COPTER = dict(binary="arducopter", model="+", defaults=["default_params/copter.parm"])
 
 # Motor vibration and ESC telemetry as ArduPilot's DynamicRpmNotches autotest simulates
@@ -505,6 +537,13 @@ OPTICAL_FLOW = {
     "EK3_SRC2_YAW": 1,
 }  # fmt: skip
 WIND = {"SIM_WIND_SPD": 6, "SIM_WIND_DIR": 90, "SIM_WIND_TURB": 1}
+# A wind of 5 m/s from the west at every height (SIM_WIND_T 1: no profile), gusting
+STEADY_WIND = {"SIM_WIND_SPD": 5, "SIM_WIND_DIR": 270, "SIM_WIND_T": 1, "SIM_WIND_TURB": 1}
+WIND_EXPECTED = [
+    "GUIDED take-off to 20 m; 6 s legs at 3, 6 and 9 m/s on eight courses, the nose 0, 30"
+    " or 60 degrees off the course; then a hover facing eight ways, 5 s each; LAND",
+    "streamed messages capped at 10 Hz (LOG_FILE_RATEMAX): XKF1 at 10 Hz a core",
+]
 
 HEAVY_LIFT_EXPECTED = [
     "one armed period with about 14 s of steady hover at 5 m",
@@ -1016,6 +1055,39 @@ SCENARIOS: dict[str, Scenario] = {
             params={"RC_OVERRIDE_TIME": -1} | WIND,
             boot_params=NO_GNSS_SWITCHES | OPTICAL_FLOW,
             faults=[{"kind": "gnss", "description": "GNSS switched off for a drill"}],
+            **COPTER,  # type: ignore[arg-type]
+        ),
+        Scenario(
+            name="copter-quad-wind",
+            vehicle="copter",
+            frame="quad +",
+            description=(
+                "Legs at 3, 6 and 9 m/s on eight courses and a turning hover, at 20 m in a"
+                " gusting 5 m/s wind from the west at every height (SIM_WIND_T 1)."
+            ),
+            expected=[
+                *WIND_EXPECTED,
+                "the wind analyzer: about 5 m/s from 270 degrees, the drag fitted from the legs",
+                "steady hover windows: 7 s in GUIDED; 7 s in GUIDED; 7 s in GUIDED; 7 s in GUIDED",
+            ],
+            fly=wind_legs,
+            params=STEADY_WIND,
+            boot_params=FAILSAFE_LOGGING,
+            **COPTER,  # type: ignore[arg-type]
+        ),
+        Scenario(
+            name="copter-quad-wind-calm",
+            vehicle="copter",
+            frame="quad +",
+            description="The same legs and turning hover in still air (SIM_WIND_SPD 0).",
+            expected=[
+                *WIND_EXPECTED,
+                "the wind analyzer: under 0.5 m/s, with the drag of the windy flight",
+                "steady hover windows: 57 s in GUIDED",
+            ],
+            fly=wind_legs,
+            params={"SIM_WIND_SPD": 0},
+            boot_params=FAILSAFE_LOGGING,
             **COPTER,  # type: ignore[arg-type]
         ),
     ]
