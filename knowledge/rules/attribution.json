@@ -847,11 +847,53 @@
     "min_relative_pair": 0.1
   },
   "in_flight": {
-    "about": "The in-flight A/B split (spec: Attribution method, 'Prefer in-flight A/B'). A parameter changed while armed (a ground station's write, which the log records as PARM) splits the flight there, when the map ties it to a metric that the analyzers able to measure part of a flight emit. Such changes within group_s of each other are one moment; any other change within group_s of it is listed with it but neither makes a moment nor stretches one. The side before runs from the last moment that moves the same metrics (or arming) to this one's first change; the side after from settle_s past its last change to the next such moment (or disarming). A side shorter than min_side_s is not compared. A metric measured with an interval on each side compares them as a pair, as two flights do (the shifts' min_relative_pair); any other is measured on blocks of block_s across each side and tested as flights are (the shifts' min_before, min_after, spread_factor and bootstrap).",
+    "about": "The in-flight A/B split (spec: Attribution method, 'Prefer in-flight A/B'). A parameter changed while armed (a ground station's write, which the log records as PARM, or a turn of the transmitter's tuning knob, PTUN, below) splits the flight there, when the map ties it to a metric that the analyzers able to measure part of a flight emit. Such changes within group_s of each other are one moment; any other change within group_s of it is listed with it but neither makes a moment nor stretches one. The side before runs from the last moment that moves the same metrics (or arming) to this one's first change; the side after from settle_s past its last change to the next such moment (or disarming). A side shorter than min_side_s is not compared. A metric measured with an interval on each side compares them as a pair, as two flights do (the shifts' min_relative_pair); any other is measured on blocks of block_s across each side and tested as flights are (the shifts' min_before, min_after, spread_factor and bootstrap).",
     "group_s": 5,
     "settle_s": 2,
     "min_side_s": 20,
-    "block_s": 10
+    "block_s": 10,
+    "tuning_knob": {
+      "about": "The transmitter's tuning knob (TUNE, TUNE2; an RC channel with RCx_OPTION 219) in the in-flight A/B split. About three times a second the firmware sets what the knob's function names from its position, without saving it (ArduCopter/tuning.cpp, Copter::tuning), and logs PTUN: the function, the value set and the knob's range. A turn runs from the knob leaving a value it held for steady_s to reaching the next; values within steady_share of its range are the same value, so a receiver's jitter is no turn. functions names the parameters each function sets, canonical, with scale from the knob's units to the parameter's (WP Speed is set in cm/s; WP_SPD is in m/s). Functions that set no parameter (13 the helicopter's external gyro, 38 declination, 58 the system ID signal) and the helicopters' feed-forward (52 to 54, set only on a helicopter) are left out.",
+      "steady_share": 0.02,
+      "steady_s": 2,
+      "functions": {
+        "1": {"params": ["ATC_ANG_RLL_P", "ATC_ANG_PIT_P"]},
+        "3": {"params": ["ATC_ANG_YAW_P"]},
+        "4": {"params": ["ATC_RAT_RLL_P", "ATC_RAT_PIT_P"]},
+        "5": {"params": ["ATC_RAT_RLL_I", "ATC_RAT_PIT_I"]},
+        "6": {"params": ["ATC_RAT_YAW_P"]},
+        "7": {"params": ["PSC_D_VEL_P"]},
+        "10": {"params": ["WP_SPD"], "scale": 0.01},
+        "12": {"params": ["PSC_NE_POS_P"]},
+        "14": {"params": ["PSC_D_POS_P"]},
+        "21": {"params": ["ATC_RAT_RLL_D", "ATC_RAT_PIT_D"]},
+        "22": {"params": ["PSC_NE_VEL_P"]},
+        "25": {"params": ["ACRO_RP_RATE"]},
+        "26": {"params": ["ATC_RAT_YAW_D"]},
+        "28": {"params": ["PSC_NE_VEL_I"]},
+        "34": {"params": ["PSC_D_ACC_P"]},
+        "35": {"params": ["PSC_D_ACC_I"]},
+        "36": {"params": ["PSC_D_ACC_D"]},
+        "39": {"params": ["CIRCLE_RATE"]},
+        "40": {"params": ["ACRO_Y_RATE"]},
+        "45": {"params": ["ATC_INPUT_TC"]},
+        "46": {"params": ["ATC_RAT_PIT_P"]},
+        "47": {"params": ["ATC_RAT_PIT_I"]},
+        "48": {"params": ["ATC_RAT_PIT_D"]},
+        "49": {"params": ["ATC_RAT_RLL_P"]},
+        "50": {"params": ["ATC_RAT_RLL_I"]},
+        "51": {"params": ["ATC_RAT_RLL_D"]},
+        "55": {"params": ["MOT_YAW_HEADROOM"]},
+        "56": {"params": ["ATC_RAT_YAW_FLTE"]},
+        "59": {"params": ["PSC_ANGLE_MAX"]},
+        "60": {"params": ["LOIT_SPEED_MS"]}
+      },
+      "sources": [
+        "ArduCopter/tuning.cpp at Copter-4.7.0: Copter::tuning, each function's set_kP, set_kI, set_kD, set_input_tc, set_filt_E_hz, set_speed_NE_cms, set_rate, set_yaw_headroom, set_lean_angle_max_deg, set_speed_max_NE_ms; PTUN written before the value is set",
+        "ArduCopter/defines.h at Copter-4.7.0: tuning_func values",
+        "ArduCopter/Log.cpp at Copter-4.7.0: PTUN TimeUS, Param, TunVal, TunMin, TunMax, NIn"
+      ]
+    }
   },
   "revert_test": {
     "about": "The test that settles a shift that made a metric worse (spec: 'When performance changes', steps 5 to 7). Each parameter candidate, most likely first, is one single-change test flight: a file that puts it back as it was, every other change left in place. A later flight in the shift's payload group with that candidate back and every other one still as after is its test. Within twice the spread before (the shifts' spread_factor) of the flights before and not of the flights after, it explains the shift; the other way round, it is not the cause; else unclear. A metric with an interval on each flight reads the test flight's interval against the last flight before and the first after. Once a step explains the shift the rest are not needed.",

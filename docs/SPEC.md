@@ -2359,9 +2359,14 @@ The AI layer can propose links the map lacks; those are shown as hypotheses unti
 
 **The in-flight A/B split** (`history/ab.py`; numbers in `rules/attribution.json` "in_flight", uncalibrated). Method step 4 above, measured within one flight:
 
-- **What splits a flight.** A parameter changed while armed. The log records a ground station's write as `PARM`. A transmitter tuning knob logs `PTUN` instead, and joins later. A script's own changes are not logged at all (4.7.0 logs `PARM` only for a ground station's write, `GCS_Param.cpp`), so a flight a script changes cannot be split. The change splits the flight only when the map ties it to a metric that an analyzer able to measure part of a flight emits.
+- **What splits a flight.** A parameter changed while armed. The log records a ground station's write as `PARM`, and a transmitter tuning knob as `PTUN`. A script's own changes are not logged at all (4.7.0 logs `PARM` only for a ground station's write, `GCS_Param.cpp`), so a flight a script changes cannot be split. The change splits the flight only when the map ties it to a metric that an analyzer able to measure part of a flight emits.
   - Such changes within 5 s of each other are one moment, as when a person sets several values at once.
   - Any other change within 5 s is listed with the moment but neither makes one nor stretches it. The tune check's own logging switched on and off is one such change.
+- **The tuning knob** (`TUNE`, `TUNE2`; an RC channel with `RCx_OPTION` 219). About three times a second the firmware sets what the knob's function names from the knob's position, without saving it, and logs `PTUN` with the function, the value and the knob's range (`tuning.cpp`).
+  - **Its value is what flew.** While a knob is set up, the stored parameter is not what the aircraft flies, so each side is measured with the knob's value. The log's own parameter at arming already holds it, because `PARM` is written from the value in use.
+  - **A turn** runs from the knob leaving a value it held for 2 s to reaching the next. Values within 2% of the knob's range are the same value, so a receiver's jitter is no turn, and a knob nudged and put back has not turned. A turn while disarmed sets the value the flight starts with.
+  - **What each function sets** is a table in the rule pack: the canonical parameters, with a scale where the knob's units differ (WP Speed is set in cm/s; `WP_SPD` is in m/s). Functions that set no parameter are left out: the helicopter's external gyro, declination and the system ID signal. So are the helicopters' feed-forward functions, which only a helicopter sets.
+  - Each change is labelled with how it was made: in flight by a ground station, or by the tuning knob.
 - **The sides.** Before: from the last moment that moves the same metrics (or arming) to this one's first change. After: from 2 s past its last change to the next such moment (or disarming). A change that cannot move those metrics does not cut a side short, as between flights. A side under 20 s is not compared, and the split says why.
 - **Measuring a side.** The analyzers that keep to the part of the flight they are given (`spans`: the tune check, the rate-loop response and rate-loop health) measure each side. They use the parameters as they stood just before and just after the moment. Arming stays where it was, so heights keep their ground.
 - **The test.**
@@ -2373,6 +2378,10 @@ The AI layer can propose links the map lacks; those are shown as hypotheses unti
   - roll rate tracking error went from 25.1% to 41.0%, and roll attitude tracking error from 6.6% to 17.2%, each with the two sides' intervals apart;
   - roll rate P was ranked first, with high confidence;
   - the tune check's logging switches split nothing.
+- **And with the knob** (`copter-quad-tune-knob`). The same flight, but the roll rate P is on a knob (`TUNE` 49, from 0.054 to 0.135), turned from its top to its bottom between the doublets:
+  - the turn took 0.3 s;
+  - roll rate tracking error went from 25.1% to 36.5%, and roll attitude tracking error from 6.6% to 16.0%, each with the two sides' intervals apart;
+  - roll rate P from the knob was ranked first, with high confidence.
 
 **The revert test** (`history/revert.py`; texts in `rules/attribution.json` "revert_test"). Steps 5 to 7 of "pointing at the cause", for a shift that made a metric worse:
 

@@ -74,6 +74,10 @@ a5ba1e4386b8a8659c693b550889e6a6b946ce8c4ac87021b99bc51fc01547a9  sitl/4.7.0/cop
 13b90ae5f6501ba38ac0337436753123a04bc8b91a94a2f3dd2dae1f16039483  sitl/4.7.0/copter-quad-tune-default.param
 f42eb48bdc0d7fafb4c7dd712bf4a53f18b31da9b7b1332c3dc73a1760e3a713  sitl/4.7.0/copter-quad-tune-default.params
 4dff920869403611a071cf7f544b4336245ef411a23f48a9c80bbf95407e4bd5  sitl/4.7.0/copter-quad-tune-default.tlog
+17297b648551522cfe1af9a4b884c80349e9536b8ec4ebcfe00a788d21f11b04  sitl/4.7.0/copter-quad-tune-knob.bin
+8adc8e4b1de9f96b7a499c254c43d5fc948dfce567cc1984b9f83cd372980b8d  sitl/4.7.0/copter-quad-tune-knob.param
+7405665e86c40716f41a0efd7da3961d562a85fef1be3ad38625d8c8e925d71b  sitl/4.7.0/copter-quad-tune-knob.params
+5cdfb9ed6cef04592bb98138252d04f75c81107a4c40295c8720d30d454b0675  sitl/4.7.0/copter-quad-tune-knob.tlog
 c4240230aade82ecf40e8a24bddd2719fb76c0976fe09300642eb0cac4b3bc25  sitl/4.7.0/copter-quad-tune-low.bin
 bf95ef4ffa3c605f9e02320e0e2a2c3f9c8d9266ab3edd1efca45aa0c5274491  sitl/4.7.0/copter-quad-tune-low.param
 46d0bd4bfaafe4c4d3784216814c49089252b840b193a4fc753b832656f6fce0  sitl/4.7.0/copter-quad-tune-low.params
