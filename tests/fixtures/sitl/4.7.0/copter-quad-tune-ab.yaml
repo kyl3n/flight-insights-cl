@@ -18,3 +18,5 @@ expected:
 - 6 roll doublets on each side of the change, all counted
 - roll tracking error worse after the change, with the two sides' intervals apart,
   and the roll rate gains ranked as its cause
+- 'about 47 s of steady hover in ALT_HOLD: the short doublets stay inside the hover
+  limits'
