@@ -22,6 +22,7 @@
 | flight.system | A flight's loop load and timing, logging drops and errors, for display |
 | flight.tlogs | A flight's tlog sessions: each station clock against the vehicle's, and loss |
 | flight.tune | A flight's tune against one of its payload group's, and the plan's verdict |
+| flight.ab | Each parameter change made in flight, with the flight's two sides compared |
 | review.file | A parameter file's configuration review and plan, with no flight |
 | airframe.recovery_card | The airframe's recovery card: GNSS loss, spoofing and losing a motor |
 | airframe.sim_export | The airframe's model for ArduPilot's simulator, its parameters, as files |
@@ -44,7 +45,7 @@ from typing import TYPE_CHECKING, Any, cast
 from flight_insights import analyzers, recommend, recovery, review, trends, tune_view, views
 from flight_insights.analyzers.registry import LANGUAGES
 from flight_insights.filters import workbench
-from flight_insights.history import attribution
+from flight_insights.history import ab, attribution
 from flight_insights.rpc.server import (
     BAD_INPUT,
     CONFLICT,
@@ -435,6 +436,24 @@ def add_analysis_methods(server: Server, state: EngineState, guarded: Callable[[
         store, airframe = state.require_store(), _id(params, "airframe_id")
         found = attribution.attribute(store, reg, airframe, metric)
         return [attribution.shift_json(s, reg) for s in found]
+
+    @server.method("flight.ab")
+    @guarded
+    def flight_ab(_ctx: Context, params: dict[str, Any]) -> list[dict[str, Any]]:
+        """The in-flight A/B split: each change made while armed, both sides compared on
+        what the map ties it to, with times in seconds after arming."""
+        store, cache = state.require_store(), state.cache
+        assert cache is not None
+        flight_id = _flight(params)
+        row = store.get("flight", flight_id)
+        if row is None:
+            raise RpcError(BAD_INPUT, "no such flight")
+        try:
+            found = ab.split(store, cache, state.pack, flight_id)
+        except analyzers.FlightError as e:
+            raise RpcError(BAD_INPUT, str(e)) from None
+        reg = analyzers.Registry.load(state.pack)
+        return [ab.split_json(s, reg, int(row["arm_us"])) for s in found]
 
     @server.method("trend.platform")
     @guarded

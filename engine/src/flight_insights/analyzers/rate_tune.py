@@ -104,7 +104,7 @@ def _loop(
     ta, rate = attitude
     t = np.asarray(pid.column("TimeUS").to_numpy(), np.int64)
     excitation: Mapping[str, Any] = reg.rules["tune"]["excitation"]
-    ok = (t >= flight.arm_us) & (t <= flight.disarm_us)
+    ok = flight.during(t)
     stick = np.zeros(len(t), dtype=bool)
     for a, b, name in modes(flight, reg):
         if name in excitation["stick_modes"]:
@@ -394,4 +394,5 @@ RATE_TUNE = Analyzer(
         for m in ("bandwidth", "sensitivity_peak", "rise_time", "overshoot", "settling")
     ),
     findings=("tune.low_margin",),
+    spans=True,
 )

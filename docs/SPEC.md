@@ -2327,6 +2327,23 @@ The AI layer can propose links the map lacks; those are shown as hypotheses unti
 - **Where it shows.** The engine gives the shifts with their ranked candidates and each link's reason (`trend.attribution`). The trend marker and the inspector come with the trends and history screen, whose mock-up waits for approval.
 - **In grading.** A procedure's check `no_shift_worse` fails when a metric shifted worse between the first flight with the change and the one graded. When the shift's top-ranked cause is the change's own parameter, or a value its work saves (the gains AutoTune saves), the grade is regressed, unless the weather differed beyond the thresholds above: then the check fails and the grade is not regressed on that shift alone. The AutoTune offer carries it: this is the Phase 2 gate's "nothing else regresses". A metric with too few flights to judge is no shift, so it passes until those flights are flown.
 
+**The in-flight A/B split** (`history/ab.py`; numbers in `rules/attribution.json` "in_flight", uncalibrated). Method step 4 above, measured within one flight:
+
+- **What splits a flight.** A parameter changed while armed. The log records a ground station's write as `PARM`. A transmitter tuning knob logs `PTUN` instead, and joins later. A script's own changes are not logged at all (4.7.0 logs `PARM` only for a ground station's write, `GCS_Param.cpp`), so a flight a script changes cannot be split. The change splits the flight only when the map ties it to a metric that an analyzer able to measure part of a flight emits.
+  - Such changes within 5 s of each other are one moment, as when a person sets several values at once.
+  - Any other change within 5 s is listed with the moment but neither makes one nor stretches it. The tune check's own logging switched on and off is one such change.
+- **The sides.** Before: from the last moment that moves the same metrics (or arming) to this one's first change. After: from 2 s past its last change to the next such moment (or disarming). A change that cannot move those metrics does not cut a side short, as between flights. A side under 20 s is not compared, and the split says why.
+- **Measuring a side.** The analyzers that keep to the part of the flight they are given (`spans`: the tune check, the rate-loop response and rate-loop health) measure each side. They use the parameters as they stood just before and just after the moment. Arming stays where it was, so heights keep their ground.
+- **The test.**
+  - **A metric with an interval on each side** (the tune check's tracking errors) compares the two as a pair, as two flights do: a shift when the intervals are apart and the change is at least 10%.
+  - **Any other metric** is measured on 10 s blocks across each side, and tested as a shift over flights is: at least 3 blocks before and 2 after, the effect at least twice the blocks' spread, with a bootstrap interval.
+- **The causes.** The moment's changes, ranked by the map as a shift's are (strength, direction, size; timing is always exact). There is no build, firmware or weather between the sides to confound them.
+- **Where it shows.** The engine gives each split with its sides in seconds after arming, its results and its ranked changes (`flight.ab`). It joins the trends and history screen, whose mock-up waits for approval. It does not enter AI packets.
+- **Checked on SITL** (`copter-quad-tune-ab`). Six roll doublets, then the roll rate gains written to 0.4 of their defaults mid-flight, then six more:
+  - roll rate tracking error went from 25.1% to 41.0%, and roll attitude tracking error from 6.6% to 17.2%, each with the two sides' intervals apart;
+  - roll rate P was ranked first, with high confidence;
+  - the tune check's logging switches split nothing.
+
 **Example of what the user sees** (illustrative values):
 
 *Hover gyro noise in the motor band (80-120 Hz) rose 6 dB from flight 37, outside this airframe's normal spread.*

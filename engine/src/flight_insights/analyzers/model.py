@@ -110,3 +110,6 @@ class Analyzer:
     run: Callable[[FlightData, Registry], Result]
     metrics: tuple[str, ...]  # every metric and finding it can emit, all in the registry
     findings: tuple[str, ...]
+    # Whether it measures only the flight's `span` when one is set, so it can measure
+    # each side of an in-flight parameter change (history/ab.py).
+    spans: bool = False

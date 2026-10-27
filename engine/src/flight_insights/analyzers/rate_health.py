@@ -56,7 +56,7 @@ def _rules(reg: Registry) -> Mapping[str, Any]:
 
 def _flying(flight: FlightData, reg: Registry, t: Array) -> Array:
     """Armed, and above the tune check's minimum height when the log says how high."""
-    ok = (t >= flight.arm_us) & (t <= flight.disarm_us)
+    ok = flight.during(t)
     above = height(flight)
     if above is not None:
         ok &= np.interp(t, *above) >= float(reg.rules["tune"]["excitation"]["min_height_m"])
@@ -384,4 +384,5 @@ RATE_HEALTH = Analyzer(
         for m in ("i_at_limit", "slew_limited", "d_noise", "hover_unsteady")
     ),
     findings=("tune.i_limit", "tune.slew_limited", "tune.d_noise", "tune.oscillation"),
+    spans=True,
 )
