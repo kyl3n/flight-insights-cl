@@ -116,14 +116,20 @@ def callisto(tmp_path_factory: pytest.TempPathFactory) -> dict[str, tuple[Result
 def test_the_loaded_x8_has_less_margin_and_the_same_ceiling(
     callisto: dict[str, tuple[Result, Result]],
 ) -> None:
-    """Loaded, the X8 needs more from its busiest motor after losing one, and the
-    heaviest take-off each flight allows is the same aircraft's ceiling: light's ratio
-    and loaded's, with the payload estimate's 1.25 between them, agree within 3%."""
+    """Loaded, the X8 needs more from its busiest motor after losing one: at 40.5 kg, 85.7%
+    from ArduPilot's mixer, just short of the 85% target (the best split would ask 79%).
+    The simulator agrees: flown at 40.5 kg losing each motor in turn, its busiest motor
+    ran at 84 to 86%. The heaviest take-off each flight allows is the same aircraft's
+    ceiling: light's ratio and loaded's, with the payload estimate's 1.25 between them,
+    agree within 3%."""
     (light, light_payload), (loaded, loaded_payload) = (
         callisto["copter-heavylift-light"], callisto["copter-heavylift-loaded"],
     )  # fmt: skip
     assert metric(loaded, "motor_out.margin") < metric(light, "motor_out.margin")
-    assert light.findings == [] and loaded.findings == []
+    assert light.findings == [] and [f.code for f in loaded.findings] == ["motor_out.short"]
+    values = loaded.evidence[0].values
+    assert values["worst_output_pct"] == pytest.approx(85.7, abs=0.2)
+    assert values["best_split_output_pct"] == pytest.approx(79.0, abs=0.2)
     assert light.evidence[0].values["frame"] == "OCTAQUAD/X"
     heavier = metric(loaded_payload, "payload.hover_thrust") / metric(
         light_payload, "payload.hover_thrust"

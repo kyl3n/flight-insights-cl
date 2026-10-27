@@ -4,10 +4,20 @@ each make to hold the aircraft level at its weight, from the frame's own motor f
 
 With motor k stopped, the others' thrusts T_j (each as a share of one motor's full
 thrust) must carry the weight W and leave no roll or pitch moment, and, where the frame
-must hold its heading, no yaw torque. Of all the ways to do that, the one that asks the
-least of the busiest motor is found by a linear program: minimise t with T_j <= t,
-T_j >= 0 and the balance equations. Its t is the thrust the busiest remaining motor must
-make; no thrust split can ask less of it.
+must hold its heading, no yaw torque. Two answers:
+
+- **What ArduPilot's mixer does** (`mixer`). The mixer asks each motor for its throttle,
+  roll, pitch and yaw factors times four demands, so its thrusts can only lie in the
+  space those factors span. Once the attitude and height controllers have settled on a
+  stopped motor, the four demands are the ones that balance it, and with five or more
+  motors left that steady state is unique. In ArduPilot's simulator, an X8 at 40.5 kg
+  losing each motor in turn ran its busiest motor at 1.52 times its hover thrust, against
+  this model's 1.5.
+- **The best any split could do** (`solve`). Of all the ways to balance, the one that
+  asks the least of the busiest motor, by a linear program: minimise t with T_j <= t,
+  T_j >= 0 and the balance equations. No mixer can ask less of it; ArduPilot's asks as
+  little only where the frame leaves no other choice (a hexa, a Y6, a co-rotating X8):
+  for an X8 it is 1.33 against the mixer's 1.5 times hover.
 
 A motor's arm on each axis is its mixer factor over its throttle factor: the mixer scales
 a co-rotating X8's top layer down by 0.9 to keep the layers apart in frequency, which is
@@ -82,11 +92,36 @@ def solve(motors: Sequence[Mapping[str, Any]], failed: int, weight: float,
     return MotorOut(failed, float(x[k]), rounded)
 
 
-def worst(motors: Sequence[Mapping[str, Any]], weight: float, hold_yaw: bool = True
-          ) -> list[MotorOut]:  # fmt: skip
+def mixer(motors: Sequence[Mapping[str, Any]], failed: int, weight: float) -> MotorOut:
+    """Motor `failed` (from 1) stopped, as ArduPilot's mixer flies on: the thrusts its four
+    demands settle on to carry `weight` (in full single-motor thrusts) with no roll, pitch
+    or yaw moment. No balance when the motors left cannot give one, or only with a motor
+    below zero thrust."""
+    arm = arms(motors)
+    alive = [i for i in range(len(motors)) if i != failed - 1]
+    factors = np.array([[m["throttle"], m["roll"], m["pitch"], m["yaw"]] for m in motors],
+                       float)[alive]  # fmt: skip
+    balance = np.vstack([np.ones(len(alive)), arm[alive].T])  # weight, then the moments
+    system = balance @ factors
+    if abs(np.linalg.det(system)) < 1e-9:
+        return MotorOut(failed, None, ())
+    demands = np.linalg.solve(system, np.array([weight, 0.0, 0.0, 0.0]))
+    alive_thrusts = factors @ demands
+    if float(alive_thrusts.min()) < -1e-9:
+        return MotorOut(failed, None, ())
+    thrusts = np.zeros(len(motors))
+    thrusts[alive] = alive_thrusts
+    rounded = tuple(round(max(float(v), 0.0), 6) + 0.0 for v in thrusts)  # no -0.0
+    return MotorOut(failed, float(alive_thrusts.max()), rounded)
+
+
+def worst(motors: Sequence[Mapping[str, Any]], weight: float, hold_yaw: bool = True,
+          best: bool = False) -> list[MotorOut]:  # fmt: skip
     """Every motor lost in turn, the hardest first: one with no balance at all, then the
-    highest peak."""
-    out = [solve(motors, i + 1, weight, hold_yaw) for i in range(len(motors))]
+    highest peak. As ArduPilot's mixer flies on, or with `best`, the best split (holding
+    the heading when `hold_yaw`)."""
+    out = [solve(motors, i + 1, weight, hold_yaw) if best else mixer(motors, i + 1, weight)
+           for i in range(len(motors))]  # fmt: skip
     return sorted(out, key=lambda m: (m.peak is not None, -(m.peak or 0.0), m.failed))
 
 

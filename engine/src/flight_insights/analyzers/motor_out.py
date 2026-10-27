@@ -8,10 +8,13 @@ what would the busiest of the others have to do?
   conditions are the ones asked about). It is counted in full single-motor thrusts.
 - **The geometry** is the frame's own mixer factors (`FRAME_CLASS`, `FRAME_TYPE`; see
   knowledge/frames/).
-- **For each motor in turn,** a linear program (`motor_out.py`) finds the least thrust the
-  busiest remaining motor must make to carry the weight level, holding the heading where
-  the frame class must. That thrust goes back through the curve to an output at the
-  hover voltage, and the worst motor sets the margin against the class's target.
+- **For each motor in turn,** the thrusts ArduPilot's mixer settles on once the motor
+  has stopped (`motor_out.py`): its four demands can only reach the thrusts its factors
+  span, so the balance it holds is unique. The busiest remaining motor's thrust goes back
+  through the curve to an output at the hover voltage, and the worst motor sets the
+  margin against the class's target. The best any split could do (a linear program,
+  holding the heading where the frame class must) is given beside it: on an X8 it asks
+  11% less of the busiest motor than ArduPilot's mixer does.
 - **The heaviest take-off** that still meets the target: the needed thrust grows in
   proportion to the weight.
 
@@ -93,6 +96,7 @@ def _motor_out(flight: FlightData, reg: Registry) -> Result:
         return output_for(thrust, hover.expo) * scale
 
     losses = worst(motors, weight, hold_yaw)
+    best = worst(motors, weight, hold_yaw, best=True)[0]
     seg = Segment("hover", hover.windows[0][0], hover.windows[-1][1])
     needed = [None if m.peak is None else round(100.0 * output(m.peak), 1)
               for m in sorted(losses, key=lambda m: m.failed)]  # fmt: skip
@@ -121,7 +125,9 @@ def _motor_out(flight: FlightData, reg: Registry) -> Result:
     ratio = thrust_at(max_output / scale, hover.expo) / hardest.peak
     margin = round(100.0 * (max_output - need), 1)
     values |= {"busiest_motor": busiest, "worst_output_pct": round(100.0 * need, 1),
-               "weight_ratio": round(ratio, 3)}  # fmt: skip
+               "weight_ratio": round(ratio, 3),
+               "best_split_output_pct": None if best.peak is None
+               else round(100.0 * output(best.peak), 1)}  # fmt: skip
     ev = Evidence(
         id="motor_out:hover", kind="metric",
         summary=f"{name} at {100 * carried:.1f}% hover thrust: losing motor {hardest.failed}, "
