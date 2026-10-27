@@ -47,6 +47,7 @@ from flight_insights.analyzers.registry import Registry
 from flight_insights.analyzers.system import SYSTEM
 from flight_insights.analyzers.tune import TUNE
 from flight_insights.analyzers.vibration import VIBRATION
+from flight_insights.analyzers.wind import WIND
 from flight_insights.knowledge import Pack
 from flight_insights.store.cache import ColumnCache
 from flight_insights.store.db import Store
@@ -58,7 +59,7 @@ ANALYZERS: tuple[Analyzer, ...] = (
     LOG_ADEQUACY, SYSTEM, FAILSAFES, LINKS, PRECURSORS, COMMANDS, INCIDENT, GNSS, NO_GNSS,
     NO_GNSS_READINESS, VIBRATION,
     ESC_RPM, FILTER_MODEL, FILTERS, POWER, MOTORS_HEALTH, MOTOR_LAG, BUSES, PAYLOAD, MOTOR_OUT,
-    TUNE,
+    WIND, TUNE,
     RATE_TUNE,
     RATE_HEALTH, AUTOTUNE, OPTIONS, PARAMS_AUDIT,
 )  # fmt: skip

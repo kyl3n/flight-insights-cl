@@ -1,0 +1,23 @@
+source: sitl
+vehicle: copter
+frame: quad +
+firmware: 4.7.0
+ardupilot_commit: 1511f27194f1dcc3728270883047bdf022b3fd53
+scenario: copter-quad-wind
+description: Legs at 3, 6 and 9 m/s on eight courses and a turning hover, at 20 m
+  in a gusting 5 m/s wind from the west at every height (SIM_WIND_T 1).
+parameters_set:
+  LOG_DISARMED: 0
+  SIM_ESC_TELEM: 0
+  LOG_FILE_RATEMAX: 10
+  SIM_WIND_SPD: 5
+  SIM_WIND_DIR: 270
+  SIM_WIND_T: 1
+  SIM_WIND_TURB: 1
+faults: []
+expected:
+- GUIDED take-off to 20 m; 6 s legs at 3, 6 and 9 m/s on eight courses, the nose 0,
+  30 or 60 degrees off the course; then a hover facing eight ways, 5 s each; LAND
+- 'streamed messages capped at 10 Hz (LOG_FILE_RATEMAX): XKF1 at 10 Hz a core'
+- 'the wind analyzer: about 5 m/s from 270 degrees, the drag fitted from the legs'
+- 'steady hover windows: 7 s in GUIDED; 7 s in GUIDED; 7 s in GUIDED; 7 s in GUIDED'
