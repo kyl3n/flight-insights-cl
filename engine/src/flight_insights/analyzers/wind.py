@@ -386,6 +386,11 @@ def _wind(flight: FlightData, reg: Registry) -> Result:
             "ground_speed_p90": round(float(np.percentile(speeds_ground, 90)), 2),
             "model": "quadratic" if m.fit.quadratic else "linear",
             "residual_rms": round(m.fit.rms, 4),
+            # the fit itself, so the airframe's other flights can use it
+            "k1": round(m.fit.k1, 5),
+            "k2": round(m.fit.k2, 6),
+            "bias_x": round(float(m.fit.bias[0]), 4),
+            "bias_y": round(float(m.fit.bias[1]), 4),
         },
     )
     out = Result(evidence=[evidence])

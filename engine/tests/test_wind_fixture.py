@@ -64,6 +64,8 @@ def test_the_set_wind_is_measured(flown: dict[str, FlightData], reg: Registry) -
     [ev] = r.evidence
     assert abs(ev.values["from_deg"] - 270) <= 3 and ev.values["model"] == "quadratic"
     assert ev.values["windows"] >= 100 and abs(ev.values["height_m"] - 20) < 1
+    assert ev.values["k1"] == pytest.approx(m["wind.drag_linear"][0], rel=1e-3)
+    assert abs(ev.values["bias_x"]) < 0.1 and abs(ev.values["bias_y"]) < 0.1
     assert m["wind.peak_ms"][0] >= speed
     assert "wind.ekf_speed_ms" not in m  # drag fusion is off in SITL's defaults
 
