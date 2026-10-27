@@ -1324,7 +1324,6 @@ The app assumes every aircraft will lose GNSS at some point, through jamming, sp
   - whether the aircraft got home;
   - trends per airframe;
   - readiness from the logs (compass health and interference, barometer error) and drag coefficients computed from the take-off weight and measured areas;
-  - the recovery card's radio-link section;
   - settings sized from the measured hold (`FS_DR_TIMEOUT`).
 
 ### Recommendations and recovery
@@ -1334,15 +1333,17 @@ The app assumes every aircraft will lose GNSS at some point, through jamming, sp
 - **A recovery card per airframe:** what the aircraft will do on GNSS loss with its current settings, how long it can hold and how far it can travel on dead reckoning, and the operator's steps, from switching to the non-GNSS source set to flying home on a heading in AltHold.
 - **Loss and spoofing are handled differently.** On suspected spoofing the card says to reject GNSS manually first, because the estimator may still be trusting it.
 - **Losing a motor** gets its own section, from the motor-out margin (Propulsion, "Motor-out margin").
+- **Losing the control link** gets its own sections, with GNSS and without: the goal is getting home when both the radio link and GNSS are lost.
 
-**Built now:** `recovery.py`, with the RPC `airframe.recovery_card`. The wording is in `knowledge/recovery/copter.json`, in English and Ukrainian. The card is built on the laptop from three things:
+**Built now:** `recovery.py`, with the RPC `airframe.recovery_card`. The wording is in `knowledge/recovery/copter.json`, in English and Ukrainian. The card is built on the laptop from:
 
 - the airframe's latest parameters, through the readiness review;
 - its measured outages over all its flights' latest analyses: the shortest hold, the longest detection and the worst drift a minute. These are kept apart by the source set they were flown on, so a hold measured on optical flow is never claimed for the aircraft on its own;
 - the landing tolerance;
-- the motor-out margin of its latest flight that measured it on the current frame, with that flight's weight.
+- the motor-out margin of its latest flight that measured it on the current frame, with that flight's weight;
+- its link failsafes over the same analyses (Failsafe causes and RF early warning, "Did the failsafe work?").
 
-It holds three sections; losing the radio link follows once its measurements exist.
+It holds these sections:
 
 - **GNSS lost:**
   - What the aircraft will do on its own, from the source sets, drag fusion and `FS_DR_ENABLE`, and the EKF failsafe.
@@ -1364,6 +1365,27 @@ It holds three sections; losing the radio link follows once its measurements exi
   - The operator's steps:
     - when it can fly on the rest: stop manoeuvring and let it level, let it turn where its class does not hold the heading, descend steadily, and land at the nearest clear spot, not at home;
     - when it comes down: keep people clear. With `CHUTE_ENABLED`, release the parachute if it has not opened by itself, with its switch (aux function 22 or 23) or from the ground station. ArduPilot releases it after 1 s sinking faster than `CHUTE_CRT_SINK`, or, in modes with the crash check and above `CHUTE_ALT_MIN`, after 1 s more than 30° from the attitude it wants while falling (`crash_check.cpp`, `AP_Parachute.cpp`).
+- **Control link lost** (`recovery_link.py`). A ground station that flies the aircraft (`RC_OPTIONS` bit 0, a joystick through the station) gets one section, "Ground-station link lost", because the pilot's control and the telemetry go together. A pilot's radio gets two: "Pilot's radio lost" and "Telemetry link lost, with the pilot's radio working".
+  - **What the aircraft will do** is played through ArduCopter 4.7.0's own failsafes, as rebuilt for judging logged failsafes (`rules/failsafes.json`):
+    - **Which failsafes fire, and when.** A receiver that stops sending sets off the radio failsafe `RC_FS_TIMEOUT` later (`radio.cpp`). One that sends a failsafe throttle under `FS_THR_VALUE` sets it off at once, and one that holds its last values never does: the card says both, since only the receiver's own setup tells which it does. A joystick's sticks reach the autopilot as RC overrides, which count as the radio's input (`RC_Channels::read_input`), so losing the station's link sets off the radio failsafe `RC_FS_TIMEOUT` later too, then the ground-station failsafe at `FS_GCS_TIMEOUT`.
+    - **What each does.** Each failsafe acts on the mode the one before left it in: its setting, then the firmware's deviations (continue in Auto, in Guided, under pilot control, while landing), then its modes in turn. A mode that needs a position is refused without one, and the next is tried.
+    - **Per mode.** This is played from Loiter, AltHold, Guided and Auto. The card gives one line for each outcome, naming the modes it holds for, or one line for any mode. Each line gives the times and the failsafes that change what the aircraft does. Where nothing changes, it says why: no failsafe is on, or the failsafe's settings let the aircraft carry on, such as with no one flying it.
+    - **GNSS lost too.** Without a first source set that keeps a position, the aircraft loses its position:
+      - the dead-reckoning failsafe acts first where drag fusion lets it;
+      - then the EKF failsafe acts (`ekf_check.cpp`). Its AltHold becomes Land while the radio failsafe is in force, so a station-flown aircraft whose radio failsafe is off holds its height with no one flying it, drifting with the wind.
+
+      Which loss comes first is not known, so both orders are played from each mode, and the card names every end they reach.
+  - **What was measured,** over the airframe's flights' latest analyses:
+    - each link failsafe: as configured, on a fallback mode, or not as configured;
+    - the slowest failsafe against its wait;
+    - losses no failsafe answered;
+    - the longest the ground station went unheard short of its failsafe's wait.
+  - **The operator's steps:**
+    - turn the ground antennas toward the aircraft (face it with the transmitter);
+    - when the link comes back, the aircraft stays in the mode the failsafe chose: pick a mode in the ground station, or move the flight-mode switch, to fly it again;
+    - with no failsafe on, set one before the next flight;
+    - when it lands where it is or drifts, keep people clear of the ground under it and downwind.
+  - **Settings the log did not hold** are taken at the firmware's defaults (`FS_THR_ENABLE` 1, `FS_THR_VALUE` 975, `RC_FS_TIMEOUT` 1 s, `FS_GCS_ENABLE` 0, `FS_GCS_TIMEOUT` 5 s).
 
 The card carries times, modes, switches, weights and distances from the measured drift, never a position. It is printed on the laptop and never sent.
 
