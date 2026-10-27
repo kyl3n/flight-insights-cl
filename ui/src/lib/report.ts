@@ -196,11 +196,11 @@ export function formatNumber(value: number, locale: Locale = "en"): string {
 // The registry writes units in ASCII; people read them like this, in their language
 // (Ukrainian writes SI symbols in Cyrillic: В, Вт, Гц).
 const UNIT_TEXT: Record<Locale, Record<string, string>> = {
-  en: { degC: "°C", mOhm: "mΩ", Ohm: "Ω", "W.h": "Wh", "A/krpm^2": "A/krpm²" },
+  en: { degC: "°C", mOhm: "mΩ", Ohm: "Ω", "W.h": "Wh", "A/krpm^2": "A/krpm²", us: "µs" },
   uk: {
     degC: "°C", mOhm: "мОм", "W.h": "Вт·год", "A/krpm^2": "А/(тис. об/хв)²", W: "Вт", V: "В",
     A: "А", s: "с", ms: "мс", Hz: "Гц", dB: "дБ", "B/s": "Б/с", "m/s/s": "м/с²", Ohm: "Ом", rpm: "об/хв",
-    m: "м", "m/s": "м/с", hPa: "гПа",
+    m: "м", "m/s": "м/с", hPa: "гПа", us: "мкс",
   },
 };
 

@@ -33,6 +33,7 @@
   import IncidentsView from "./IncidentsView.svelte";
   import PropulsionView from "./PropulsionView.svelte";
   import SystemView from "./SystemView.svelte";
+  import LinksView from "./LinksView.svelte";
   import TuneView from "./TuneView.svelte";
   import WeatherView from "./WeatherView.svelte";
   import Workbench from "./Workbench.svelte";
@@ -45,7 +46,7 @@
   let busy = $state(false);
   let error = $state("");
   let selected = $state<string | null>(null);
-  let tab = $state<"report" | "timeline" | "filters" | "tune" | "propulsion" | "navigation" | "system" | "weather">("report");
+  let tab = $state<"report" | "timeline" | "filters" | "tune" | "propulsion" | "navigation" | "links" | "system" | "weather">("report");
 
   async function load(force = false) {
     busy = true;
@@ -138,7 +139,7 @@
   </header>
 
   <div role="tablist" class="tabs" aria-label={t("report.findings")}>
-    {#each [["report", "report.tab.report"], ["timeline", "report.tab.timeline"], ["filters", "report.tab.filters"], ["tune", "report.tab.tune"], ["propulsion", "report.tab.propulsion"], ["navigation", "report.tab.navigation"], ["system", "report.tab.system"], ["weather", "report.tab.weather"]] as const as [id, label] (id)}
+    {#each [["report", "report.tab.report"], ["timeline", "report.tab.timeline"], ["filters", "report.tab.filters"], ["tune", "report.tab.tune"], ["propulsion", "report.tab.propulsion"], ["navigation", "report.tab.navigation"], ["links", "report.tab.links"], ["system", "report.tab.system"], ["weather", "report.tab.weather"]] as const as [id, label] (id)}
       <button type="button" role="tab" aria-selected={tab === id} onclick={() => (tab = id)}>{t(label)}</button>
     {/each}
   </div>
@@ -155,6 +156,8 @@
     <NavigationView {flightId} run={analysis?.run ?? null} />
   {:else if tab === "system"}
     <SystemView {flightId} />
+  {:else if tab === "links"}
+    <LinksView {flightId} {analysis} registry={reg} airframeId={flight?.airframe_id ?? null} />
   {:else if tab === "weather"}
     <WeatherView {flightId} />
   {:else}

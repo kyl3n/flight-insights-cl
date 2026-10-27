@@ -391,6 +391,8 @@ Every flight gets a weather record from an accurate numerical weather model, che
   - **A new tile** waits a random delay of 1 to 72 hours, fixed per tile, before any request names it.
   - **A laptop closed at a slot instant** waits for the next instant rather than catching up when it is opened, so request times never follow someone opening the app after a flight. Woken within 15 minutes of an instant, it still sends that slot. In a fleet, shared downloads cover the slots a laptop misses.
   - **Nothing is downloaded,** space weather included, until an Open-Meteo key is set.
+  - **Live check** (`.github/workflows/weather-check.yml`: by hand, weekly, and on pull requests that change the downloader or the engine's weather code, when the repository has the `OPEN_METEO_API_KEY` secret). The downloader's own code sends one request of each kind for a fixture flight's tile: the newest forecast window, one ERA5 day or month, and the K-index. Each reply must cover every grid point and variable asked for, with at most 5% of values missing, and the engine must keep it. The check prints sizes and counts only, never the key, an address or the tile. It uses about 470 points of the plan's quota a run.
+  - **A plan that does not cover an endpoint** is told apart from a refused key. ERA5 reanalysis (`customer-archive-api`) needs the Professional plan. Open-Meteo answers 403 with a reason naming the plan, and the round stops with that reason (state `plan`) rather than "key refused". What it fetched before then (the K-index, then forecasts) is kept.
 - **Fetched once:** one laptop's download is encrypted and shared through Drive, so each tile and period is fetched once for the whole fleet.
   - **Named by a keyed hash:** each download is an object in its own folder, `weather/<folder>/`. The folder name is a keyed hash, under the fleet's object-name key, of the source, tile and period, so Google learns neither the tile nor the period and cannot test a guess. The object is in the fleet's `.fio` format, encrypted and signed. Its plaintext names the download again, and is checked against the folder before it is kept.
   - **Looked for first:** before asking the provider, a laptop looks in the download's folder. It keeps the first object that holds: signed by a laptop still in the fleet, with the right name inside, and a reply the engine accepts. A laptop removed from the fleet has every weather object refused, so another laptop fetches those downloads again.
@@ -985,6 +987,27 @@ Receiver RSSI and link quality where reported, frame loss, failsafe entries and 
 - **The receiver's own failsafes:** each time the receiver itself flagged failsafe while armed (`RCI2.Flags` bit 2), with the longest. One is a near miss and a finding.
 - **`FS_THR_VALUE` margin:** the lowest throttle the receiver sent with valid input, outside failsafe and not overridden over MAVLink, less `FS_THR_VALUE`. Under 10 PWM is a finding. The receiver's own failsafe throttle is left out: the SITL receiver fixture sends 950 µs on loss and the margin still reads from the stick's 1000 µs.
 - **Not yet:** impossible channel jumps, and the ExpressLRS margin, which needs RSSI in dBm, not the autopilot's 0 to 1 scale.
+
+### The Links tab
+
+**On screen** (`flight.links`, `links_view.py`; mock-up Links). A tab on the flight report, beside Propulsion and power and System and buses. It is built from what ArduPilot and the ground station recorded; the radios' own logs come later. Every time is in seconds after arming, and the reply holds no position, system ID, station clock offset or absolute time. A test runs it for the SITL link flights against the location policy.
+
+- **Measured on this flight:** the link analyzer's values with their zones (Telemetry link and RC link above), each with the figures of its evidence under it. The tlog clock fit's delay spread (the median above the least delay, and its 95th percentile) stands in for latency.
+- **Findings on the links:** the link analyzer's, the commands' and the operator's (Ground station and operator), and the failsafe findings about a radio or ground-station failsafe, most urgent first.
+- **Failsafe settings for the link** (Copter only), each with its status. A setting the log does not hold is the firmware's default.
+  - **`FS_THR_ENABLE`,** with its action and `RC_FS_TIMEOUT`. Off is out of range, as the configuration review holds it. Flown from the ground station (`RC_OPTIONS` bit 0), the joystick's commands count as radio input, so it acts first when its wait is the shorter.
+  - **`FS_GCS_ENABLE`,** with its action and `FS_GCS_TIMEOUT`. Off is out of range when the ground station flies it, and only noted with a pilot's radio, which still flies it. On, behind a quicker radio failsafe, it is the backstop.
+  - **`FS_GCS_TIMEOUT`** against this flight's longest silence from the station while armed, in the ground-station silence's zones: within target or a near miss, with the margin left. A silence that reached it is the failsafe analysis's to judge.
+  - **`FS_OPTIONS`,** and `RC_OVERRIDE_TIME` when the station flies it, are listed, not judged: what they do shows in the losses.
+  - **Losing the link,** played in each mode it may be flown in, as the recovery card plays it (Flying without GNSS, "Recommendations and recovery"), with this flight's settings and the card's own words. A station that flies it has one loss; a pilot's radio has two, the radio and the telemetry with the radio working. A loss that leaves some mode with no one flying it is out of range.
+- **Over time,** with mode changes drawn and the disarmed time dimmed:
+  - **Downlink:** each station's silence before each packet from the vehicle, with the outages over 2 s marked, and its received, lost and out-of-order counts, clock fit and delay.
+  - **Uplink:** how long the ground station had gone unheard (`MAV.mgs`) against `FS_GCS_TIMEOUT`, and each link's loss.
+  - **Joystick:** when the station flies it, or wherever MAVLink overrides were sent, the share of the armed time an RC override was in force (`RCI2.OMask`), and the stretches with none. Each began at least `RC_OVERRIDE_TIME` after the joystick's last command. It is shown, not judged. `MANUAL_CONTROL` itself is in a tlog only when the station records its own packets.
+  - **Radio status:** the TX buffer against the 50% under which streams slow, and for SiK firmware radios the fade margin at each end against its 12 dB target.
+  - **RC receiver:** RSSI and link quality, and the receiver's own failsafes.
+- **Radio-reported quality:** what the app reads from any MAVLink link and from SiK and RFD radios, and that IP mesh radios and wfb-ng wait for their own logs.
+- **Later:** signal against distance and the predicted range, the antenna pattern, the radios' own statistics, the ground station's profile beside the flight and its comparison across the fleet, telemetry load against the link's capacity, and the round trip from TIMESYNC.
 
 ### GNSS quality and interference
 

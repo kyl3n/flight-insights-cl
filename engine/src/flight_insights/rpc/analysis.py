@@ -22,6 +22,7 @@
 | flight.margin | A flight's payload and motor-out margin, with its frame's motor layout |
 | flight.system | A flight's loop load and timing, logging drops and errors, for display |
 | flight.tlogs | A flight's tlog sessions: each station clock against the vehicle's, and loss |
+| flight.links | A flight's links over time, and the failsafe settings for them, for display |
 | flight.tune | A flight's tune against one of its payload group's, and the plan's verdict |
 | flight.navigation | A flight's GNSS events, outages, coping, readiness and ranked mitigations |
 | flight.ab | Each parameter change made in flight, with the flight's two sides compared |
@@ -49,6 +50,7 @@ from typing import TYPE_CHECKING, Any, cast
 
 from flight_insights import (
     analyzers,
+    links_view,
     margin_view,
     navigation_view,
     recommend,
@@ -325,6 +327,14 @@ def add_analysis_methods(server: Server, state: EngineState, guarded: Callable[[
         if store.get("flight", flight_id) is None:
             raise RpcError(BAD_INPUT, "no such flight")
         return tlog_sessions.sessions(store, flight_id)
+
+    @server.method("flight.links")
+    @guarded
+    def flight_links(_ctx: Context, params: dict[str, Any]) -> dict[str, Any]:
+        """The Links view: loss, outages and silences over time in seconds after arming,
+        the radios and the receiver, and the failsafe settings for the link. No position,
+        system ID or absolute time."""
+        return _view(params, links_view.links)
 
     opened: dict[str, analyzers.FlightData] = {}  # the last few flights the Tune view read
 
