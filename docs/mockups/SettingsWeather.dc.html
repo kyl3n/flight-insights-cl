@@ -1,0 +1,102 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Weather data</title>
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&amp;family=IBM+Plex+Sans:wght@400;500;600&amp;display=swap" rel="stylesheet">
+<style>
+body{margin:0;background:#0E1114}
+a{color:#7CC4F0}a:hover{color:#A9D9F7}
+button{font-family:inherit}
+:focus-visible{outline:2px solid #7CC4F0;outline-offset:2px}
+@media (max-width:720px){.rail{flex:1 1 100% !important;width:100% !important;flex-direction:row !important;overflow-x:auto;padding:8px !important}.rail-spacer{display:none !important}}
+</style>
+</helmet>
+<div style="min-height: 100vh; display: flex; flex-wrap: wrap; background: #0E1114; color: #E7EAEE; font-family: 'IBM Plex Sans', system-ui, sans-serif; font-size: 14px; line-height: 1.45;">
+
+<nav class="rail" aria-label="Main navigation" style="flex: 0 0 76px; width: 76px; box-sizing: border-box; background: #0A0C0F; border-right: 1px solid #1E242B; display: flex; flex-direction: column; align-items: center; gap: 4px; padding: 14px 0 16px;">
+<svg role="img" aria-label="Flight Insights" width="36" height="36" viewBox="0 0 36 36" style="flex: 0 0 auto; margin-bottom: 14px;"><rect x="1" y="1" width="34" height="34" rx="9" fill="#13222D" stroke="#2A4558"></rect><path d="M8 25l6-7 5 4 9-12" fill="none" stroke="#5AB0E8" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"></path><circle cx="28" cy="10" r="2.4" fill="#5AB0E8"></circle></svg>
+<a href="Main.dc.html" style="flex: 0 0 auto; width: 60px; padding: 8px 0 7px; border-radius: 10px; display: flex; flex-direction: column; align-items: center; gap: 4px; font-size: 11px; font-weight: 500; text-decoration: none; color: #A3ACB6;"><svg aria-hidden="true" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="7" height="7" rx="1.5"></rect><rect x="14" y="3" width="7" height="7" rx="1.5"></rect><rect x="3" y="14" width="7" height="7" rx="1.5"></rect><rect x="14" y="14" width="7" height="7" rx="1.5"></rect></svg>Fleet</a>
+<a href="FlightReport.dc.html" style="flex: 0 0 auto; width: 60px; padding: 8px 0 7px; border-radius: 10px; display: flex; flex-direction: column; align-items: center; gap: 4px; font-size: 11px; font-weight: 500; text-decoration: none; color: #A3ACB6;"><svg aria-hidden="true" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M6 3h9l4 4v14H6z"></path><path d="M14 3v5h5"></path><path d="M9 13h7M9 17h5"></path></svg>Flights</a>
+<a href="Trends.dc.html" style="flex: 0 0 auto; width: 60px; padding: 8px 0 7px; border-radius: 10px; display: flex; flex-direction: column; align-items: center; gap: 4px; font-size: 11px; font-weight: 500; text-decoration: none; color: #A3ACB6;"><svg aria-hidden="true" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M3 17l5-5 4 3 8-8"></path><path d="M15 7h5v5"></path></svg>Trends</a>
+<a href="ConfigReview.dc.html" style="flex: 0 0 auto; width: 60px; padding: 8px 0 7px; border-radius: 10px; display: flex; flex-direction: column; align-items: center; gap: 4px; font-size: 11px; font-weight: 500; text-decoration: none; color: #A3ACB6;"><svg aria-hidden="true" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M4 6h10M18 6h2M4 12h4M12 12h8M4 18h12"></path><circle cx="16" cy="6" r="2"></circle><circle cx="10" cy="12" r="2"></circle><circle cx="18" cy="18" r="2"></circle></svg>Params</a>
+<a href="Plan.dc.html" style="flex: 0 0 auto; width: 60px; padding: 8px 0 7px; border-radius: 10px; display: flex; flex-direction: column; align-items: center; gap: 4px; font-size: 11px; font-weight: 500; text-decoration: none; color: #A3ACB6;"><svg aria-hidden="true" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M10 6h10M10 12h10M10 18h10"></path><path d="M3.5 6l1.5 1.5L7.5 5"></path><path d="M3.5 12l1.5 1.5L7.5 11"></path><circle cx="5" cy="18" r="1.5"></circle></svg>Plan</a>
+<button type="button" style="flex: 0 0 auto; width: 60px; padding: 8px 0 7px; border: 0; border-radius: 10px; background: transparent; display: flex; flex-direction: column; align-items: center; gap: 4px; font-size: 11px; font-weight: 500; color: #A3ACB6; cursor: pointer;"><svg aria-hidden="true" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M4 5h16v11H9l-5 4z"></path><path d="M8 10h8"></path></svg>Ask</button>
+<div class="rail-spacer" style="flex: 1 1 auto;"></div>
+<button type="button" style="flex: 0 0 auto; width: 60px; padding: 8px 0 7px; border: 0; border-radius: 10px; background: transparent; display: flex; flex-direction: column; align-items: center; gap: 4px; font-size: 11px; font-weight: 500; color: #A3ACB6; cursor: pointer;"><svg aria-hidden="true" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3v11"></path><path d="M7 9l5 5 5-5"></path><path d="M4 17v3h16v-3"></path></svg>Imports</button>
+<button type="button" style="flex: 0 0 auto; width: 60px; padding: 8px 0 7px; border: 0; border-radius: 10px; background: rgba(90,176,232,0.15); display: flex; flex-direction: column; align-items: center; gap: 4px; font-size: 11px; font-weight: 500; color: #9BD3F5; cursor: pointer;" aria-current="page"><svg aria-hidden="true" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"></circle><path d="M12 2v3M12 19v3M2 12h3M19 12h3M4.9 4.9L7 7M17 17l2.1 2.1M4.9 19.1L7 17M17 7l2.1-2.1"></path></svg>Settings</button>
+</nav>
+
+<div style="flex: 999 1 560px; min-width: 0; display: flex; flex-direction: column;">
+
+<header style="display: flex; flex-wrap: wrap; align-items: center; gap: 12px 16px; padding: 10px 24px; min-height: 60px; box-sizing: border-box; border-bottom: 1px solid #1E242B;">
+<nav aria-label="Scope" style="display: flex; align-items: center; gap: 4px; flex-wrap: wrap;"><span style="padding: 6px 10px; font-size: 13px; color: #E7EAEE;">Settings</span></nav>
+<button type="button" style="flex: 1 1 200px; max-width: 360px; display: flex; align-items: center; gap: 8px; padding: 8px 12px; border: 1px solid #262D35; border-radius: 8px; background: #12161A; color: #8A949E; font-size: 13px; text-align: left; cursor: pointer;"><svg aria-hidden="true" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><circle cx="11" cy="11" r="6"></circle><path d="M20 20l-4.5-4.5"></path></svg><span style="flex: 1 1 auto;">Search or jump</span><kbd style="font-family: 'IBM Plex Mono', ui-monospace, monospace; font-size: 11px; padding: 2px 6px; border: 1px solid #333B45; border-radius: 5px; color: #A3ACB6;">Ctrl K</kbd></button>
+<div style="margin-left: auto; display: flex; align-items: center; gap: 8px; flex-wrap: wrap;">
+<span style="display: flex; align-items: center; gap: 6px; padding: 5px 10px; border-radius: 999px; background: #151A1F; border: 1px solid #222930; font-size: 12px; color: #A3ACB6;"><span aria-hidden="true" style="width: 7px; height: 7px; border-radius: 50%; background: #3DBE8B;"></span>Claude API</span>
+<button type="button" style="display: flex; align-items: center; gap: 8px; padding: 9px 14px; border: 0; border-radius: 8px; background: #5AB0E8; color: #06121A; font-size: 13px; font-weight: 600; cursor: pointer;"><svg aria-hidden="true" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3v11"></path><path d="M7 9l5 5 5-5"></path><path d="M4 17v3h16v-3"></path></svg>Import logs</button>
+</div>
+</header>
+
+<div style="display: flex; flex-direction: column; gap: 12px; padding: 18px 24px 0;">
+<div style="display: flex; flex-wrap: wrap; align-items: baseline; gap: 8px 16px;">
+<h1 style="margin: 0; font-size: 22px; font-weight: 600; letter-spacing: -0.01em;">Settings · Weather data</h1>
+<p style="margin: 0; font-size: 13px; color: #A3ACB6;">The weather key, what has been downloaded, and what the requests contain.</p>
+</div>
+</div>
+
+<main style="display: flex; flex-wrap: wrap; gap: 20px; padding: 16px 24px 24px; align-items: flex-start;">
+<div style="flex: 999 1 560px; min-width: 0; display: flex; flex-direction: column; gap: 16px;">
+<section aria-labelledby="k-title" style="flex: 0 0 auto; min-width: 0; display: flex; flex-direction: column; gap: 12px; padding: 16px 18px; border-radius: 12px; background: #12161A; border: 1px solid #262D35;">
+<div style="display: flex; flex-wrap: wrap; align-items: baseline; gap: 6px 12px;"><h2 id="k-title" style="margin: 0; font-size: 15px; font-weight: 600;">Keys</h2></div>
+<div style="display: flex; flex-direction: column; gap: 10px;">
+<div style="display: flex; flex-wrap: wrap; align-items: center; gap: 10px 16px;">
+<span style="font-size: 13px; color: #E7EAEE;">Open-Meteo API key</span><span style="display: inline-flex; align-items: center; gap: 5px; font-size: 12px; font-weight: 600; color: #3DBE8B; white-space: nowrap;"><span aria-hidden="true" style="font-size: 9px;">●</span>Set</span>
+<span style="font-size: 12px; color: #A3ACB6;">kept in this laptop's keychain and shared with the fleet's laptops, encrypted; never shown</span>
+</div>
+<div style="display: flex; gap: 8px; flex-wrap: wrap;"><button type="button" style="display: inline-flex; align-items: center; justify-content: center; min-height: 40px; padding: 0 12px; border: 1px solid #333B45; border-radius: 8px; background: transparent; font-size: 13px; color: #CBD2D9; text-decoration: none; cursor: pointer;">Replace key</button><button type="button" style="display: inline-flex; align-items: center; justify-content: center; min-height: 40px; padding: 0 12px; border: 1px solid #333B45; border-radius: 8px; background: transparent; font-size: 13px; color: #CBD2D9; text-decoration: none; cursor: pointer;">Remove key</button></div>
+<span style="font-size: 12px; color: #8A949E;">Professional plan. After a laptop is revoked, the app asks for a new key.</span>
+<div style="display: flex; flex-wrap: wrap; align-items: center; gap: 10px 16px; padding-top: 10px; border-top: 1px solid #222930;">
+<span style="font-size: 13px; color: #E7EAEE;">NOAA space weather (Kp)</span><span style="display: inline-flex; align-items: center; gap: 5px; font-size: 12px; font-weight: 600; color: #3DBE8B; white-space: nowrap;"><span aria-hidden="true" style="font-size: 9px;">●</span>No key needed</span><span style="font-size: 12px; color: #A3ACB6;">requests carry no location and no parameters</span>
+</div>
+</div>
+</section>
+<section aria-labelledby="s-title" style="flex: 0 0 auto; min-width: 0; display: flex; flex-direction: column; gap: 12px; padding: 16px 18px; border-radius: 12px; background: #12161A; border: 1px solid #262D35;">
+<div style="display: flex; flex-wrap: wrap; align-items: baseline; gap: 6px 12px;"><h2 id="s-title" style="margin: 0; font-size: 15px; font-weight: 600;">Download status</h2><span style="font-size: 12px; color: #8A949E;">Weather for whole regional tiles only</span></div>
+<div style="overflow-x: auto;"><table aria-label="Download status" style="width: 100%; border-collapse: collapse; font-size: 13px; color: #CBD2D9;"><tbody>
+<tr><td style="padding: 7px 10px; text-align: left; border-bottom: 1px solid #1E242B; vertical-align: top;">Tiles</td><td style="padding: 7px 10px; text-align: left; border-bottom: 1px solid #1E242B; vertical-align: top;">9: each tile the fleet has flown in and its neighbours, 2° each</td><td style="padding: 7px 10px; text-align: right; border-bottom: 1px solid #1E242B; vertical-align: top;"><span style="display: inline-flex; align-items: center; gap: 5px; font-size: 12px; font-weight: 600; color: #3DBE8B; white-space: nowrap;"><span aria-hidden="true" style="font-size: 9px;">●</span>Current</span></td></tr>
+<tr><td style="padding: 7px 10px; text-align: left; border-bottom: 1px solid #1E242B; vertical-align: top;">Recent data</td><td style="padding: 7px 10px; text-align: left; border-bottom: 1px solid #1E242B; vertical-align: top;">every 6 hours at fixed UTC times · last 06:00 · next 12:00</td><td style="padding: 7px 10px; text-align: right; border-bottom: 1px solid #1E242B; vertical-align: top;"><span style="display: inline-flex; align-items: center; gap: 5px; font-size: 12px; font-weight: 600; color: #3DBE8B; white-space: nowrap;"><span aria-hidden="true" style="font-size: 9px;">●</span>On schedule</span></td></tr>
+<tr><td style="padding: 7px 10px; text-align: left; border-bottom: 1px solid #1E242B; vertical-align: top;">Reanalysis (ERA5)</td><td style="padding: 7px 10px; text-align: left; border-bottom: 1px solid #1E242B; vertical-align: top;">daily · last 25 Oct</td><td style="padding: 7px 10px; text-align: right; border-bottom: 1px solid #1E242B; vertical-align: top;"><span style="display: inline-flex; align-items: center; gap: 5px; font-size: 12px; font-weight: 600; color: #3DBE8B; white-space: nowrap;"><span aria-hidden="true" style="font-size: 9px;">●</span>On schedule</span></td></tr>
+<tr><td style="padding: 7px 10px; text-align: left; border-bottom: 1px solid #1E242B; vertical-align: top;">Backfill</td><td style="padding: 7px 10px; text-align: left; border-bottom: 1px solid #1E242B; vertical-align: top;">a fixed 24-month window for every tile · 18 of 24 months done</td><td style="padding: 7px 10px; text-align: right; border-bottom: 1px solid #1E242B; vertical-align: top;"><span style="display: inline-flex; align-items: center; gap: 5px; font-size: 12px; font-weight: 600; color: #9FB2C6; white-space: nowrap;"><span aria-hidden="true" style="font-size: 9px;">◆</span>In progress</span></td></tr>
+<tr><td style="padding: 7px 10px; text-align: left; border-bottom: 1px solid #1E242B; vertical-align: top;">Shared through the drive</td><td style="padding: 7px 10px; text-align: left; border-bottom: 1px solid #1E242B; vertical-align: top;">fetched once for the fleet · last by laptop LT-3F2A</td><td style="padding: 7px 10px; text-align: right; border-bottom: 1px solid #1E242B; vertical-align: top;"><span style="display: inline-flex; align-items: center; gap: 5px; font-size: 12px; font-weight: 600; color: #3DBE8B; white-space: nowrap;"><span aria-hidden="true" style="font-size: 9px;">●</span>Synced</span></td></tr>
+<tr><td style="padding: 7px 10px; text-align: left; border-bottom: 1px solid #1E242B; vertical-align: top;">Waiting for a connection</td><td style="padding: 7px 10px; text-align: left; border-bottom: 1px solid #1E242B; vertical-align: top;">2 requests queued while offline</td><td style="padding: 7px 10px; text-align: right; border-bottom: 1px solid #1E242B; vertical-align: top;"><span style="display: inline-flex; align-items: center; gap: 5px; font-size: 12px; font-weight: 600; color: #E8A33D; white-space: nowrap;"><span aria-hidden="true" style="font-size: 9px;">▲</span>Queued</span></td></tr>
+</tbody></table></div>
+<div style="display: flex; gap: 8px; flex-wrap: wrap;"><button type="button" style="display: inline-flex; align-items: center; justify-content: center; min-height: 40px; padding: 0 12px; border: 1px solid #333B45; border-radius: 8px; background: transparent; font-size: 13px; color: #CBD2D9; text-decoration: none; cursor: pointer;">Download now</button><button type="button" style="display: inline-flex; align-items: center; justify-content: center; min-height: 40px; padding: 0 12px; border: 1px solid #333B45; border-radius: 8px; background: transparent; font-size: 13px; color: #CBD2D9; text-decoration: none; cursor: pointer;">Open the request log</button></div>
+</section>
+<section aria-labelledby="p-title" style="flex: 0 0 auto; min-width: 0; display: flex; flex-direction: column; gap: 12px; padding: 16px 18px; border-radius: 12px; background: #12161A; border: 1px solid #262D35;">
+<div style="display: flex; flex-wrap: wrap; align-items: baseline; gap: 6px 12px;"><h2 id="p-title" style="margin: 0; font-size: 15px; font-weight: 600;">What the requests contain</h2><span style="font-size: 12px; color: #8A949E;">Checked by tests on every build</span></div>
+<ul style="margin: 0; padding-left: 18px; display: flex; flex-direction: column; gap: 5px; font-size: 13px; line-height: 1.45; color: #B8C0C8;">
+<li>Every number in a request is a tile grid point or a schedule time; nothing comes from a flight.</li>
+<li>Requests run on the same schedule whether or not anyone flew.</li>
+<li>New tiles are backfilled over the same fixed window, after a random delay, so no request points at a flight date.</li>
+</ul>
+</section>
+</div>
+</main>
+</div>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":1440,"height":1100}}'>
+class Component extends DCLogic {
+  renderVals() {
+    return {};
+  }
+}
+</script>
+</body>
+</html>
