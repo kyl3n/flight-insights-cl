@@ -42,6 +42,7 @@ class Policy:
         self._named = re.compile(rules["position_names"])
         self._unitless: Mapping[str, Mapping[str, str]] = rules["unitless_positions"]
         self._removed = [re.compile(p) for p in rules["removed_parameters"]]
+        self._derived: Mapping[str, float] = rules["position_derived"]
 
     @staticmethod
     def load(pack: Pack, firmware: str) -> Policy:
@@ -141,6 +142,20 @@ class Policy:
         if decision.verdict == "coarsen" and decision.step and math.isfinite(value):
             return round(value / decision.step) * decision.step
         return value
+
+    def derived(self, values: Mapping[str, Any]) -> dict[str, float | int]:
+        """From evidence the policy withholds, the distances worked out from positions on
+        this laptop that may still reach the AI path: single numbers on the allowlist,
+        rounded to their step (whole metres). A list never passes: a series of distances
+        traces the path."""
+        out: dict[str, float | int] = {}
+        for key, step in self._derived.items():
+            v = values.get(key)
+            if isinstance(v, bool) or not isinstance(v, int | float) or not math.isfinite(v):
+                continue
+            rounded = round(float(v) / step) * step
+            out[key] = int(rounded) if float(step).is_integer() else round(rounded, 6)
+        return out
 
     def parameter_removed(self, name: str) -> bool:
         return any(p.search(name) for p in self._removed)

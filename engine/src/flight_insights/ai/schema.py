@@ -30,6 +30,14 @@ KEYED = {  # finding parameters, evidence values: snake_case keys, scalar values
     "additionalProperties": False,
     "maxProperties": 64,
 }
+# Distances worked out from positions on this laptop (rules/scrubber.json
+# "position_derived"): in evidence, each is one whole number of metres, never a list or a
+# finer value. The shell's check holds the same list on its own (scrub.rs).
+POSITION_METRES = (
+    "drift_m", "drift_m_per_min", "largest_altitude_gap_m", "largest_receivers_gap_m",
+    "largest_reset_m", "largest_track_gap_m",
+)  # fmt: skip
+EVIDENCE_VALUES = KEYED | {"properties": {k: {"type": "integer"} for k in POSITION_METRES}}
 SEGMENT = {
     "type": "object",
     "properties": {"kind": NAME, "start_s": {"type": "number"}, "end_s": {"type": "number"}},
@@ -326,7 +334,7 @@ PACKET: dict[str, Any] = {
                         "items": {"type": "string", "pattern": r"^[A-Za-z0-9_]{1,16}$"},
                     },
                     "segment": {"anyOf": [SEGMENT, {"type": "null"}]},
-                    "values": KEYED,
+                    "values": EVIDENCE_VALUES,
                 },
                 "required": ["ref", "kind", "summary"],
                 "additionalProperties": False,
