@@ -78,6 +78,10 @@ e0be4f350f0eeb29b9803674efbc0592a6c5322a5ef8110c68d79ee3b87fb993  sitl/4.7.0/cop
 11d98b58bba51ec135821dc2518ff3a998edc01d7d03b400bb3aa1814c30b5de  sitl/4.7.0/copter-quad-wind-calm.param
 29986780fbdb2442bbd591e4576b2d08472236330a1688fd5d6af264a2917f8d  sitl/4.7.0/copter-quad-wind-calm.params
 d9a39302adb2ddb114ef72e63d09a66e749989653fb314970bd81bc87923ff0f  sitl/4.7.0/copter-quad-wind-calm.tlog
+e674cb0d7209871b88557a5ff5e19c48be60803c5140aa9b947a2efb0f1ff029  sitl/4.7.0/copter-quad-wind-hover.bin
+25adf56c82bb7576576f733921c1a8eea62431c2bc67796094fe5b5baafbc0bc  sitl/4.7.0/copter-quad-wind-hover.param
+ba1ead54b32c9f9768cc65698edb9d90f8e78c34d09fad0338b01742a8a73553  sitl/4.7.0/copter-quad-wind-hover.params
+e944d65cbacc41d312edb899500e3d58d2e319ae827f6e7a3c4fa0b87a74cf37  sitl/4.7.0/copter-quad-wind-hover.tlog
 82c64753d9bcabe774935f96ff9995c413a51940ead727e85940a621ce3b7e9e  sitl/4.7.0/copter-quad-wind.bin
 7584d0cc78bcebd975b7e5593283af2c6adaadda11e89f31f6d16c09a38f2943  sitl/4.7.0/copter-quad-wind.param
 f4ed52e8695530635bff2b57f3c55a5ecd9d4ebe247f3c849e42b14426fc6237  sitl/4.7.0/copter-quad-wind.params

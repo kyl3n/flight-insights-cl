@@ -9,7 +9,7 @@ flies.
 | weather.held | Which downloads of a source are kept, by tile and period |
 | weather.export | Writes one kept download, gzipped, to a file for the shell to share |
 | weather.refresh | Makes again every flight's record whose downloads changed, after a round |
-| flight.weather | A flight's weather record: values only, no place (made when missing or stale) |
+| flight.weather | A flight's weather record (values only), the wind it measured, and the gap |
 """
 
 from __future__ import annotations
@@ -20,7 +20,7 @@ from pathlib import Path
 from typing import TYPE_CHECKING, Any
 
 from flight_insights.rpc.server import BAD_INPUT, INVALID_PARAMS, Context, RpcError, Server
-from flight_insights.weather import downloads, record, tiles
+from flight_insights.weather import downloads, measured, record, tiles
 
 if TYPE_CHECKING:
     from flight_insights.rpc.methods import EngineState
@@ -114,4 +114,6 @@ def add_weather_methods(server: Server, state: EngineState, guarded: Callable[[A
         if store.get("flight", flight) is None:
             raise RpcError(BAD_INPUT, "no such flight")
         tiles.scan(store, cache, tiles.TileRules.load(state.pack))
-        return {"record": record.current(store, cache, state.pack, flight)}
+        made = record.current(store, cache, state.pack, flight)
+        own = measured.measured(store, cache, state.pack, flight)
+        return {"record": made, "measured": own, "difference": measured.difference(own, made)}
