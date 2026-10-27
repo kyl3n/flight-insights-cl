@@ -125,7 +125,7 @@ export function band(rec: WeatherRecord, locale: string): string | null {
 // The downloader (shell weather_status): never a tile, a place or the key.
 
 export interface WeatherStatus {
-  state: string; // waiting, done, offline, key refused, busy, failed
+  state: string; // waiting, done, offline, key refused, plan, busy, failed
   key_set: boolean;
   next_ms: number | null;
   last_ms?: number;
@@ -163,6 +163,8 @@ export function roundLook(s: WeatherStatus): { status: Status; label: MessageKey
       return { status: "caution", label: "wx.state.busy" };
     case "key refused":
       return { status: "out", label: "wx.state.refused" };
+    case "plan":
+      return { status: "out", label: "wx.state.plan" };
     default:
       return { status: "out", label: "wx.state.failed" };
   }
