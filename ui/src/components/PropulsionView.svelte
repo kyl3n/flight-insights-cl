@@ -2,12 +2,14 @@
   // Propulsion and power for one flight (spec: User interface, "Propulsion and
   // power"): each motor's output and its ESC's RPM, temperature, current and supply
   // voltage, the battery's voltage, current, power and resistance, with the motor that
-  // works hardest or runs hottest picked out. Motors and segments can be chosen.
+  // works hardest or runs hottest picked out. Motors and segments can be chosen. Below
+  // them, the motor-out margin and the payload (MarginPanels).
   import { untrack } from "svelte";
   import { app, t } from "../lib/app.svelte";
   import { motorColour, standout, zoomTo, type MotorRow, type PropulsionView, type Trace } from "../lib/flightviews";
   import { formatNumber, unitText } from "../lib/report";
   import { engineCall } from "../lib/shell";
+  import MarginPanels from "./MarginPanels.svelte";
   import TimePlot from "./TimePlot.svelte";
 
   let { flightId }: { flightId: string } = $props();
@@ -127,6 +129,8 @@
         <p class="faint">{t("prop.hoverNote")}</p>
       {/if}
     </section>
+
+    <MarginPanels {flightId} />
 
     {#if has("output")}
       <section class="panel">

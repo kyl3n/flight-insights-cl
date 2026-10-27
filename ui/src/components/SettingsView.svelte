@@ -3,7 +3,8 @@
   // pasted here once and goes straight to the OS keychain through the shell: this view
   // never holds it afterwards and can never read it back. The monthly cap holds back
   // any request that could pass it. Below, every packet the AI layer built, exactly as
-  // checked, with what both location checks said: what left this machine.
+  // checked, with what both location checks said: what left this machine. Between them,
+  // the weather key and the downloader's state (WeatherSettings).
   import { app, t } from "../lib/app.svelte";
   import {
     aiKeyClear,
@@ -17,6 +18,7 @@
   import type { MessageKey } from "../lib/i18n";
   import { formatTakeoff } from "../lib/report";
   import { engineCall, inDesktopApp } from "../lib/shell";
+  import WeatherSettings from "./WeatherSettings.svelte";
 
   let key = $state("");
   let cap = $state<number>(20);
@@ -37,6 +39,14 @@
 
   $effect(() => {
     if (app.shell.engine === "ready") refresh();
+  });
+
+  // Another view asked for a section (the flight's Weather tab: "Weather settings").
+  $effect(() => {
+    const section = app.settingsSection;
+    if (!section) return;
+    app.settingsSection = null;
+    requestAnimationFrame(() => document.getElementById(section)?.scrollIntoView({ block: "start" }));
   });
 
   async function act(what: () => Promise<void>, done: MessageKey) {
@@ -103,6 +113,8 @@
     {#if note}<p class="ok" role="status">{note}</p>{/if}
     {#if error}<p class="error" role="alert">{error}</p>{/if}
   </section>
+
+  <WeatherSettings />
 
   <section class="card" aria-labelledby="sent-title">
     <h2 id="sent-title">{t("sent.title")}</h2>
