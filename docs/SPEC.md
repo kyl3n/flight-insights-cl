@@ -852,6 +852,8 @@ The defaults are starting points that the team can change for each platform.
 - **Findings:**
   - short of the target (caution), with the motor lost, the busiest motor, the output needed and the heaviest take-off;
   - no thrust split balancing the aircraft (caution).
+
+  Both are operating limits, in the plan's operations stage and offered at any stage (Recommendation engine, "Stages"): they never hold the tuning back.
 - **Skipped:** a quad, which has no margin; helicopters; frame types the mixer does not set up for Copter.
 - **What the mixer does, against the best split,** in times the busiest motor's hover thrust:
   - a hexa X stops the opposite motor too and carries on four at 1.5, which is also the best split;
@@ -1371,7 +1373,7 @@ The card carries times, modes, switches, weights and distances from the measured
 
 The engine turns findings into a staged plan: a short list of changes for the next test flight, each with its evidence and a way to verify it. Nothing is applied automatically.
 
-**Stages follow ArduPilot's tuning order.** A later stage is not offered while an earlier one is unverified, except for safety findings, which always surface first, and failsafes the firmware ships on but found off (vibration `FS_VIBE_ENABLE`, dead reckoning `FS_DR_ENABLE`, the EKF threshold `FS_EKF_THRESH`, crash check `FS_CRASH_CHECK`; the rule pack's `any_stage` list), which are offered with whatever stage is on offer: going back to the firmware's value touches no tuning, and it protects the tuning flights themselves. A stage is unverified while it holds a problem: a safety or stability recommendation, or a finding at caution or worse. A better option fixes no problem, so it never holds a later stage back. It is offered with the stage on offer when it belongs to that stage or an earlier one, and waits otherwise.
+**Stages follow ArduPilot's tuning order.** A later stage is not offered while an earlier one is unverified, except for safety findings, which always surface first, and failsafes the firmware ships on but found off (vibration `FS_VIBE_ENABLE`, dead reckoning `FS_DR_ENABLE`, the EKF threshold `FS_EKF_THRESH`, crash check `FS_CRASH_CHECK`; the rule pack's `any_stage` list), which are offered with whatever stage is on offer: going back to the firmware's value touches no tuning, and it protects the tuning flights themselves. The motor-out margin found short at a flight's weight (`motor_out.short`, `motor_out.no_balance`) is on that list too. It is an operating limit, in the operations stage: flying lighter, more thrust or the motor-loss steps touch no tuning, so it never holds the filters or the rate tune back, and it matters on every flight at that weight, the tuning flights included. A stage is unverified while it holds a problem: a safety or stability recommendation, or a finding at caution or worse. A better option fixes no problem, so it never holds a later stage back. It is offered with the stage on offer when it belongs to that stage or an earlier one, and waits otherwise.
 
 1. Mechanical: vibration, mounting, props, motor faults
 2. Evidence: logging needed for the next analysis
