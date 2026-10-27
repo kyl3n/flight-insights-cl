@@ -1,0 +1,30 @@
+source: sitl
+vehicle: copter
+frame: quad +
+firmware: 4.7.0
+ardupilot_commit: 1511f27194f1dcc3728270883047bdf022b3fd53
+scenario: copter-quad-tune-knob
+description: 'An in-flight A/B test with the transmitter''s tuning knob: RC7 is the
+  knob (RCx_OPTION 219) for roll rate P (TUNE 49), from the soft 0.054 at its bottom
+  to the default 0.135 at its top. 6 roll doublets in AltHold at 5 m with the knob
+  at its top, then the knob turned to its bottom, and 6 roll doublets again, with
+  RATE and the rate PIDs logged every loop during the doublets.'
+parameters_set:
+  LOG_DISARMED: 0
+  SIM_ESC_TELEM: 0
+  RC7_OPTION: 219
+  TUNE: 49
+  TUNE_MIN: 0.054
+  TUNE_MAX: 0.135
+  RC_OVERRIDE_TIME: -1
+faults: []
+expected:
+- PTUN for function 49 throughout, the value 0.135 until the turn and 0.054 after
+  it; no PARM change of ATC_RAT_RLL_P
+- 'the log''s ATC_RAT_RLL_P at arming is the knob''s 0.135: PARM is written from the
+  value in use'
+- 6 roll doublets on each side of the turn, all counted
+- roll tracking error worse after the turn, with ATC_RAT_RLL_P from the tuning knob
+  ranked as its cause
+- 'about 47 s of steady hover in ALT_HOLD: the short doublets stay inside the hover
+  limits'

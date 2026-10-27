@@ -190,19 +190,27 @@ def tune_ab(
     hands_off: float = 4,
     settle: float = 1.2,
     bits: SetBits = LOG_RATE_LOOP,
+    knob: tuple[str, int, int] | None = None,
 ) -> Callable[[Vehicle], None]:
     """The tune-check profile twice in one flight, with a ground station's change between:
     `doublets` on each axis, then `change` written as a ground station writes it (the log
     records each as PARM), `hands_off` s, and the same doublets again. The rate loop is
     logged every loop during the doublets only, as the tune-check card does, and for
-    `settle` s after the last (an input's window runs 1 s past it)."""
+    `settle` s after the last (an input's window runs 1 s past it).
+
+    With `knob` (channel, then, now), the transmitter's tuning knob on that channel is
+    held at `then` from before arming and turned to `now` between the doublets; the
+    scenario's RC_OVERRIDE_TIME -1 keeps it where it is put."""
 
     def fly(v: Vehicle) -> None:
+        centre = {"ch1": 1500, "ch2": 1500, "ch3": 1500, "ch4": 1500}
+        if knob is not None:
+            centre[knob[0]] = knob[1]
+            v.rc(**{knob[0]: knob[1]})
         v.mode("GUIDED")
         v.arm()
         v.command(ML.MAV_CMD_NAV_TAKEOFF, 0, 0, 0, 0, 0, 0, altitude)
         v.wait_altitude(altitude - 0.5)
-        centre = {"ch1": 1500, "ch2": 1500, "ch3": 1500, "ch4": 1500}
         v.rc(**centre)
         v.mode("ALT_HOLD")
         sticks(v, hands_off, centre)
@@ -221,6 +229,8 @@ def tune_ab(
         inputs()
         for name, value in change.items():
             v.set_param(name, value)
+        if knob is not None:
+            centre[knob[0]] = knob[2]
         sticks(v, hands_off, centre)
         inputs()
         land_and_disarm(v)
@@ -764,6 +774,42 @@ SCENARIOS: dict[str, Scenario] = {
                 {f"ATC_RAT_RLL_{t}": SOFT_RATE_GAINS[f"ATC_RAT_RLL_{t}"] for t in ("P", "I", "D")},
             ),
             boot_params={"LOG_DISARMED": 0, "SIM_ESC_TELEM": 0},
+            speedup=RAW_SPEEDUP,
+            **COPTER,  # type: ignore[arg-type]
+        ),
+        Scenario(
+            name="copter-quad-tune-knob",
+            vehicle="copter",
+            frame="quad +",
+            description=(
+                "An in-flight A/B test with the transmitter's tuning knob: RC7 is the knob"
+                " (RCx_OPTION 219) for roll rate P (TUNE 49), from the soft 0.054 at its"
+                " bottom to the default 0.135 at its top. 6 roll doublets in AltHold at 5 m"
+                " with the knob at its top, then the knob turned to its bottom, and 6 roll"
+                " doublets again, with RATE and the rate PIDs logged every loop during the"
+                " doublets."
+            ),
+            expected=[
+                "PTUN for function 49 throughout, the value 0.135 until the turn and 0.054"
+                " after it; no PARM change of ATC_RAT_RLL_P",
+                "the log's ATC_RAT_RLL_P at arming is the knob's 0.135: PARM is written from"
+                " the value in use",
+                "6 roll doublets on each side of the turn, all counted",
+                "roll tracking error worse after the turn, with ATC_RAT_RLL_P from the"
+                " tuning knob ranked as its cause",
+                "about 47 s of steady hover in ALT_HOLD: the short doublets stay inside the"
+                " hover limits",
+            ],
+            fly=tune_ab(6, {}, knob=("ch7", 2000, 1000)),  # RC7_MAX and RC7_MIN in SITL
+            boot_params={
+                "LOG_DISARMED": 0,
+                "SIM_ESC_TELEM": 0,
+                "RC7_OPTION": 219,
+                "TUNE": 49,
+                "TUNE_MIN": SOFT_RATE_GAINS["ATC_RAT_RLL_P"],
+                "TUNE_MAX": 0.135,
+                "RC_OVERRIDE_TIME": -1,
+            },
             speedup=RAW_SPEEDUP,
             **COPTER,  # type: ignore[arg-type]
         ),

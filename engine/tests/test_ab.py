@@ -165,6 +165,102 @@ def test_the_split_is_shown_in_seconds_after_arming(imported: Load) -> None:
     assert r["candidates"][0]["why"]["en"]
 
 
+# --- the transmitter's tuning knob ----------------------------------------------------
+
+KNOB = Registry.load(PACK).rules["attribution"]["in_flight"]["tuning_knob"]
+
+
+def test_the_knob_turned_mid_flight_makes_the_roll_tracking_worse(imported: Load) -> None:
+    """RC7 is the knob for roll rate P (TUNE 49), turned from 0.135 to 0.054 between two
+    sets of doublets: no PARM records it, PTUN does."""
+    i = imported("copter-quad-tune-knob")
+    [s] = ab.split(i.store, i.cache, i.pack, i.flight)
+    [p] = [c for c in s.changes if c.name == "ATC_RAT_RLL_P"]
+    assert p.origin == "tuning knob"
+    assert p.before == pytest.approx(0.135) and p.after == pytest.approx(0.054)
+    assert s.skipped is None and s.before is not None and s.after is not None
+    found = {r.metric: r for r in s.results}
+    for metric in ("tune.tracking_error_roll", "tune.attitude_error_roll"):
+        r = found[metric]
+        assert r.verdict == "worse" and r.low > 0 and r.confidence == "high"
+        assert r.after > 1.4 * r.before
+        top = r.candidates[0]
+        assert (top.change.name, top.change.origin, top.group) == (
+            "ATC_RAT_RLL_P", "tuning knob", "rate P",
+        )  # fmt: skip
+    row = i.store.get("flight", i.flight)
+    assert row is not None
+    shown = ab.split_json(s, Registry.load(i.pack), int(row["arm_us"]))
+    assert {"name": "ATC_RAT_RLL_P", "origin": "tuning knob"}.items() <= next(
+        c for c in shown["changes"] if c["name"] == "ATC_RAT_RLL_P"
+    ).items()
+
+
+def test_each_side_is_measured_with_the_knobs_value(imported: Load) -> None:
+    i = imported("copter-quad-tune-knob")
+    flight = FlightData.load(i.store, i.cache, i.pack, i.flight)
+    [m] = ab._moments(i.store, i.pack, flight, 5_000_000, lambda c: (  # pyright: ignore[reportPrivateUsage]
+        frozenset({"x"}) if c.name == "ATC_RAT_RLL_P" else frozenset()
+    ), KNOB)  # fmt: skip
+    assert m.before["ATC_RAT_RLL_P"] == pytest.approx(0.135)
+    assert m.after["ATC_RAT_RLL_P"] == pytest.approx(0.054)
+    assert m.last_us - m.first_us < 1_000_000  # the knob turned within a second
+
+
+def _ptun(rows: list[tuple[float, float]], function: int = 49) -> FlightData:
+    """A flight armed at 10 s whose only table is PTUN: (seconds, value) at 0.3 s."""
+    import pyarrow as pa
+    from flight_builder import flight
+
+    n = len(rows)
+    columns = {
+        "TimeUS": pa.array([int(t * 1e6) for t, _ in rows], pa.uint64()),
+        "Param": pa.array([function] * n, pa.uint8()),
+        "TunVal": pa.array([v for _, v in rows], pa.float32()),
+        "TunMin": pa.array([0.054] * n, pa.float32()),
+        "TunMax": pa.array([0.135] * n, pa.float32()),
+    }
+    table = pa.Table.from_arrays(list(columns.values()), names=list(columns))
+    return flight({"PTUN": table}, 10_000_000, 200_000_000)
+
+
+def _held(*spans: tuple[float, float, float]) -> list[tuple[float, float]]:
+    """The knob at each (from, to, value), sampled every 0.3 s as the firmware logs it."""
+    return [(t, v) for a, b, v in spans for t in np.arange(a, b, 0.3)]
+
+
+def test_a_receivers_jitter_is_no_turn() -> None:
+    wobble = [(t, 0.135 + (0.001 if k % 2 else -0.001))
+              for k, (t, _) in enumerate(_held((0, 90, 0.0)))]  # fmt: skip
+    turns, at_arm = ab.knob(_ptun(wobble), KNOB)
+    assert turns == [] and at_arm[49] == pytest.approx(0.135, abs=0.002)
+
+
+def test_a_turn_runs_from_the_value_it_left_to_the_value_it_reached() -> None:
+    rows = _held((0, 40, 0.135), (40, 41.5, 0.1), (41.5, 90, 0.054))  # turned over 1.5 s
+    [turn] = ab.knob(_ptun(rows), KNOB)[0]
+    assert (turn.function, turn.before, turn.after) == (49, pytest.approx(0.135),
+                                                       pytest.approx(0.054))  # fmt: skip
+    assert turn.first_us == pytest.approx(39.9e6, abs=0.31e6)
+    assert turn.last_us == pytest.approx(41.5e6, abs=0.31e6)
+    # nudged for a moment and put back: the knob held one value throughout
+    nudged = _held((0, 40, 0.135), (40, 41, 0.1), (41, 90, 0.135))
+    assert ab.knob(_ptun(nudged), KNOB)[0] == []
+
+
+def test_a_turn_before_arming_sets_the_value_it_flew_with() -> None:
+    turns, at_arm = ab.knob(_ptun(_held((0, 5, 0.135), (5, 90, 0.054))), KNOB)
+    assert turns == [] and at_arm[49] == pytest.approx(0.054)
+
+
+def test_every_knob_function_names_parameters_of_4_7() -> None:
+    meta = PACK.metadata("4.7.0", "copter")
+    for fn, spec in KNOB["functions"].items():
+        assert spec["params"] and all(p in meta for p in spec["params"]), fn
+    assert KNOB["functions"]["10"] == {"params": ["WP_SPD"], "scale": 0.01}  # cm/s to m/s
+    assert meta["WP_SPD"]["units"] == "m/s"
+
+
 def test_a_span_cuts_the_hover_and_the_analysed_times(imported: Load) -> None:
     i = imported("copter-quad-tune-default")
     f = FlightData.load(i.store, i.cache, i.pack, i.flight)

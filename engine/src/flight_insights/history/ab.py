@@ -4,8 +4,14 @@ and both sides are compared under the same conditions, the same aircraft, payloa
 battery and air.
 
 - **The moments.** The parameter changes the log recorded while armed (a ground
-  station's writes, logged as PARM), in canonical names. Changes within `group_s` of
-  each other are one moment, as a person setting several values at once.
+  station's writes, logged as PARM), in canonical names, and the transmitter's tuning
+  knob turned from one steady value to another (PTUN). Changes within `group_s` of each
+  other are one moment, as a person setting several values at once.
+- **The knob.** With a tuning knob set up (TUNE, TUNE2), the firmware sets the gain its
+  function names from the knob's position about three times a second, without saving it
+  (Copter::tuning), so the stored parameter is not what flew: each side is measured with
+  the knob's value. A turn runs from the knob leaving one value it held for `steady_s`
+  to reaching the next; values within `steady_share` of the knob's range are the same.
 - **The sides.** Before: from the last moment that could move the same metrics (or
   arming) to this one's first change. After: from `settle_s` past this one's last change
   to the next such moment (or disarming). A change that moves none of them, such as the
@@ -28,12 +34,15 @@ Numbers are in rules/attribution.json "in_flight", beside the shifts' own.
 from __future__ import annotations
 
 import dataclasses
+import itertools
 import logging
 import math
 import zlib
 from collections.abc import Callable, Mapping, Sequence
 from dataclasses import dataclass
 from typing import Any
+
+import numpy as np
 
 from flight_insights.analyzers.flight import FlightData
 from flight_insights.analyzers.model import Analyzer, MetricValue
@@ -50,6 +59,7 @@ from flight_insights.history.attribution import (
     verdict_for,
 )
 from flight_insights.history.persist import load_snapshot
+from flight_insights.history.snapshot import ParamChange
 from flight_insights.knowledge import Pack
 from flight_insights.store.cache import ColumnCache
 from flight_insights.store.db import Store
@@ -94,49 +104,134 @@ class _Moment:
     after: Mapping[str, float]  # and just after it
 
 
+@dataclass(frozen=True)
+class Turn:
+    """The tuning knob turned while armed: from one value it held to the next, of what its
+    function sets, in the controller's own units (tuning.cpp)."""
+
+    first_us: int  # the knob left the value it held
+    last_us: int  # and came to rest at the next
+    function: int  # TUNE's or TUNE2's value: what the knob sets
+    before: float
+    after: float
+
+
+def knob(flight: FlightData, rules: Mapping[str, Any]) -> tuple[list[Turn], dict[int, float]]:
+    """The knob's turns while armed (PTUN, logged each time the firmware sets the value),
+    and the value each function stood at as the flight armed."""
+    table = flight.table("PTUN", ["TimeUS", "Param", "TunVal", "TunMin", "TunMax"])
+    if table is None or table.num_rows == 0:
+        return [], {}
+
+    def col(name: str) -> np.ndarray[Any, Any]:
+        return np.asarray(table.column(name).to_numpy(zero_copy_only=False), np.float64)
+
+    t = np.asarray(table.column("TimeUS").to_numpy(zero_copy_only=False), np.int64)
+    function, value, low, high = col("Param"), col("TunVal"), col("TunMin"), col("TunMax")
+    share, steady = float(rules["steady_share"]), int(float(rules["steady_s"]) * 1e6)
+    turns: list[Turn] = []
+    at_arm: dict[int, float] = {}
+    for fn in np.unique(function):
+        rows = np.flatnonzero(function == fn)
+        rows = rows[np.argsort(t[rows], kind="stable")]
+        times, v = t[rows], value[rows]
+        same = share * abs(float(high[rows[-1]]) - float(low[rows[-1]]))  # of its range
+        held: list[tuple[int, int, float]] = []  # (from, to, value): each value it held
+        i = 0
+        for j in range(1, len(v) + 1):
+            if j < len(v) and abs(v[j] - v[i]) <= same:
+                continue
+            if times[j - 1] - times[i] >= steady:
+                level = float(np.median(v[i:j]))
+                if held and abs(level - held[-1][2]) <= same:  # nudged and put back
+                    held[-1] = (held[-1][0], int(times[j - 1]), held[-1][2])
+                else:
+                    held.append((int(times[i]), int(times[j - 1]), level))
+            i = j
+        armed = [h for h in held if h[0] <= flight.arm_us]
+        k = min(int(np.searchsorted(times, flight.arm_us)), len(v) - 1)
+        at_arm[int(fn)] = armed[-1][2] if armed else held[0][2] if held else float(v[k])
+        for a, b in itertools.pairwise(held):
+            if flight.arm_us < a[1] and b[0] < flight.disarm_us:
+                turns.append(Turn(a[1], b[0], int(fn), a[2], b[2]))
+    return sorted(turns, key=lambda x: x.first_us), at_arm
+
+
 def _moments(
     store: Store, pack: Pack, flight: FlightData, group_us: int,
-    moves: Callable[[Change], frozenset[str]],
+    moves: Callable[[Change], frozenset[str]], knob_rules: Mapping[str, Any],
 ) -> list[_Moment]:  # fmt: skip
     """The flight's parameter changes while armed that move something part of a flight
-    can show, grouped into moments. A change that moves none of it (the tune check's own
-    logging switched on) neither makes a moment nor stretches one; within group_s of one
-    it is listed with it."""
+    can show, grouped into moments: a ground station's writes and the knob's turns. A
+    change that moves none of it (the tune check's own logging switched on) neither
+    makes a moment nor stretches one; within group_s of one it is listed with it."""
     row = store.get("flight", flight.id)
     if row is None or not row["param_snapshot_id"]:
         return []
     snapshot = load_snapshot(store, row["param_snapshot_id"])
     dialect = snapshot.dialect(pack)
+    functions: Mapping[str, Mapping[str, Any]] = knob_rules["functions"]
+
+    def set_by(fn: int, value: float) -> dict[str, float]:
+        """What a knob's function sets, canonical: its parameters, in their own units."""
+        spec = functions.get(str(fn))
+        if spec is None:  # a function that sets no parameter (declination, a test signal)
+            return {}
+        out: dict[str, float] = {}
+        for name in spec["params"]:
+            _, v = dialect.canonical(dialect.native(name)[0], value * float(spec.get("scale", 1)))
+            out[name] = value if v is None else v
+        return out
+
+    turns, at_arm = knob(flight, knob_rules)
+    held: dict[str, float] = {}  # what the knobs hold, over the stored values
+    for fn, v in at_arm.items():
+        held |= set_by(fn, v)
     values = dict(snapshot.values)
-    start = dict(flight.params)
-    timed: list[tuple[int, Change, Mapping[str, float]]] = []  # each with the set after it
-    for c in sorted(snapshot.changes, key=lambda c: c.time_us):
+    start = dict(flight.params) | held
+    events: list[tuple[int, int, ParamChange | None, Turn | None]] = []
+    events += [(c.time_us, c.time_us, c, None) for c in snapshot.changes]
+    events += [(x.first_us, x.last_us, None, x) for x in turns]
+    timed: list[tuple[int, int, Change, Mapping[str, float]]] = []  # with the set after it
+    for first, last, c, turn in sorted(events, key=lambda e: e[0]):
+        if turn is not None:
+            before, after = set_by(turn.function, turn.before), set_by(turn.function, turn.after)
+            held |= after
+            now = dialect.to_canonical(values).values | held
+            for name in after:
+                cls = dialect.param_class(dialect.native(name)[0], values)
+                change = Change("parameter", name, before[name], after[name], flight.id, cls,
+                                "tuning knob")  # fmt: skip
+                timed.append((first, last, change, now))
+            continue
+        assert c is not None
         if not flight.arm_us < c.time_us < flight.disarm_us:
             values[c.name] = c.new
             if c.time_us <= flight.arm_us:
-                start = dialect.to_canonical(values).values
+                start = dialect.to_canonical(values).values | held
             continue
-        name, before = dialect.canonical(c.name, c.old)
-        _, after = dialect.canonical(c.name, c.new)
+        name, before_value = dialect.canonical(c.name, c.old)
+        _, after_value = dialect.canonical(c.name, c.new)
         cls = dialect.param_class(c.name, values)
         values[c.name] = c.new
-        change = Change("parameter", name, before, after, flight.id, cls, "in flight")
-        timed.append((c.time_us, change, dialect.to_canonical(values).values))
+        change = Change("parameter", name, before_value, after_value, flight.id, cls,
+                        "in flight")  # fmt: skip
+        timed.append((first, last, change, dialect.to_canonical(values).values | held))
     groups: list[list[int]] = []  # indices into timed
-    for k, (t, c, _) in enumerate(timed):
+    for k, (first, _, c, _) in enumerate(timed):
         if not moves(c):
             continue
-        if groups and t - timed[groups[-1][-1]][0] <= group_us:
+        if groups and first - max(timed[j][1] for j in groups[-1]) <= group_us:
             groups[-1].append(k)
         else:
             groups.append([k])
     out: list[_Moment] = []
     for g in groups:
-        first, last = timed[g[0]][0], timed[g[-1]][0]
-        near = tuple(c for t, c, _ in timed if first - group_us <= t <= last + group_us)
-        before = timed[g[0] - 1][2] if g[0] else start
-        moved = frozenset[str]().union(*(moves(timed[k][1]) for k in g))
-        out.append(_Moment(first, last, near, moved, before, timed[g[-1]][2]))
+        first, last = timed[g[0]][0], max(timed[k][1] for k in g)
+        near = tuple(c for a, b, c, _ in timed if a <= last + group_us and b >= first - group_us)
+        before = timed[g[0] - 1][3] if g[0] else start
+        moved = frozenset[str]().union(*(moves(timed[k][2]) for k in g))
+        out.append(_Moment(first, last, near, moved, before, timed[g[-1]][3]))
     return out
 
 
@@ -188,7 +283,8 @@ def split(store: Store, cache: ColumnCache, pack: Pack, flight_id: str) -> list[
             return frozenset()
         return frozenset(k.metric for k in links_for(reg, c.name)) & measured
 
-    moments = _moments(store, pack, flight, int(float(ab["group_s"]) * 1e6), moves)
+    moments = _moments(store, pack, flight, int(float(ab["group_s"]) * 1e6), moves,
+                       ab["tuning_knob"])  # fmt: skip
     settle, least = int(float(ab["settle_s"]) * 1e6), int(float(ab["min_side_s"]) * 1e6)
     block = int(float(ab["block_s"]) * 1e6)
     out: list[Split] = []
@@ -276,7 +372,8 @@ def split_json(s: Split, reg: Registry, arm_us: int) -> dict[str, Any]:
         return round((t - arm_us) / 1e6, 2)
 
     def change(c: Change) -> dict[str, Any]:
-        return {"name": c.name, "before": c.before, "after": c.after, "class": c.cls}
+        return {"name": c.name, "before": c.before, "after": c.after, "class": c.cls,
+                "origin": c.origin}  # fmt: skip
 
     def side(span: tuple[int, int] | None) -> list[float] | None:
         return None if span is None else [secs(span[0]), secs(span[1])]
