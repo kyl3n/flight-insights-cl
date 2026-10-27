@@ -155,6 +155,7 @@ struct Flight {
 /// The flight's modelled weather: wind, gusts, precipitation, the boundary layer and
 /// the K-index. Temperature, humidity, pressure, density altitude and cloud base narrow
 /// down the place, so they have no field here and a packet holding one is refused.
+/// Temperature and air density come only as whole differences from the airframe's usual.
 #[derive(Deserialize)]
 #[serde(deny_unknown_fields)]
 #[allow(dead_code)]
@@ -168,6 +169,8 @@ struct Weather {
     precipitation_mm_h: Option<f64>,
     boundary_layer_m: Option<f64>,
     kp_max: Option<f64>,
+    temperature_vs_usual_c: Option<f64>,
+    density_vs_usual_pct: Option<f64>,
 }
 
 #[derive(Deserialize)]
@@ -602,6 +605,19 @@ fn shape(text: &str) -> Vec<Violation> {
             }
         }
     }
+    if let Some(w) = &p.weather {
+        let differences = [w.temperature_vs_usual_c, w.density_vs_usual_pct];
+        if differences
+            .iter()
+            .flatten()
+            .any(|x| !x.is_finite() || x.fract() != 0.0)
+        {
+            l.0.push(violation(
+                "$.weather",
+                "a difference from the airframe's usual air that is not a whole number",
+            ));
+        }
+    }
     if let Some(parameters) = &p.parameters {
         l.count("$.parameters", parameters.len(), 2000);
         for name in parameters.keys() {
@@ -971,7 +987,7 @@ const CLEAN: [(&str, &str); 5] = [
         include_str!("../../../tests/scrubber/packets/clean/tool_spectrum.json"),
     ),
 ];
-const LEAKY: [(&str, &str); 31] = [
+const LEAKY: [(&str, &str); 33] = [
     (
         "bool_as_number",
         include_str!("../../../tests/scrubber/packets/leaky/bool_as_number.json"),
@@ -1091,6 +1107,14 @@ const LEAKY: [(&str, &str); 31] = [
     (
         "weather_density_altitude",
         include_str!("../../../tests/scrubber/packets/leaky/weather_density_altitude.json"),
+    ),
+    (
+        "weather_relative_fine",
+        include_str!("../../../tests/scrubber/packets/leaky/weather_relative_fine.json"),
+    ),
+    (
+        "weather_temperature",
+        include_str!("../../../tests/scrubber/packets/leaky/weather_temperature.json"),
     ),
     (
         "weather_tripwire",

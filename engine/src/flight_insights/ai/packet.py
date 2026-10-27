@@ -27,6 +27,7 @@ import math
 import re
 from collections.abc import Mapping, Sequence
 from dataclasses import dataclass
+from statistics import median
 from typing import Any, cast
 
 from flight_insights.ai.policy import Policy
@@ -156,6 +157,46 @@ WEATHER_STEPS = {
 }  # fmt: skip
 
 
+# How the flight's air compared with the airframe's usual: differences from the median of
+# its other flights' records, in whole degrees and whole percent of air density (the
+# user's decision, 2026-10-27). Never the temperature, pressure or density altitude
+# itself, which narrow down where it flew.
+USUAL_MIN_FLIGHTS = 3
+
+
+def _air(rec: Mapping[str, Any]) -> tuple[float, float] | None:
+    """The take-off's temperature and air density from a weather record."""
+    t, p, td = rec.get("temperature_c"), rec.get("pressure_hpa"), rec.get("dew_point_c")
+    values = [x for x in (t, p, td) if isinstance(x, int | float) and math.isfinite(x)]
+    if len(values) < 3:
+        return None
+    t, p, td = (float(x) for x in values)
+    return t, weather_record.air_density(p, t, td)
+
+
+def _against_usual(store: Store, flight_id: str, rec: Mapping[str, Any]) -> dict[str, int | None]:
+    out: dict[str, int | None] = {"temperature_vs_usual_c": None, "density_vs_usual_pct": None}
+    air = _air(rec)
+    row = store.get("flight", flight_id)
+    if air is None or row is None or not row["airframe_id"]:
+        return out
+    others = [
+        str(r[0])
+        for r in store.conn.execute(
+            "SELECT id FROM flight WHERE airframe_id = ? AND id != ?",
+            (row["airframe_id"], flight_id),
+        ).fetchall()
+    ]
+    usual = [a for r in weather_record.kept(store, others).values() if (a := _air(r))]
+    if len(usual) < USUAL_MIN_FLIGHTS:
+        return out
+    t0 = median(t for t, _ in usual)
+    rho0 = median(rho for _, rho in usual)
+    out["temperature_vs_usual_c"] = round(air[0] - t0)
+    out["density_vs_usual_pct"] = round(100 * (air[1] / rho0 - 1))
+    return out
+
+
 def _weather(store: Store, flight_id: str) -> dict[str, Any] | None:
     rec = weather_record.kept(store, [flight_id]).get(flight_id)
     if rec is None:
@@ -170,7 +211,7 @@ def _weather(store: Store, flight_id: str) -> dict[str, Any] | None:
             out[name] = number(round(x / step) * step)
         else:
             out[name] = None
-    return out
+    return out | _against_usual(store, flight_id, rec)
 
 
 def _segment(segment: Any, arm_us: int) -> dict[str, Any] | None:

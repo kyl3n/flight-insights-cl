@@ -46,6 +46,8 @@
    "precipitation_mm_h": 0,
    "boundary_layer_m": 900,
    "kp_max": 5.33,
+   "temperature_vs_usual_c": -6,
+   "density_vs_usual_pct": 3,
    "density_altitude_m": 1850
   },
   "metrics": [

@@ -43,7 +43,7 @@ BASE: dict[str, Any] = {
     "weather": {
         "quality": "reanalysis", "coverage": 0.95, "wind_ms": 6.5, "wind_max_ms": 9,
         "surface_wind_ms": 4.5, "gust_max_ms": 11.5, "precipitation_mm_h": 0, "boundary_layer_m":
-        900, "kp_max": 5.33,
+        900, "kp_max": 5.33, "temperature_vs_usual_c": -6, "density_vs_usual_pct": 3,
     },
     "metrics": [
         {"metric": "vibration.p95", "segment": "hover", "value": 14.21, "zone": "target"},
@@ -179,6 +179,10 @@ LEAKY: dict[str, tuple[str, Change] | tuple[str, Change, dict[str, Any]]] = {
                        _set("evidence", 1, "summary", value="7JCM9RQ6+2X")),
     "weather_density_altitude": ("Density altitude, which gives away the field's elevation.",
                                  _set("weather", "density_altitude_m", value=1850)),
+    "weather_temperature": ("The take-off's temperature itself, which narrows down the place.",
+                            _set("weather", "temperature_c", value=18.4)),
+    "weather_relative_fine": ("A difference from the airframe's usual air finer than a whole "
+                              "percent.", _set("weather", "density_vs_usual_pct", value=3.27)),
     "weather_tripwire": ("A gust value that is the flight's latitude to four decimals.",
                          _set("weather", "gust_max_ms", value=round(LAT, 4))),
     "removed_parameter": ("A parameter the rules remove: the estimator origin.",
