@@ -1,5 +1,7 @@
 import { describe, expect, it } from "vitest";
 import {
+  envelopeLimit,
+  extrapolatedFrom,
   band,
   bearing,
   covered,
@@ -9,8 +11,10 @@ import {
   roundLook,
   signed,
   utcInstant,
+  type EnvelopeBand,
   type WeatherRecord,
   type WeatherStatus,
+  type WindEnvelope,
 } from "./weather";
 
 const record: WeatherRecord = {
@@ -70,6 +74,27 @@ describe("the flight's record", () => {
   it("gives the height band in whole metres", () => {
     expect(band(record, "en")).toBe("10–15");
     expect(band({ ...record, height_band_m: undefined }, "en")).toBeNull();
+  });
+});
+
+describe("the wind envelope", () => {
+  const row = (over: Partial<EnvelopeBand> = {}): EnvelopeBand => ({
+    group: "band:0", band: 0, low: 30, high: 33, above_lightest: 0, kg: null, flights: ["f1"], hold_ms: 10.3,
+    low_ms: 10.2, high_ms: 10.4, lean_deg: 22.2, limit_by: "lean", limit_deg: 30, airspeed_flown_ms: 8.3,
+    extrapolated: true, thrust_unmeasured: false, current_limited: false, ...over,
+  });
+
+  it("names the limit with the lean it stops at", () => {
+    expect(envelopeLimit(row())).toEqual({ key: "wx.env.limit.lean", deg: "30" });
+    expect(envelopeLimit(row({ limit_by: "thrust", limit_deg: 41.4 }))).toEqual({ key: "wx.env.limit.thrust", deg: "41" });
+    expect(envelopeLimit(row({ limit_deg: null })).deg).toBe("–");
+  });
+
+  it("says from which airspeed the envelope is extrapolated, if it is", () => {
+    const env = (bands: EnvelopeBand[]): WindEnvelope => ({ reference_ms: 8, bands, group: "band:0" });
+    expect(extrapolatedFrom(env([row(), row({ group: "band:2", airspeed_flown_ms: 7.1 })]))).toBe(7.1);
+    expect(extrapolatedFrom(env([row({ extrapolated: false })]))).toBeNull();
+    expect(extrapolatedFrom(env([]))).toBeNull();
   });
 });
 

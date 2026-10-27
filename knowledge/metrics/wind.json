@@ -138,6 +138,53 @@
         "kind": "baseline",
         "title": "No universal range: the wind is the day's, and the drag the airframe's own. Read against the aircraft's history and the modelled wind"
       }
+    },
+    "wind.envelope_ms": {
+      "name": {
+        "en": "Strongest wind it can hold",
+        "uk": "Найсильніший вітер, у якому тримає позицію"
+      },
+      "unit": "m/s",
+      "direction": "higher",
+      "definition": {
+        "en": "The strongest steady wind in which the aircraft can still hold its position, from its own measured drag: the wind at which the lean it needs reaches the position controller's limit, the configured maximum lean or the lean that leaves it enough thrust to keep its height, whichever is less. Gusts above it push it off position; it says nothing about turbulence.",
+        "uk": "Найсильніший усталений вітер, у якому апарат ще втримує позицію, з його власного виміряного опору: вітер, за якого потрібний нахил сягає межі регулятора позиції — налаштованого найбільшого нахилу або нахилу, що лишає досить тяги для утримання висоти, залежно від того, що менше. Пориви понад нього зносять апарат; про турбулентність ця величина нічого не каже."
+      },
+      "method": {
+        "en": "From the flight's drag fit (Measured wind): holding position in a steady wind w along a body axis, tilted by t, the aircraft meets the air at w cos(t) along that axis, so the lean it needs solves g sin(t) = k1 w cos(t) + k2 (w cos(t))^2 plus the lean in still air. The position controller leans no further than PSC_ANGLE_MAX (else ATC_ANGLE_MAX, 10 to 80 degrees) nor than acos(throttle / 0.8), the firmware's limit that keeps height (CTUN.ThI: the highest mean over the steady hovers and the fastest steady windows; never under 10 degrees). The interval comes from the same bootstrap as the drag; where thrust limits the hold at more lean than the flight showed, its low end comes down to the airspeed flown.",
+        "uk": "З підібраного опору польоту (Виміряний вітер): утримуючи позицію в усталеному вітрі w уздовж осі апарата, нахиленого на t, апарат зустрічає потік зі швидкістю w cos(t) уздовж цієї осі, тож потрібний нахил розв'язує g sin(t) = k1 w cos(t) + k2 (w cos(t))^2 плюс нахил у спокійному повітрі. Регулятор позиції нахиляє не далі за PSC_ANGLE_MAX (інакше ATC_ANGLE_MAX, від 10 до 80 градусів) і не далі за acos(газ / 0,8) — межу прошивки, що зберігає висоту (CTUN.ThI: найбільше середнє за усталені зависання та найшвидші усталені вікна; не менше 10 градусів). Інтервал — з того самого бутстрепу, що й опір; коли тягу обмежує нахил, більший за показаний у польоті, нижня межа опускається до пролетіної повітряної швидкості."
+      },
+      "messages": [
+        "XKF1",
+        "CTUN"
+      ],
+      "source": {
+        "kind": "baseline",
+        "title": "No universal range: it is the airframe's own, at its weight and settings. Checked in ArduPilot's simulator: predicted 10.3 m/s at a 30 degree limit (held 10, drifted at 11) and 15.7 at 45 (held 15, drifted at 15.5)"
+      }
+    },
+    "wind.lean_at_reference_deg": {
+      "name": {
+        "en": "Lean needed at 8 m/s",
+        "uk": "Потрібний нахил за 8 м/с"
+      },
+      "unit": "deg",
+      "direction": "lower",
+      "definition": {
+        "en": "How far the aircraft must lean to hold its position in a steady 8 m/s wind, from its own measured drag, against the worst heading. Less lean leaves more of its limit for gusts.",
+        "uk": "Наскільки апарат мусить нахилитися, щоб утримати позицію в усталеному вітрі 8 м/с, з його власного виміряного опору, за найгіршого курсу. Менший нахил лишає більше запасу до межі для поривів."
+      },
+      "method": {
+        "en": "From the flight's drag fit (Measured wind): holding position in a steady wind w along a body axis, tilted by t, the aircraft meets the air at w cos(t) along that axis, so the lean it needs solves g sin(t) = k1 w cos(t) + k2 (w cos(t))^2 plus the lean in still air. The position controller leans no further than PSC_ANGLE_MAX (else ATC_ANGLE_MAX, 10 to 80 degrees) nor than acos(throttle / 0.8), the firmware's limit that keeps height (CTUN.ThI: the highest mean over the steady hovers and the fastest steady windows; never under 10 degrees). The interval comes from the same bootstrap as the drag; where thrust limits the hold at more lean than the flight showed, its low end comes down to the airspeed flown.",
+        "uk": "З підібраного опору польоту (Виміряний вітер): утримуючи позицію в усталеному вітрі w уздовж осі апарата, нахиленого на t, апарат зустрічає потік зі швидкістю w cos(t) уздовж цієї осі, тож потрібний нахил розв'язує g sin(t) = k1 w cos(t) + k2 (w cos(t))^2 плюс нахил у спокійному повітрі. Регулятор позиції нахиляє не далі за PSC_ANGLE_MAX (інакше ATC_ANGLE_MAX, від 10 до 80 градусів) і не далі за acos(газ / 0,8) — межу прошивки, що зберігає висоту (CTUN.ThI: найбільше середнє за усталені зависання та найшвидші усталені вікна; не менше 10 градусів). Інтервал — з того самого бутстрепу, що й опір; коли тягу обмежує нахил, більший за показаний у польоті, нижня межа опускається до пролетіної повітряної швидкості."
+      },
+      "messages": [
+        "XKF1"
+      ],
+      "source": {
+        "kind": "baseline",
+        "title": "No universal range: read against the aircraft's own history at the same payload. Checked in ArduPilot's simulator: within 0.5 degrees of the lean flown from 6 to 13 m/s"
+      }
     }
   },
   "findings": {}

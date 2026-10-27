@@ -1,14 +1,18 @@
 <script lang="ts">
   // One flight's weather (spec: Weather and wind; mock-up Weather): the record worked
   // out on this laptop from whole regional tiles, at the surface and the flight's height
-  // band, the wind the aircraft measured beside the model's, and the K-index. Every value
-  // comes from the engine's flight.weather; none is worked out here.
+  // band, the wind the aircraft measured beside the model's, the K-index, and the
+  // airframe's wind envelope per payload band. Every value comes from the engine's
+  // flight.weather; none is worked out here.
   import { app, t } from "../lib/app.svelte";
   import { unitText } from "../lib/report";
+  import { groupName } from "../lib/trends";
   import {
     band,
     bearing,
     covered,
+    envelopeLimit,
+    extrapolatedFrom,
     flightWeather,
     kpLevel,
     modelName,
@@ -177,6 +181,57 @@
           </dl>
         {/if}
       </section>
+
+      {#if view.envelope}
+        {@const env = view.envelope}
+        {@const beyond = extrapolatedFrom(env)}
+        <section class="panel" aria-labelledby="wx-env">
+          <div class="head">
+            <h2 id="wx-env">{t("wx.env")}</h2>
+            <span class="faint">{t("wx.env.about")}</span>
+          </div>
+          {#if !env.bands.length}
+            <p class="faint">{t("wx.env.none")}</p>
+          {:else}
+            <div class="scroll">
+              <table class="env" aria-labelledby="wx-env">
+                <thead>
+                  <tr>
+                    <th scope="col">{t("wx.env.col.band")}</th>
+                    <th scope="col">{t("wx.env.col.hold")}</th>
+                    <th scope="col">{t("wx.env.col.lean", { value: num(env.reference_ms, 0, app.locale), unit: ms })}</th>
+                    <th scope="col">{t("wx.env.col.limit")}</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {#each env.bands as b (b.group)}
+                    {@const lim = envelopeLimit(b)}
+                    <tr class:mine={b.group === env.group}>
+                      <th scope="row">
+                        {groupName(b, app.locale)}
+                        <span class="faint">{t("wx.env.flights", { n: b.flights.length })}</span>
+                        {#if b.group === env.group}<span class="tag">{t("wx.env.this")}</span>{/if}
+                      </th>
+                      <td class="mono">
+                        {num(b.hold_ms, 1, app.locale)} {ms}
+                        {#if b.low_ms !== null && b.high_ms !== null}
+                          <span class="faint">{num(b.low_ms, 1, app.locale)}–{num(b.high_ms, 1, app.locale)}</span>
+                        {/if}
+                      </td>
+                      <td class="mono">{b.lean_deg === null ? "–" : `${num(b.lean_deg, 0, app.locale)}°`}</td>
+                      <td class:caution={b.limit_by === "thrust"}>{t(lim.key, { deg: lim.deg })}</td>
+                    </tr>
+                  {/each}
+                </tbody>
+              </table>
+            </div>
+            <p class="faint">{t("wx.env.note")}</p>
+            {#if beyond !== null}<p class="faint">{t("wx.env.extrapolated", { value: num(beyond, 1, app.locale), unit: ms })}</p>{/if}
+            {#if env.bands.some((b) => b.thrust_unmeasured)}<p class="note">{t("wx.env.thrustUnmeasured")}</p>{/if}
+            {#if env.bands.some((b) => b.current_limited)}<p class="note">{t("wx.env.currentLimited")}</p>{/if}
+          {/if}
+        </section>
+      {/if}
     </div>
 
     <aside class="panel side" aria-labelledby="wx-why">
@@ -305,6 +360,32 @@
   td .faint {
     margin-left: 6px;
     font-family: var(--font);
+  }
+  table.env th,
+  table.env td {
+    white-space: nowrap;
+  }
+  tr.mine th,
+  tr.mine td {
+    background: color-mix(in srgb, var(--accent) 8%, transparent);
+  }
+  th .faint {
+    margin-left: 6px;
+  }
+  .tag {
+    margin-left: 6px;
+    padding: 1px 6px;
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    font-size: 11px;
+    color: var(--text-muted);
+  }
+  td.caution {
+    color: var(--caution);
+  }
+  .note {
+    font-size: 12px;
+    color: var(--caution);
   }
   .pairs {
     display: grid;

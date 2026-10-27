@@ -25,6 +25,18 @@ to its velocity's change, less gravity.
   percentile, each with an interval from a seeded bootstrap over the windows.
 - **The estimator's own wind:** with drag fusion on, EKF3 estimates the wind too
   (XKF2 VWN, VWE); it is given beside, over the same windows.
+- **The strongest wind it can hold** (the wind envelope; rules in `wind.json`,
+  "envelope"). Holding position in a wind w, the airspeed is the wind, so the drag the
+  aircraft must lean against is its drag at that airspeed; tilted, it meets the wind at
+  w cos(tilt) along its body axis, the airspeed the drag was fitted on, so the lean it
+  needs solves g sin(tilt) = k1 w cos(tilt) + k2 (w cos(tilt))^2, with the lean in still
+  air against it. The position controller leans no further than its limit (4.7.0,
+  `AC_PosControl.cpp`): the configured maximum (`PSC_ANGLE_MAX`, else `ATC_ANGLE_MAX`),
+  and the lean that keeps the throttle, boosted for the tilt, within 80% of full
+  (`AC_AttitudeControl_Multi.cpp` `update_althold_lean_angle_max`), read from the throttle
+  the flight measured hovering and at its highest airspeeds. The envelope is the wind at
+  which the lean needed reaches that limit, with an interval from the same bootstrap as
+  the drag.
 
 Checked in ArduPilot's simulator, whose frame model has both kinds of drag: a flight of
 legs at 3, 6 and 9 m/s on eight headings, in a set wind, measures it within a few
@@ -280,6 +292,7 @@ class Measured:
     speed: float
     peak: float
     intervals: Mapping[str, tuple[float, float]]
+    resamples: tuple[Fit, ...] = ()  # the bootstrap's fits, for what is worked out from them
 
 
 def _stats(winds: Array, rules: Mapping[str, Any]) -> tuple[float, float]:
@@ -301,6 +314,7 @@ def measure(w: Windows, rules: Mapping[str, Any]) -> Measured | None:
     speed, peak = _stats(winds, rules)
     rng = np.random.default_rng(int(rules["seed"]))
     samples: dict[str, list[float]] = {"speed": [], "peak": [], "k1": [], "k2": [], "trim": []}
+    fits: list[Fit] = []
     for _ in range(int(rules["resamples"])):
         rows = rng.integers(0, len(w), len(w))
         again = fit(w.take(rows), rules, start=best)
@@ -312,6 +326,7 @@ def measure(w: Windows, rules: Mapping[str, Any]) -> Measured | None:
         samples["k1"].append(again.k1)
         samples["k2"].append(again.k2)
         samples["trim"].append(trim_deg(again.bias))
+        fits.append(again)
     if len(samples["speed"]) < int(rules["resamples"]) // 2:
         return None
     tail = (1.0 - float(rules["level"])) / 2.0 * 100.0
@@ -320,7 +335,7 @@ def measure(w: Windows, rules: Mapping[str, Any]) -> Measured | None:
     low, high = intervals["speed"]
     if high - low > float(rules["max_interval_ms"]):
         return None
-    return Measured(best, winds, speed, peak, intervals)
+    return Measured(best, winds, speed, peak, intervals, tuple(fits))
 
 
 def trim_deg(bias: Array) -> float:
@@ -331,6 +346,191 @@ def trim_deg(bias: Array) -> float:
 def blowing_from(wind: Array) -> float:
     """The direction the wind comes from, in degrees from north."""
     return math.degrees(math.atan2(-float(wind[1]), -float(wind[0]))) % 360.0
+
+
+@dataclass(frozen=True)
+class LeanLimit:
+    """How far the position controller leans to hold position (Copter 4.7.0)."""
+
+    deg: float
+    by: str  # "lean": the configured maximum; "thrust": the headroom to hold height
+    configured_deg: float
+    thrust_deg: float | None  # None when the flight's throttle is not known
+    throttle: float | None  # the throttle the firmware's limit reads (CTUN.ThI)
+    throttle_from: str | None  # "hover" or "fast": steady hovers or the fastest steady
+    # windows, whichever needed more; "learned": CTUN.ThH
+    current_limited: bool  # MOT_BAT_CURR_MAX can lower full throttle below 1
+
+
+def configured_lean(params: Mapping[str, float], rules: Mapping[str, Any]) -> float:
+    """The position controller's configured lean limit: `PSC_ANGLE_MAX` when set, else
+    `ATC_ANGLE_MAX` within the firmware's 10 to 80 degrees (AC_PosControl.cpp
+    get_lean_angle_max_rad, AC_AttitudeControl.cpp lean_angle_max_rad)."""
+    psc = float(params.get("PSC_ANGLE_MAX", 0.0) or 0.0)
+    if psc > 0:
+        return psc
+    atc = float(params.get("ATC_ANGLE_MAX", rules["angle_max_default_deg"]))
+    return min(max(atc, float(rules["angle_min_deg"])), float(rules["angle_max_deg"]))
+
+
+def thrust_lean(throttle: float, rules: Mapping[str, Any]) -> float:
+    """The lean the firmware allows while holding height: acos(throttle / (0.8 x full)),
+    never under 10 degrees (AC_AttitudeControl_Multi.cpp update_althold_lean_angle_max,
+    AC_AttitudeControl.cpp get_althold_lean_angle_max_rad)."""
+    ratio = min(max(throttle / float(rules["throttle_limit"]), 0.0), 1.0)
+    return max(math.degrees(math.acos(ratio)), float(rules["angle_min_deg"]))
+
+
+def held_throttle(flight: FlightData, w: Windows, fast: Array) -> tuple[float, str] | None:
+    """The throttle the firmware's lean limit reads (CTUN.ThI, before the tilt boost):
+    the highest of its mean over each steady hover (the pack sags through the flight) and
+    over the steady windows `fast` at the highest airspeeds flown, since holding a wind is
+    flying at its airspeed; else the hover throttle it learned (CTUN.ThH) over the steady
+    windows."""
+    ctun = flight.table("CTUN", ["TimeUS", "ThI", "ThH"])
+    if ctun is None or not ctun.num_rows or "ThI" not in ctun.column_names:
+        return None
+    t = _ints(ctun.column("TimeUS").to_numpy())
+    thi = si.values(ctun, "ThI")
+    spans = [(s.start_us, s.end_us, "hover") for s in flight.hover()]
+    fast_rows = np.zeros(len(t), bool)
+    for a, b in zip(w.start_us[fast], w.end_us[fast], strict=True):
+        fast_rows |= (t >= a) & (t < b)
+    means = [(float(np.mean(thi[(t >= a) & (t < b)])), how) for a, b, how in spans
+             if ((t >= a) & (t < b)).any()]  # fmt: skip
+    if fast_rows.any():
+        means.append((float(np.mean(thi[fast_rows])), "fast"))
+    if means:
+        return max(means)
+    if "ThH" not in ctun.column_names or not len(w):
+        return None
+    inside = np.zeros(len(t), bool)
+    for a, b in zip(w.start_us, w.end_us, strict=True):
+        inside |= (t >= a) & (t < b)
+    if not inside.any():
+        return None
+    return float(np.median(si.values(ctun, "ThH")[inside])), "learned"
+
+
+def lean_limit(params: Mapping[str, float], throttle: tuple[float, str] | None,
+               rules: Mapping[str, Any]) -> LeanLimit:  # fmt: skip
+    configured = configured_lean(params, rules)
+    thrust = None if throttle is None else thrust_lean(throttle[0], rules)
+    by = "thrust" if thrust is not None and thrust < configured else "lean"
+    return LeanLimit(
+        min(configured, thrust) if thrust is not None else configured, by, configured,
+        thrust, None if throttle is None else throttle[0],
+        None if throttle is None else throttle[1],
+        float(params.get("MOT_BAT_CURR_MAX", 0.0) or 0.0) > 0,
+    )  # fmt: skip
+
+
+def _push(f: Fit, airspeed: float) -> float:
+    """The drag's specific force at a body-axis airspeed, with the lean in still air on
+    the same side, m/s/s."""
+    return f.k1 * airspeed + f.k2 * airspeed * airspeed + float(np.hypot(*f.bias))
+
+
+def lean_needed(f: Fit, wind: float) -> float:
+    """The tilt, in degrees, that holds position in a steady horizontal wind, against the
+    worst heading (the wind along a body axis, the lean in still air on the same side).
+    Tilted, the aircraft meets the wind at w cos(tilt) along that axis, the airspeed its
+    drag was fitted on, so the tilt solves g sin(tilt) = drag(w cos(tilt))."""
+    low, high = 0.0, math.pi / 2
+    for _ in range(60):  # the left side rises with the tilt and the right falls
+        mid = (low + high) / 2
+        if G * math.sin(mid) < _push(f, wind * math.cos(mid)):
+            low = mid
+        else:
+            high = mid
+    return math.degrees((low + high) / 2)
+
+
+def strongest(f: Fit, limit_deg: float) -> float:
+    """The steady wind at which the lean needed reaches `limit_deg`, in m/s: the body-axis
+    airspeed whose drag needs that tilt, over cos(tilt)."""
+    tilt = math.radians(limit_deg)
+    push = G * math.sin(tilt) - float(np.hypot(*f.bias))
+    if push <= 0:
+        return 0.0
+    if f.k2 > 0:
+        airspeed = (-f.k1 + math.sqrt(f.k1 * f.k1 + 4.0 * f.k2 * push)) / (2.0 * f.k2)
+    else:
+        airspeed = push / f.k1
+    return airspeed / math.cos(tilt)
+
+
+def airspeeds(w: Windows, f: Fit) -> Array:
+    """Each window's airspeed, m/s."""
+    v = _airspeed(w, f.wind)
+    return np.hypot(v[:, 0], v[:, 1])
+
+
+def _envelope(flight: FlightData, w: Windows, m: Measured, reg: Registry, out: Result,
+              segment: Segment) -> None:  # fmt: skip
+    rules: Mapping[str, Any] = reg.rules["wind"]["envelope"]
+    speeds = airspeeds(w, m.fit)
+    flown = float(np.percentile(speeds, float(rules["flown_percentile"])))
+    fast = speeds >= np.percentile(speeds, float(rules["fast_percentile"]))
+    limit = lean_limit(flight.params, held_throttle(flight, w, fast), rules)
+    # the most the flight leaned in steady flight, which is where its throttle is measured
+    leaned = float(
+        np.percentile(
+            np.degrees(np.arcsin(np.clip(np.hypot(w.drag[:, 0], w.drag[:, 1]) / G, 0.0, 1.0))),
+            float(rules["flown_percentile"]),
+        )
+    )
+    # a hold limited by thrust at more lean than flown rests on a throttle never measured
+    # there: in ArduPilot's simulator it rose from 0.36 to 0.48 between 30 and 53 degrees
+    thrust_unmeasured = limit.by == "thrust" and limit.deg > leaned
+    reference = float(rules["reference_ms"])
+    hold = strongest(m.fit, limit.deg)
+    tail = (1.0 - float(reg.rules["wind"]["level"])) / 2.0 * 100.0
+
+    def interval(values: list[float], floor: float | None = None) -> dict[str, float]:
+        if not values:
+            return {}
+        low = float(np.percentile(values, tail))
+        return {"low": low if floor is None else min(low, floor),
+                "high": float(np.percentile(values, 100.0 - tail))}  # fmt: skip
+
+    learned = limit.throttle_from == "learned"
+    ev = Evidence(
+        id="wind:envelope",
+        kind="fact",
+        summary=(
+            f"holds position in up to {hold:.1f} m/s of steady wind, leaning to"
+            f" {limit.deg:.0f} deg"
+            f" ({'its thrust headroom' if limit.by == 'thrust' else 'its lean limit'})"
+        ),
+        messages=("XKF1", "CTUN"),
+        fields=(*EKF_FIELDS, "ThH" if learned else "ThI"),
+        segment=segment,
+        values={
+            "limit_deg": round(limit.deg, 1),
+            "limit_by": limit.by,
+            "configured_deg": round(limit.configured_deg, 1),
+            "thrust_deg": None if limit.thrust_deg is None else round(limit.thrust_deg, 1),
+            "throttle": None if limit.throttle is None else round(limit.throttle, 3),
+            "throttle_from": limit.throttle_from,
+            "current_limited": limit.current_limited,
+            "airspeed_flown_ms": round(flown, 1),
+            "lean_flown_deg": round(leaned, 1),
+            "extrapolated": hold > flown,
+            "thrust_unmeasured": thrust_unmeasured,
+            "reference_ms": reference,
+        },
+    )
+    out.evidence.append(ev)
+    out.metrics.append(MetricValue(
+        "wind.envelope_ms", "flight", hold, None, ev.id,
+        interval([strongest(f, limit.deg) for f in m.resamples],
+                 flown if thrust_unmeasured else None),
+    ))  # fmt: skip
+    out.metrics.append(MetricValue(
+        "wind.lean_at_reference_deg", "flight", lean_needed(m.fit, reference), None, ev.id,
+        interval([lean_needed(f, reference) for f in m.resamples]),
+    ))  # fmt: skip
 
 
 def _ekf_wind(flight: FlightData, w: Windows) -> float | None:
@@ -405,6 +605,7 @@ def _wind(flight: FlightData, reg: Registry) -> Result:
     if m.fit.quadratic:
         metric("wind.drag_quadratic", m.fit.k2, "k2")
     metric("wind.trim_deg", trim_deg(m.fit.bias), "trim")
+    _envelope(flight, w, m, reg, out, segment)
     if drag_fusion(flight.params, reg.rules["no_gnss"]["readiness"]):
         ekf_speed = _ekf_wind(flight, w)
         if ekf_speed is not None:
@@ -424,7 +625,7 @@ def _wind(flight: FlightData, reg: Registry) -> Result:
 
 WIND = Analyzer(
     name="wind",
-    version=1,
+    version=2,
     run=_wind,
     metrics=(
         "wind.speed_ms",
@@ -433,6 +634,8 @@ WIND = Analyzer(
         "wind.drag_quadratic",
         "wind.trim_deg",
         "wind.ekf_speed_ms",
+        "wind.envelope_ms",
+        "wind.lean_at_reference_deg",
     ),
     findings=(),
 )
