@@ -24,6 +24,8 @@
 | flight.tune | A flight's tune against one of its payload group's, and the plan's verdict |
 | flight.ab | Each parameter change made in flight, with the flight's two sides compared |
 | trend.revert_test | The single-change test flights that settle a shift, with what each showed |
+| trend.credits | The changes an airframe's improvements credit, each kept or since undone |
+| trend.fleet | A platform's confirmed links: one change, one move, on enough airframes |
 | review.file | A parameter file's configuration review and plan, with no flight |
 | airframe.recovery_card | The airframe's recovery card: GNSS loss, spoofing and losing a motor |
 | airframe.sim_export | The airframe's model for ArduPilot's simulator, its parameters, as files |
@@ -46,7 +48,7 @@ from typing import TYPE_CHECKING, Any, cast
 from flight_insights import analyzers, recommend, recovery, review, trends, tune_view, views
 from flight_insights.analyzers.registry import LANGUAGES
 from flight_insights.filters import workbench
-from flight_insights.history import ab, attribution, revert
+from flight_insights.history import ab, attribution, credit, fleet, revert
 from flight_insights.rpc.server import (
     BAD_INPUT,
     CONFLICT,
@@ -437,6 +439,22 @@ def add_analysis_methods(server: Server, state: EngineState, guarded: Callable[[
         store, airframe = state.require_store(), _id(params, "airframe_id")
         found = attribution.attribute(store, reg, airframe, metric)
         return [attribution.shift_json(s, reg) for s in found]
+
+    @server.method("trend.credits")
+    @guarded
+    def trend_credits(_ctx: Context, params: dict[str, Any]) -> list[dict[str, Any]]:
+        """The changes the airframe's better shifts credit, kept or since undone."""
+        reg = analyzers.Registry.load(state.pack)
+        store, airframe = state.require_store(), _id(params, "airframe_id")
+        return [credit.credit_json(c, reg)
+                for c in credit.credits(store, state.pack, reg, airframe)]  # fmt: skip
+
+    @server.method("trend.fleet")
+    @guarded
+    def trend_fleet(_ctx: Context, params: dict[str, Any]) -> list[dict[str, Any]]:
+        """The platform's confirmed links, and whether the map already holds each."""
+        reg = analyzers.Registry.load(state.pack)
+        return fleet.links(state.require_store(), reg, _id(params, "platform_id"))
 
     @server.method("trend.revert_test")
     @guarded

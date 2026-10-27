@@ -878,6 +878,9 @@
       }
     }
   },
+  "credits": {
+    "about": "Credit for improvements (spec: step 7, 'Credit improvements the same way'). A shift that made a metric better, at medium or high confidence, credits its top-ranked parameter change when the map or the fleet ties it to the metric. The change is kept while every later flight still has its value after; the first later flight with any other value undoes it, and the credit says so."
+  },
   "ranking": {
     "about": "Each change bracketed by a shift (applied after the last flight before it, by the first flight after it) is scored: the map's strength for this metric, times how well its direction fits (match when the map's sign and the change's direction would move the metric the way it moved, the other way when they would move it opposite, either when the map's sign is 0 or the values are not numbers), times its size (its relative change over size_saturates, at most 1), times its timing (1 at the shift's own boundary, nearby for a boundary the windows spanned). A parameter the map does not tie to the metric scores unlinked; a build change scores build, a firmware change firmware. Learned values, counters, hardware IDs and ground-station settings are listed as context, unscored. Confidence is high when the top candidate is linked, scores at least dominates times the next and no build or firmware change sits with it; medium when it is linked; low otherwise. Uncalibrated: the fleet's confirmed results refine it.",
     "match": 1.0,
@@ -893,6 +896,14 @@
       "tuning",
       "calibration"
     ]
+  },
+  "fleet": {
+    "about": "Fleet evidence (spec: 'Fleet evidence'). Each other airframe of the platform votes, once per parameter, the way it was changed and metric, with the way the metric moved: from a shift whose change is its top-ranked candidate, tied to the metric by the map, at medium or high confidence, or whose change was the only one at that boundary. At least min_airframes agreeing with at most max_against_share of the votes against confirms the change for that move: its score is multiplied by confirmed, or for a change the map does not tie to the metric it counts as a learned link scored learned. The other way round it is contradicted, and its score is multiplied by contradicted. Uncalibrated.",
+    "min_airframes": 3,
+    "max_against_share": 0.25,
+    "confirmed": 1.5,
+    "contradicted": 0.5,
+    "learned": 0.6
   },
   "weather": {
     "about": "Weather as a confounder (spec: Attribution method, 'Name confounders'). For a shift in a metric the weather can move (one starting with a variable's metrics prefixes), the median of each variable over the flights before and over the flights after is taken from their weather records, using only records whose coverage (the share of the flight's samples the downloads covered) is at least min_coverage. Every variable both sides have is listed with the shift; one whose medians differ by at least its differ lowers the shift's confidence by one step (high to medium, medium to low), and in grading a shift with weather that differed is not taken as the change's regression on its own. With no records (no Open-Meteo key, or downloads not yet made), nothing changes. Thresholds uncalibrated: the fleet's confirmed results refine them.",

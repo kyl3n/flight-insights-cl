@@ -89,8 +89,10 @@ class Change:
 class Candidate:
     change: Change
     score: float
-    group: str | None  # the map's link that ties it to the metric
-    factors: Mapping[str, float]  # strength, direction, size, timing
+    group: str | None  # the map's link that ties it to the metric; "fleet": learned
+    factors: Mapping[str, float]  # strength, direction, size, timing, fleet
+    # The platform's other airframes on the same change: (agreeing, disagreeing).
+    fleet: tuple[int, int] | None = None
 
 
 @dataclass(frozen=True)
@@ -316,10 +318,13 @@ def _weather(
 
 
 def attribute(
-    store: Store, reg: Registry, airframe_id: str, metric: str | None = None
+    store: Store, reg: Registry, airframe_id: str, metric: str | None = None, fleet: bool = True
 ) -> list[Shift]:
     """The airframe's shifts, each with the changes that could have caused it ranked
-    (spec: "When performance changes: pointing at the cause"), in flying order."""
+    (spec: "When performance changes: pointing at the cause"), in flying order. With
+    `fleet`, what the platform's other airframes showed for the same change weighs in
+    (history/fleet.py)."""
+    from flight_insights.history import fleet as pooled  # it ranks with attribute()
     from flight_insights.trends import grouped_flights  # trends imports recommend
 
     rules: Mapping[str, Any] = reg.rules["attribution"]
@@ -337,6 +342,7 @@ def attribute(
                                                      for c in cs))  # fmt: skip
     records = weather.kept(store, order) if weather_rules is not None else {}
     out: list[Shift] = []
+    found_fleet: dict[pooled.Key, pooled.Tally] | None = None  # read once, when needed
     for (m, seg, group), points in sorted(_series(store, flights, metric).items()):
         if m not in reg.metrics:
             continue
@@ -354,9 +360,14 @@ def attribute(
             kind, effect, low, high, spread = tested
             first, last = after[0].index, before[-1].index if before else -1
             bracketed = [(i, c) for i in bounds if last < i <= first for c in at[i]]
+            if fleet and found_fleet is None:
+                row = store.get("airframe", airframe_id)
+                found_fleet = (pooled.tallies(store, reg, row["platform_id"], airframe_id)
+                               if row is not None else {})  # fmt: skip
             cands = sorted(
-                (score_change(reg, c, m, effect, i != b) for i, c in bracketed
-                 if c.kind != "parameter" or c.cls in classes),
+                (pooled.adjust(score_change(reg, c, m, effect, i != b), m, effect,
+                               found_fleet or {}, rules)
+                 for i, c in bracketed if c.kind != "parameter" or c.cls in classes),
                 key=lambda k: -k.score,
             )  # fmt: skip
             context = tuple(
@@ -423,6 +434,7 @@ def shift_json(s: Shift, reg: Registry) -> dict[str, Any]:
                 "link": c.group,
                 "why": dict(by_group[c.group].why) if c.group in by_group else None,
                 "factors": {k: round(v, 3) for k, v in c.factors.items()},
+                "fleet": None if c.fleet is None else {"agree": c.fleet[0], "against": c.fleet[1]},
             }
             for c in s.candidates
         ],
