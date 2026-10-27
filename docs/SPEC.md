@@ -97,6 +97,12 @@ The split follows the ecosystems. Python has the ArduPilot tooling (pymavlink's 
 - **Linux:** RPM and AppImage for recent Fedora and similar distributions, built on the oldest Fedora release still supported so glibc matches field laptops.
 - **Sidecar size:** a frozen Python with NumPy and SciPy runs to tens of megabytes. Acceptable for a desktop tool; keep optional heavy dependencies out of the core build. The engine leaves out the parts of its libraries it never uses, such as pyarrow's Flight RPC and cloud filesystems.
 - **Versions and checks:** every CI build is numbered 0.1.<build number>, so each installer carries a new version. The knowledge pack ships beside the app, outside the frozen engine. Before a package is kept, CI installs it on a clean system and runs its bundled engine on a fixture log, including an encrypted import.
+- **Code signing (decided 2026-10-27):** set up before the team starts using the app, not earlier. Windows needs a code-signing certificate or a cloud signing service, so SmartScreen and company antivirus accept the installer and the frozen engine; Linux RPMs get a GPG signature. The keys live in CI secrets or the signing service, never in the repository.
+- **Updates (decided 2026-10-27):** they come through the fleet's shared drive, not a public release feed or a server of our own. The repository is private, and no token is built into the app.
+  - CI puts each release (the installers and Tauri's update manifest) in a releases folder of the shared drive, under a publishing account's sign-in held as a CI secret.
+  - Each laptop reads that folder through the Google Drive API with the sign-in it already has for sync, and installs a release only after Tauri's updater has checked its signature against the update key, which CI holds as a secret.
+  - A laptop that is not signed in to the fleet's drive gets no updates.
+  - **To settle before it is built:** everything written to the shared drive is encrypted before upload. Releases hold no flight data, but the rule has no exception, so the proposal is to encrypt each release with a release key that laptops receive in the fleet's service-keys set, as they receive the Claude key, and that CI holds as a secret.
 
 **Path to other platforms**
 
@@ -1723,7 +1729,7 @@ Claude is called on every analysis, but it only sees derived measurements and a 
 
 **Sending** (the shell's `claude.rs`, through `net.rs`):
 
-- **One way out.** Every HTTP client is built in the shell's `net.rs`, and every request goes through its checks: HTTPS only, no redirects, and only to a host on its allowlist. Today the allowlist holds the Claude API (`api.anthropic.com`), the Google Drive API (`oauth2.googleapis.com`, `www.googleapis.com`), the Open-Meteo commercial API (`customer-api.open-meteo.com` for forecasts, `customer-archive-api.open-meteo.com` for ERA5) and NOAA SWPC (`services.swpc.noaa.gov`, the planetary K-index). The update server joins it with its own work. TLS is rustls with the ring provider, and certificates are checked against the operating system's trust store.
+- **One way out.** Every HTTP client is built in the shell's `net.rs`, and every request goes through its checks: HTTPS only, no redirects, and only to a host on its allowlist. Today the allowlist holds the Claude API (`api.anthropic.com`), the Google Drive API (`oauth2.googleapis.com`, `www.googleapis.com`), the Open-Meteo commercial API (`customer-api.open-meteo.com` for forecasts, `customer-archive-api.open-meteo.com` for ERA5) and NOAA SWPC (`services.swpc.noaa.gov`, the planetary K-index). Updates come through the Google Drive API hosts already on it (System architecture, Packaging), so no update host is added. TLS is rustls with the ring provider, and certificates are checked against the operating system's trust store.
 - **Every analysis queues its flight.** A worker sends one flight at a time, in the background.
   - It sends only when the start-up gate is `ready` and a key is set.
   - A flight whose current analysis already has an answer is not sent again unless a person asks ("Send now").
@@ -1982,7 +1988,7 @@ Every number, chart point, log field and parameter in the app explains itself. H
   - **Errors:** a table of the errors logged, grouped by subsystem and meaning, using the release's own names.
   - **Not shown:** per-task CPU is not in the onboard log, and the latency budget is not built yet.
 
-**Languages.** Interface text goes through an i18n layer from the first release, with English and Ukrainian as the initial languages. Parameter names stay in ArduPilot's English form everywhere. Units follow the language: Ukrainian writes SI symbols in Cyrillic (В, Вт, Гц, дБ, м/с²), as its own texts do. Numbers use each language's own decimal separator and digit grouping.
+**Languages.** Interface text goes through an i18n layer from the first release, with English and Ukrainian as the initial languages. Parameter names stay in ArduPilot's English form everywhere. Text the engine composes itself, such as failsafe names and some evidence notes, stays in English on the Ukrainian screens for now (decided 2026-10-27); wording from the knowledge pack, the recovery card, the timeline and the metric explanations is in both languages. Units follow the language: Ukrainian writes SI symbols in Cyrillic (В, Вт, Гц, дБ, м/с²), as its own texts do. Numbers use each language's own decimal separator and digit grouping.
 
 ## Performance trends and ideal ranges
 
@@ -2725,7 +2731,7 @@ The app handles logs that reveal where and how aircraft fly, so it is built to l
 | Tampered update or rule pack | App, engine, rule pack and knowledge pack each signed; the updater verifies signatures before install |
 | Dependency compromise | Pinned dependencies, software bill of materials per release, reproducible engine builds |
 
-**Network behaviour.** The desktop app connects to exactly five endpoints, all configurable and proxy-aware: the update server, the Google Drive API for encrypted sync, the Claude API for scrubbed AI requests, the Open-Meteo API for regional weather, and NOAA's Space Weather Prediction Center for the planetary K-index, which is requested with no parameters at all. No analytics, no third-party crash reporting; crash dumps stay local until a user exports one.
+**Network behaviour.** The desktop app connects to at most five endpoints, all configurable and proxy-aware: the update server, the Google Drive API for encrypted sync, the Claude API for scrubbed AI requests, the Open-Meteo API for regional weather, and NOAA's Space Weather Prediction Center for the planetary K-index, which is requested with no parameters at all. The update server is the fleet's shared drive (System architecture, Packaging), so in practice it is the same Google Drive API. No analytics, no third-party crash reporting; crash dumps stay local until a user exports one.
 
 **Service keys, with no server to run.** The Claude API key and the Open-Meteo key live in the shared drive, encrypted with the fleet key like every other object, so Google sees only ciphertext. An admin enters each key once in the app; every enrolled laptop receives it through sync and stores it in its OS keychain. Requests go from the Rust shell straight to each service. Spend is visible in the Claude Console, where a spending limit can be set, and the app adds up each laptop's usage from the token counts in replies. Every AI packet sent is kept as a record and synced, so anyone can audit what left any laptop. When a laptop is revoked, the app asks the admin for new keys and has the old ones deleted, because the lost laptop held copies.
 
