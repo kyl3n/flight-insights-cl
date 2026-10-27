@@ -669,8 +669,9 @@ fn tool(l: &mut Limits, t: &Tool) {
 }
 
 /// Parameters that reveal where the aircraft is or which aircraft it is: origins and
-/// positions, magnetic declination, fences and rally points, script slots that can hold
-/// anything, identities, serial numbers and the simulator's settings.
+/// positions, magnetic declination, the barometer's ground pressure and temperature and the
+/// field's elevation, fences and rally points, script slots that can hold anything,
+/// identities, serial numbers and the simulator's settings.
 fn removed_parameter(name: &str) -> bool {
     const PREFIXES: [&str; 6] = [
         "AHRS_ORIG",
@@ -690,6 +691,18 @@ fn removed_parameter(name: &str) -> bool {
             .strip_prefix("SCR_USER")
             .is_some_and(|n| !n.is_empty() && n.chars().all(|c| c.is_ascii_digit()))
         || matches!(name, "BCN_ALT")
+        || baro_ground(name)
+}
+
+/// BARO_FIELD_ELV, BARO_GND_TEMP and BAROn_GND_PRESS (n a single digit, or none).
+fn baro_ground(name: &str) -> bool {
+    let Some(rest) = name.strip_prefix("BARO") else {
+        return false;
+    };
+    let rest = rest
+        .strip_prefix(|c: char| c.is_ascii_digit())
+        .unwrap_or(rest);
+    matches!(rest, "_GND_PRESS" | "_GND_TEMP" | "_FIELD_ELV")
 }
 
 // --- layer 2: coordinates in text and in numbers -----------------------------------------
@@ -930,7 +943,7 @@ const CLEAN: [(&str, &str); 5] = [
         include_str!("../../../tests/scrubber/packets/clean/tool_spectrum.json"),
     ),
 ];
-const LEAKY: [(&str, &str); 28] = [
+const LEAKY: [(&str, &str); 29] = [
     (
         "bool_as_number",
         include_str!("../../../tests/scrubber/packets/leaky/bool_as_number.json"),
@@ -950,6 +963,10 @@ const LEAKY: [(&str, &str); 28] = [
     (
         "compass_declination",
         include_str!("../../../tests/scrubber/packets/leaky/compass_declination.json"),
+    ),
+    (
+        "field_elevation",
+        include_str!("../../../tests/scrubber/packets/leaky/field_elevation.json"),
     ),
     (
         "long_text",
@@ -1293,10 +1310,22 @@ mod tests {
             "BRD_SERIAL_NUM",
             "BCN_LONGITUDE",
             "SIM_OPOS_LAT",
+            "BARO_FIELD_ELV",
+            "BARO_GND_TEMP",
+            "BARO1_GND_PRESS",
+            "BARO3_GND_PRESS",
         ] {
             assert!(removed_parameter(name), "{name}");
         }
-        for name in ["ATC_RAT_PIT_P", "ARM_FENCE", "SCR_USER", "MOT_PWM_TYPE"] {
+        for name in [
+            "ATC_RAT_PIT_P",
+            "ARM_FENCE",
+            "SCR_USER",
+            "MOT_PWM_TYPE",
+            "BARO_ALT_OFFSET",
+            "BARO12_GND_PRESS",
+            "BARO1_DEVID",
+        ] {
             assert!(!removed_parameter(name), "{name}");
         }
     }
