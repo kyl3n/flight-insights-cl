@@ -94,6 +94,7 @@ OPTION_STAGES = {
     "motors": "setup",
     "control": "setup",
     "power": "setup",
+    "feel": "feel",
 }
 OPTION_COSTS = ("parameter", "reboot", "firmware", "hardware")
 # Steps a procedure template may give; the plan adds its own parameter files, refreshes,
