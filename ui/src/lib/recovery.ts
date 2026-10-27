@@ -25,7 +25,7 @@ export interface Measured {
   outages: number; // outages and drills
   hold_s: number | null;
   detection_s: number | null;
-  drift_m_per_min: number | null;
+  minutes_to_tolerance: number | null; // the soonest the estimate was the landing tolerance off
 }
 
 export interface RecoveryCard {

@@ -76,10 +76,10 @@ def item(result: dict[str, Any], mid: str) -> dict[str, Any]:
 
 
 def outage(airframe: str = "A", sensors: tuple[str, ...] = (), kept: float = 6.9,
-           drag: bool | None = False, rate: float | None = None,
+           drag: bool | None = False, minutes: float | None = None,
            throughout: bool = False) -> Outage:  # fmt: skip
     return Outage(airframe, f"{airframe}-flight", frozenset(sensors), drag, True, kept,
-                  throughout, rate)  # fmt: skip
+                  throughout, minutes)  # fmt: skip
 
 
 # --- the catalogue ---------------------------------------------------------------------
@@ -229,13 +229,13 @@ def test_a_measured_gain_ranks_above_an_expected_benefit(
     assert flow["measured"]["without"]["hold_s"] == 6.9  # the side that was measured
 
 
-def test_larger_gains_first_and_equal_gains_by_the_lower_drift(
+def test_larger_gains_first_and_equal_gains_by_the_later_time_to_the_tolerance(
     reg: Registry, doc: dict[str, Any]
 ) -> None:
-    fleet = [outage(kept=5.0), outage(sensors=("optical_flow",), kept=30.0, rate=0.4),
-             outage(sensors=("external_nav",), kept=45.0, rate=2.0)]  # fmt: skip
+    fleet = [outage(kept=5.0), outage(sensors=("optical_flow",), kept=30.0, minutes=25.0),
+             outage(sensors=("external_nav",), kept=45.0, minutes=5.0)]  # fmt: skip
     assert ids(ranked(reg, doc, setup_of(reg), fleet))[:2] == ["visual_odometry", "optical_flow"]
-    fleet[2] = outage(sensors=("external_nav",), kept=30.0, rate=2.0)  # the same gain
+    fleet[2] = outage(sensors=("external_nav",), kept=30.0, minutes=5.0)  # the same gain
     assert ids(ranked(reg, doc, setup_of(reg), fleet))[:2] == ["optical_flow", "visual_odometry"]
 
 
@@ -362,11 +362,16 @@ def test_outages_are_classed_by_the_source_set_they_were_flown_on(reg: Registry)
         "no_gnss:readiness:position": position,
         "no_gnss:readiness:wind": {"drag_fusion": False},
         "no_gnss:outage:1": {"kept_s": 30.2, "kept_relative": True, "source_set": 2, "drill": True},
-        "no_gnss:outage:1:drift": {"drift_m": 0.1, "drift_m_per_min": 0.2},
+        "no_gnss:outage:1:drift": {
+            "drift_m": 0.1,
+            "drift_m_per_min": 0.2,
+            "minutes_to_tolerance": 43.0,
+        },
         "no_gnss:outage:2": {"kept_s": 6.9, "source_set": None, "drill": False},
     }
     first, second = mitigations.outages_of(evidence, rules, "A", "F")
-    assert (first.sensors, first.throughout, first.rate) == (frozenset({"optical_flow"}), True, 0.2)
+    assert (first.sensors, first.throughout, first.minutes) == (frozenset({"optical_flow"}), True,
+                                                                43.0)  # fmt: skip
     assert (second.sensors, second.throughout, second.drag) == (frozenset(), False, False)
     del evidence["no_gnss:readiness:position"]  # the readiness review was skipped
     assert mitigations.outages_of(evidence, rules, "A", "F") == []
@@ -422,7 +427,7 @@ def test_the_flow_airframe_holds_longer_than_the_one_with_no_other_source(
     assert with_flow["hold_s"] >= 30 and with_flow["throughout"] is True
     assert without["hold_s"] < 10 and without["throughout"] is False
     assert with_flow["hold_s"] > without["hold_s"]
-    assert with_flow["drift_m_per_min"] is not None and with_flow["drift_m_per_min"] < 1
+    assert with_flow["minutes_to_tolerance"] is not None and with_flow["minutes_to_tolerance"] > 2
     # the same numbers rank optical flow for the airframe with no other source
     assert item(alone, "optical_flow")["measured"] == measured
 

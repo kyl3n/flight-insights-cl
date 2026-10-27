@@ -204,7 +204,7 @@ class Outage:
     drill: bool
     kept_s: float  # how long it kept a position it could fly on
     throughout: bool  # it kept one all through the outage
-    rate: float | None  # drift a minute, when GNSS came back trustworthy
+    minutes: float | None  # until the estimate was the landing tolerance off
 
 
 def set_sensors(position: Values, rules: Mapping[str, Any]) -> dict[int, frozenset[str]]:
@@ -245,7 +245,7 @@ def outages_of(
             airframe=airframe, flight=flight, sensors=sets.get(flown, frozenset()),
             drag=drag, drill=bool(v.get("drill")), kept_s=float(v["kept_s"]),
             throughout=bool(v.get("held") or v.get("kept_relative")),
-            rate=evidence.get(f"{eid}:drift", {}).get("drift_m_per_min"),
+            minutes=evidence.get(f"{eid}:drift", {}).get("minutes_to_tolerance"),
         ))  # fmt: skip
     return out
 
@@ -284,26 +284,27 @@ def drill_flights(store: Store, reg: Registry, airframe_id: str) -> list[str]:
 
 @dataclass(frozen=True)
 class Side:
-    """Outages of one kind: how many, the shortest hold and the worst drift a minute."""
+    """Outages of one kind: how many, the shortest hold, and the soonest the estimate was
+    the landing tolerance off."""
 
     outages: int
     hold_s: float
     throughout: bool  # every one kept a position all through: the hold is a lower bound
-    drift_m_per_min: float | None
+    minutes_to_tolerance: float | None
 
     def to_json(self) -> dict[str, Any]:
         return {"outages": self.outages, "hold_s": self.hold_s, "throughout": self.throughout,
-                "drift_m_per_min": self.drift_m_per_min}  # fmt: skip
+                "minutes_to_tolerance": self.minutes_to_tolerance}  # fmt: skip
 
 
 def side(outages: Sequence[Outage]) -> Side | None:
     if not outages:
         return None
-    rates = [o.rate for o in outages if o.rate is not None]
+    minutes = [o.minutes for o in outages if o.minutes is not None]
     return Side(
         outages=len(outages), hold_s=min(o.kept_s for o in outages),
         throughout=all(o.throughout for o in outages),
-        drift_m_per_min=max(rates) if rates else None,
+        minutes_to_tolerance=min(minutes) if minutes else None,
     )  # fmt: skip
 
 
@@ -544,8 +545,8 @@ def rank(
                     if m.get("measure") and airframe else None)  # fmt: skip
         gain = None if measured is None else measured.gain_s
         if gain is not None and gain > 0:
-            drift = measured.with_.drift_m_per_min if measured and measured.with_ else None
-            group, within = 0, (-gain, float("inf") if drift is None else drift)
+            soonest = measured.with_.minutes_to_tolerance if measured and measured.with_ else None
+            group, within = 0, (-gain, float("inf") if soonest is None else -soonest)
         elif gain is not None:
             group, within = 2, (-gain, 0.0)
         else:

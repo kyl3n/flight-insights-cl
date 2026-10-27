@@ -13,7 +13,13 @@
     "min_outage_s": 10.0,
     "stable_s": 3.0,
     "hacc_m": 3.0,
-    "max_mps": 20.0
+    "max_mps": 20.0,
+    "min_m": 0.1,
+    "growth_about": "How the drift found when GNSS returned grows with the time flown, to work out when the estimate is landing_tolerance_m off: t = T (tolerance / drift)^(1/p) for an outage of T seconds. With optical flow, vision or body velocity fused, the estimator's velocity is corrected and the position error grows about in step with the time (p = 1), so a drift per minute is given too. On dead reckoning (XKF4.SS bit 18: navigating on the wind alone) nothing corrects the position or the tilt, so an uncorrected gyro bias tilts the estimate further and further, the acceleration error grows with the time and the position error with its cube (p = 3); a drift per minute measured on a short drill would understate a longer flight, so none is given.",
+    "growth": {
+      "aided": 1,
+      "dead_reckoning": 3
+    }
   },
   "landing_tolerance_m": 10.0,
   "status_bits": {
@@ -27,7 +33,9 @@
     "libraries/AP_NavEKF/AP_Nav_Common.h at Copter-4.7.0: nav_filter_status bits, logged as XKF4.SS: 3 horiz_pos_rel, 4 horiz_pos_abs, 13 using_gps, 18 dead_reckoning",
     "ArduCopter/Parameters.cpp at Copter-4.7.0: FS_DR_ENABLE acts as dead reckoning starts, which happens only when the EKF loses its position and velocity sources and relies on wind estimates (multirotor drag fusion); FS_DR_TIMEOUT (default 30 s) is how long dead reckoning is allowed before the EKF failsafe",
     "Local SITL flights at Copter-4.7.0, LOITER at 15 m: with GNSS switched off (aux 65) or the simulated receiver disabled, the estimator stopped using GNSS about 4 s later and gave up its absolute position about 7 s after the loss; the EKF failsafe then landed the aircraft, 26 m from its estimate in a 6 m/s wind. On optical flow and a rangefinder (source set 2) it kept a relative position through a 30 s drill, within 1.3 m of GNSS when it returned",
-    "https://discuss.ardupilot.org/t/dead-reckoning-stops-early-due-to-ekf-failsafe/130207: a multirotor with no absolute position source estimates its position for only about 30 s (spec: Dead-reckoning range)"
+    "https://discuss.ardupilot.org/t/dead-reckoning-stops-early-due-to-ekf-failsafe/130207: a multirotor with no absolute position source estimates its position for only about 30 s (spec: Dead-reckoning range)",
+    "libraries/AP_NavEKF3/AP_NavEKF3_Control.cpp at Copter-4.7.0, updateFilterStatus: horiz_pos_rel (bit 3) is set while navigating on optical flow, body velocity or the wind alike, horiz_pos_abs (bit 4) only with GNSS, and dead_reckoning (bit 18) only on the wind with no flow, GNSS or body velocity; AP_NavEKF3_AirDataFusion.cpp 528-535 and AP_NavEKF3_core.cpp 1096-1101: drag fusion corrects only the wind, which is held fixed while dead reckoning (spec: What dead reckoning is in 4.7.0)",
+    "Local SITL study at Copter-4.7.0 (16 dead-reckoned flights, 2026-10-27, error against the simulator's true position): the error grew as about the cube of the time since GNSS went (fitted exponent 2.8 to 3.2 over flights of 1.5 to 5.7 minutes). Predicting from the drift at 20, 30, 45 or 60 s when the estimate would be 10 m off gave 0.62 to 1.79 times the true time (median 0.97, 60 cases) with the cube, 0.68 to 3.18 with the square, and 0.27 to 23.7 with a drift per minute"
   ],
   "readiness": {
     "about": "Readiness for flying without GNSS, from the parameters and the platform setup (spec: Flying without GNSS, 'Readiness, from the parameters and the build'). A source set copes without GNSS when one of its horizontal sources is not GNSS; each source names the sensor it needs, whose type parameter must be set. Optical flow navigates only with EK3_FLOW_USE 1 and a downward rangefinder.",

@@ -143,10 +143,12 @@ def test_an_ekf_failsafe_switched_off(reg: Registry) -> None:
 
 
 def test_measured_drift_gives_the_range_and_nothing_measured_says_so(reg: Registry) -> None:
-    drifting = measured_as(reg, Measured(outages=1, hold_s=30.0, drift_m_per_min=5.0), NOTHING)
+    drifting = measured_as(reg, Measured(outages=1, hold_s=30.0, minutes_to_tolerance=0.8),
+                           NOTHING)  # fmt: skip
     [fact] = [t for t in text(drifting, "gnss_lost", "facts") if "min before" in t]
     assert fact == (
-        "On its own, about 2 min before its estimate is 10 m off (drift 5 m a minute, measured)."
+        "On its own, about 0.8 min before its estimate is 10 m off (from the drift measured "
+        "when GNSS returned)."
     )
     assert keys(measured_as(reg, NOTHING, NOTHING), "gnss_lost", "facts")[0] == (
         "fact.hold_unmeasured"
@@ -158,7 +160,7 @@ def test_a_hold_on_optical_flow_is_never_claimed_for_the_aircraft_on_its_own(
 ) -> None:
     """As in the SITL flow drill: 30 s held on source set 2, which the aircraft only uses
     once the operator switches to it."""
-    flow = Measured(outages=1, hold_s=30.2, drift_m_per_min=0.2)
+    flow = Measured(outages=1, hold_s=30.2, minutes_to_tolerance=43.0)
     c = measured_as(reg, NOTHING, flow, **FLOW, RC8_OPTION=90.0)
     assert keys(c, "gnss_lost", "facts") == [
         "fact.hold_unmeasured", "fact.hold_set", "fact.range_set",
@@ -166,8 +168,8 @@ def test_a_hold_on_optical_flow_is_never_claimed_for_the_aircraft_on_its_own(
     assert text(c, "gnss_lost", "facts")[1:] == [
         "On source set 2 it kept a position it can fly on for at least 30.2 s (measured; "
         "outages and drills: 1).",
-        "On source set 2, about 50 min before its estimate is 10 m off (drift 0.2 m a minute, "
-        "measured).",
+        "On source set 2, about 43 min before its estimate is 10 m off (from the drift measured "
+        "when GNSS returned).",
     ]
     # without a set to switch to, a hold measured on one says nothing about this aircraft
     assert "fact.hold_set" not in keys(measured_as(reg, NOTHING, flow), "gnss_lost", "facts")
@@ -320,7 +322,7 @@ def test_the_card_over_rpc(tmp_path: Path) -> None:
     # the drill with no other source on its own; the flow drill on source set 2
     alone, on_set = c["measured"]["alone"], c["measured"]["on_set"]
     assert alone["outages"] == 1 and 5 <= alone["hold_s"] <= 9 and 3 <= alone["detection_s"] <= 5
-    assert on_set["outages"] == 1 and on_set["hold_s"] >= 30 and on_set["drift_m_per_min"] < 1
+    assert on_set["outages"] == 1 and on_set["hold_s"] >= 30 and on_set["minutes_to_tolerance"] > 2
     assert keys(c, "gnss_lost") == ["step.switch_set", "step.fly_home_set", "step.land"]
     assert keys(c, "spoofing")[1] == "spoof.reject_switch"  # RC7, the GPS-disable switch
     bad = call(server, out, 9, "airframe.recovery_card", airframe_id="nope")
