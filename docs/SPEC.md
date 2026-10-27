@@ -382,7 +382,7 @@ Every flight gets a weather record from an accurate numerical weather model, che
   - **Which positions:** the estimator's (`POS`), or, in a log without them, GPS positions with a 3D fix. A tile counts when it holds at least 1% of the flight's positions, so a few samples from a GNSS glitch or a spoofed jump add no tile; a flight that crosses into the next tile is covered by the neighbours anyway.
   - **Names, not positions:** a tile is named by its south-west corner, such as `N50E030` or `S34W058`. Longitude wraps round the date line; there is no row of tiles beyond either pole.
   - **Kept on each laptop:** each flight's tiles are a local table, never synced. Every laptop has the logs and finds the same tiles, as it does with analysis results.
-  - **Only the shell asks:** one shell-only engine method, `weather.tiles`, returns the tile names to download and each source's grid step. The interface cannot call it, and it returns no coordinate.
+  - **Only the shell asks:** one shell-only engine method, `weather.tiles`, returns the tile names to download and each source's grid step. The interface cannot call it, and it returns no coordinate. The interface's one weather method is `flight.weather`: a flight's record, values only, its measured wind, the difference, and NOAA's warning level for the K-index.
 - **Grid:** weather at evenly spaced points across each tile, at each model's own resolution: every 0.1° (about 11 km) for the forecast models, 400 points per tile, and every 0.25° for ERA5, 64 points. ERA5's grid is a regular 0.25° one, so its points are its cells exactly. ECMWF IFS HRES (9 km) is on its O1280 reduced Gaussian grid, so each 0.1° point reads its nearest model cell, about one point per cell; a finer grid would add requests, not information, since a model's effective resolution is several cells. A tile's points are its south and west edges and everything inside; its north and east edges are the next tiles' south and west, so no point is asked for twice. Open-Meteo returns up to 1,000 points in one request ([multiple locations](https://openmeteo.substack.com/p/weather-data-for-multiple-locations)).
 - **Fixed schedule:** known tiles are downloaded on a timer, whether or not anyone flew, so request times do not reveal flight times. Every request goes out at a slot instant: every 6 hours from 00:00 UTC, plus an offset minute drawn at random once per laptop, or, in a fleet, derived from the fleet key so every laptop keeps the same one. What a request asks for depends only on the slot, the tile and what is already held:
   - **Forecast:** each slot asks for the 6 hours that ended 6 hours before it (the model run covering them is out by then), from ECMWF IFS HRES. Windows missed while the laptop was closed are asked for at a later slot for up to 5 days; older ones are left to reanalysis.
@@ -453,7 +453,7 @@ Every flight gets a weather record from an accurate numerical weather model, che
 - **Measures the wind envelope.** The lean angle each airframe needs to hold position is fitted against measured wind, per payload band. Extrapolated to the configured maximum lean angle and to thrust headroom, it gives the strongest wind the airframe can hold, with an uncertainty band.
 - **Scores the models.** Over time the app learns which model best matches the wind your aircraft actually measured in your operating area, and weights it accordingly.
 - **Explains anomalies.** A GNSS or compass anomaly during elevated geomagnetic activity is shown with that context instead of being blamed on the aircraft.
-  - **Built now:** when the highest planetary K-index of the flight's 3-hour intervals is 4 or more, each GNSS finding (`gnss.*`, and `no_gnss.position_lost`) in the flight's analysis (`analysis.get`) carries the K-index and a note in English and Ukrainian (`knowledge/rules/weather.json`, "space_weather"). It is context only: severity, confidence and recommendations do not change. The flight report shows it once the weather screens are built.
+  - **Built now:** when the highest planetary K-index of the flight's 3-hour intervals is 4 or more, each GNSS finding (`gnss.*`, and `no_gnss.position_lost`) in the flight's analysis (`analysis.get`) carries the K-index and a note in English and Ukrainian (`knowledge/rules/weather.json`, "space_weather"). It is context only: severity, confidence and recommendations do not change. The flight report's inspector shows it under "Read it against".
 
 **Offline.** Each laptop keeps the region's data locally, so weather records fill in with no connection. Every reply is kept as it came, compressed, inside the encrypted store, under its source (forecast, reanalysis or space weather), tile and UTC period (a month, a day or a 6-hour slot); a reply that is not JSON, or is the provider's error, is refused. The engine also keeps when this laptop first listed each tile, so a new tile's backfill waits its random delay across restarts. Both are this laptop's own tables: downloads are shared through Drive as encrypted objects, not as synced records. The shell hands each reply over through two shell-only engine methods, `weather.store` and `weather.held`. A flight imported before its period was downloaded is completed at the next scheduled download, and upgraded to reanalysis about five days later.
 
@@ -1686,6 +1686,7 @@ Claude is called on every analysis, but it only sees derived measurements and a 
 - **Settings:**
   - the key field (set, replace, remove; it shows only whether a key is set);
   - the monthly cap and the month's spend;
+  - weather data: the Open-Meteo key and the downloader's state (The Weather view, below);
   - "What left this machine": every packet and tool result, newest first, with its time, purpose, both verdicts with their reasons, sent or not, its SHA-256, and the exact text.
 - **Ask** (the user's decision, 2026-10-24): free-text follow-up questions about one flight, on the chat model.
   - **A warning by the box:** don't name places, landmarks or addresses, because what you type is sent. Coordinates are refused in any form.
@@ -1751,7 +1752,7 @@ Rules that keep decisions easy:
 | Configuration review | Questions about the aircraft, then errors, settings wrong for its type and better options, each with reasoning and a fix | Answer or change a question; add fixes and better options to the plan |
 | Flight report | Subsystem status, findings by severity, AI narrative with evidence links | Open any finding's evidence |
 | Incident timeline | Onboard events, tlog events, commands, warnings, bus errors, ground station session records, parameter and build changes on one time axis, first fault marked | Jump from any event to its data |
-| Weather | The flight's weather record, aircraft-measured against model wind, the airframe's wind envelope | Compare models; filter trends by wind and density |
+| Weather | The flight's weather record at the surface and in its height band, the wind the aircraft measured against the model's, the K-index; the airframe's wind envelope (not yet) | Open the weather settings; compare models and filter trends by wind and density (not yet) |
 | Filter workbench | Pre- and post-filter spectra, spectrogram over time with motor RPM and notch centres overlaid, predicted spectrum, phase-lag readout | Edit candidate filter values and see the prediction update |
 | Tune | Attitude tracking error (the tune's measure) and rate tracking error (its guard) per axis, each with its 95% interval, against a tune-check flight of the same payload band; step and frequency responses of one axis, both flights; the stick inputs counted and those left out, with why; whether the plan improved the tune | Pick the flight to compare with (same band), the payload band and the axis; open the tune-check card |
 | Propulsion and power | Per-motor output and RPM, temperatures, sag, battery resistance; the motor-out margin with each motor stopped in turn, and the payload band; the thrust-model fit (not yet) | Select motors and segments; see which motor loss is worst |
@@ -1764,6 +1765,15 @@ Rules that keep decisions easy:
 | Sync | Each laptop, last sync, items waiting to upload, quarantined items with reasons | Retry; open a quarantined item's details |
 | Ask | Chat about this flight, airframe or platform | Answers cite evidence and open the matching plot |
 | Compare | Two flights, airframes or platforms side by side | Pick metrics |
+
+**The Weather view** (`flight.weather`; mock-up `Weather.dc.html`), a tab of the flight report:
+
+- **The record.** The model it came from (ECMWF IFS HRES for the forecast, ERA5 for reanalysis), its grade, the share of the flight it covers, and the K-index, quiet or elevated against NOAA's warning level from the rule pack. Wind, gusts, temperature, humidity and dew point, pressure, density altitude at take-off and at the top of the flight, rain, cloud and cloud base, and the boundary layer, at the surface and in the flight's height band. Pressure, temperature and density altitude are shown on this laptop only, and the view says so.
+- **Measured against the model.** The wind the aircraft measured, its peak, the steady stretches it came from, and whether the drag was its own or its airframe's (and from how many flights), beside the model's speed and direction difference. With none measured, the view says what a measurement needs.
+- **Why it matters.** How trends and attribution use the record, what the K-index means for this flight's GNSS findings, and that the record is made again when reanalysis arrives. The privacy note, a link to the weather settings, and the sources' credits, as their licences ask (Open-Meteo under CC BY 4.0; ECMWF and the Copernicus Climate Change Service for IFS and ERA5; NOAA SWPC).
+- **Not shown, not built yet:** a time series of measured against model wind (the engine measures one wind per flight), other models than the one the record came from (only ECMWF IFS HRES is downloaded), and the wind envelope (Weather and wind, "What the app does with it").
+- **In the flight report,** a finding with context, such as the K-index note on a GNSS finding, shows it in the inspector under "Read it against".
+- **Settings, "Weather data"** (mock-up `SettingsWeather.dc.html`): the Open-Meteo key (set, replace, remove; it shows only whether one is set), NOAA's K-index needing no key, and the downloader's last round from the shell (`weather_status`): when it ran and its outcome, the next slot instant in UTC, the tiles on the list, the downloads kept, and those taken from and shared with the fleet; never a tile's name or a place. It lists what the requests contain. There is no "download now" and no request log: a request off the fixed schedule would follow someone coming back from a flight, and the shell logs no request.
 
 **The Tune view** (`flight.tune`, `engine/src/flight_insights/tune_view.py`; mock-up `Tune.dc.html`):
 
@@ -2683,7 +2693,7 @@ The largest risk is a confident wrong recommendation on a heavy aircraft; most o
 | Frozen Python sidecar flagged by Windows antivirus | Medium | Code signing; Nuitka as an alternative freezer |
 | Too few labelled logs to calibrate thresholds | Medium | Start labelling in Phase 0 with the fleet's first real logs; SITL cases for every analyzer |
 | GPL and LGPL obligations from reused code | Low | Re-implement published methods; legal review before any code reuse; pymavlink (LGPL-3.0) ships unmodified as a separate, replaceable library |
-| Weather data licences | Low | Show attribution for each weather source in the app, as its licence requires |
+| Weather data licences | Low | Each weather source is credited in the app, as its licence requires: the Weather view and Settings name Open-Meteo (CC BY 4.0), ECMWF and the Copernicus Climate Change Service for IFS and ERA5, and NOAA SWPC, and say the values were interpolated on the laptop |
 
 **Open questions**
 
