@@ -836,6 +836,73 @@
           "url": "https://ardupilot.org/copter/docs/parameters.html"
         }
       ]
+    },
+    "input_tc_47": {
+      "area": "feel",
+      "subsystem": "rate_tuning",
+      "title": {
+        "en": "Try 4.7's crisper stick response (ATC_INPUT_TC 0.10)",
+        "uk": "Спробуйте чіткіший відгук на стіки з 4.7 (ATC_INPUT_TC 0.10)"
+      },
+      "hardware": {
+        "en": "Nothing",
+        "uk": "Нічого"
+      },
+      "benefit": {
+        "en": "ATC_INPUT_TC is 0.15, the default before 4.7. 4.7 lowered the default to 0.10, for a crisper response to the sticks; a stored value is kept as it is, so 0.15 here was set or loaded from a file. It still flies as it did: this is a matter of feel, not a fault. A lower value follows the sticks more sharply, and lets more of the transmitter's noise through.",
+        "uk": "ATC_INPUT_TC дорівнює 0.15 — значенню за замовчуванням до 4.7. У 4.7 значення за замовчуванням знизили до 0.10 заради чіткішого відгуку на стіки; збережене значення лишається як є, тож 0.15 тут встановили вручну або завантажили з файлу. Апарат летить так само, як і раніше: це питання відчуття, а не помилка. Менше значення різкіше йде за стіками й пропускає більше шуму передавача."
+      },
+      "how": {
+        "en": "Set ATC_INPUT_TC to 0.10 and fly the usual manoeuvres. Keep it if the pilots prefer it; the undo file puts 0.15 back.",
+        "uk": "Встановіть ATC_INPUT_TC у 0.10 і виконайте звичні маневри. Залиште, якщо пілотам так краще; файл скасування поверне 0.15."
+      },
+      "applies": [
+        {
+          "fact": "copter",
+          "is": true
+        }
+      ],
+      "when": [
+        {
+          "param": "ATC_INPUT_TC",
+          "eq": 0.15
+        },
+        {
+          "default": "ATC_INPUT_TC",
+          "eq": 0.1
+        }
+      ],
+      "outcomes": [
+        {
+          "outcome": "available",
+          "requires": [],
+          "changes": [
+            {
+              "param": "ATC_INPUT_TC",
+              "value": 0.1
+            }
+          ]
+        }
+      ],
+      "benefit_by_priority": {
+        "stability": 0,
+        "agility": 1,
+        "endurance": 0,
+        "efficiency": 0
+      },
+      "cost": "parameter",
+      "sources": [
+        {
+          "kind": "ardupilot",
+          "title": "ArduPilot PR 32643, AC_AttitudeControl: reduce INPUT_TC defaults (ATC_INPUT_TC 0.15 to 0.1; values already set are not rescaled)",
+          "url": "https://github.com/ArduPilot/ardupilot/pull/32643"
+        },
+        {
+          "kind": "ardupilot",
+          "title": "ArduPilot parameter ATC_INPUT_TC (4.7): 0.1 Crisp, 0.15 Medium; low numbers lead to sharper response",
+          "url": "https://ardupilot.org/copter/docs/parameters.html"
+        }
+      ]
     }
   }
 }

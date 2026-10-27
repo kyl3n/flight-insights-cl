@@ -110,6 +110,28 @@ def test_hover_learning_for_a_variable_payload(reg: Registry) -> None:
     assert set(asked) == {"option.question.variable_payload"}
 
 
+F32_015 = float(np.float32(0.15))  # 0.15 as the log stores it
+
+
+def test_input_tc_left_at_the_old_default_is_an_option_never_a_fix(reg: Registry) -> None:
+    """4.7 lowered ATC_INPUT_TC's default from 0.15 to 0.10 and kept stored values
+    (ArduPilot PR 32643): 0.15 on 4.7 is offered the new default, as a matter of feel."""
+    p = QUAD | SET_UP
+    answers = {"esc_firmware": "AM32", "payload": "variable"}
+
+    def found(value: float, defaults: dict[str, float] | None) -> dict[str, Finding]:
+        flight = hover_flight({}, p | {"ATC_INPUT_TC": value}, None, answers, defaults)
+        return {f.code: f for f in OPTIONS.run(flight, reg).findings}
+
+    f = found(F32_015, {"ATC_INPUT_TC": float(np.float32(0.1))})["option.input_tc_47.available"]
+    assert changes(f) == {"ATC_INPUT_TC": (F32_015, 0.1)}
+    assert f.severity == "info" and f.changes[0].stage == "feel"  # after the tune, never first
+    assert found(0.1, {"ATC_INPUT_TC": 0.1}) == {}  # already 4.7's
+    assert found(0.2, {"ATC_INPUT_TC": 0.1}) == {}  # someone's own choice
+    assert found(F32_015, {"ATC_INPUT_TC": F32_015}) == {}  # a firmware whose default it is
+    assert found(F32_015, None) == {}  # no recorded default: no telling
+
+
 def test_battery_voltage_scaling_from_cells_and_chemistry(reg: Registry) -> None:
     fp = {"cells": {"value": 6}}
     f = run(reg, {"battery_chemistry": "LiPo"}, fp, MOT_BAT_VOLT_MAX=0)

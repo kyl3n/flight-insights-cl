@@ -1408,6 +1408,24 @@
           }
         }
       ]
+    },
+    "option.input_tc_47.available": {
+      "steps": [
+        {
+          "kind": "fly",
+          "text": {
+            "en": "Fly the usual profile in AltHold or Loiter with some brisk stick inputs, and compare how it follows the sticks with the last flight.",
+            "uk": "Виконайте звичний профіль в AltHold або Loiter з кількома різкими рухами стіків і порівняйте, як апарат іде за стіками, з попереднім польотом."
+          }
+        },
+        {
+          "kind": "abort",
+          "text": {
+            "en": "If it feels twitchy on the sticks, land and load the undo file.",
+            "uk": "Якщо апарат здається смиканим на стіках, сядьте й завантажте файл скасування."
+          }
+        }
+      ]
     }
   }
 }
