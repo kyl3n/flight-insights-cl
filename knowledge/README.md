@@ -25,6 +25,7 @@ Versioned data the engine reads, updatable without an app release (spec: System 
 | `ai/system.md` | The system prompt of every AI exchange: what Claude is given, what it is for, and how it must cite evidence and propose changes. Static text, the same for every flight, holding nothing about any aircraft | Curated |
 | `logs/<version>.json.gz` | Every DataFlash log message a release can write, with each field's units and type: ArduPilot 4.7 writes a message's FMT only when it logs it, so no log shows them all. The location scrubber's rules are checked against these | `tools/build_log_messages.py`, which runs the release's `Tools/autotest/logger_metadata/parse.py` for Copter and Plane |
 | `rules/scrubber.json` | The location scrubber's rules for the AI path: messages that hold a position and the few fields of each that may be read, messages blocked whole, location-revealing fields and units, ambient pressure and temperature to round, and the parameters removed from every packet, each with its reason | Curated |
+| `mitigations/copter.json` | What would get a Copter home without GNSS: each mitigation with what it needs, how the engine tells it is in place, its effect on the goal check, the readiness areas and findings it closes, how the fleet measures it, its expected benefit and its limits, in English and Ukrainian; plus the GNSS-off drill. Every claim cites an ArduPilot wiki page (URL and `.rst` source at the named wiki commit) or the ArduCopter 4.7.0 source; the engine refuses a claim with no source | Curated |
 
 ## Adding a release
 

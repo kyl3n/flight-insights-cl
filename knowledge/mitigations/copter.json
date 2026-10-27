@@ -1,0 +1,1067 @@
+{
+  "about": "What would get a Copter home without GNSS (spec: Flying without GNSS, 'Recommendations and recovery'): each mitigation with what it needs, how the engine tells it is in place, its effect on the goal check, the readiness areas and findings it closes, how the fleet measures it, its expected benefit, its limits and its sources. Every claim cites the ArduPilot wiki page (its public URL and its .rst source at the commit below) or the ArduCopter 4.7.0 source file it rests on; a claim with no source is left out. The engine ranks them (engine/src/flight_insights/mitigations.py): those that make the fleet goal reachable first; then by the benefit the fleet measured (hold with and without), else by the expected level in the order of 'levels' below; then the cheapest work left, in the order of 'kinds'. SLAM and visual odometry both reach the estimator as external navigation, which the logs cannot tell apart, so a measurement on external navigation ranks visual odometry only. 'levels' runs from what helps most once GNSS is lost to what helps least: keeping a position the aircraft can fly on, buying time on the wind estimate, keeping the heading, letting a pilot take over, and making a loss (or a bad fix after it) less likely, which does not help once GNSS is gone.",
+  "version": 1,
+  "wiki": {
+    "repository": "https://github.com/ArduPilot/ardupilot_wiki",
+    "commit": "23c3dcd846a92aefe7eaf584f222d8bec91fb095"
+  },
+  "firmware": {
+    "repository": "https://github.com/ArduPilot/ardupilot",
+    "tag": "Copter-4.7.0",
+    "commit": "1511f27194f1dcc3728270883047bdf022b3fd53"
+  },
+  "kinds": [
+    "settings",
+    "calibration",
+    "hardware",
+    "companion_computer",
+    "research"
+  ],
+  "levels": [
+    "keeps_position",
+    "buys_time",
+    "keeps_heading",
+    "pilot_control",
+    "fewer_losses"
+  ],
+  "bounds": [
+    "relative_position",
+    "hold_time",
+    "drift",
+    "heading",
+    "pilot_control",
+    "loss_likelihood",
+    "bad_fix_on_return"
+  ],
+  "sources": {
+    "non_gps_to_gps": {
+      "title": "GPS / Non-GPS Transitions",
+      "url": "https://ardupilot.org/copter/docs/common-non-gps-to-gps.html",
+      "path": "common/source/docs/common-non-gps-to-gps.rst"
+    },
+    "ekf_sources": {
+      "title": "EKF Source Selection and Switching",
+      "url": "https://ardupilot.org/copter/docs/common-ekf-sources.html",
+      "path": "common/source/docs/common-ekf-sources.rst"
+    },
+    "non_gps_navigation": {
+      "title": "Non-GPS Navigation",
+      "url": "https://ardupilot.org/copter/docs/common-non-gps-navigation-landing-page.html",
+      "path": "common/source/docs/common-non-gps-navigation-landing-page.rst"
+    },
+    "optical_flow_setup": {
+      "title": "Optical Flow Sensor Testing and Setup",
+      "url": "https://ardupilot.org/copter/docs/common-optical-flow-sensor-setup.html",
+      "path": "common/source/docs/common-optical-flow-sensor-setup.rst"
+    },
+    "optical_flow_sensors": {
+      "title": "Optical Flow Sensors",
+      "url": "https://ardupilot.org/copter/docs/common-optical-flow-sensors-landingpage.html",
+      "path": "common/source/docs/common-optical-flow-sensors-landingpage.rst"
+    },
+    "t265": {
+      "title": "Intel RealSense T265",
+      "url": "https://ardupilot.org/copter/docs/common-vio-tracking-camera.html",
+      "path": "common/source/docs/common-vio-tracking-camera.rst"
+    },
+    "voxl": {
+      "title": "ModalAI VOXL",
+      "url": "https://ardupilot.org/copter/docs/common-modalai-voxl.html",
+      "path": "common/source/docs/common-modalai-voxl.rst"
+    },
+    "zed": {
+      "title": "ZED stereo camera for Non-GPS Navigation",
+      "url": "https://ardupilot.org/copter/docs/common-zed.html",
+      "path": "common/source/docs/common-zed.rst"
+    },
+    "cartographer": {
+      "title": "Cartographer SLAM for Non-GPS Navigation (developer wiki)",
+      "url": "https://ardupilot.org/dev/docs/ros-cartographer-slam.html",
+      "path": "dev/source/docs/ros-cartographer-slam.rst"
+    },
+    "hector_slam": {
+      "title": "ROS and Hector SLAM for Non-GPS Navigation (developer wiki)",
+      "url": "https://ardupilot.org/dev/docs/ros-slam.html",
+      "path": "dev/source/docs/ros-slam.rst"
+    },
+    "wind_estimation": {
+      "title": "Windspeed Estimation and Baro Compensation",
+      "url": "https://ardupilot.org/copter/docs/airspeed-estimation.html",
+      "path": "copter/source/docs/airspeed-estimation.rst"
+    },
+    "dead_reckoning_failsafe": {
+      "title": "Dead Reckoning Failsafe",
+      "url": "https://ardupilot.org/copter/docs/deadreckoning-failsafe.html",
+      "path": "copter/source/docs/deadreckoning-failsafe.rst"
+    },
+    "gps_blending": {
+      "title": "GPS Blending (aka Dual GPS)",
+      "url": "https://ardupilot.org/copter/docs/common-gps-blending.html",
+      "path": "common/source/docs/common-gps-blending.rst"
+    },
+    "positioning": {
+      "title": "GPS/Compass (landing page): GPS Auto Switch, GPS Jamming Mediation",
+      "url": "https://ardupilot.org/copter/docs/common-positioning-landing-page.html",
+      "path": "common/source/docs/common-positioning-landing-page.rst"
+    },
+    "gps_module": {
+      "title": "UBlox GPS + Compass Module: mounting the GPS module",
+      "url": "https://ardupilot.org/copter/docs/common-installing-3dr-ublox-gps-compass-module.html",
+      "path": "common/source/docs/common-installing-3dr-ublox-gps-compass-module.rst"
+    },
+    "location_one": {
+      "title": "mRobotics Location One DroneCAN GPS",
+      "url": "https://ardupilot.org/copter/docs/common-mrobotics-location-one-gps.html",
+      "path": "common/source/docs/common-mrobotics-location-one-gps.rst"
+    },
+    "magnetic_interference": {
+      "title": "Magnetic Interference",
+      "url": "https://ardupilot.org/copter/docs/common-magnetic-interference.html",
+      "path": "common/source/docs/common-magnetic-interference.rst"
+    },
+    "compass_advanced": {
+      "title": "Advanced Compass Setup: CompassMot",
+      "url": "https://ardupilot.org/copter/docs/common-compass-setup-advanced.html",
+      "path": "common/source/docs/common-compass-setup-advanced.rst"
+    },
+    "aux_functions": {
+      "title": "Auxiliary Functions",
+      "url": "https://ardupilot.org/copter/docs/common-auxiliary-functions.html",
+      "path": "common/source/docs/common-auxiliary-functions.rst"
+    },
+    "flight_modes": {
+      "title": "Flight Modes: GPS Dependency",
+      "url": "https://ardupilot.org/copter/docs/flight-modes.html",
+      "path": "copter/source/docs/flight-modes.rst"
+    },
+    "fs_dr_params": {
+      "title": "FS_DR_ENABLE (default RTL) and FS_DR_TIMEOUT (default 30 s), ArduCopter 4.7.0",
+      "url": "https://github.com/ArduPilot/ardupilot/blob/Copter-4.7.0/ArduCopter/Parameters.cpp#L890-L902",
+      "path": "ArduCopter/Parameters.cpp",
+      "lines": "890-902"
+    },
+    "drag_params": {
+      "title": "EK3_DRAG_BCOEF_X, EK3_DRAG_BCOEF_Y and EK3_DRAG_MCOEF, ArduPilot 4.7.0",
+      "url": "https://github.com/ArduPilot/ardupilot/blob/Copter-4.7.0/libraries/AP_NavEKF3/AP_NavEKF3.cpp#L665-L697",
+      "path": "libraries/AP_NavEKF3/AP_NavEKF3.cpp",
+      "lines": "665-697"
+    },
+    "drag_feature": {
+      "title": "EK3_FEATURE_DRAG_FUSION: only in builds over 1 MB, ArduPilot 4.7.0",
+      "url": "https://github.com/ArduPilot/ardupilot/blob/Copter-4.7.0/libraries/AP_NavEKF3/AP_NavEKF3_feature.h#L27-L28",
+      "path": "libraries/AP_NavEKF3/AP_NavEKF3_feature.h",
+      "lines": "27-28"
+    },
+    "flow_use": {
+      "title": "EK3_FLOW_USE, ArduPilot 4.7.0",
+      "url": "https://github.com/ArduPilot/ardupilot/blob/Copter-4.7.0/libraries/AP_NavEKF3/AP_NavEKF3.cpp#L586-L592",
+      "path": "libraries/AP_NavEKF3/AP_NavEKF3.cpp",
+      "lines": "586-592"
+    },
+    "ek3_options": {
+      "title": "EK3_OPTIONS bit 0, JammingExpected, ArduPilot 4.7.0",
+      "url": "https://github.com/ArduPilot/ardupilot/blob/Copter-4.7.0/libraries/AP_NavEKF3/AP_NavEKF3.cpp#L740-L745",
+      "path": "libraries/AP_NavEKF3/AP_NavEKF3.cpp",
+      "lines": "740-745"
+    },
+    "ekf_source_params": {
+      "title": "EK3_SRCn_POSXY, VELXY, POSZ, VELZ and YAW values, ArduPilot 4.7.0",
+      "url": "https://github.com/ArduPilot/ardupilot/blob/Copter-4.7.0/libraries/AP_NavEKF/AP_NavEKF_Source.cpp#L27-L60",
+      "path": "libraries/AP_NavEKF/AP_NavEKF_Source.cpp",
+      "lines": "27-60"
+    },
+    "viso_type": {
+      "title": "VISO_TYPE, ArduPilot 4.7.0",
+      "url": "https://github.com/ArduPilot/ardupilot/blob/Copter-4.7.0/libraries/AP_VisualOdom/AP_VisualOdom.cpp#L31-L36",
+      "path": "libraries/AP_VisualOdom/AP_VisualOdom.cpp",
+      "lines": "31-36"
+    },
+    "gps_auto_switch": {
+      "title": "GPS_AUTO_SWITCH, ArduPilot 4.7.0",
+      "url": "https://github.com/ArduPilot/ardupilot/blob/Copter-4.7.0/libraries/AP_GPS/AP_GPS.cpp#L149-L153",
+      "path": "libraries/AP_GPS/AP_GPS.cpp",
+      "lines": "149-153"
+    },
+    "aux_codes": {
+      "title": "Aux functions GPS_DISABLE (65) and EKF_SOURCE_SET (90), ArduPilot 4.7.0",
+      "url": "https://github.com/ArduPilot/ardupilot/blob/Copter-4.7.0/libraries/RC_Channel/RC_Channel.h#L224-L258",
+      "path": "libraries/RC_Channel/RC_Channel.h",
+      "lines": "224, 258"
+    },
+    "lua_optflow": {
+      "title": "ahrs-source-gps-optflow.lua, ArduPilot 4.7.0",
+      "url": "https://github.com/ArduPilot/ardupilot/blob/Copter-4.7.0/libraries/AP_Scripting/examples/ahrs-source-gps-optflow.lua",
+      "path": "libraries/AP_Scripting/examples/ahrs-source-gps-optflow.lua",
+      "lines": "1-30"
+    },
+    "althold": {
+      "title": "Altitude Hold Mode",
+      "url": "https://ardupilot.org/copter/docs/altholdmode.html",
+      "path": "copter/source/docs/altholdmode.rst"
+    },
+    "mode_numbers": {
+      "title": "Copter flight-mode numbers (STABILIZE 0, ALT_HOLD 2) and aux function ALTHOLD 70, ArduCopter 4.7.0",
+      "url": "https://github.com/ArduPilot/ardupilot/blob/Copter-4.7.0/ArduCopter/mode.h#L77-L80",
+      "path": "ArduCopter/mode.h; libraries/RC_Channel/RC_Channel.h",
+      "lines": "mode.h 77-80; RC_Channel.h 232"
+    }
+  },
+  "mitigations": [
+    {
+      "id": "drag_fusion",
+      "kind": "calibration",
+      "grade": "documented",
+      "title": {
+        "en": "Calibrate drag fusion and let the dead-reckoning failsafe act",
+        "uk": "Відкалібрувати злиття аеродинамічного опору й дати спрацювати аварійному режиму навігації за рахунком"
+      },
+      "for_goal": {
+        "text": {
+          "en": "When GNSS goes, the estimator knows the wind and flies on it for a short time, and the dead-reckoning failsafe can start the return home (RTL) at once. It buys time; it does not keep a position.",
+          "uk": "Коли GNSS зникає, оцінювач знає вітер і короткий час летить за ним, а аварійний режим навігації за рахунком одразу починає повернення додому (RTL). Це дає час, але не утримує позицію."
+        },
+        "sources": [
+          "dead_reckoning_failsafe",
+          "wind_estimation"
+        ]
+      },
+      "needs": [
+        {
+          "text": {
+            "en": "Weigh the aircraft with its battery and measure its frontal and side areas: EK3_DRAG_BCOEF_X and EK3_DRAG_BCOEF_Y are the mass in kg over each area in square metres.",
+            "uk": "Зважте апарат з акумулятором і виміряйте фронтальну й бічну площі: EK3_DRAG_BCOEF_X та EK3_DRAG_BCOEF_Y — маса в кг, поділена на кожну площу в квадратних метрах."
+          },
+          "sources": [
+            "wind_estimation",
+            "drag_params"
+          ]
+        },
+        {
+          "text": {
+            "en": "A drag test flight in low wind over a wide open space gives EK3_DRAG_MCOEF, normally 0.1 to 1.0.",
+            "uk": "Тестовий політ на опір у слабкий вітер над широкою відкритою ділянкою дає EK3_DRAG_MCOEF, зазвичай 0,1–1,0."
+          },
+          "sources": [
+            "wind_estimation"
+          ]
+        },
+        {
+          "text": {
+            "en": "FS_DR_ENABLE set to an action, such as RTL (the firmware's default), and FS_DR_TIMEOUT to the seconds the aircraft can keep control without GPS.",
+            "uk": "FS_DR_ENABLE — дія, як-от RTL (типове значення прошивки), а FS_DR_TIMEOUT — скільки секунд апарат зберігає керованість без GPS."
+          },
+          "sources": [
+            "dead_reckoning_failsafe",
+            "fs_dr_params"
+          ]
+        }
+      ],
+      "check": {
+        "kind": "drag_fusion"
+      },
+      "effect": {
+        "dead_reckons": true,
+        "params": {
+          "FS_DR_ENABLE": 2
+        }
+      },
+      "effect_sources": [
+        "fs_dr_params"
+      ],
+      "measure": {
+        "kind": "drag_fusion"
+      },
+      "closes": {
+        "areas": [
+          "wind",
+          "failsafes"
+        ],
+        "findings": [
+          {
+            "code": "no_gnss.drag_fusion_off"
+          },
+          {
+            "code": "params.dead_reckoning_failsafe_off"
+          }
+        ]
+      },
+      "bounds": [
+        "hold_time"
+      ],
+      "expected": {
+        "level": "buys_time",
+        "text": {
+          "en": "The wiki says to set FS_DR_TIMEOUT to the seconds the vehicle can keep control after losing GPS: on most vehicles only 10 to 30 seconds.",
+          "uk": "Вікі радить задати FS_DR_TIMEOUT як кількість секунд, протягом яких апарат зберігає керованість після втрати GPS: на більшості апаратів лише 10–30 секунд."
+        },
+        "sources": [
+          "dead_reckoning_failsafe"
+        ]
+      },
+      "limits": [
+        {
+          "text": {
+            "en": "It does not reach home by itself: if the aircraft is not home within FS_DR_TIMEOUT, the EKF failsafe acts and it lands; it stays in RTL even if GPS comes back.",
+            "uk": "Сам додому не доводить: якщо апарат не долетів за FS_DR_TIMEOUT, спрацьовує аварійний режим EKF і він сідає; навіть якщо GPS повернеться, апарат лишається в RTL."
+          },
+          "sources": [
+            "dead_reckoning_failsafe",
+            "fs_dr_params"
+          ]
+        },
+        {
+          "text": {
+            "en": "Dead reckoning relies only on the wind estimate, and low-cost IMUs drift too quickly to estimate a position on their own.",
+            "uk": "Навігація за рахунком спирається лише на оцінку вітру, а дешеві інерційні датчики надто швидко дрейфують, щоб самі оцінювати позицію."
+          },
+          "sources": [
+            "fs_dr_params",
+            "non_gps_navigation"
+          ]
+        },
+        {
+          "text": {
+            "en": "Drag fusion is for multirotors, and builds for boards with 1 MB of flash leave it out.",
+            "uk": "Злиття опору призначене для мультироторів, і збірки для плат з 1 МБ флеш-пам'яті його не мають."
+          },
+          "sources": [
+            "drag_params",
+            "drag_feature"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "optical_flow",
+      "kind": "hardware",
+      "grade": "documented",
+      "title": {
+        "en": "Optical flow with a downward rangefinder",
+        "uk": "Оптичний потік із далекоміром, спрямованим униз"
+      },
+      "for_goal": {
+        "text": {
+          "en": "Velocity over the ground without GNSS, so the estimator keeps a relative position and Loiter and RTL keep working. In source set 1, beside GNSS, nobody has to change to it; in another set the pilot changes to it, or a Lua script does.",
+          "uk": "Швидкість відносно землі без GNSS: оцінювач зберігає відносну позицію, і Loiter та RTL працюють далі. У наборі джерел 1, поряд із GNSS, на нього не треба перемикатися; в іншому наборі на нього перемикає пілот або Lua-скрипт."
+        },
+        "sources": [
+          "optical_flow_setup",
+          "non_gps_to_gps",
+          "non_gps_navigation"
+        ]
+      },
+      "needs": [
+        {
+          "text": {
+            "en": "An optical flow sensor (FLOW_TYPE) and a downward rangefinder (RNGFNDn_TYPE), tested and calibrated (FLOW_FXSCALER and FLOW_FYSCALER, in flight with aux function 158).",
+            "uk": "Датчик оптичного потоку (FLOW_TYPE) і далекомір, спрямований униз (RNGFNDn_TYPE), перевірені й відкалібровані (FLOW_FXSCALER і FLOW_FYSCALER, у польоті з допоміжною функцією 158)."
+          },
+          "sources": [
+            "optical_flow_setup"
+          ]
+        },
+        {
+          "text": {
+            "en": "EK3_FLOW_USE 1 (navigation) and a source set with EK3_SRCn_VELXY 5 (optical flow): set 1 keeps EK3_SRC1_POSXY 3 (GPS) beside it, a second set has EK3_SRC2_POSXY 0.",
+            "uk": "EK3_FLOW_USE 1 (навігація) і набір джерел з EK3_SRCn_VELXY 5 (оптичний потік): у наборі 1 поряд лишається EK3_SRC1_POSXY 3 (GPS), у другому наборі EK3_SRC2_POSXY 0."
+          },
+          "sources": [
+            "optical_flow_setup",
+            "flow_use",
+            "ekf_source_params"
+          ]
+        },
+        {
+          "text": {
+            "en": "For a second set, a 3-position switch with aux function 90 (EKF source set), or ahrs-source-gps-optflow.lua to change sets on GPS speed accuracy and flow quality.",
+            "uk": "Для другого набору — 3-позиційний перемикач з допоміжною функцією 90 (набір джерел EKF) або ahrs-source-gps-optflow.lua, що змінює набори за точністю швидкості GPS і якістю потоку."
+          },
+          "sources": [
+            "non_gps_to_gps",
+            "aux_functions",
+            "aux_codes",
+            "lua_optflow"
+          ]
+        }
+      ],
+      "check": {
+        "kind": "source",
+        "sensor": "optical_flow"
+      },
+      "effect": {
+        "keeps_position": true
+      },
+      "effect_sources": [
+        "optical_flow_setup"
+      ],
+      "measure": {
+        "kind": "source",
+        "sensor": "optical_flow"
+      },
+      "closes": {
+        "areas": [
+          "position",
+          "switching"
+        ],
+        "findings": [
+          {
+            "code": "no_gnss.source_not_fitted",
+            "missing_any": [
+              "FLOW_TYPE",
+              "RNGFND",
+              "EK3_FLOW_USE"
+            ]
+          },
+          {
+            "code": "no_gnss.no_source_switch",
+            "set_uses": "optical_flow"
+          },
+          {
+            "code": "params.no_gnss_fallback"
+          }
+        ]
+      },
+      "bounds": [
+        "relative_position",
+        "drift"
+      ],
+      "expected": {
+        "level": "keeps_position",
+        "text": {
+          "en": "The wiki's non-GPS position sources let the autonomous and semi-autonomous modes work as they would with a GPS.",
+          "uk": "За вікі джерела позиції без GPS дають змогу автономним і напівавтономним режимам працювати так, як із GPS."
+        },
+        "sources": [
+          "non_gps_navigation"
+        ]
+      },
+      "limits": [
+        {
+          "text": {
+            "en": "It reads ground texture and visible features: it needs a textured surface and good light.",
+            "uk": "Він зчитує текстуру й видимі деталі поверхні: потрібні текстурована поверхня й добре освітлення."
+          },
+          "sources": [
+            "optical_flow_sensors",
+            "optical_flow_setup"
+          ]
+        },
+        {
+          "text": {
+            "en": "With flow as the only horizontal source, Loiter and PosHold will not climb above the rangefinder's maximum (RNGFNDn_MAX).",
+            "uk": "Коли потік — єдине горизонтальне джерело, Loiter і PosHold не піднімаються вище за максимум далекоміра (RNGFNDn_MAX)."
+          },
+          "sources": [
+            "optical_flow_setup"
+          ]
+        },
+        {
+          "text": {
+            "en": "In a second source set someone has to change to it: the pilot's aux function 90 switch, or a Lua script that switches on sensor quality.",
+            "uk": "На другий набір джерел хтось має перемкнутися: пілот перемикачем з допоміжною функцією 90 або Lua-скрипт, що перемикає за якістю датчиків."
+          },
+          "sources": [
+            "non_gps_to_gps",
+            "lua_optflow"
+          ]
+        },
+        {
+          "text": {
+            "en": "Boards with 1 MB of flash or less leave out many non-GPS features; the wiki recommends an H7 autopilot.",
+            "uk": "Плати з 1 МБ флеш-пам'яті або менше не мають багатьох функцій навігації без GPS; вікі радить автопілот на H7."
+          },
+          "sources": [
+            "non_gps_navigation"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "visual_odometry",
+      "kind": "companion_computer",
+      "grade": "documented",
+      "title": {
+        "en": "Visual odometry from a camera and a companion computer",
+        "uk": "Візуальна одометрія з камери та бортового комп'ютера"
+      },
+      "for_goal": {
+        "text": {
+          "en": "A tracking camera with a companion computer (Intel RealSense T265, ModalAI VOXL, a ZED stereo camera) sends ArduPilot its position and velocity as external navigation, as a substitute for GPS: Loiter, PosHold, RTL and Auto keep working.",
+          "uk": "Камера відстеження з бортовим комп'ютером (Intel RealSense T265, ModalAI VOXL, стереокамера ZED) передає ArduPilot свою позицію й швидкість як зовнішню навігацію замість GPS: Loiter, PosHold, RTL і Auto працюють далі."
+        },
+        "sources": [
+          "t265",
+          "voxl",
+          "zed"
+        ]
+      },
+      "needs": [
+        {
+          "text": {
+            "en": "A companion computer and camera on a MAVLink serial port, and VISO_TYPE for it (1 MAVLink, 2 Intel T265, 3 ModalAI VOXL).",
+            "uk": "Бортовий комп'ютер і камера на послідовному порту MAVLink та VISO_TYPE для них (1 MAVLink, 2 Intel T265, 3 ModalAI VOXL)."
+          },
+          "sources": [
+            "t265",
+            "voxl",
+            "zed",
+            "viso_type"
+          ]
+        },
+        {
+          "text": {
+            "en": "A source set with EK3_SRCn_POSXY and EK3_SRCn_VELXY 6 (external navigation): set 1 when it replaces GPS, or set 2 beside GPS on set 1, chosen with a 3-position aux function 90 switch.",
+            "uk": "Набір джерел з EK3_SRCn_POSXY та EK3_SRCn_VELXY 6 (зовнішня навігація): набір 1, коли вона замінює GPS, або набір 2 поряд із GPS у наборі 1, що вибирається 3-позиційним перемикачем з допоміжною функцією 90."
+          },
+          "sources": [
+            "t265",
+            "voxl",
+            "ekf_source_params"
+          ]
+        },
+        {
+          "text": {
+            "en": "A switch with aux function 80 (Viso Align) to align the camera's yaw before take-off.",
+            "uk": "Перемикач з допоміжною функцією 80 (Viso Align), щоб вирівняти курс камери перед зльотом."
+          },
+          "sources": [
+            "t265",
+            "voxl"
+          ]
+        }
+      ],
+      "check": {
+        "kind": "source",
+        "sensor": "external_nav"
+      },
+      "effect": {
+        "keeps_position": true
+      },
+      "effect_sources": [
+        "t265",
+        "voxl"
+      ],
+      "measure": {
+        "kind": "source",
+        "sensor": "external_nav"
+      },
+      "closes": {
+        "areas": [
+          "position",
+          "switching"
+        ],
+        "findings": [
+          {
+            "code": "no_gnss.source_not_fitted",
+            "missing_any": [
+              "VISO_TYPE"
+            ]
+          },
+          {
+            "code": "no_gnss.no_source_switch",
+            "set_uses": "external_nav"
+          },
+          {
+            "code": "params.no_gnss_fallback"
+          }
+        ]
+      },
+      "bounds": [
+        "relative_position",
+        "drift"
+      ],
+      "expected": {
+        "level": "keeps_position",
+        "text": {
+          "en": "The wiki's setup pages describe it as a substitute for a GPS that lets Loiter, PosHold, RTL and Auto work.",
+          "uk": "Сторінки налаштування у вікі описують її як заміну GPS, з якою працюють Loiter, PosHold, RTL і Auto."
+        },
+        "sources": [
+          "t265",
+          "voxl"
+        ]
+      },
+      "limits": [
+        {
+          "text": {
+            "en": "Tracking can be lost where there are too few visual features, or with fast or rotating movement; if external navigation data is lost, the T265 page says to reboot the autopilot.",
+            "uk": "Відстеження може загубитися, де замало видимих деталей, або при швидкому чи обертальному русі; якщо дані зовнішньої навігації втрачено, сторінка T265 радить перезавантажити автопілот."
+          },
+          "sources": [
+            "t265"
+          ]
+        },
+        {
+          "text": {
+            "en": "Without re-aligning the camera's yaw before take-off, position control may be lost ('toilet bowling').",
+            "uk": "Якщо не вирівняти курс камери перед зльотом, можна втратити керування позицією (кружляння, «toilet bowling»)."
+          },
+          "sources": [
+            "t265",
+            "voxl"
+          ]
+        },
+        {
+          "text": {
+            "en": "In a second source set the pilot changes to it with the aux function 90 switch.",
+            "uk": "На другий набір джерел пілот перемикається перемикачем з допоміжною функцією 90."
+          },
+          "sources": [
+            "voxl",
+            "non_gps_to_gps"
+          ]
+        },
+        {
+          "text": {
+            "en": "Boards with 1 MB of flash or less leave out many non-GPS features; the wiki recommends an H7 autopilot.",
+            "uk": "Плати з 1 МБ флеш-пам'яті або менше не мають багатьох функцій навігації без GPS; вікі радить автопілот на H7."
+          },
+          "sources": [
+            "non_gps_navigation"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "slam",
+      "kind": "research",
+      "grade": "research",
+      "title": {
+        "en": "SLAM navigation from a lidar and ROS",
+        "uk": "Навігація SLAM з лідара та ROS"
+      },
+      "for_goal": {
+        "text": {
+          "en": "A companion computer running ROS with Google Cartographer or Hector SLAM builds a map from a lidar and gives ArduPilot a local position as external navigation, so that it can fly without a GPS.",
+          "uk": "Бортовий комп'ютер з ROS і Google Cartographer або Hector SLAM будує карту з лідара й передає ArduPilot локальну позицію як зовнішню навігацію, щоб апарат міг літати без GPS."
+        },
+        "sources": [
+          "cartographer",
+          "hector_slam"
+        ]
+      },
+      "needs": [
+        {
+          "text": {
+            "en": "A lidar (the wiki uses an RPLidar A2) and a companion computer with ROS and MAVROS.",
+            "uk": "Лідар (у вікі — RPLidar A2) і бортовий комп'ютер з ROS і MAVROS."
+          },
+          "sources": [
+            "cartographer",
+            "hector_slam"
+          ]
+        },
+        {
+          "text": {
+            "en": "VISO_TYPE 1 and source set 1 on external navigation (EK3_SRC1_POSXY, VELXY, VELZ and YAW 6), with the EKF origin set from the ground station.",
+            "uk": "VISO_TYPE 1 і набір джерел 1 на зовнішній навігації (EK3_SRC1_POSXY, VELXY, VELZ і YAW 6), з початком координат EKF, заданим з наземної станції."
+          },
+          "sources": [
+            "cartographer"
+          ]
+        }
+      ],
+      "check": {
+        "kind": "source",
+        "sensor": "external_nav"
+      },
+      "effect": {
+        "keeps_position": true
+      },
+      "effect_sources": [
+        "cartographer"
+      ],
+      "measure": null,
+      "closes": {
+        "areas": [
+          "position",
+          "switching"
+        ],
+        "findings": [
+          {
+            "code": "no_gnss.source_not_fitted",
+            "missing_any": [
+              "VISO_TYPE"
+            ]
+          },
+          {
+            "code": "no_gnss.no_source_switch",
+            "set_uses": "external_nav"
+          },
+          {
+            "code": "params.no_gnss_fallback"
+          }
+        ]
+      },
+      "bounds": [
+        "relative_position"
+      ],
+      "expected": {
+        "level": "keeps_position",
+        "text": {
+          "en": "The developer wiki shows it giving ArduPilot a local position estimate so that it can operate without a GPS.",
+          "uk": "Вікі для розробників показує, що вона дає ArduPilot локальну оцінку позиції, щоб він міг працювати без GPS."
+        },
+        "sources": [
+          "cartographer",
+          "hector_slam"
+        ]
+      },
+      "limits": [
+        {
+          "text": {
+            "en": "The wiki lists it for developers only, and its pages are marked as a work in progress.",
+            "uk": "Вікі подає її лише для розробників, а її сторінки позначено як незавершені."
+          },
+          "sources": [
+            "non_gps_navigation",
+            "cartographer",
+            "hector_slam"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "pilot_fallback",
+      "kind": "settings",
+      "grade": "documented",
+      "title": {
+        "en": "AltHold on a switch, to fly it home by hand",
+        "uk": "AltHold на перемикачі, щоб привести апарат додому вручну"
+      },
+      "for_goal": {
+        "text": {
+          "en": "With GNSS lost and the radio working, the pilot takes over in a mode that needs no position and flies home on a heading.",
+          "uk": "Коли GNSS втрачено, а радіо працює, пілот перебирає керування в режимі, якому не потрібна позиція, і летить додому за курсом."
+        },
+        "sources": [
+          "flight_modes",
+          "althold"
+        ]
+      },
+      "needs": [
+        {
+          "text": {
+            "en": "AltHold (or Stabilize) on a flight-mode switch position (FLTMODEn 2) or on an aux switch (function 70).",
+            "uk": "AltHold (або Stabilize) на положенні перемикача режимів (FLTMODEn 2) або на допоміжному перемикачі (функція 70)."
+          },
+          "sources": [
+            "flight_modes",
+            "aux_functions",
+            "mode_numbers"
+          ]
+        }
+      ],
+      "check": {
+        "kind": "pilot_fallback"
+      },
+      "effect": {},
+      "effect_sources": [],
+      "measure": null,
+      "closes": {
+        "areas": [
+          "pilot_fallback"
+        ],
+        "findings": [
+          {
+            "code": "no_gnss.no_pilot_fallback"
+          }
+        ]
+      },
+      "bounds": [
+        "pilot_control"
+      ],
+      "expected": {
+        "level": "pilot_control",
+        "text": {
+          "en": "AltHold, Stabilize, Acro and Sport need no position information.",
+          "uk": "AltHold, Stabilize, Acro і Sport не потребують даних про позицію."
+        },
+        "sources": [
+          "flight_modes"
+        ]
+      },
+      "limits": []
+    },
+    {
+      "id": "compass",
+      "kind": "hardware",
+      "grade": "documented",
+      "title": {
+        "en": "A compass away from the power wiring, with CompassMot",
+        "uk": "Компас подалі від силових проводів і CompassMot"
+      },
+      "for_goal": {
+        "text": {
+          "en": "A compass heading (EK3_SRCn_YAW 1, or 3, GPS with compass fallback) does not depend on GNSS; magnetic interference makes Loiter, RTL and Auto circle ('toilet bowling').",
+          "uk": "Курс від компаса (EK3_SRCn_YAW 1 або 3 — GPS із резервом на компас) не залежить від GNSS; магнітні завади змушують Loiter, RTL і Auto кружляти («toilet bowling»)."
+        },
+        "sources": [
+          "ekf_sources",
+          "magnetic_interference"
+        ]
+      },
+      "needs": [
+        {
+          "text": {
+            "en": "An external compass on a mast, up and away from the power distribution board, ESCs and battery wires, with the wires between them short and twisted.",
+            "uk": "Зовнішній компас на щоглі, вище й подалі від плати розподілу живлення, регуляторів і проводів акумулятора, з короткими скрученими проводами між ними."
+          },
+          "sources": [
+            "magnetic_interference"
+          ]
+        },
+        {
+          "text": {
+            "en": "CompassMot with a battery current monitor: under 30% interference is acceptable, 31 to 60% may be, above 60% move the autopilot or fit an external compass.",
+            "uk": "CompassMot з датчиком струму акумулятора: завади до 30% прийнятні, 31–60% — можливо, понад 60% — перемістіть автопілот або встановіть зовнішній компас."
+          },
+          "sources": [
+            "compass_advanced"
+          ]
+        },
+        {
+          "text": {
+            "en": "Every source set's yaw on the compass (EK3_SRCn_YAW 1), or 3 where GNSS gives the heading.",
+            "uk": "Курс кожного набору джерел — від компаса (EK3_SRCn_YAW 1) або 3, коли курс дає GNSS."
+          },
+          "sources": [
+            "ekf_sources",
+            "ekf_source_params"
+          ]
+        }
+      ],
+      "check": {
+        "kind": "compass"
+      },
+      "effect": {},
+      "effect_sources": [],
+      "measure": null,
+      "closes": {
+        "areas": [
+          "heading"
+        ],
+        "findings": [
+          {
+            "code": "no_gnss.heading_needs_gnss"
+          },
+          {
+            "code": "params.compassmot_not_done"
+          }
+        ]
+      },
+      "bounds": [
+        "heading"
+      ],
+      "expected": {
+        "level": "keeps_heading",
+        "text": {
+          "en": "With interference under 30% the wiki expects good Loiter, RTL and Auto performance.",
+          "uk": "За завад до 30% вікі очікує доброї роботи Loiter, RTL і Auto."
+        },
+        "sources": [
+          "compass_advanced"
+        ]
+      },
+      "limits": [
+        {
+          "text": {
+            "en": "CompassMot works well only with a battery current monitor, as the interference is linear with the current drawn.",
+            "uk": "CompassMot добре працює лише з датчиком струму акумулятора, бо завади лінійно залежать від споживаного струму."
+          },
+          "sources": [
+            "compass_advanced"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "jamming_expected",
+      "kind": "settings",
+      "grade": "documented",
+      "title": {
+        "en": "Tell the estimator to expect jamming (EK3_OPTIONS bit 0)",
+        "uk": "Налаштувати оцінювач на очікуване глушіння (EK3_OPTIONS, біт 0)"
+      },
+      "for_goal": {
+        "text": {
+          "en": "Once GPS lock has been lost for more than 2 seconds, the estimator uses GNSS again only after its pre-flight GPS checks pass, so a corrupt fix after jamming is not taken at once.",
+          "uk": "Коли фіксацію GPS втрачено більш ніж на 2 секунди, оцінювач знову бере GNSS лише після проходження передпольотних перевірок GPS, тож пошкоджену фіксацію після глушіння не буде прийнято одразу."
+        },
+        "sources": [
+          "positioning",
+          "ek3_options"
+        ]
+      },
+      "needs": [
+        {
+          "text": {
+            "en": "EK3_OPTIONS bit 0 (JammingExpected); the checks are EK3_GPS_CHECK and EK3_CHECK_SCALE.",
+            "uk": "EK3_OPTIONS, біт 0 (JammingExpected); перевірки задають EK3_GPS_CHECK і EK3_CHECK_SCALE."
+          },
+          "sources": [
+            "positioning",
+            "ek3_options"
+          ]
+        }
+      ],
+      "check": {
+        "kind": "bit",
+        "param": "EK3_OPTIONS",
+        "bit": 0
+      },
+      "effect": {},
+      "effect_sources": [],
+      "measure": null,
+      "closes": {
+        "areas": [],
+        "findings": []
+      },
+      "bounds": [
+        "bad_fix_on_return"
+      ],
+      "expected": {
+        "level": "fewer_losses",
+        "text": {
+          "en": "It keeps bad GPS data from being used, which the estimator would otherwise take as soon as the receiver locks again.",
+          "uk": "Це не дає використати хибні дані GPS, які оцінювач інакше взяв би, щойно приймач знову зафіксується."
+        },
+        "sources": [
+          "positioning"
+        ]
+      },
+      "limits": [
+        {
+          "text": {
+            "en": "It acts only when dead reckoning navigation is possible.",
+            "uk": "Діє лише тоді, коли можлива навігація за рахунком."
+          },
+          "sources": [
+            "positioning",
+            "ek3_options"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "second_gnss",
+      "kind": "hardware",
+      "grade": "documented",
+      "title": {
+        "en": "A second GNSS receiver, mounted well",
+        "uk": "Другий GNSS-приймач, добре встановлений"
+      },
+      "for_goal": {
+        "text": {
+          "en": "Makes losing GNSS less likely: with two receivers ArduPilot uses the better one or blends them, which reduces the chance of glitches affecting the vehicle.",
+          "uk": "Зменшує ймовірність утратити GNSS: з двома приймачами ArduPilot бере кращий або змішує їх, і збої менше впливають на апарат."
+        },
+        "sources": [
+          "gps_blending",
+          "positioning"
+        ]
+      },
+      "needs": [
+        {
+          "text": {
+            "en": "The second receiver set up: GPS2_TYPE, and protocol 5 (GPS) on its serial port.",
+            "uk": "Налаштований другий приймач: GPS2_TYPE і протокол 5 (GPS) на його послідовному порту."
+          },
+          "sources": [
+            "gps_blending"
+          ]
+        },
+        {
+          "text": {
+            "en": "GPS_AUTO_SWITCH: 1 to use the best, 2 to blend (best with two identical receivers), or 4 to use the primary while it has a 3D fix (two dissimilar receivers).",
+            "uk": "GPS_AUTO_SWITCH: 1 — брати кращий, 2 — змішувати (найкраще для двох однакових приймачів), 4 — брати основний, доки він має 3D-фіксацію (два різні приймачі)."
+          },
+          "sources": [
+            "positioning",
+            "gps_auto_switch"
+          ]
+        },
+        {
+          "text": {
+            "en": "Each receiver outside the vehicle with a clear view of the sky, as far as possible from the motors and ESCs and at least 10 cm from DC power wiring and batteries; a mast is highly recommended.",
+            "uk": "Кожен приймач — зовні апарата з чистим видом на небо, якомога далі від моторів і регуляторів і щонайменше за 10 см від силових проводів постійного струму та акумуляторів; щогла дуже бажана."
+          },
+          "sources": [
+            "gps_module"
+          ]
+        },
+        {
+          "text": {
+            "en": "A patch antenna needs a proper ground plane.",
+            "uk": "Патч-антені потрібна належна площина заземлення."
+          },
+          "sources": [
+            "location_one"
+          ]
+        }
+      ],
+      "check": {
+        "kind": "second_receiver"
+      },
+      "effect": {},
+      "effect_sources": [],
+      "measure": null,
+      "closes": {
+        "areas": [],
+        "findings": [
+          {
+            "code": "params.second_gnss_unset"
+          }
+        ]
+      },
+      "bounds": [
+        "loss_likelihood"
+      ],
+      "expected": {
+        "level": "fewer_losses",
+        "text": {
+          "en": "Using two GPSes reduces the chance of glitches affecting the vehicle.",
+          "uk": "Два GPS зменшують імовірність того, що збої вплинуть на апарат."
+        },
+        "sources": [
+          "gps_blending"
+        ]
+      },
+      "limits": [
+        {
+          "text": {
+            "en": "Blending needs receivers that report their accuracy, normally two of the same make; two dissimilar receivers are switched instead (GPS_AUTO_SWITCH 4).",
+            "uk": "Для змішування потрібні приймачі, що повідомляють свою точність, зазвичай два одного виробника; між двома різними приймачами натомість перемикаються (GPS_AUTO_SWITCH 4)."
+          },
+          "sources": [
+            "gps_blending",
+            "positioning"
+          ]
+        },
+        {
+          "text": {
+            "en": "Switching picks a receiver by its fix: once both have lost theirs there is nothing to switch to, and the aircraft is as without GNSS.",
+            "uk": "Перемикання вибирає приймач за його фіксацією: коли обидва її втратили, перемикатися нема на що, і апарат летить як без GNSS."
+          },
+          "sources": [
+            "positioning",
+            "gps_auto_switch"
+          ]
+        }
+      ]
+    }
+  ],
+  "drill": {
+    "procedure": "followup.gnss_drill",
+    "about": {
+      "en": "The flight that measures hold and drift: GNSS switched off with the GPS-disable switch (aux function 65) for 30 s, on the source set the aircraft would fly on without it.",
+      "uk": "Політ, що вимірює утримання й дрейф: GNSS вимикають перемикачем вимкнення GPS (допоміжна функція 65) на 30 с на тому наборі джерел, на якому апарат летів би без нього."
+    },
+    "sources": [
+      "dead_reckoning_failsafe",
+      "aux_functions",
+      "aux_codes",
+      "non_gps_to_gps"
+    ]
+  }
+}

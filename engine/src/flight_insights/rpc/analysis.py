@@ -24,7 +24,7 @@
 | flight.tlogs | A flight's tlog sessions: each station clock against the vehicle's, and loss |
 | flight.links | A flight's links over time, and the failsafe settings for them, for display |
 | flight.tune | A flight's tune against one of its payload group's, and the plan's verdict |
-| flight.navigation | A flight's GNSS events and outages, how it coped, and its readiness |
+| flight.navigation | A flight's GNSS events, outages, coping, readiness and ranked mitigations |
 | flight.ab | Each parameter change made in flight, with the flight's two sides compared |
 | trend.revert_test | The single-change test flights that settle a shift, with what each showed |
 | trend.credits | The changes an airframe's improvements credit, each kept or since undone |
@@ -369,8 +369,8 @@ def add_analysis_methods(server: Server, state: EngineState, guarded: Callable[[
     @guarded
     def flight_navigation(_ctx: Context, params: dict[str, Any]) -> dict[str, Any]:
         """GNSS events, outages and drills with how the aircraft coped, the evidence each
-        receiver gave, and the readiness to fly without GNSS: no positions, and times in
-        seconds after arming."""
+        receiver gave, the readiness to fly without GNSS and the ranked mitigations: no
+        positions, and times in seconds after arming."""
         try:
             return navigation_view.navigation(
                 state.require_store(), state.pack, analyzers.Registry.load(state.pack),

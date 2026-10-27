@@ -2,8 +2,9 @@
   // The Navigation and GNSS tab of one flight (spec: User interface, "The Navigation and
   // GNSS view"; mock-up Navigation): the fleet goal, GNSS events with their class and
   // evidence, outages and drills, how the aircraft coped with the one picked, which
-  // evidence each receiver logged, the readiness to fly without GNSS, the setup findings
-  // that would get it home, and the airframe's recovery card in short. Every status and
+  // evidence each receiver logged, the readiness to fly without GNSS, the mitigations
+  // that would get it home, ranked, with the setup findings they answer, the GNSS-off
+  // drill, and the airframe's recovery card in short. Every status and
   // verdict is the engine's (flight.navigation, airframe.recovery_card); times are
   // seconds after arming and distances relative metres.
   import { app, t } from "../lib/app.svelte";
@@ -14,15 +15,23 @@
     CHANNELS,
     actionSteps,
     areaText,
+    benefitText,
+    canPlanDrill,
     copingText,
+    drillSteps,
     eventFacts,
     firstPick,
     goalLook,
     picked,
     receiversLabel,
     rowLabel,
+    ruleLabel,
+    sourceText,
     span,
+    statusText,
+    unanswered,
     verdictWord,
+    workLabel,
     type CopingRow,
     type Judged,
     type NavEvent,
@@ -82,12 +91,20 @@
   const lost = $derived(card?.sections.find((s) => s.id === "gnss_lost") ?? null);
   const spoof = $derived(card?.sections.find((s) => s.id === "spoofing") ?? null);
   const goalLine = $derived(card?.goal?.will.at(-1) ?? null);
+  const drill = $derived(view?.mitigations.drill ?? null);
 
   const isEvent = (x: NavEvent | Outage): x is NavEvent => "class" in x;
   const className = (e: NavEvent) => t(`nav.class.${e.class}` as MessageKey);
   const outageName = (o: Outage) => t(o.drill ? "nav.outage.drill" : "nav.outage.outage");
   const judged = (r: CopingRow) => (r.values.judged ?? []) as Judged[];
   const tone = (s: Status) => `var(${STATUS[s].tone})`;
+
+  // the drill is in the airframe's plan while none has been measured: open that plan
+  function planDrill(nav: NavigationView) {
+    if (!nav.airframe_id) return;
+    app.scope.airframe = nav.airframe_id;
+    app.view = "plan";
+  }
 
   function subtitle(x: NavEvent | Outage): string {
     const time = span(x.start_s, x.end_s, app.locale);
@@ -332,15 +349,84 @@
           <h2 id="nav-home">{t("nav.home.title")}</h2>
           <span class="faint">{t("nav.home.about")}</span>
         </div>
-        {#if !v.actions.length}
+        {#if v.mitigations.goal_now && v.mitigations.items.length}
+          <p class="faint">{t("nav.home.goalMet")}</p>
+        {/if}
+        {#if v.skipped.no_gnss_readiness}
+          <p class="faint">{t("nav.skipped", { reason: v.skipped.no_gnss_readiness })}</p>
+        {:else if !v.mitigations.items.length}
           <p class="faint">{t("nav.home.none")}</p>
-        {:else}
+        {/if}
+        {#if v.mitigations.items.length}
           <ol class="actions">
-            {#each v.actions as a, i (a.finding.id)}
+            {#each v.mitigations.items as m, i (m.id)}
+              {@const benefit = benefitText(m, app.locale)}
+              {@const state = statusText(m, v, app.locale)}
+              <li class="action mitigation" class:reaches={m.makes_goal}>
+                <div class="action-head">
+                  <span class="num mono">{i + 1}</span>
+                  <strong>{m.title[app.locale]}</strong>
+                  <span class="work">
+                    {workLabel(m.left, app.locale)}{#if m.grade === "research" && m.left !== "research"} · {t("nav.mit.research")}{/if}
+                  </span>
+                </div>
+                <div class="chips">
+                  {#if m.makes_goal}<StatusBadge status="ok" label={ruleLabel("goal", app.locale)} />{/if}
+                  <span class="chip" class:measured={m.basis === "measured"}>{ruleLabel(m.basis === "measured" && m.rule === "measured_no_gain" ? "measured_no_gain" : m.basis, app.locale)}</span>
+                </div>
+                <p><span class="lead">{t("nav.mit.forGoal")}</span> {m.for_goal[app.locale]}</p>
+                {#if m.makes_goal}<p class="faint">{t("nav.mit.reaches")}</p>{/if}
+                {#if state}<p class="state">{state}</p>{/if}
+                {#if m.closes.areas.length || m.closes.findings.length}
+                  <div class="closes">
+                    <span class="label">{t("nav.mit.closes")}</span>
+                    <ul class="plain">
+                      {#each m.closes.areas as a (a.area)}
+                        {@const look = AREA_LOOK[a.status]}
+                        <li><span style:color={tone(look.status)}>{STATUS[look.status].glyph}</span> {t(`nav.areaName.${a.area}` as MessageKey)}: {t(look.label)}</li>
+                      {/each}
+                      {#each m.closes.findings as f (f.id)}<li>■ {findingTitle(registry, f, app.locale)}</li>{/each}
+                    </ul>
+                  </div>
+                {/if}
+                <div class="benefit" class:measured={m.basis === "measured"}>
+                  <span class="label">{benefit.label}</span>
+                  <ul class="plain">{#each benefit.lines as line, j (j)}<li>{line}</li>{/each}</ul>
+                </div>
+                {#if m.limits.length}
+                  <div class="limits">
+                    <span class="label">{t("nav.mit.limits")}</span>
+                    <ul>{#each m.limits as l, j (j)}<li>{l.text[app.locale]}</li>{/each}</ul>
+                  </div>
+                {/if}
+                <details>
+                  <summary>{t("nav.mit.needs", { count: m.needs.length })}</summary>
+                  <ul class="needs">{#each m.needs as n, j (j)}<li>{n.text[app.locale]}</li>{/each}</ul>
+                </details>
+                {#if m.steps.length}
+                  <details>
+                    <summary>{t("nav.mit.steps", { count: m.steps.length })}</summary>
+                    <ProcedureSteps steps={actionSteps(m)} />
+                  </details>
+                {/if}
+                <details>
+                  <summary>{t("nav.mit.sources", { count: m.sources.length })}</summary>
+                  <ul class="sources">
+                    {#each m.sources as s (s.id)}<li><a href={s.url} target="_blank" rel="noreferrer">{sourceText(s)}</a></li>{/each}
+                  </ul>
+                </details>
+              </li>
+            {/each}
+          </ol>
+          <p class="faint">{t("nav.home.catalogue")}</p>
+        {/if}
+        {#if unanswered(v).length}
+          <h3>{t("nav.home.other")}</h3>
+          <ol class="actions">
+            {#each unanswered(v) as a (a.finding.id)}
               {@const look = severityLook(a.finding.severity)}
               <li class="action">
                 <div class="action-head">
-                  <span class="num mono">{i + 1}</span>
                   <strong>{findingTitle(registry, a.finding, app.locale)}</strong>
                   <StatusBadge status={look.status} label={t(look.label)} />
                 </div>
@@ -349,9 +435,8 @@
               </li>
             {/each}
           </ol>
-          <p class="faint">{t("nav.home.plan")}</p>
         {/if}
-        <p class="faint">{t("nav.home.catalogue")}</p>
+        {#if v.actions.length}<p class="faint">{t("nav.home.plan")}</p>{/if}
         {#if v.sources.length}
           <details>
             <summary>{t("nav.home.sources", { count: v.sources.length })}</summary>
@@ -359,6 +444,32 @@
           </details>
         {/if}
       </section>
+
+      {#if drill && !v.skipped.no_gnss_readiness}
+        <section class="panel" aria-labelledby="nav-drill">
+          <div class="head">
+            <h2 id="nav-drill">{t("nav.drill.title")}</h2>
+            <span class="faint">{drill.about[app.locale]}</span>
+          </div>
+          <p>
+            {drill.measured.length ? t("nav.drill.measured") : drill.offered ? t("nav.drill.offered") : t("nav.drill.notOffered")}
+          </p>
+          {#if canPlanDrill(v)}
+            <button type="button" class="secondary" onclick={() => planDrill(v)}>{t("nav.drill.plan")}</button>
+            <p class="faint">{t("nav.drill.planAbout")}</p>
+          {/if}
+          <details>
+            <summary>{t("nav.drill.steps", { count: drill.steps.length })}</summary>
+            <ProcedureSteps steps={drillSteps(drill)} />
+          </details>
+          <details>
+            <summary>{t("nav.drill.sources", { count: drill.sources.length })}</summary>
+            <ul class="sources">
+              {#each drill.sources as s (s.id)}<li><a href={s.url} target="_blank" rel="noreferrer">{sourceText(s)}</a></li>{/each}
+            </ul>
+          </details>
+        </section>
+      {/if}
     </div>
 
     <aside class="panel summary" aria-labelledby="nav-card">
@@ -388,7 +499,12 @@
             <ol class="steps">{#each spoof.steps as p, i (i)}<li>{p.text[app.locale]}</li>{/each}</ol>
           </div>
         {/if}
-        <button type="button" class="primary" onclick={() => (app.recoveryCard = v.airframe_id)}>{t("nav.card.print")}</button>
+        <div class="buttons">
+          <button type="button" class="primary" onclick={() => (app.recoveryCard = v.airframe_id)}>{t("nav.card.print")}</button>
+          {#if canPlanDrill(v)}
+            <button type="button" class="secondary" onclick={() => planDrill(v)}>{t("nav.drill.plan")}</button>
+          {/if}
+        </div>
         <p class="faint">{t("nav.card.about")}</p>
       {:else if cardFailed || !v.airframe_id}
         <h2 id="nav-card">{t("fleet.recovery")}</h2>
@@ -675,6 +791,88 @@
   }
   .action > p {
     color: var(--text-2);
+  }
+  .mitigation.reaches {
+    border-color: color-mix(in srgb, var(--ok) 45%, var(--border));
+  }
+  .work {
+    margin-left: auto;
+    font-size: 12px;
+    color: var(--text-muted);
+  }
+  .chips {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px;
+    align-items: center;
+  }
+  .chip {
+    font-size: 12px;
+    padding: 2px 8px;
+    border-radius: 999px;
+    border: 1px dashed var(--border);
+    color: var(--text-muted);
+  }
+  .chip.measured {
+    border-style: solid;
+    color: var(--text-2);
+  }
+  .lead,
+  .label {
+    color: var(--text);
+    font-weight: 600;
+  }
+  .label {
+    display: block;
+    font-size: 12px;
+    margin-bottom: 2px;
+  }
+  .state {
+    color: var(--text-2);
+    font-style: italic;
+  }
+  .closes ul.plain,
+  .benefit ul.plain {
+    color: var(--text-2);
+  }
+  .benefit {
+    padding: 6px 10px;
+    border-left: 3px dashed var(--border);
+  }
+  .benefit.measured {
+    border-left-style: solid;
+    border-left-color: var(--accent);
+  }
+  .limits ul,
+  .needs {
+    margin: 0;
+    padding-left: 18px;
+    color: var(--text-2);
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+  }
+  h3 {
+    margin: 6px 0 0;
+    font-size: 13px;
+  }
+  .sources a {
+    color: var(--link);
+  }
+  .buttons {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+  }
+  .secondary {
+    align-self: flex-start;
+    background: transparent;
+    color: var(--text);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 8px 14px;
+    font-weight: 600;
+    cursor: pointer;
   }
   .sources {
     margin: 6px 0 0;

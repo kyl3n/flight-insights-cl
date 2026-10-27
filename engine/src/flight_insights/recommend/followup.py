@@ -7,6 +7,7 @@ Recommendation engine, "Procedures" and "Closing the loop").
 - The diagnostics that turn raw gyro or fast notch logging on for a filter check are
   not proposed again while the filter settings and the airframe's build are the same
   as on a flight that was checked with raw gyro data.
+- A GNSS-off drill is offered while none has been measured on the airframe.
 """
 
 from __future__ import annotations
@@ -19,11 +20,38 @@ from flight_insights.analyzers.registry import Registry
 from flight_insights.analyzers.run import analysis_results
 from flight_insights.history.persist import load_snapshot
 from flight_insights.knowledge import Pack
+from flight_insights.mitigations import drill_flights
 from flight_insights.params.dialect import Dialect
 from flight_insights.recommend.records import GRADES, TOLERANCE, flew_before, record_row
 from flight_insights.store.db import Store
 
 RECENT = 20  # earlier flights looked at for a filter check
+DRILL = "followup.gnss_drill"
+FALLBACK_AREA = "no_gnss:readiness:pilot_fallback"  # the drill switch, as the review found it
+
+
+def drill_findings(
+    store: Store, reg: Registry, flight_id: str, analysis: Mapping[str, Any]
+) -> list[dict[str, Any]]:
+    """The GNSS-off drill, offered while no drill has been measured on the airframe (spec:
+    Flying without GNSS, "Recommendations and recovery"): for a flight whose readiness
+    review ran, when no flight of its airframe flown no later has a drill on its latest
+    analysis. It rests on the readiness review's pilot-fallback area, which names the
+    GPS-disable switch."""
+    flight = store.get("flight", flight_id)
+    if flight is None or flight["airframe_id"] is None:
+        return []
+    if not any(e["id"] == FALLBACK_AREA for e in analysis.get("evidence", ())):
+        return []  # not judged for flying without GNSS (not Copter, or not EKF3)
+    for other in drill_flights(store, reg, flight["airframe_id"]):
+        row = store.get("flight", other)
+        if row is not None and (row["id"] == flight_id or flew_before(row, flight)):
+            return []
+    return [{
+        "id": f"followup:drill:{flight_id}", "analyzer": "followup", "code": DRILL,
+        "severity": "info", "confidence": "high", "params": {}, "evidence": [FALLBACK_AREA],
+        "changes": [], "stage": reg.findings[DRILL].stage, "origin": "measured",
+    }]  # fmt: skip
 
 
 def revert_findings(
