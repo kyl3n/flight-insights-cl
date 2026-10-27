@@ -18,8 +18,10 @@ It is built on this laptop from:
   import, or estimated from the airframe's weighed flights (payload bands);
 - the wording in knowledge/recovery/copter.json, in English and Ukrainian.
 
-The card holds times, modes, switches, weights and how far the estimate drifts; never a
-position. It is printed, never sent.
+The card also says whether the airframe meets the goal, getting home with the pilot's
+control and GNSS both lost (recovery_link.gets_home), for the Navigation view; it is not
+printed. The card holds times, modes, switches, weights and how far the estimate drifts;
+never a position. It is printed, never sent.
 """
 
 from __future__ import annotations
@@ -232,11 +234,17 @@ def build(
         {"id": "spoofing", "title": c.phrase("spoofing")["text"], "will": [], "facts": [],
          "steps": spoof, "alert": False},
     ]  # fmt: skip
+    goal: dict[str, Any] | None = None
     if failsafes is not None:
         sections += recovery_link.sections(
             c, failsafes, params, link or recovery_link.LinkMeasured(),
             keeps_position=usable and target == 1, dead_reckons=bool(wind.get("drag_fusion")),
         )  # fmt: skip
+        # the section that loses the pilot's control with GNSS says whether it gets home
+        for s in sections:
+            if "goal" in s:
+                found = cast(Mapping[str, Any], s.pop("goal"))
+                goal = {"section": s["id"], **found}
     if motor is not None:
         sections.append(_motor_section(c, motor, params, hover))
     return {
@@ -250,6 +258,7 @@ def build(
         "measured": numbers,
         "sections": sections,
         "gaps": [f.code for f in readiness.findings],
+        "goal": goal,
         "footer": c.phrase("card_footer")["text"],
     }
 

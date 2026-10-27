@@ -31,6 +31,7 @@
 | flight.propulsion | Motors, ESCs and battery over a flight, for display: see rpc/analysis.py |
 | flight.system | Loop load, timing, logging drops and errors, for display: see rpc/analysis.py |
 | flight.links | A flight's links and their failsafe settings, for display: see rpc/analysis.py |
+| flight.navigation | GNSS events, outages, coping and readiness, for display: see rpc/analysis.py |
 | review.file | A parameter file's configuration review, with no flight: see rpc/analysis.py |
 | filter.workbench | Spectra and candidate filter predictions: see rpc/analysis.py |
 | ai.prepare / .record / .selftest | The AI path, shell only (never the UI): see rpc/ai.py |

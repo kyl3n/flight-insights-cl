@@ -39,6 +39,10 @@ export interface RecoveryCard {
   measured: { alone: Measured; on_set: Measured; tolerance_m: number };
   sections: CardSection[];
   gaps: string[]; // the readiness review's findings, by code
+  // Whether it gets home with the pilot's control and GNSS both lost, from every mode and
+  // whichever goes first, and the link section's lines that say what it does; null with
+  // no link sections.
+  goal: { met: boolean; section: string; will: Phrase[] } | null;
   footer: Text;
 }
 

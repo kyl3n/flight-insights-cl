@@ -277,3 +277,22 @@ def test_a_loss_no_failsafe_answered_is_an_alert_whatever_the_settings(reg: Regi
 def test_gnss_lost_with_the_ekf_failsafe_off_is_an_alert(reg: Registry) -> None:
     c = card(reg, **STATION, FS_THR_ENABLE=1.0, FS_GCS_ENABLE=1.0, FS_EKF_ACTION=0.0)
     assert alerts(c)["gnss_lost"] is True
+
+
+def test_the_goal_is_met_only_when_it_flies_home_with_both_lost(reg: Registry) -> None:
+    """Getting home with the pilot's control and GNSS both lost, from every mode and
+    whichever goes first: what the Navigation view shows as the fleet goal."""
+    stock = card(reg, FS_THR_ENABLE=1.0)
+    assert stock["goal"]["section"] == "radio_lost"
+    assert stock["goal"]["met"] is False  # RTL needs a position: it lands where it is
+    assert [p["key"] for p in stock["goal"]["will"]] == ["link.any_mode", "link.gnss_too"]
+    assert all("goal" not in s for s in stock["sections"])
+    flow_first = {k: v for k, v in FLOW.items() if not k.startswith("EK3_SRC2")}
+    first = {**flow_first, "EK3_SRC1_POSXY": 0.0, "EK3_SRC1_VELXY": 5.0}
+    home = card(reg, **first, FS_THR_ENABLE=1.0)
+    assert home["goal"]["met"] is True
+    assert home["goal"]["will"][-1]["key"] == "link.gnss_keeps"
+    assert card(reg, **first, FS_THR_ENABLE=0.0)["goal"]["met"] is False  # nothing acts
+    assert card(reg, **first, FS_THR_ENABLE=3.0)["goal"]["met"] is False  # it lands
+    station = card(reg, **STATION, FS_THR_ENABLE=1.0)
+    assert station["goal"]["section"] == "link_lost" and station["goal"]["met"] is False
