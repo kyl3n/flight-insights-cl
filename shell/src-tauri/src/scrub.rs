@@ -445,6 +445,18 @@ static FIELD: LazyLock<Regex> = LazyLock::new(|| Regex::new(r"^[A-Za-z0-9_]{1,16
 static PARAMETER: LazyLock<Regex> =
     LazyLock::new(|| Regex::new(r"^[A-Z][A-Z0-9_]{0,16}$").unwrap());
 
+/// Distances the engine works out from positions on the laptop. In evidence each may only
+/// be one whole number of metres: a finer value or a series could trace the path. The
+/// engine's rules list them too (knowledge/rules/scrubber.json, "position_derived").
+const POSITION_METRES: [&str; 6] = [
+    "drift_m",
+    "drift_m_per_min",
+    "largest_altitude_gap_m",
+    "largest_receivers_gap_m",
+    "largest_reset_m",
+    "largest_track_gap_m",
+];
+
 struct Limits(Vec<Violation>);
 
 impl Limits {
@@ -462,6 +474,21 @@ impl Limits {
     fn count(&mut self, path: &str, n: usize, max: usize) {
         if n > max {
             self.0.push(violation(path, "shape: too many items"));
+        }
+    }
+    fn whole_metres(&mut self, path: &str, map: &BTreeMap<String, Keyed>) {
+        for key in POSITION_METRES {
+            let whole = match map.get(key) {
+                None => true,
+                Some(Keyed::One(Some(Atom::Number(x)))) => x.is_finite() && x.fract() == 0.0,
+                Some(_) => false,
+            };
+            if !whole {
+                self.0.push(violation(
+                    path,
+                    "a distance worked out from positions that is not one value in whole metres",
+                ));
+            }
         }
     }
     fn keyed(&mut self, path: &str, map: &BTreeMap<String, Keyed>) {
@@ -571,6 +598,7 @@ fn shape(text: &str) -> Vec<Violation> {
             }
             if let Some(values) = &e.values {
                 l.keyed(&format!("{path}.values"), values);
+                l.whole_metres(&format!("{path}.values"), values);
             }
         }
     }
@@ -943,7 +971,7 @@ const CLEAN: [(&str, &str); 5] = [
         include_str!("../../../tests/scrubber/packets/clean/tool_spectrum.json"),
     ),
 ];
-const LEAKY: [(&str, &str); 29] = [
+const LEAKY: [(&str, &str); 31] = [
     (
         "bool_as_number",
         include_str!("../../../tests/scrubber/packets/leaky/bool_as_number.json"),
@@ -971,6 +999,14 @@ const LEAKY: [(&str, &str); 29] = [
     (
         "long_text",
         include_str!("../../../tests/scrubber/packets/leaky/long_text.json"),
+    ),
+    (
+        "position_metres_fine",
+        include_str!("../../../tests/scrubber/packets/leaky/position_metres_fine.json"),
+    ),
+    (
+        "position_metres_series",
+        include_str!("../../../tests/scrubber/packets/leaky/position_metres_series.json"),
     ),
     (
         "precise_degrees",
@@ -1263,6 +1299,46 @@ mod tests {
                 "{lat} {lon} in slot {slot}"
             );
         }
+    }
+
+    #[test]
+    fn position_metres_are_the_rules_distances() {
+        // The same list as the engine's rules, kept apart from them: the distances there
+        // (keys in metres), not the counts or minutes beside them.
+        let rules: Value =
+            serde_json::from_str(include_str!("../../../knowledge/rules/scrubber.json")).unwrap();
+        let metres = Regex::new(r"_m(_|$)").unwrap();
+        let mut listed: Vec<&str> = rules["position_derived"]
+            .as_object()
+            .unwrap()
+            .keys()
+            .map(String::as_str)
+            .filter(|k| metres.is_match(k))
+            .collect();
+        listed.sort_unstable();
+        assert_eq!(listed, POSITION_METRES.to_vec());
+    }
+
+    #[test]
+    fn a_distance_from_positions_is_one_whole_number() {
+        let check = |values: &str| {
+            let map: BTreeMap<String, Keyed> = serde_json::from_str(values).unwrap();
+            let mut l = Limits(Vec::new());
+            l.whole_metres("$", &map);
+            l.0.len()
+        };
+        assert_eq!(
+            check(r#"{"largest_track_gap_m": 62, "drift_m_per_min": 3.0}"#),
+            0
+        );
+        assert_eq!(
+            check(r#"{"rate_hz": 1000.5, "minutes_to_tolerance": 3.3}"#),
+            0
+        );
+        assert_eq!(check(r#"{"largest_track_gap_m": 61.84}"#), 1);
+        assert_eq!(check(r#"{"drift_m": [3, 5, 8]}"#), 1);
+        assert_eq!(check(r#"{"drift_m": "14"}"#), 1);
+        assert_eq!(check(r#"{"largest_reset_m": null}"#), 1);
     }
 
     #[test]
