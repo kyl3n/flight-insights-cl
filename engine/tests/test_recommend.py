@@ -833,6 +833,16 @@ def test_a_value_past_the_documented_range_that_the_firmware_takes_says_so(
     ]  # fmt: skip
     text = to_json(p, reg)["recommendations"][0]["notes"][0]["text"]["en"]
     assert text.startswith("1800 is past FS_DR_TIMEOUT's documented range, 0 to 120.")
+    # its own procedure: a GNSS-off drill that shows dead reckoning, not the stage's default
+    steps = procedure(p, reg, rec)
+    kinds = [st.kind for st in steps]
+    assert {"ground_check", "fly", "abort", "verify"} <= set(kinds)
+    [fly] = [st for st in steps if st.kind == "fly"]
+    assert "GPS-disable switch for 30 seconds" in fly.text["en"]
+    assert "dead reckoning" in fly.text["en"] and "за рахунком" in fly.text["uk"]
+    [verify] = [st for st in steps if st.kind == "verify" and st.checks]  # beside the stage's
+    assert [c["check"] for c in verify.checks] == ["finding_clears"]
+    assert "cube of the time flown" in verify.text["en"]
 
 
 def test_findings_with_one_code_are_one_action_citing_each(reg: Registry) -> None:
