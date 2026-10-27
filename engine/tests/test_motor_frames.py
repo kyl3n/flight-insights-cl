@@ -105,6 +105,18 @@ def test_a_class_s_default_layout_is_kept(frames: dict[str, Any]) -> None:
     assert frames["5"]["types"]["default"]["name"] == "default"  # Y6 with any other type
 
 
+def test_frames_name_their_simulator_models(frames: dict[str, Any]) -> None:
+    """Matched by geometry: ArduPilot's simulator "octa-quad" is an X, though its default
+    parameters leave FRAME_TYPE at plus; its "octa-quad-cwx" spins four motors the other
+    way from the mixer, and its lookup finds "deca" before "deca-cwx"."""
+    models = {(c, t): f.get("sitl") for c, e in frames.items() for t, f in e["types"].items()}
+    assert models[("1", "0")] == "+" and models[("1", "1")] == "x"
+    assert models[("2", "1")] == "hexax" and models[("3", "0")] == "octa"
+    assert models[("4", "1")] == "octa-quad" and models[("4", "0")] is None
+    assert models[("4", "20")] == "octa-quad-cor" and models[("5", "default")] == "y6"
+    assert models[("4", "14")] is None and models[("14", "14")] is None
+
+
 def test_later_releases_have_the_same_frames() -> None:
     pack = load_pack()
     assert pack.frames("4.7.1") == pack.frames("4.7.2") == pack.frames("4.7.0")
@@ -179,11 +191,47 @@ void AP_MotorsMatrix::setup_motors(motor_frame_class frame_class, motor_frame_ty
 """
 
 
-def tree(root: Path, mixer: str) -> Path:
+# The simulator's frames: "x" is the mixer's X; "vt" spins its motors the other way, so
+# it is not; "tilt" has a tilting motor; "xr" would be found as "x" by its name.
+SIM = """
+static Motor quad_x_motors[] =
+{
+    Motor(AP_MOTORS_MOT_1,   45, AP_MOTORS_MATRIX_YAW_FACTOR_CCW, 1),
+    Motor(AP_MOTORS_MOT_2, -135, AP_MOTORS_MATRIX_YAW_FACTOR_CCW, 3),
+    Motor(AP_MOTORS_MOT_3,  -45, AP_MOTORS_MATRIX_YAW_FACTOR_CW,  4),
+    Motor(AP_MOTORS_MOT_4,  135, AP_MOTORS_MATRIX_YAW_FACTOR_CW,  2),
+};
+static Motor quad_x_reversed[] =
+{
+    Motor(AP_MOTORS_MOT_1,   45, AP_MOTORS_MATRIX_YAW_FACTOR_CW,  1),
+    Motor(AP_MOTORS_MOT_2, -135, AP_MOTORS_MATRIX_YAW_FACTOR_CW,  3),
+    Motor(AP_MOTORS_MOT_3,  -45, AP_MOTORS_MATRIX_YAW_FACTOR_CCW, 4),
+    Motor(AP_MOTORS_MOT_4,  135, AP_MOTORS_MATRIX_YAW_FACTOR_CCW, 2),
+};
+static Motor tilting[] =
+{
+    Motor(AP_MOTORS_MOT_1,   45, AP_MOTORS_MATRIX_YAW_FACTOR_CCW, 1, -1, 0, 0, 7, 10, -90),
+    Motor(AP_MOTORS_MOT_2, -135, AP_MOTORS_MATRIX_YAW_FACTOR_CCW, 3),
+    Motor(AP_MOTORS_MOT_3,  -45, AP_MOTORS_MATRIX_YAW_FACTOR_CW,  4),
+    Motor(AP_MOTORS_MOT_4,  135, AP_MOTORS_MATRIX_YAW_FACTOR_CW,  2),
+};
+static const FrameTemplate supported_frame_templates[] =
+{
+    {"vt",    4, quad_x_reversed},
+    {"tilt",  4, tilting},
+    {"x",     4, quad_x_motors},
+    {"xr",    4, quad_x_motors},
+};
+"""
+
+
+def tree(root: Path, mixer: str, sim: str = SIM) -> Path:
     for rel, text in HEADERS.items():
         (root / rel).parent.mkdir(parents=True, exist_ok=True)
         (root / rel).write_text(text, encoding="utf-8")
     (root / "libraries/AP_Motors/AP_MotorsMatrix.cpp").write_text(mixer, encoding="utf-8")
+    (root / "libraries/SITL").mkdir(parents=True, exist_ok=True)
+    (root / "libraries/SITL/SIM_Frame.cpp").write_text(sim, encoding="utf-8")
     return root
 
 
@@ -195,6 +243,15 @@ def test_the_generator_replays_the_mixer(tmp_path: Path) -> None:
     vtail = quad["4"]["motors"]
     assert [m["yaw"] for m in vtail] == [0.0, -0.5, 0.0, 0.5]  # yaw from the rear motors
     assert [m["roll"] for m in vtail] == [-0.5, 0.0, 0.5, 0.0]  # roll from the front
+
+
+def test_each_frame_names_the_simulator_model_with_its_motors(tmp_path: Path) -> None:
+    quad = tool().build(tree(tmp_path, MIXER))["1"]["types"]
+    assert quad["1"]["sitl"] == "x"  # not "vt", spinning the other way, nor "xr"
+    assert "sitl" not in quad["4"]  # the simulator has no V-tail
+    other_x = SIM.replace('{"x",     4, quad_x_motors}', '{"x",     4, quad_x_reversed}')
+    quad = tool().build(tree(tmp_path, MIXER, other_x))["1"]["types"]
+    assert "sitl" not in quad["1"]  # "xr" has the motors, but the simulator finds "x" by it
 
 
 def test_the_generator_refuses_what_it_cannot_read(tmp_path: Path) -> None:

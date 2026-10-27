@@ -92,6 +92,11 @@ class Hover:
     volts: float  # the median battery voltage the motors saw
     volt_ref: float
     volt_ref_from: str
+    command: Array  # each kept sample's motor outputs, 0 to 1 between the spin limits
+    voltage: Array  # each kept sample's battery voltage
+    current: Array | None  # and its current, where the battery monitor measures one
+    pressure: Array  # and the barometer's pressure, Pa, and temperature, degrees C
+    temperature: Array
 
 
 def hover_thrust(flight: FlightData, reg: Registry) -> Hover | str:
@@ -147,6 +152,11 @@ def hover_thrust(flight: FlightData, reg: Registry) -> Hover | str:
     if battery.sum() < 2 or sensor.sum() < 2:
         return "the log has no battery voltage or barometer for the motors"
     volts = np.interp(t, _times(bat)[battery], si.values(bat, "Volt")[battery])
+    current = (
+        np.interp(t, _times(bat)[battery], si.values(bat, "Curr")[battery])
+        if "Curr" in bat.column_names and si.unit(bat, "Curr") == "A"
+        else None
+    )
     keep &= volts > 0
     seconds = float(keep.sum()) * float(np.median(np.diff(t))) / 1e6
     if seconds < float(rules["min_hover_s"]):
@@ -159,14 +169,16 @@ def hover_thrust(flight: FlightData, reg: Registry) -> Hover | str:
         np.radians(np.interp(t[keep], ta, si.values(att, "Pitch")))
     )
     tb = _times(baro)[sensor]
-    kelvin = np.interp(t[keep], tb, si.values(baro, "Temp")[sensor]) + 273.15
-    density = np.interp(t[keep], tb, si.values(baro, "Press")[sensor]) / (
-        float(rules["gas_constant"]) * kelvin
-    )
+    celsius = np.interp(t[keep], tb, si.values(baro, "Temp")[sensor])
+    pressure = np.interp(t[keep], tb, si.values(baro, "Press")[sensor])
+    density = pressure / (float(rules["gas_constant"]) * (celsius + 273.15))
     return Hover(
         thrust=thrust, tilt=tilt, density_ratio=density / float(rules["standard_density"]),
         windows=hover, times=t[keep], seconds=seconds, names=names, expo=expo,
         volts=float(np.median(volts[keep])), volt_ref=volt_ref, volt_ref_from=volt_ref_from,
+        command=out[keep], voltage=volts[keep],
+        current=None if current is None else current[keep], pressure=pressure,
+        temperature=celsius,
     )  # fmt: skip
 
 

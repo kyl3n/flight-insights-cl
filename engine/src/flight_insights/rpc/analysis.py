@@ -23,6 +23,8 @@
 | flight.tlogs | A flight's tlog sessions: each station clock against the vehicle's, and loss |
 | flight.tune | A flight's tune against one of its payload group's, and the plan's verdict |
 | review.file | A parameter file's configuration review and plan, with no flight |
+| airframe.recovery_card | The airframe's recovery card: GNSS loss, spoofing and losing a motor |
+| airframe.sim_export | The airframe's model for ArduPilot's simulator, its parameters, as files |
 
 Analysing a flight also makes its weather record, where the downloads cover it, and grades
 its airframe's earlier recommendations against it. A GNSS or compass finding of a flight
@@ -51,6 +53,7 @@ from flight_insights.rpc.server import (
     RpcError,
     Server,
 )
+from flight_insights.sim import export as sim_export
 from flight_insights.tlog import sessions as tlog_sessions
 from flight_insights.weather import context as weather_context
 from flight_insights.weather import record as weather_record
@@ -255,6 +258,37 @@ def add_analysis_methods(server: Server, state: EngineState, guarded: Callable[[
             )
         except recovery.RecoveryError as e:
             raise RpcError(BAD_INPUT, str(e)) from None
+
+    @server.method("airframe.sim_export")
+    @guarded
+    def airframe_sim_export(_ctx: Context, params: dict[str, Any]) -> dict[str, Any]:
+        store, cache = state.require_store(), state.cache
+        assert cache is not None
+        airframe = _id(params, "airframe_id")
+        flight = params.get("flight_id")
+        if flight is not None and (not isinstance(flight, str) or not flight):
+            raise RpcError(INVALID_PARAMS, "flight_id must be an id")
+        kg = params.get("takeoff_kg")
+        most_kg = float(state.pack.json("rules/payload.json")["max_takeoff_kg"])
+        if kg is not None and (
+            isinstance(kg, bool)
+            or not isinstance(kg, int | float)
+            or not math.isfinite(kg)
+            or not 0 < kg <= most_kg
+        ):
+            raise RpcError(
+                INVALID_PARAMS, f"takeoff_kg must be a weight above 0 and up to {most_kg:g} kg"
+            )
+        try:
+            ex = sim_export.export(store, cache, state.pack, airframe, flight, kg)
+        except sim_export.ExportError as e:
+            raise RpcError(BAD_INPUT, str(e)) from None
+        return {
+            "flight": ex.flight, "frame": ex.frame, "sitl": ex.sitl, "model": ex.model,
+            "sources": ex.sources,
+            "left_out": {why: len(names) for why, names in sorted(ex.left_out.items())},
+            "files": sim_export.files(ex),
+        }  # fmt: skip
 
     @server.method("flight.tlogs")
     @guarded
