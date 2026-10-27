@@ -16,10 +16,16 @@ on:
         required: false
         default: ""
   pull_request:
+    # What a plan offers comes from the findings too: an analyzer that raises a new
+    # finding, or a finding's stage, can hold a rehearsed stage back (a short motor-out
+    # margin on the loaded heavy-lift fixture once did).
     paths:
       - knowledge/procedures/**
-      - knowledge/rules/recommend.json
+      - knowledge/rules/**
+      - knowledge/metrics/**
       - engine/src/flight_insights/recommend/**
+      - engine/src/flight_insights/analyzers/**
+      - engine/src/flight_insights/motor_out.py
       - tools/procedures/**
       - tools/fixtures/sitl/**
       - .github/workflows/rehearse.yml

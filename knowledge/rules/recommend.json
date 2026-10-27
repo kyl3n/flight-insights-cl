@@ -24,12 +24,14 @@
     }
   },
   "any_stage": {
-    "about": "Findings offered whatever stage is on offer, like safety findings: failsafes the firmware ships on, found off. Going back to the firmware's own value touches no tuning, and it protects the tuning flights themselves, when a vibration or estimator failsafe matters most.",
+    "about": "Findings offered whatever stage is on offer, like safety findings. Failsafes the firmware ships on, found off: going back to the firmware's own value touches no tuning, and it protects the tuning flights themselves, when a vibration or estimator failsafe matters most. And the motor-out margin found short at a flight's weight: an operating limit (fly lighter, more thrust, the motor-loss steps), which touches no tuning and matters on every flight at that weight, the tuning flights included.",
     "codes": [
       "params.vibe_failsafe_off",
       "params.dead_reckoning_failsafe_off",
       "params.ekf_failsafe_off",
-      "params.crash_check_off"
+      "params.crash_check_off",
+      "motor_out.short",
+      "motor_out.no_balance"
     ]
   },
   "boot_only": {

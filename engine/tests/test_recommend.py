@@ -438,6 +438,24 @@ def test_failsafes_found_off_are_offered_at_any_stage(reg: Registry) -> None:
     assert fence.lead.code == "params.fence_off" and fence.status == "waiting"
 
 
+def test_a_short_motor_out_margin_neither_holds_the_tuning_nor_waits(reg: Registry) -> None:
+    # An operating limit at this weight: it touches no tuning, so the filters and the
+    # rate tune go on, and it is on offer at every stage, since it matters on the tuning
+    # flights too (the loaded heavy-lift rehearsals waited behind it once)
+    p = plan(
+        reg,
+        finding("filter.better_settings", ("INS_GYRO_FILTER", 40.0)),
+        finding("motor_out.short"),
+        finding("motor_out.no_balance"),
+    )
+    assert p.stage == "filters" and one(p, "INS_GYRO_FILTER").status == "next"
+    actions = {r.lead.code: r for r in p.recommendations if r.param is None}
+    assert {c: (a.stage, a.status) for c, a in actions.items()} == {
+        "motor_out.short": ("operations", "next"),
+        "motor_out.no_balance": ("operations", "next"),
+    }
+
+
 def test_every_any_stage_finding_is_known(reg: Registry) -> None:
     codes = reg.rules["recommend"]["any_stage"]["codes"]
     assert codes and all(c in reg.findings for c in codes)
