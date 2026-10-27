@@ -77,6 +77,9 @@ describe("report", () => {
     expect(formatValue(3, "count")).toBe("3");
     expect(formatDuration(1112)).toEqual({ min: 18, s: 32 });
     expect(formatValue(4264, "W", "uk")).toBe("4\u00a0264 Вт");
+    // a PWM margin is written in microseconds, not "us"
+    expect(formatValue(25, "us")).toBe("25 µs");
+    expect(formatValue(25, "us", "uk")).toBe("25 мкс");
     expect(formatValue(13.1, "mOhm", "uk")).toBe("13,1 мОм");
   });
 
