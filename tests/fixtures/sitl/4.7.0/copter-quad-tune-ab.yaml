@@ -1,0 +1,22 @@
+source: sitl
+vehicle: copter
+frame: quad +
+firmware: 4.7.0
+ardupilot_commit: 1511f27194f1dcc3728270883047bdf022b3fd53
+scenario: copter-quad-tune-ab
+description: 'An in-flight A/B test on the default quad: 6 roll doublets in AltHold
+  at 5 m, then the roll rate gains (P, I, D) written to 0.4 of their defaults as a
+  ground station writes them, and 6 roll doublets again, with RATE and the rate PIDs
+  logged every loop during the doublets.'
+parameters_set:
+  LOG_DISARMED: 0
+  SIM_ESC_TELEM: 0
+faults: []
+expected:
+- PARM records ATC_RAT_RLL_P, _I and _D changed while armed, within a second
+- LOG_BITMASK bits 0 and 12 during each set of doublets, also recorded as PARM
+- 6 roll doublets on each side of the change, all counted
+- roll tracking error worse after the change, with the two sides' intervals apart,
+  and the roll rate gains ranked as its cause
+- 'about 47 s of steady hover in ALT_HOLD: the short doublets stay inside the hover
+  limits'

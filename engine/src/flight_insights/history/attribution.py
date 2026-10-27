@@ -115,7 +115,7 @@ class Shift:
 
 
 @dataclass(frozen=True)
-class _Point:
+class Point:
     index: int  # in flying order
     flight: str
     value: float
@@ -161,10 +161,10 @@ def _firmware(flights: Sequence[tuple[Flight, str]]) -> dict[int, list[Change]]:
 
 def _series(
     store: Store, flights: Sequence[tuple[Flight, str]], metric: str | None
-) -> dict[tuple[str, str, str], list[_Point]]:
+) -> dict[tuple[str, str, str], list[Point]]:
     """(metric, segment, payload group) -> points in flying order."""
     runs = {f.run_id: (i, f.id, g) for i, (f, g) in enumerate(flights) if f.run_id}
-    out: dict[tuple[str, str, str], list[_Point]] = {}
+    out: dict[tuple[str, str, str], list[Point]] = {}
     marks = ", ".join("?" for _ in runs)
     query = (
         f"SELECT run_id, metric, segment, value, spread_json FROM metric_value "
@@ -178,7 +178,7 @@ def _series(
         s: dict[str, Any] = json.loads(spread) if spread else {}
         low, high = s.get("low"), s.get("high")
         out.setdefault((m, seg, group), []).append(
-            _Point(i, fid, float(value), None if low is None else float(low),
+            Point(i, fid, float(value), None if low is None else float(low),
                    None if high is None else float(high))
         )  # fmt: skip
     for points in out.values():
@@ -197,7 +197,7 @@ def _relevant(reg: Registry, metric: str, changes: Sequence[Change]) -> bool:
     )
 
 
-def _verdict(direction: str, effect: float) -> str:
+def verdict_for(direction: str, effect: float) -> str:
     if direction == "lower":
         return "worse" if effect > 0 else "better"
     if direction == "higher":
@@ -205,8 +205,8 @@ def _verdict(direction: str, effect: float) -> str:
     return "moved"
 
 
-def _test(
-    before: Sequence[_Point], after: Sequence[_Point], rules: Mapping[str, Any], seed: int
+def compare_points(
+    before: Sequence[Point], after: Sequence[Point], rules: Mapping[str, Any], seed: int
 ) -> tuple[str, float, float, float, float | None] | None:
     """("shift" | "inconclusive", effect, low, high, spread), or None for no shift."""
     if len(before) >= int(rules["min_before"]) and len(after) >= int(rules["min_after"]):
@@ -243,7 +243,7 @@ def _number(x: float | str | None) -> float | None:
     return float(x) if isinstance(x, int | float) and math.isfinite(float(x)) else None
 
 
-def _score(reg: Registry, c: Change, metric: str, effect: float, nearby: bool) -> Candidate:
+def score_change(reg: Registry, c: Change, metric: str, effect: float, nearby: bool) -> Candidate:
     rules: Mapping[str, Any] = reg.rules["attribution"]["ranking"]
     timing = float(rules["nearby"]) if nearby else 1.0
     if c.kind != "parameter":
@@ -268,7 +268,7 @@ def _score(reg: Registry, c: Change, metric: str, effect: float, nearby: bool) -
     return Candidate(c, link.weight * direction * size * timing, link.group.group, factors)
 
 
-def _confidence(candidates: Sequence[Candidate], rules: Mapping[str, Any]) -> str:
+def ranking_confidence(candidates: Sequence[Candidate], rules: Mapping[str, Any]) -> str:
     if not candidates or candidates[0].group is None:
         return "low"
     top = candidates[0]
@@ -348,24 +348,24 @@ def attribute(
             before = [p for p in points if lo <= p.index < b][-window:]
             after = [p for p in points if b <= p.index < hi][:window]
             seed = int(shift_rules["seed"]) + zlib.crc32(f"{m}|{seg}|{group}|{b}".encode())
-            tested = _test(before, after, shift_rules, seed)
+            tested = compare_points(before, after, shift_rules, seed)
             if tested is None:
                 continue
             kind, effect, low, high, spread = tested
             first, last = after[0].index, before[-1].index if before else -1
             bracketed = [(i, c) for i in bounds if last < i <= first for c in at[i]]
             cands = sorted(
-                (_score(reg, c, m, effect, i != b) for i, c in bracketed
+                (score_change(reg, c, m, effect, i != b) for i, c in bracketed
                  if c.kind != "parameter" or c.cls in classes),
                 key=lambda k: -k.score,
             )  # fmt: skip
             context = tuple(
                 c for _, c in bracketed if c.kind == "parameter" and c.cls not in classes
             )
-            verdict = "inconclusive" if kind == "inconclusive" else _verdict(
+            verdict = "inconclusive" if kind == "inconclusive" else verdict_for(
                 reg.metrics[m].direction, effect
             )  # fmt: skip
-            confidence = _confidence(cands, rules["ranking"])
+            confidence = ranking_confidence(cands, rules["ranking"])
             w = _weather(records, weather_rules, m, [p.flight for p in before],
                          [p.flight for p in after])  # fmt: skip
             if w is not None and w["differs"]:

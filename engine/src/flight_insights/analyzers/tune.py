@@ -65,7 +65,7 @@ def logged_hz(flight: FlightData, message: str) -> float:
     if table is None or table.num_rows < 3:
         return 0.0
     t = np.asarray(table.column("TimeUS").to_numpy(), np.int64)
-    t = t[(t >= flight.arm_us) & (t <= flight.disarm_us)]
+    t = t[flight.during(t)]
     return 1e6 / float(np.median(np.diff(t))) if len(t) > 2 else 0.0
 
 
@@ -215,7 +215,7 @@ def found_inputs(flight: FlightData, reg: Registry) -> dict[str, Inputs] | str:
         return f"RATE is logged at {hz:.0f} Hz; the tune check needs {needed:.0f}"
     found_rules: Mapping[str, Any] = reg.rules["tune"]["excitation"]
     t = np.asarray(rate.column("TimeUS").to_numpy(), np.int64)
-    armed = (t >= flight.arm_us) & (t <= flight.disarm_us)
+    armed = flight.during(t)
     flown, heights = modes(flight, reg), height(flight)
     out: dict[str, Inputs] = {}
     for axis in AXES:
@@ -432,4 +432,5 @@ TUNE = Analyzer(
         "tune.attitude_error_pitch",
     ),
     findings=("tune.few_inputs", "tune.autotune_offer"),
+    spans=True,
 )

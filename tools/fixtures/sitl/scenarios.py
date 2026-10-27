@@ -179,6 +179,55 @@ def tune_check(
     return fly
 
 
+def tune_ab(
+    doublets: int,
+    change: dict[str, float],
+    axes: tuple[str, ...] = ("ch1",),
+    deflection: int = 160,
+    each_way: float = 0.4,
+    centred: float = 1.0,
+    altitude: float = 5,
+    hands_off: float = 4,
+    settle: float = 1.2,
+    bits: SetBits = LOG_RATE_LOOP,
+) -> Callable[[Vehicle], None]:
+    """The tune-check profile twice in one flight, with a ground station's change between:
+    `doublets` on each axis, then `change` written as a ground station writes it (the log
+    records each as PARM), `hands_off` s, and the same doublets again. The rate loop is
+    logged every loop during the doublets only, as the tune-check card does, and for
+    `settle` s after the last (an input's window runs 1 s past it)."""
+
+    def fly(v: Vehicle) -> None:
+        v.mode("GUIDED")
+        v.arm()
+        v.command(ML.MAV_CMD_NAV_TAKEOFF, 0, 0, 0, 0, 0, 0, altitude)
+        v.wait_altitude(altitude - 0.5)
+        centre = {"ch1": 1500, "ch2": 1500, "ch3": 1500, "ch4": 1500}
+        v.rc(**centre)
+        v.mode("ALT_HOLD")
+        sticks(v, hands_off, centre)
+        bitmask = v.get_param("LOG_BITMASK")
+
+        def inputs() -> None:
+            v.set_param("LOG_BITMASK", bits(bitmask))
+            for ch in axes:
+                for _ in range(doublets):
+                    sticks(v, each_way, centre | {ch: 1500 + deflection})
+                    sticks(v, each_way, centre | {ch: 1500 - deflection})
+                    sticks(v, centred, centre)
+            sticks(v, settle, centre)
+            v.set_param("LOG_BITMASK", bitmask)
+
+        inputs()
+        for name, value in change.items():
+            v.set_param(name, value)
+        sticks(v, hands_off, centre)
+        inputs()
+        land_and_disarm(v)
+
+    return fly
+
+
 def autotune(
     finish: bool, altitude: float = 10, before_stop: float = 25
 ) -> Callable[[Vehicle], None]:
@@ -688,6 +737,33 @@ SCENARIOS: dict[str, Scenario] = {
             ],
             fly=tune_check(6, axes=("ch1", "ch2")),
             boot_params={"LOG_DISARMED": 0, "SIM_ESC_TELEM": 0} | SOFT_RATE_GAINS,
+            speedup=RAW_SPEEDUP,
+            **COPTER,  # type: ignore[arg-type]
+        ),
+        Scenario(
+            name="copter-quad-tune-ab",
+            vehicle="copter",
+            frame="quad +",
+            description=(
+                "An in-flight A/B test on the default quad: 6 roll doublets in AltHold at 5 m,"
+                " then the roll rate gains (P, I, D) written to 0.4 of their defaults as a"
+                " ground station writes them, and 6 roll doublets again, with RATE and the"
+                " rate PIDs logged every loop during the doublets."
+            ),
+            expected=[
+                "PARM records ATC_RAT_RLL_P, _I and _D changed while armed, within a second",
+                "LOG_BITMASK bits 0 and 12 during each set of doublets, also recorded as PARM",
+                "6 roll doublets on each side of the change, all counted",
+                "roll tracking error worse after the change, with the two sides' intervals"
+                " apart, and the roll rate gains ranked as its cause",
+                "about 47 s of steady hover in ALT_HOLD: the short doublets stay inside the"
+                " hover limits",
+            ],
+            fly=tune_ab(
+                6,
+                {f"ATC_RAT_RLL_{t}": SOFT_RATE_GAINS[f"ATC_RAT_RLL_{t}"] for t in ("P", "I", "D")},
+            ),
+            boot_params={"LOG_DISARMED": 0, "SIM_ESC_TELEM": 0},
             speedup=RAW_SPEEDUP,
             **COPTER,  # type: ignore[arg-type]
         ),

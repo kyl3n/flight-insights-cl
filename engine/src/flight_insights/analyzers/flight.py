@@ -70,6 +70,10 @@ class FlightData:
     # The flight's tlog sessions (tlog/sessions.py): each tlog that recorded its boot,
     # with the station's clock fitted against the vehicle's.
     tlogs: list[dict[str, Any]] = field(default_factory=list[dict[str, Any]])
+    # The part of the armed flight analysed, log time: all of it, or one side of an
+    # in-flight parameter change for the A/B split (history/ab.py). Only analyzers that
+    # declare `spans` read it; arming stays where it was, so heights keep their ground.
+    span: tuple[int, int] | None = None
     _tables: dict[tuple[str, tuple[str, ...] | None], pa.Table | None] = field(
         default_factory=dict[tuple[str, tuple[str, ...] | None], pa.Table | None]
     )
@@ -194,16 +198,32 @@ class FlightData:
         return out
 
     @property
+    def start_us(self) -> int:
+        """Where the analysed part of the flight starts: arming, or the span's start."""
+        return self.arm_us if self.span is None else max(self.arm_us, self.span[0])
+
+    @property
+    def end_us(self) -> int:
+        return self.disarm_us if self.span is None else min(self.disarm_us, self.span[1])
+
+    def during(self, t: np.ndarray[Any, Any]) -> np.ndarray[Any, np.dtype[np.bool_]]:
+        """Which of these log times fall in the analysed part of the flight."""
+        return (t >= self.start_us) & (t <= self.end_us)
+
+    @property
     def armed(self) -> Segment:
-        return Segment("flight", self.arm_us, self.disarm_us)
+        return Segment("flight", self.start_us, self.end_us)
 
     def hover(self) -> list[Segment]:
-        """This flight's steady-hover windows, from its fingerprint."""
-        return [
-            Segment("hover", int(w["start_us"]), int(w["end_us"]))
-            for w in self.fingerprint.get("hover_windows", [])
-            if self.arm_us <= int(w["start_us"]) and int(w["end_us"]) <= self.disarm_us
-        ]
+        """This flight's steady-hover windows, from its fingerprint, cut to the span."""
+        out: list[Segment] = []
+        for w in self.fingerprint.get("hover_windows", []):
+            start, end = int(w["start_us"]), int(w["end_us"])
+            if self.arm_us <= start and end <= self.disarm_us:
+                start, end = max(start, self.start_us), min(end, self.end_us)
+                if start < end:
+                    out.append(Segment("hover", start, end))
+        return out
 
 
 def _times(table: pa.Table) -> np.ndarray[Any, np.dtype[np.int64]]:

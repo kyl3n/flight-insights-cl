@@ -846,6 +846,13 @@
     "seed": 7,
     "min_relative_pair": 0.1
   },
+  "in_flight": {
+    "about": "The in-flight A/B split (spec: Attribution method, 'Prefer in-flight A/B'). A parameter changed while armed (a ground station's write, which the log records as PARM) splits the flight there, when the map ties it to a metric that the analyzers able to measure part of a flight emit. Such changes within group_s of each other are one moment; any other change within group_s of it is listed with it but neither makes a moment nor stretches one. The side before runs from the last moment that moves the same metrics (or arming) to this one's first change; the side after from settle_s past its last change to the next such moment (or disarming). A side shorter than min_side_s is not compared. A metric measured with an interval on each side compares them as a pair, as two flights do (the shifts' min_relative_pair); any other is measured on blocks of block_s across each side and tested as flights are (the shifts' min_before, min_after, spread_factor and bootstrap).",
+    "group_s": 5,
+    "settle_s": 2,
+    "min_side_s": 20,
+    "block_s": 10
+  },
   "ranking": {
     "about": "Each change bracketed by a shift (applied after the last flight before it, by the first flight after it) is scored: the map's strength for this metric, times how well its direction fits (match when the map's sign and the change's direction would move the metric the way it moved, the other way when they would move it opposite, either when the map's sign is 0 or the values are not numbers), times its size (its relative change over size_saturates, at most 1), times its timing (1 at the shift's own boundary, nearby for a boundary the windows spanned). A parameter the map does not tie to the metric scores unlinked; a build change scores build, a firmware change firmware. Learned values, counters, hardware IDs and ground-station settings are listed as context, unscored. Confidence is high when the top candidate is linked, scores at least dominates times the next and no build or firmware change sits with it; medium when it is linked; low otherwise. Uncalibrated: the fleet's confirmed results refine it.",
     "match": 1.0,
