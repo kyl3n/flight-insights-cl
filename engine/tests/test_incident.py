@@ -15,8 +15,9 @@ from flight_builder import flight, table
 
 from flight_insights import views
 from flight_insights.analyzers import ANALYZERS, FlightData, Registry
-from flight_insights.analyzers.incident import INCIDENT, Event, first_fault
+from flight_insights.analyzers.incident import INCIDENT, Event, first_fault, params_changed, words
 from flight_insights.analyzers.model import Result
+from flight_insights.analyzers.registry import LANGUAGES
 from flight_insights.knowledge import Pack, load_pack
 
 ARM, DISARM = 10_000_000, 120_000_000
@@ -123,6 +124,29 @@ def test_a_parameter_changed_in_flight_before_a_thrust_loss(reg: Registry) -> No
     assert params["main"] == "the crash check"
 
 
+def test_a_parameter_by_its_name_and_never_the_autopilots_own_counters(reg: Registry) -> None:
+    """The log names a parameter in fixed-width bytes. The statistics the autopilot counts
+    up on its own (STAT_*) change in flight with no one setting them: no event."""
+    names = [b"MOT_SPIN_MIN\0\0\0\0", b"STAT_FLTTIME\0\0\0\0"] * 2
+    values = [0.15, 0.0, 0.05, 14.0]
+    parm = table([0, 0, 50 * S, 50 * S],
+                 {"Name": (pa.binary(16), names), "Value": (pa.float32(), values)})  # fmt: skip
+    changed = params_changed(flight({"PARM": parm}, ARM, DISARM), reg)
+    assert [e.detail["name"] for e in changed] == ["MOT_SPIN_MIN"]
+    assert changed[0].detail["from"] == pytest.approx(0.15)
+    assert changed[0].detail["to"] == pytest.approx(0.05)
+
+
+def test_each_event_in_words_in_both_languages(reg: Registry) -> None:
+    rules = reg.rules["incident"]
+    assert all(set(text) == set(LANGUAGES) for text in rules["words"].values())
+    assert words(rules, Event(0, "link_outage"), "uk") == "обрив телеметрійного зв'язку"
+    rtl = Event(0, "mode:GCS_FAILSAFE", detail={"mode": "RTL"})
+    assert words(rules, rtl) == "RTL by gcs failsafe"
+    assert words(rules, rtl, "uk") == "RTL, причина: gcs failsafe"
+    assert words(rules, Event(0, "error:SUBSYS_99"), "uk") == "ERR SUBSYS_99"
+
+
 def test_an_error_nothing_earlier_explains(reg: Registry) -> None:
     r = run(reg, flight({"ERR": err([(50 * S, "CRASH_CHECK", 1)])}, ARM, DISARM))
     assert found(r) == {"incident.unexplained": {
@@ -209,7 +233,10 @@ def test_sitl_the_timeline_puts_every_lane_on_one_clock(
     assert {"link", "errors", "mode", "commands", "warnings", "gnss_fix"} <= set(lanes)
     first = view["first_fault"]
     assert [e["kind"] for e in first["chain"]] == ["gcs_unheard", "error:FAILSAFE_GCS"]
-    assert first["chain"][0]["words"] == "the ground station unheard"
+    assert first["chain"][0]["words"] == {"en": "the ground station unheard",
+                                          "uk": "наземну станцію не чути"}  # fmt: skip
+    # The autopilot's own counters are no parameter change; the simulator's are.
+    assert not any(p["name"].startswith("STAT_") for p in lanes["params"])
     # The warning's text stays on this laptop, and is shown here.
     assert any(w["text"] == "GCS Failsafe" for w in lanes["warnings"])
     rtl = [m for m in lanes["mode"] if m["mode"] == "RTL"]
