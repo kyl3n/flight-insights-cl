@@ -1387,7 +1387,7 @@ It holds these sections:
     - when the link comes back, the aircraft stays in the mode the failsafe chose: pick a mode in the ground station, or move the flight-mode switch, to fly it again;
     - with no failsafe on, set one before the next flight;
     - when it lands where it is or drifts, keep people clear of the ground under it and downwind.
-  - **Settings the log did not hold** are taken at the firmware's defaults (`FS_THR_ENABLE` 1, `FS_THR_VALUE` 975, `RC_FS_TIMEOUT` 1 s, `FS_GCS_ENABLE` 0, `FS_GCS_TIMEOUT` 5 s).
+  - **Settings the log did not hold** are taken at the firmware's defaults (`FS_THR_ENABLE` 1, `FS_THR_VALUE` 975, `RC_FS_TIMEOUT` 1 s, `FS_GCS_ENABLE` 0, `FS_GCS_TIMEOUT` 5 s, `FS_OPTIONS` 16). `FS_OPTIONS` defaults to "continue under pilot control on a GCS failsafe", though its own description says 0 (`Parameters.cpp`). The simulator checks found it.
 
 The card carries times, modes, switches, weights and distances from the measured drift, never a position. It is printed on the laptop and never sent.
 
@@ -2480,14 +2480,29 @@ The app itself never runs a simulator or connects to an aircraft. It exports the
   - Callisto loaded, from the light flight at 40.5 kg, within 1% of the loaded flight's own.
   - **Flown again.** Locally, the exported Callisto and quad were flown in the 4.7.0 simulator on the fixtures' profiles, and exporting from those flights gave the same model again: hover within 0.01%, the same power, and drag within 3% (`tests/test_sim_export.py` for the arithmetic). CI flies them in the simulator-checks workflow (below).
 
-**Checked in CI** (`tools/sim/check_sim.py`, workflow "Simulator checks", on pull requests that touch the export, the flight script, the motor-out model or the frame tables). Models exported from the committed fixtures are flown with the bundle's own script in the 4.7.0 simulator, and compared with what the app predicted:
+**Checked in CI** (`tools/sim/check_sim.py`, workflow "Simulator checks", on pull requests that touch the export, the flight script, the motor-out model, the frame tables, the recovery card or the failsafe rules). Models exported from the committed fixtures are flown with the bundle's own script in the 4.7.0 simulator, and compared with what the app predicted:
 - **Round trip.** The default quad (from its legs) and Callisto (from its hover), flown again on the same profile and exported again from those flights. The model must come back: the hover within 0.5%, the power within 1%, and the quad's drag at the legs' 3, 6 and 9 m/s within 3%. The drag is checked as the sum the simulator flies, k1 v + k2 v² per unit mass, not term by term: a fit can move some of the drag between its momentum term and its bluff-body term within its own intervals, so that split is reported but not checked.
 - **Losing a motor at the heaviest take-off.** Callisto exported at 40.5 kg, each motor stopped in turn while hovering. The busiest remaining motor must run within 3 points of what the motor-out model of ArduPilot's mixer predicts from the hover just before. The aircraft must hold its height within 1 m and its heading within 15°.
 - **Result on 4.7.0** (two local runs, 2026-10-27; CI repeats it on every pull request the workflow covers):
   - **quad:** hover 0.356894 and 0.356903 against 0.356891, and power 354.3 W against 354.3 W. The drag came back within 1.6% at 3, 6 and 9 m/s. Its split moved: the momentum term 1.7 to 2.6% lower and the bluff-body term 3.8 to 4.7% higher, against fit intervals of about ±2.5% each;
   - **Callisto:** hover 0.359017 and 0.359018 against 0.359044, and power 3064.8 W against 3065.0 W;
   - **each of the eight motors lost at 40.5 kg:** the busiest remaining motor ran at 83.7 to 85.8%, 0.5 to 1.0 points above the mixer model's 82.9 to 85.2%. The aircraft lost at most 0.49 m of height, and its heading moved at most 7.0°.
-- **Not yet:** cutting GNSS mid-mission against the recovery card's GNSS sections.
+- **The recovery card's link and GNSS sections** (`tools/sim/check_card.py`, the same workflow, on pull requests that also touch the card or the failsafe rules).
+  - **How it flies.** ArduPilot's default quad is flown as the team flies theirs: from the ground station, the joystick's sticks sent as `MANUAL_CONTROL` with the station's heartbeats (`RC_OPTIONS` bit 0). It takes off to 10 m in GUIDED and flies 5 s in its start mode. Then the link is cut, the sticks and heartbeats stopping together, and in two cases GNSS too (`SIM_GPS1_ENABLE` 0). Two more cases fly on a pilot's receiver with the telemetry up, and lose the receiver: no pulses (`SIM_RC_FAIL` 1), or its failsafe throttle under `FS_THR_VALUE` (`SIM_RC_FAIL` 2).
+  - **The test.** The log's mode changes made by a failsafe after the cut must be the card's, in order. The radio failsafe must come within 0.5 s of the card's time, and the ground station's within 1 s, which covers a heartbeat's spacing and its 3 Hz check. With GNSS lost too, the last change must be where the card's order "link first" ends.
+  - **The cases:**
+    - the radio failsafe's RTL;
+    - the radio failsafe's Land, then the ground station's RTL;
+    - the radio failsafe off in AltHold, which carries on under "pilot control";
+    - the same settings in Guided, which returns;
+    - RTL, then GNSS lost and the EKF failsafe's Land;
+    - the radio failsafe off with the EKF failsafe's AltHold, which is left holding height with no one flying it;
+    - a receiver that stops sending, which returns after `RC_FS_TIMEOUT`;
+    - a receiver sending its failsafe throttle, which returns at once.
+  - **Result on 4.7.0** (local runs, 2026-10-27): every case as the card says.
+    - The radio failsafe acted 1.01 to 1.02 s after the cut, and the ground station's 5.22 to 5.35 s after it.
+    - On the receiver's failsafe throttle the radio failsafe acted 0.07 s after it. The run found that `FS_OPTIONS` defaults to 16 (continue under pilot control on a GCS failsafe), not the 0 its description gives. The card's defaults now hold it.
+- **Not yet:** the GNSS-lost section's hold and drift on dead reckoning.
 
 **Limits.** The simulator does not reproduce real motor noise and vibration, so it is for behaviour, failsafes and margins, never for filter tuning.
 

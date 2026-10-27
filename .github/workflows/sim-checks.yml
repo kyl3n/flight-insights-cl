@@ -4,7 +4,9 @@ name: Simulator checks
 # committed SITL fixtures are flown with the bundle's own flight script in ArduPilot's
 # simulator, and what they flew is compared with the app's predictions (tools/sim/
 # check_sim.py): the model comes back from its own flights, and losing each motor at the
-# heaviest take-off matches the motor-out model of ArduPilot's mixer.
+# heaviest take-off matches the motor-out model of ArduPilot's mixer; and the recovery
+# card's link and GNSS sections say what the firmware does when the link, and GNSS, are
+# cut mid-flight (tools/sim/check_card.py).
 on:
   workflow_dispatch:
     inputs:
@@ -22,6 +24,11 @@ on:
       - knowledge/sim/**
       - knowledge/rules/sim.json
       - knowledge/frames/**
+      - knowledge/recovery/**
+      - knowledge/rules/failsafes.json
+      - engine/src/flight_insights/recovery.py
+      - engine/src/flight_insights/recovery_link.py
+      - engine/src/flight_insights/analyzers/failsafes.py
       - tools/sim/**
       - .github/workflows/sim-checks.yml
 
@@ -64,6 +71,11 @@ jobs:
       - name: Fly the exported models and compare
         working-directory: engine
         run: uv run python ../tools/sim/check_sim.py --ardupilot "$ARDUPILOT" --keep "$RUNNER_TEMP/sim"
+
+      - name: Cut the link, and GNSS, against the recovery card
+        if: success() || failure()  # also when the models' checks failed
+        working-directory: engine
+        run: uv run python ../tools/sim/check_card.py --ardupilot "$ARDUPILOT" --keep "$RUNNER_TEMP/sim/card"
 
       - uses: actions/upload-artifact@v4
         if: always()
