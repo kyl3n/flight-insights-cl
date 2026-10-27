@@ -15,7 +15,8 @@
       "../../knowledge/options/": "knowledge/options/",
       "../../knowledge/procedures/": "knowledge/procedures/",
       "../../knowledge/recovery/": "knowledge/recovery/",
-      "../../knowledge/frames/": "knowledge/frames/"
+      "../../knowledge/frames/": "knowledge/frames/",
+      "../../knowledge/sim/": "knowledge/sim/"
     },
     "linux": {
       "rpm": {

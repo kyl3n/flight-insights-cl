@@ -287,7 +287,7 @@ def add_analysis_methods(server: Server, state: EngineState, guarded: Callable[[
             "flight": ex.flight, "frame": ex.frame, "sitl": ex.sitl, "model": ex.model,
             "sources": ex.sources,
             "left_out": {why: len(names) for why, names in sorted(ex.left_out.items())},
-            "files": sim_export.files(ex),
+            "files": sim_export.files(ex, state.pack),
         }  # fmt: skip
 
     @server.method("flight.tlogs")

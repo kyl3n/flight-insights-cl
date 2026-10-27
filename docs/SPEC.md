@@ -2383,13 +2383,25 @@ The app itself never runs a simulator or connects to an aircraft. It exports the
   - the real hardware's ports, buses, GNSS receivers, sensor mounting, battery-monitor wiring, devices and output wiring.
 
   The motors move to the simulator's channels (motor n on output n), which is the only wiring its frame reads, and `MOT_PWM_MIN`/`MAX` are written out.
-- **The files:** the model as JSON, the parameters as a `.param` file to load after the simulator's `copter.parm`, and a note with the command line and the source of every value. A bundle made from an HL1 or HL2 flight stays on the team's machines: only bundles from the simulator's own flights are committed.
+- **The files:** the model as JSON, the parameters as a `.param` file to load after the simulator's `copter.parm`, a note with the command lines and the source of every value, and the flight script. A bundle made from an HL1 or HL2 flight stays on the team's machines: only bundles from the simulator's own flights are committed.
+- **The flight script** (`knowledge/sim/fly_sitl.py`, copied into every bundle). It starts ArduPilot's simulator from a checkout of the release with the model and parameters, flies one flight and keeps the log for the app to import. It needs only pymavlink. Flights:
+  - **hover:** 30 s at 15 m, for the hover and power the model came from;
+  - **legs:** at 20 m, legs at 3, 6 and 9 m/s on eight courses, then a hover facing eight ways, for the drag;
+  - **motors:** a hover with each motor stopped in turn for 12 s (`SIM_ENGINE_FAIL`, `SIM_ENGINE_MUL` 0), for the motor-out margin.
+
+  It talks only to the simulator it starts on this computer: the link must be loopback and the vehicle must have the simulator's own `SIM_` parameters. The only parameters it ever writes are `SIM_` ones, through one guarded call. It cannot write to an aircraft.
 - **Checked against ArduPilot's own models.** From the simulator's flights of its default quad and of Callisto, the export gives back:
   - the hover within 0.1% (Callisto 0.35904 against 0.35910 at sea level);
   - the hover power within 0.5%;
   - the momentum drag within 2%, and the bluff-body drag within 5%;
   - Callisto loaded, from the light flight at 40.5 kg, within 1% of the loaded flight's own.
-  - **Flown again.** Locally, the exported Callisto and quad were flown in the 4.7.0 simulator on the fixtures' profiles, and exporting from those flights gave the same model again: hover within 0.01%, the same power, and drag within 3% (`tests/test_sim_export.py` for the arithmetic). CI flies them in the simulator-checks workflow, next.
+  - **Flown again.** Locally, the exported Callisto and quad were flown in the 4.7.0 simulator on the fixtures' profiles, and exporting from those flights gave the same model again: hover within 0.01%, the same power, and drag within 3% (`tests/test_sim_export.py` for the arithmetic). CI flies them in the simulator-checks workflow (below).
+
+**Checked in CI** (`tools/sim/check_sim.py`, workflow "Simulator checks", on pull requests that touch the export, the flight script, the motor-out model or the frame tables). Models exported from the committed fixtures are flown with the bundle's own script in the 4.7.0 simulator, and compared with what the app predicted:
+- **Round trip.** The default quad (from its legs) and Callisto (from its hover), flown again on the same profile and exported again from those flights. The model must come back: the hover within 0.5%, the power within 1%, the momentum drag within 3% and the bluff-body drag within 8%.
+- **Losing a motor at the heaviest take-off.** Callisto exported at 40.5 kg, each motor stopped in turn while hovering. The busiest remaining motor must run within 3 points of what the motor-out model of ArduPilot's mixer predicts from the hover just before. The aircraft must hold its height within 1 m and its heading within 15°.
+- RESULTS
+- **Not yet:** cutting GNSS mid-mission against the recovery card's GNSS sections.
 
 **Limits.** The simulator does not reproduce real motor noise and vibration, so it is for behaviour, failsafes and margins, never for filter tuning.
 

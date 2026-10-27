@@ -218,16 +218,35 @@ def test_the_parameters_boot_the_simulator_and_say_nothing_of_the_site(
 def test_the_files(fleet: tuple[Store, ColumnCache, dict[str, str]]) -> None:
     store, cache, ids = fleet
     ex = sx.export(store, cache, PACK, ids["callisto"])
-    files = {f["filename"]: f["text"] for f in sx.files(ex)}
+    files = {f["filename"]: f["text"] for f in sx.files(ex, PACK)}
     assert set(files) == {"callisto-32.5kg.json", "callisto-32.5kg.param",
-                          "callisto-32.5kg-README.txt"}  # fmt: skip
+                          "callisto-32.5kg-README.txt", "fly_sitl.py"}  # fmt: skip
     model = json.loads(files["callisto-32.5kg.json"])
     assert set(model) <= set(sx.FIELDS) and model == ex.model
     params = parse_params(files["callisto-32.5kg.param"])
     assert {e.name: e.value for e in params.entries} == pytest.approx(ex.params, rel=1e-6)
     readme = files["callisto-32.5kg-README.txt"]
     assert "--model octa-quad:callisto-32.5kg.json" in readme
+    assert "--frame octa-quad --params callisto-32.5kg.param --flight motors" in readme
+    assert files["fly_sitl.py"].startswith("#!/usr/bin/env python3")
     assert "hoverThrOut: 0.359" in readme and "standard sea-level air" in readme
+
+
+def test_the_flight_script_sets_only_the_simulators_parameters() -> None:
+    """The bundle's script (knowledge/sim/fly_sitl.py) writes no parameter but the
+    simulator's own, and only through the one guarded call."""
+    import importlib.util
+
+    path = PACK.root / "sim" / sx.FLIGHT_SCRIPT
+    spec = importlib.util.spec_from_file_location("fly_sitl", path)
+    assert spec is not None and spec.loader is not None
+    script = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(script)
+    sim = object.__new__(script.Simulator)  # no simulator started: refused before any send
+    with pytest.raises(script.FlightFailed, match="only SIM_ parameters"):
+        sim.set_sim("ATC_RAT_RLL_P", 0.1)
+    assert set(script.FLIGHTS) == {"hover", "legs", "motors"}
+    assert path.read_text(encoding="utf-8").count("param_set_send") == 1
 
 
 def test_nothing_is_exported_that_the_setup_cannot_say(tmp_path: Path) -> None:
