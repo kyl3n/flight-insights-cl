@@ -2479,17 +2479,21 @@ The app itself never runs a simulator or connects to an aircraft. It exports the
   - **Callisto:** hover 0.359017 and 0.359018 against 0.359044, and power 3064.8 W against 3065.0 W;
   - **each of the eight motors lost at 40.5 kg:** the busiest remaining motor ran at 83.7 to 85.8%, 0.5 to 1.0 points above the mixer model's 82.9 to 85.2%. The aircraft lost at most 0.49 m of height, and its heading moved at most 7.0°.
 - **The recovery card's link and GNSS sections** (`tools/sim/check_card.py`, the same workflow, on pull requests that also touch the card or the failsafe rules).
-  - **How it flies.** ArduPilot's default quad is flown as the team flies theirs: from the ground station, the joystick's sticks sent as `MANUAL_CONTROL` with the station's heartbeats (`RC_OPTIONS` bit 0). It takes off to 10 m in GUIDED and flies 5 s in its start mode. Then the link is cut, the sticks and heartbeats stopping together, and in two cases GNSS too (`SIM_GPS1_ENABLE` 0).
-  - **The test.** The log's mode changes made by a failsafe after the cut must be the card's, in order. Each of the link's failsafes must come within 1 s of the card's time. With GNSS lost too, the last change must be where the card's order "link first" ends.
+  - **How it flies.** ArduPilot's default quad is flown as the team flies theirs: from the ground station, the joystick's sticks sent as `MANUAL_CONTROL` with the station's heartbeats (`RC_OPTIONS` bit 0). It takes off to 10 m in GUIDED and flies 5 s in its start mode. Then the link is cut, the sticks and heartbeats stopping together, and in two cases GNSS too (`SIM_GPS1_ENABLE` 0). Two more cases fly on a pilot's receiver with the telemetry up, and lose the receiver: no pulses (`SIM_RC_FAIL` 1), or its failsafe throttle under `FS_THR_VALUE` (`SIM_RC_FAIL` 2).
+  - **The test.** The log's mode changes made by a failsafe after the cut must be the card's, in order. The radio failsafe must come within 0.5 s of the card's time, and the ground station's within 1 s, which covers a heartbeat's spacing and its 3 Hz check. With GNSS lost too, the last change must be where the card's order "link first" ends.
   - **The cases:**
     - the radio failsafe's RTL;
     - the radio failsafe's Land, then the ground station's RTL;
     - the radio failsafe off in AltHold, which carries on under "pilot control";
     - the same settings in Guided, which returns;
     - RTL, then GNSS lost and the EKF failsafe's Land;
-    - the radio failsafe off with the EKF failsafe's AltHold, which is left holding height with no one flying it.
-  - **Result on 4.7.0** (local run, 2026-10-27): every case as the card says. The radio failsafe acted 1.01 to 1.02 s after the cut, and the ground station's 5.22 to 5.35 s after it. The run found that `FS_OPTIONS` defaults to 16 (continue under pilot control on a GCS failsafe), not the 0 its description gives. The card's defaults now hold it.
-- **Not yet:** a receiver's own loss (`SIM_RC_FAIL`) against the card's "Pilot's radio lost" section; the GNSS-lost section's hold and drift on dead reckoning.
+    - the radio failsafe off with the EKF failsafe's AltHold, which is left holding height with no one flying it;
+    - a receiver that stops sending, which returns after `RC_FS_TIMEOUT`;
+    - a receiver sending its failsafe throttle, which returns at once.
+  - **Result on 4.7.0** (local runs, 2026-10-27): every case as the card says.
+    - The radio failsafe acted 1.01 to 1.02 s after the cut, and the ground station's 5.22 to 5.35 s after it.
+    - On the receiver's failsafe throttle the radio failsafe acted 0.07 s after it. The run found that `FS_OPTIONS` defaults to 16 (continue under pilot control on a GCS failsafe), not the 0 its description gives. The card's defaults now hold it.
+- **Not yet:** the GNSS-lost section's hold and drift on dead reckoning.
 
 **Limits.** The simulator does not reproduce real motor noise and vibration, so it is for behaviour, failsafes and margins, never for filter tuning.
 

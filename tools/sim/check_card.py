@@ -4,17 +4,19 @@
 mid-flight, and GNSS too, and what the firmware did compared with what the card says it
 will do.
 
-Each case flies the quad as the team flies theirs: from the ground station, the joystick's
+Most cases fly the quad as the team flies theirs: from the ground station, the joystick's
 sticks sent as MANUAL_CONTROL with the station's heartbeats (RC_OPTIONS bit 0 ignores the
 receiver). It takes off in GUIDED to 10 m and flies 5 s in its start mode. Then the link
 is cut: the sticks and the heartbeats stop together. Some cases also turn the simulated
 GNSS off a few seconds later (SIM_GPS1_ENABLE 0, a parameter write, which the autopilot
-does not count as hearing the ground station).
+does not count as hearing the ground station). The others fly on a pilot's receiver with
+the telemetry up, and lose the receiver: no pulses (SIM_RC_FAIL 1), or its failsafe
+throttle under FS_THR_VALUE (SIM_RC_FAIL 2), which the card says acts at once.
 
 The log's mode changes made by a failsafe after the cut must be the card's, in order
 (recovery_link.play, or recovery_link.both_lost with GNSS lost too):
-- **The link's failsafes** each within `MARGIN_S` of the card's time. That margin covers
-  the sticks' and heartbeats' spacing and the failsafe's own check.
+- **The link's failsafes** each within its margin of the card's time: the radio's covers
+  the sticks' spacing, the ground station's a heartbeat's and its 3 Hz check.
 - **With GNSS lost too,** the last one must be where the card says the order "link first"
   ends.
 
@@ -50,7 +52,8 @@ PACK = load_pack()
 REG = Registry.load(PACK)
 DOC = PACK.json("recovery/copter.json")
 FAILSAFE_REASONS = ("RADIO_FAILSAFE", "GCS_FAILSAFE", "EKF_FAILSAFE", "DEADRECKON_FAILSAFE")
-MARGIN_S = 1.0  # the sticks' spacing (0.2 s), a heartbeat's (0.5 s), the 3 Hz GCS check
+MARGIN_S = {"FAILSAFE_RADIO": 0.5, "FAILSAFE_GCS": 1.0}  # sticks 0.2 s; heartbeats 0.5 s, 3 Hz
+NO_PULSES, FAILSAFE_THROTTLE = 1, 2  # SIM_RC_FAIL
 WATCH_S = 20.0  # how long after the cut the log is read
 STICK_S = 0.02  # wall time between joystick messages: 0.2 s simulated at the speed-up
 
@@ -82,7 +85,12 @@ class Case:
     settings: dict[str, float]
     gnss_after_s: float | None = None  # GNSS off this long after the link
     about: str = ""
+    receiver: int = 0  # SIM_RC_FAIL for a pilot's receiver lost; 0: the station's link cut
     boot: dict[str, float] = field(default_factory=lambda: {"LOG_DISARMED": 0, "RC_OPTIONS": 1})
+
+    @property
+    def station(self) -> bool:
+        return self.receiver == 0
 
 
 CASES = (
@@ -100,6 +108,12 @@ CASES = (
     Case("gnss-too-althold", "LOITER",
          {"FS_THR_ENABLE": 0, "FS_GCS_ENABLE": 1, "FS_EKF_ACTION": 2}, gnss_after_s=7,
          about="the radio failsafe off and the EKF failsafe's AltHold: no one flies it"),
+    Case("receiver-silent", "GUIDED", {"FS_THR_ENABLE": 1, "FS_GCS_ENABLE": 1},
+         receiver=NO_PULSES, boot={"LOG_DISARMED": 0, "RC_OPTIONS": 0},
+         about="a pilot's receiver that stops sending: RTL after RC_FS_TIMEOUT"),
+    Case("receiver-throttle", "GUIDED", {"FS_THR_ENABLE": 1, "FS_GCS_ENABLE": 1},
+         receiver=FAILSAFE_THROTTLE, boot={"LOG_DISARMED": 0, "RC_OPTIONS": 0},
+         about="a receiver sending its failsafe throttle under FS_THR_VALUE: RTL at once"),
 )  # fmt: skip
 
 
@@ -117,7 +131,9 @@ def fly(case: Case, ardupilot: Path, work: Path) -> tuple[Path, float, dict[str,
                             stderr=subprocess.STDOUT)  # fmt: skip
     v = Station(folder / f"{case.name}.tlog")
     try:
-        v.link(True, throttle=0)  # the station is up from start-up: no receiver to find
+        v.heartbeats(True)
+        if case.station:
+            v.link(True, throttle=0)  # the station is up from start-up: no receiver to find
         v.wait_ready()
         if v.get_param("SIM_SPEEDUP") <= 0:  # only the simulator has SIM_ parameters
             raise ScenarioFailed("not a simulator")
@@ -125,7 +141,8 @@ def fly(case: Case, ardupilot: Path, work: Path) -> tuple[Path, float, dict[str,
         v.arm()
         v.command(sc.ML.MAV_CMD_NAV_TAKEOFF, 0, 0, 0, 0, 0, 0, 10)
         v.wait_altitude(9.5)
-        v.link(True)  # throttle centred: hold height in the pilot's modes
+        if case.station:
+            v.link(True)  # throttle centred: hold height in the pilot's modes
         v.hold(2)
         v.mode(case.start)
         v.hold(5)
@@ -133,14 +150,20 @@ def fly(case: Case, ardupilot: Path, work: Path) -> tuple[Path, float, dict[str,
         if m is None:
             raise ScenarioFailed("no ATTITUDE messages")
         cut = float(m.time_boot_ms) / 1000  # type: ignore[attr-defined]
-        v.link(False)
+        if case.station:
+            v.link(False)
+        else:  # the telemetry stays up: only the receiver is lost
+            v.set_param("SIM_RC_FAIL", case.receiver)
         if case.gnss_after_s is not None:
             v.hold(case.gnss_after_s)
             v.set_param("SIM_GPS1_ENABLE", 0)
             v.hold(WATCH_S - case.gnss_after_s)
         else:
             v.hold(WATCH_S)
-        v.link(True)
+        if case.station:
+            v.link(True)
+        else:
+            v.set_param("SIM_RC_FAIL", 0)
         v.hold(1)
         if case.gnss_after_s is not None:
             v.set_param("SIM_GPS1_ENABLE", 1)
@@ -187,30 +210,36 @@ def observed(log: Path, cut: float) -> list[tuple[float, str, str]]:
 def check(case: Case, log: Path, cut: float, params: dict[str, float]) -> list[str]:
     rules: dict[str, Any] = REG.rules["failsafes"]
     p = dict(DOC["link"]["defaults"]) | params
-    steps = play(rules, p, State(case.start), True, True)
-    wanted: list[tuple[float | None, str]] = []
+    telemetry = case.station  # a receiver's loss leaves the station's link up
+    steps = play(rules, p, State(case.start), True, telemetry)
+    wanted: list[tuple[float | None, str, float]] = []  # when, the mode, the margin
     mode = case.start
     for s in steps:
         if s.state.mode != mode:
-            wanted.append((s.after_s, s.state.mode))
+            at = (
+                0.0
+                if case.receiver == FAILSAFE_THROTTLE and s.failsafe == "FAILSAFE_RADIO"
+                else s.after_s
+            )  # the card's "act at once instead"
+            wanted.append((at, s.state.mode, MARGIN_S.get(s.failsafe, 1.0)))
             mode = s.state.mode
     if case.gnss_after_s is not None:
         drag = p.get("EK3_DRAG_BCOEF_X", 0) > 1 or p.get("EK3_DRAG_MCOEF", 0) > 0.001
         ekf_on = int(p.get("FS_EKF_ACTION", 1)) != 0 and p.get("FS_EKF_THRESH", 0.8) != 0
-        link_first = both_lost(rules, p, State(case.start), True, True, drag, ekf_on)[0]
+        link_first = both_lost(rules, p, State(case.start), True, telemetry, drag, ekf_on)[0]
         if link_first.mode != mode:
-            wanted.append((None, link_first.mode))
+            wanted.append((None, link_first.mode, 0.0))
     seen = observed(log, cut)
     print(f"{case.name}: {case.about}")
-    print(f"  card  {[(t, m) for t, m in wanted]}")
+    print(f"  card  {[(t, m) for t, m, _ in wanted]}")
     print(f"  log   {[(t, m, r) for t, m, r in seen]}")
     problems: list[str] = []
-    if [m for _, m in wanted] != [m for _, m, _ in seen]:
-        problems.append(f"{case.name}: the card's modes {[m for _, m in wanted]} against the "
-                        f"log's {[m for _, m, _ in seen]}")  # fmt: skip
+    if [m for _, m, _ in wanted] != [m for _, m, _ in seen]:
+        problems.append(f"{case.name}: the card's modes {[m for _, m, _ in wanted]} against "
+                        f"the log's {[m for _, m, _ in seen]}")  # fmt: skip
     else:
-        for (t, m), (got, _, _) in zip(wanted, seen, strict=True):
-            if t is not None and abs(got - t) > MARGIN_S:
+        for (t, m, margin), (got, _, _) in zip(wanted, seen, strict=True):
+            if t is not None and abs(got - t) > margin:
                 problems.append(f"{case.name}: {m} at {got} s against the card's {t} s")
     print(("  FAIL  " + "; ".join(problems)) if problems else "  ok    as the card says")
     return problems
