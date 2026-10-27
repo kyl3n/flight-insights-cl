@@ -40,7 +40,7 @@ from typing import Any
 
 import numpy as np
 
-from flight_insights import mitigations
+from flight_insights import mitigations, recovery_link
 from flight_insights.analyzers.flight import FlightData
 from flight_insights.analyzers.registry import Registry
 from flight_insights.analyzers.run import analysis_results
@@ -369,7 +369,9 @@ def _mitigations(
     airframe = flight.airframe_id
     outages = mitigations.fleet_outages(store, reg, airframe) if airframe else []
     goal = mitigations.goal_check(
-        reg.rules["failsafes"], pack.json("recovery/copter.json")["link"]["defaults"]
+        reg.rules["failsafes"],
+        pack.json("recovery/copter.json")["link"]["defaults"],
+        recovery_link.flown(store, airframe) if airframe else (None, None),
     )
     ranked = mitigations.rank(
         doc, setup, reg.rules["no_gnss"]["readiness"], goal, outages, airframe

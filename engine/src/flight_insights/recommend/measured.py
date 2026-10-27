@@ -10,11 +10,13 @@ within each payload band, so a loaded flight is never read against a light one.
   the intervals apart: a guard on what the change is not meant to improve.
 - **no_shift_worse**: no metric shifted worse from the first flight with the change to
   the one being graded (history/attribution.py: per payload group, beyond the airframe's
-  spread). One whose top-ranked cause is the change's own parameter, or a value its work
-  saves, marks the check worse; one caused by something else, or one the weather could
-  explain (the flights' weather differed beyond rules/attribution.json's thresholds),
-  fails it. A metric with too few flights to judge is no shift, so it passes until they
-  are flown.
+  spread). A change made ready for work such as AutoTune is graded on the flights after
+  the work, as the work is (records.py), so its window starts there too: what the work's
+  own flights measured is not held against it. One whose top-ranked cause is the
+  change's own parameter, or a value its work saves, marks the check worse; one caused
+  by something else, or one the weather could explain (the flights' weather differed
+  beyond rules/attribution.json's thresholds), fails it. A metric with too few flights
+  to judge is no shift, so it passes until they are flown.
 - **metric_vs_lightest**: with the change, the heaviest band's value against the
   lightest's: at most `max_ratio` times it, or at most `max_above` over it. ArduPilot
   tunes light and expects the same gains to fly heavier aircraft slower, not unstable.
@@ -27,6 +29,7 @@ the flight that proposed it, when a person marked it done).
 
 from __future__ import annotations
 
+import json
 from collections.abc import Callable, Mapping
 from dataclasses import dataclass
 from typing import Any
@@ -68,6 +71,22 @@ def _with_change(
     start = rec["detail"].get("applied_flight") or rec["flight_id"]
     at = order.get(start, -1)
     return lambda flight_id: order.get(flight_id, -1) > at
+
+
+def _work_flight(store: Store, rec: Mapping[str, Any]) -> str | None:
+    """The flight that showed done the work a change was made ready for (its finding's
+    action, kept for the airframe), or None for any other recommendation."""
+    if rec["param"] is None or not rec["detail"].get("applied_when"):
+        return None
+    row = store.conn.execute(
+        "SELECT detail_json FROM recommendation WHERE airframe_id = ? "
+        "AND finding_code IS ? AND param IS NULL ORDER BY created_hlc DESC LIMIT 1",
+        (rec["airframe_id"], rec["finding_code"]),
+    ).fetchone()
+    if row is None:
+        return None
+    done = json.loads(row[0]).get("applied_flight")
+    return str(done) if done else None
 
 
 def measurements(
@@ -202,6 +221,9 @@ def no_shift_worse(
         return None, {"shifts": []}
     changed = _with_change(store, pack, rec, order)
     first = next((i for i, (f, _) in enumerate(flights) if changed(f.id)), None)
+    done = _work_flight(store, rec)
+    if first is not None and done in order:
+        first = max(first, order[done] + 1)
     if first is None or first > order[flight_id]:
         return None, {"shifts": []}
     own = {str(n) for n in [rec["param"], *rec["detail"].get("undo", ())] if n}

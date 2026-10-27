@@ -18,7 +18,10 @@ The log's mode changes made by a failsafe after the cut must be the card's, in o
 - **The link's failsafes** each within its margin of the card's time: the radio's covers
   the sticks' spacing, the ground station's a heartbeat's and its 3 Hz check.
 - **With GNSS lost too,** the last one must be where the card says the order "link first"
-  ends.
+  ends. Two cases fly with drag fusion on (ArduPilot's own SITL drag values, as its
+  DeadReckoningInWind autotest sets them) and watch longer: FS_DR_TIMEOUT 1800 keeps RTL
+  going home on dead reckoning, where the card counts the way home; 1 s, shorter than the
+  climb home, gives the position up and the EKF failsafe lands it.
 
 Run from engine/, which has the app's code: uv run python ../tools/sim/check_card.py
 --ardupilot DIR [--keep DIR]. Parameters are only ever written to the local simulator
@@ -41,7 +44,7 @@ from typing import Any
 from flight_insights.analyzers.registry import Registry
 from flight_insights.dataflash import read_dataflash
 from flight_insights.knowledge import load_pack
-from flight_insights.recovery_link import State, both_lost, play
+from flight_insights.recovery_link import State, both_lost, dead_reckoned_return, play
 
 ROOT = Path(__file__).resolve().parents[2]
 sys.path.insert(0, str(ROOT / "tools" / "fixtures" / "sitl"))
@@ -54,7 +57,7 @@ DOC = PACK.json("recovery/copter.json")
 FAILSAFE_REASONS = ("RADIO_FAILSAFE", "GCS_FAILSAFE", "EKF_FAILSAFE", "DEADRECKON_FAILSAFE")
 MARGIN_S = {"FAILSAFE_RADIO": 0.5, "FAILSAFE_GCS": 1.0}  # sticks 0.2 s; heartbeats 0.5 s, 3 Hz
 NO_PULSES, FAILSAFE_THROTTLE = 1, 2  # SIM_RC_FAIL
-WATCH_S = 20.0  # how long after the cut the log is read
+DRAG = {"EK3_DRAG_BCOEF_X": 9.5, "EK3_DRAG_BCOEF_Y": 9.5, "EK3_DRAG_MCOEF": 0.082}
 STICK_S = 0.02  # wall time between joystick messages: 0.2 s simulated at the speed-up
 
 
@@ -87,6 +90,8 @@ class Case:
     about: str = ""
     receiver: int = 0  # SIM_RC_FAIL for a pilot's receiver lost; 0: the station's link cut
     boot: dict[str, float] = field(default_factory=lambda: {"LOG_DISARMED": 0, "RC_OPTIONS": 1})
+    watch_s: float = 20.0  # how long after the cut the log is read
+    flown: tuple[float, float] | None = None  # the range and longest flight the card plays
 
     @property
     def station(self) -> bool:
@@ -108,6 +113,14 @@ CASES = (
     Case("gnss-too-althold", "LOITER",
          {"FS_THR_ENABLE": 0, "FS_GCS_ENABLE": 1, "FS_EKF_ACTION": 2}, gnss_after_s=7,
          about="the radio failsafe off and the EKF failsafe's AltHold: no one flies it"),
+    Case("dead-reckoned-home", "LOITER",
+         {"FS_THR_ENABLE": 1, "FS_GCS_ENABLE": 1, **DRAG, "FS_DR_ENABLE": 2,
+          "FS_DR_TIMEOUT": 1800}, gnss_after_s=3, watch_s=40, flown=(20.0, 120.0),
+         about="RTL on the radio failsafe, then GNSS lost: home on dead reckoning, no Land"),
+    Case("dead-reckoned-short", "LOITER",
+         {"FS_THR_ENABLE": 1, "FS_GCS_ENABLE": 1, **DRAG, "FS_DR_ENABLE": 2,
+          "FS_DR_TIMEOUT": 1}, gnss_after_s=3, watch_s=25, flown=(20.0, 120.0),
+         about="the same with FS_DR_TIMEOUT 1 s: the EKF failsafe lands it on the way"),
     Case("receiver-silent", "GUIDED", {"FS_THR_ENABLE": 1, "FS_GCS_ENABLE": 1},
          receiver=NO_PULSES, boot={"LOG_DISARMED": 0, "RC_OPTIONS": 0},
          about="a pilot's receiver that stops sending: RTL after RC_FS_TIMEOUT"),
@@ -157,9 +170,9 @@ def fly(case: Case, ardupilot: Path, work: Path) -> tuple[Path, float, dict[str,
         if case.gnss_after_s is not None:
             v.hold(case.gnss_after_s)
             v.set_param("SIM_GPS1_ENABLE", 0)
-            v.hold(WATCH_S - case.gnss_after_s)
+            v.hold(case.watch_s - case.gnss_after_s)
         else:
-            v.hold(WATCH_S)
+            v.hold(case.watch_s)
         if case.station:
             v.link(True)
         else:
@@ -192,7 +205,7 @@ def fly(case: Case, ardupilot: Path, work: Path) -> tuple[Path, float, dict[str,
     return log, cut, params
 
 
-def observed(log: Path, cut: float) -> list[tuple[float, str, str]]:
+def observed(log: Path, cut: float, watch_s: float) -> list[tuple[float, str, str]]:
     """The failsafes' mode changes after the cut: seconds after it, mode and reason."""
     names: dict[str, Any] = REG.names("4.7.0")
     modes, reasons = names["modes"]["copter"], names["mode_reasons"]
@@ -202,7 +215,7 @@ def observed(log: Path, cut: float) -> list[tuple[float, str, str]]:
                        table.column("Rsn").to_pylist(), strict=True):  # fmt: skip
         after = round(int(t) / 1e6 - cut, 2)
         reason = reasons.get(str(r), str(r))
-        if 0 <= after <= WATCH_S and reason in FAILSAFE_REASONS:
+        if 0 <= after <= watch_s and reason in FAILSAFE_REASONS:
             out.append((after, modes.get(str(n), str(n)), reason))
     return out
 
@@ -226,10 +239,14 @@ def check(case: Case, log: Path, cut: float, params: dict[str, float]) -> list[s
     if case.gnss_after_s is not None:
         drag = p.get("EK3_DRAG_BCOEF_X", 0) > 1 or p.get("EK3_DRAG_MCOEF", 0) > 0.001
         ekf_on = int(p.get("FS_EKF_ACTION", 1)) != 0 and p.get("FS_EKF_THRESH", 0.8) != 0
-        link_first = both_lost(rules, p, State(case.start), True, telemetry, drag, ekf_on)[0]
+        back = None if case.flown is None else dead_reckoned_return(
+            p, DOC["link"]["defaults"], *case.flown
+        )  # fmt: skip
+        link_first = both_lost(rules, p, State(case.start), True, telemetry, drag, ekf_on,
+                               back)[0]  # fmt: skip
         if link_first.mode != mode:
             wanted.append((None, link_first.mode, 0.0))
-    seen = observed(log, cut)
+    seen = observed(log, cut, case.watch_s)
     print(f"{case.name}: {case.about}")
     print(f"  card  {[(t, m) for t, m, _ in wanted]}")
     print(f"  log   {[(t, m, r) for t, m, r in seen]}")

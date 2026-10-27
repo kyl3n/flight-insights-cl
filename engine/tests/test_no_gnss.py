@@ -208,6 +208,21 @@ def test_drift_stays_on_this_laptop(reg: Registry) -> None:
     policy = Policy.load(load_pack(), "4.7.0")
     clear = {e.id: policy.evidence_clear(e.kind, e.messages, e.fields) for e in out.evidence}
     assert clear == {"no_gnss:outage:1": True, "no_gnss:outage:1:drift": False,
-                     "no_gnss:flight": True, "no_gnss:flight:drift": False}  # fmt: skip
+                     "no_gnss:flight": True, "no_gnss:flight:drift": False,
+                     "no_gnss:range": False}  # fmt: skip
     for f in out.findings:
         assert all("drift" not in k for k in f.params)
+
+
+def test_the_range_is_the_farthest_it_flew_from_where_it_armed(reg: Registry) -> None:
+    """Measured whatever its outages, for the recovery card's trip home on dead
+    reckoning; from where it armed, not from the first fix."""
+    cols = hover()
+    set_(cols, "POS", "Lat", 0, ARM / 1e6, LAT - 500 * M)  # parked away before arming
+    set_(cols, "POS", "Lat", 30, 40, LAT + 120 * M)
+    set_(cols, "POS", "Lng", 30, 40, LON)
+    out = run(cols, reg)
+    [rng] = [e for e in out.evidence if e.id == "no_gnss:range"]
+    assert abs(rng.values["farthest_m"] - 120) <= 2  # M is near enough, not exact
+    assert out.evidence[-1] is rng  # after the outages: the others keep their places
+    assert rng.fields == ("Lat", "Lng")

@@ -89,6 +89,30 @@
       "url": "https://ardupilot.org/copter/docs/airspeed-estimation.html",
       "path": "copter/source/docs/airspeed-estimation.rst"
     },
+    "ekf3_drag_wind_only": {
+      "title": "Drag fusion's Kalman gains are on the wind states only ('Don't allow modification of any states other than wind velocity'), ArduPilot 4.7.0",
+      "url": "https://github.com/ArduPilot/ardupilot/blob/Copter-4.7.0/libraries/AP_NavEKF3/AP_NavEKF3_AirDataFusion.cpp#L528-L535",
+      "path": "libraries/AP_NavEKF3/AP_NavEKF3_AirDataFusion.cpp",
+      "lines": "528-535"
+    },
+    "ekf3_wind_held": {
+      "title": "While dead reckoning on drag fusion the wind states are treated as truth (their variance set to zero), ArduPilot 4.7.0",
+      "url": "https://github.com/ArduPilot/ardupilot/blob/Copter-4.7.0/libraries/AP_NavEKF3/AP_NavEKF3_core.cpp#L1096-L1101",
+      "path": "libraries/AP_NavEKF3/AP_NavEKF3_core.cpp",
+      "lines": "1096-1101"
+    },
+    "ekf3_on_ground": {
+      "title": "A multirotor's estimator is on the ground only when disarmed, ArduPilot 4.7.0",
+      "url": "https://github.com/ArduPilot/ardupilot/blob/Copter-4.7.0/libraries/AP_NavEKF3/AP_NavEKF3_VehicleStatus.cpp#L375-L384",
+      "path": "libraries/AP_NavEKF3/AP_NavEKF3_VehicleStatus.cpp",
+      "lines": "375-384"
+    },
+    "land_detector": {
+      "title": "Copter's land detector: no landing while a roll or pitch over 15 degrees is asked for, ArduCopter 4.7.0",
+      "url": "https://github.com/ArduPilot/ardupilot/blob/Copter-4.7.0/ArduCopter/land_detector.cpp#L113-L146",
+      "path": "ArduCopter/land_detector.cpp",
+      "lines": "113-146"
+    },
     "dead_reckoning_failsafe": {
       "title": "Dead Reckoning Failsafe",
       "url": "https://ardupilot.org/copter/docs/deadreckoning-failsafe.html",
@@ -263,6 +287,9 @@
         "dead_reckons": true,
         "params": {
           "FS_DR_ENABLE": 2
+        },
+        "params_link_first": {
+          "FS_DR_TIMEOUT": 1800
         }
       },
       "effect_sources": [
@@ -301,8 +328,8 @@
       "limits": [
         {
           "text": {
-            "en": "It does not reach home by itself: if the aircraft is not home within FS_DR_TIMEOUT, the EKF failsafe acts and it lands; it stays in RTL even if GPS comes back.",
-            "uk": "Сам додому не доводить: якщо апарат не долетів за FS_DR_TIMEOUT, спрацьовує аварійний режим EKF і він сідає; навіть якщо GPS повернеться, апарат лишається в RTL."
+            "en": "It reaches home only if FS_DR_TIMEOUT outlasts the trip: when the timeout comes first, the EKF failsafe acts and it lands; it stays in RTL even if GPS comes back.",
+            "uk": "Додому апарат долітає, лише якщо FS_DR_TIMEOUT довший за дорогу: якщо тайм-аут настає раніше, спрацьовує аварійний режим EKF і апарат сідає; навіть якщо GPS повернеться, апарат лишається в RTL."
           },
           "sources": [
             "dead_reckoning_failsafe",
@@ -317,6 +344,26 @@
           "sources": [
             "fs_dr_params",
             "non_gps_navigation"
+          ]
+        },
+        {
+          "text": {
+            "en": "Nothing corrects the position while it dead-reckons: drag fusion corrects only the wind estimate, and the wind is held fixed while dead reckoning, so the position drifts, faster the longer it flies.",
+            "uk": "Під час навігації за рахунком позицію ніщо не виправляє: злиття опору виправляє лише оцінку вітру, а вітер на цей час фіксується, тож позиція зміщується, і що довше політ, то швидше."
+          },
+          "sources": [
+            "ekf3_drag_wind_only",
+            "ekf3_wind_held"
+          ]
+        },
+        {
+          "text": {
+            "en": "After landing on dead reckoning it can stay armed on the ground: the estimator takes itself to be on the ground only once disarmed, and while the position controller still leans the aircraft the land detector does not trigger.",
+            "uk": "Після посадки за рахунком апарат може лишатися зведеним на землі: оцінювач вважає себе на землі лише після вимкнення двигунів, а поки регулятор позиції ще нахиляє апарат, детектор посадки не спрацьовує."
+          },
+          "sources": [
+            "ekf3_on_ground",
+            "land_detector"
           ]
         },
         {

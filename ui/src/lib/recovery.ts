@@ -41,8 +41,15 @@ export interface RecoveryCard {
   gaps: string[]; // the readiness review's findings, by code
   // Whether it gets home with the pilot's control and GNSS both lost, from every mode and
   // whichever goes first, and the link section's lines that say what it does; null with
-  // no link sections.
-  goal: { met: boolean; section: string; will: Phrase[] } | null;
+  // no link sections. `by`: on a position it can trust, or on dead reckoning, which drifts;
+  // `trip_s`: the trip home from the farthest it has flown, once a flight measured it.
+  goal: {
+    met: boolean;
+    by?: "position" | "dead_reckoning" | null;
+    trip_s?: number | null;
+    section: string;
+    will: Phrase[];
+  } | null;
   footer: Text;
 }
 

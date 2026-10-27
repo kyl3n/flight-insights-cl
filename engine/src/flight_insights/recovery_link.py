@@ -21,6 +21,16 @@ moment the link drops:
   then the EKF failsafe (ekf_check.cpp failsafe_ekf_event: AltHold becomes Land while the
   radio failsafe is in force). Which goes first is not known, so both orders are played,
   from each mode it may be flown in, and every end they reach is named.
+- **Home on dead reckoning.** Dead reckoning keeps a position the firmware flies on until
+  FS_DR_TIMEOUT, whether or not FS_DR_ENABLE acts (system.cpp ekf_has_relative_position).
+  It gets home on that position when FS_DR_TIMEOUT outlasts what the way home needs
+  (`Return`): the trip from the farthest the airframe has flown (the RTL climb, then the
+  way back) where the failsafe sends it home at once; that trip after its longest flight
+  where it is left in its mode with GNSS lost first, for the link may go any time later.
+  The position drifts, faster the longer it flies, since in 4.7.0 nothing corrects it
+  (drag fusion corrects only the wind, which is held fixed while dead reckoning:
+  AP_NavEKF3_AirDataFusion.cpp, AP_NavEKF3_core.cpp). Otherwise the timeout comes first,
+  and the EKF failsafe as above.
 
 The card says what was measured too: how the airframe's logged link failsafes went, losses
 no failsafe answered, and the longest the ground station went unheard without one.
@@ -55,6 +65,7 @@ class State:
     position: bool = True  # a position it can fly on
     radio: bool = False  # the radio failsafe in force
     pilot: bool = False  # someone still flies it: the pilot's radio works
+    dead_reckoning: bool = False  # its position is dead-reckoned: it drifts, nothing corrects it
 
 
 @dataclass(frozen=True)
@@ -142,17 +153,54 @@ def _link_events(params: Mapping[str, float], control: bool, telemetry: bool
     return sorted(out)
 
 
+@dataclass(frozen=True)
+class Return:
+    """What a way home on dead reckoning needs of FS_DR_TIMEOUT: the trip home from the
+    farthest the airframe has flown, and its longest flight (with GNSS lost first, the link
+    may go any time later in the flight, and the trip starts then)."""
+
+    trip_s: float
+    flight_s: float
+
+
+def dead_reckoned_return(
+    params: Mapping[str, float], defaults: Mapping[str, float], farthest_m: float | None,
+    flight_s: float | None,
+) -> Return | None:  # fmt: skip
+    """The trip RTL flies home from the farthest the airframe has flown: the climb to
+    RTL_ALT_M at WP_SPD_UP from the ground (the most it can take), then the way back at
+    RTL_SPEED_MS, or WP_SPD where that is 0 (mode_rtl.cpp); with its longest flight. None
+    when no flight measured them. A setting the parameters do not hold is the firmware's
+    default."""
+    if farthest_m is None or flight_s is None:
+        return None
+    p: Mapping[str, float] = dict(defaults) | dict(params)
+    speed = float(p["RTL_SPEED_MS"]) or float(p["WP_SPD"])
+    trip = float(p["RTL_ALT_M"]) / float(p["WP_SPD_UP"]) + farthest_m / speed
+    return Return(trip, flight_s)
+
+
 def _gnss_lost(
     rules: Mapping[str, Any], params: Mapping[str, float], state: State, dead_reckons: bool,
-    ekf_on: bool,
+    ekf_on: bool, back: Return | None = None, link_later: bool = False,
 ) -> list[Step]:  # fmt: skip
-    """GNSS lost with no source set keeping a position: dead reckoning where it acts, then
-    the position given up and the EKF failsafe."""
+    """GNSS lost with no source set keeping a position: dead reckoning where drag fusion
+    lets it, its failsafe acting where FS_DR_ENABLE says, and the position kept while
+    FS_DR_TIMEOUT outlasts what the way home needs (`back`): the trip, from home-going
+    modes; else, with the link to go later (`link_later`), the trip after its longest
+    flight. Otherwise the position is given up at the timeout, and the EKF failsafe acts."""
     steps: list[Step] = []
-    if dead_reckons and int(params.get("FS_DR_ENABLE", 0)) > 0:
-        state = act(rules, params, state, DEAD_RECKONING)
+    if dead_reckons:
+        state = replace(state, dead_reckoning=True)
+        if int(params.get("FS_DR_ENABLE", 0)) > 0:
+            state = act(rules, params, state, DEAD_RECKONING)
         steps.append(Step(None, DEAD_RECKONING, state))
-    state = replace(state, position=False)
+        if back is not None:
+            need = (back.trip_s if state.mode in HOME
+                    else back.flight_s + back.trip_s if link_later else None)  # fmt: skip
+            if need is not None and float(params.get("FS_DR_TIMEOUT", 30.0)) >= need:
+                return steps
+    state = replace(state, position=False, dead_reckoning=False)
     steps.append(Step(None, EKF, act(rules, params, state, EKF) if ekf_on else state))
     return steps
 
@@ -169,7 +217,7 @@ def play(rules: Mapping[str, Any], params: Mapping[str, float], start: State, co
 
 def both_lost(
     rules: Mapping[str, Any], params: Mapping[str, float], start: State, control: bool,
-    telemetry: bool, dead_reckons: bool, ekf_on: bool,
+    telemetry: bool, dead_reckons: bool, ekf_on: bool, back: Return | None = None,
 ) -> list[State]:  # fmt: skip
     """The link and GNSS lost, in either order: where each order ends."""
 
@@ -178,10 +226,11 @@ def both_lost(
             state = act(rules, params, state, kind)
         return state
 
-    def gnss(state: State) -> State:
-        return _gnss_lost(rules, params, state, dead_reckons, ekf_on)[-1].state
+    def gnss(state: State, link_later: bool) -> State:
+        steps = _gnss_lost(rules, params, state, dead_reckons, ekf_on, back, link_later)
+        return steps[-1].state
 
-    return list(dict.fromkeys((gnss(link(start)), link(gnss(start)))))
+    return list(dict.fromkeys((gnss(link(start), False), link(gnss(start, True)))))
 
 
 # --- wording ------------------------------------------------------------------------------
@@ -200,6 +249,8 @@ def outcome(c: Card, rules: Mapping[str, Any], s: State, start: str | None = Non
         return c.phrase("out.disarm")
     if m == "LAND":
         return c.phrase("out.land" if s.position else "out.land_drift")
+    if m in HOME and s.position and s.dead_reckoning:
+        return c.phrase(f"out.{m.lower()}_dead_reckoning")
     if m in ("RTL", "SMART_RTL", "AUTO_RTL", "BRAKE", "AUTO", "GUIDED") and s.position:
         return c.phrase(f"out.{m.lower()}")
     key = ("out.lost" if needs_position(rules, m) and not s.position  # the EKF failsafe off
@@ -221,34 +272,45 @@ def alone(c: Card, rules: Mapping[str, Any], s: State) -> bool:
 
 def gets_home(
     rules: Mapping[str, Any], params: Mapping[str, float], control: bool, telemetry: bool,
-    keeps_position: bool, dead_reckons: bool, ekf_on: bool,
-) -> bool:  # fmt: skip
+    keeps_position: bool, dead_reckons: bool, ekf_on: bool, back: Return | None = None,
+) -> str | None:  # fmt: skip
     """The goal (spec: Flying without GNSS, "Recommendations and recovery"): with the link
     and GNSS both lost, whichever goes first and from every mode it may be flown in, it
-    flies back to take-off with a position it can trust. A first source set that keeps a
-    position leaves the link's failsafes to act as they would with GNSS."""
+    flies back to take-off. "position" when every way home keeps a position it can trust;
+    "dead_reckoning" when some way home flies on dead reckoning, which drifts (the fleet
+    owner counts it, 2026-10-27); None when it does not get home. A first source set that
+    keeps a position leaves the link's failsafes to act as they would with GNSS."""
+    by = "position"
     for m in STARTS:
         if keeps_position:
             played = play(rules, params, State(m), control, telemetry)
             ends = [played[-1].state if played else State(m)]
         else:
-            ends = both_lost(rules, params, State(m), control, telemetry, dead_reckons, ekf_on)
+            ends = both_lost(rules, params, State(m), control, telemetry, dead_reckons, ekf_on,
+                             back)  # fmt: skip
         if not all(e.mode in HOME and e.position for e in ends):
-            return False
-    return True
+            return None
+        if any(e.dead_reckoning for e in ends):
+            by = "dead_reckoning"
+    return by
 
 
 def goal_met(
     rules: Mapping[str, Any], defaults: Mapping[str, float], params: Mapping[str, float],
-    keeps_position: bool, dead_reckons: bool,
+    keeps_position: bool, dead_reckons: bool, flown: tuple[float | None, float | None] = (
+        None, None),
 ) -> bool:  # fmt: skip
     """The goal as the card's link section plays it (`sections`): the one link a
-    station-flown aircraft has, else the pilot's radio, lost with GNSS. A setting the
-    parameters do not hold is the firmware's default (`defaults`)."""
+    station-flown aircraft has, else the pilot's radio, lost with GNSS; met on a trusted
+    position or on dead reckoning. `flown` is the farthest the airframe has flown and its
+    longest flight (`flown`). A setting the parameters do not hold is the firmware's
+    default (`defaults`, the card's link defaults)."""
     p: Mapping[str, float] = dict(defaults) | dict(params)
     station = bool(int(p.get("RC_OPTIONS", 0)) & IGNORE_RECEIVER)
     ekf_on = int(p.get("FS_EKF_ACTION", 1)) != 0 and p.get("FS_EKF_THRESH", 0.8) != 0
-    return gets_home(rules, p, True, station, keeps_position, dead_reckons, ekf_on)
+    back = dead_reckoned_return(p, defaults, *flown)
+    return gets_home(rules, p, True, station, keeps_position, dead_reckons, ekf_on,
+                     back) is not None  # fmt: skip
 
 
 def _joined(c: Card, items: Sequence[Mapping[str, str]]) -> dict[str, str]:
@@ -315,12 +377,15 @@ def _facts(c: Card, kind: Kind, name: Mapping[str, str]) -> list[dict[str, Any]]
 def sections(
     c: Card, rules: Mapping[str, Any], params: Mapping[str, float], measured: LinkMeasured,
     keeps_position: bool, dead_reckons: bool,
+    flown: tuple[float | None, float | None] = (None, None),
 ) -> list[dict[str, Any]]:  # fmt: skip
     """The link sections: one for a ground station that flies it; for a pilot's radio, one
     for the radio and one for the telemetry link. A setting the log did not hold is the
-    firmware's default."""
+    firmware's default. `flown`, the farthest the airframe has flown and its longest flight
+    (`flown`), sets what a way home on dead reckoning needs of FS_DR_TIMEOUT."""
     doc: Mapping[str, Any] = c.doc["link"]
     p: Mapping[str, float] = dict(doc["defaults"]) | dict(params)
+    back = dead_reckoned_return(p, doc["defaults"], *flown)
     names: Mapping[str, Mapping[str, str]] = doc["failsafe_names"]
     station = bool(int(p.get("RC_OPTIONS", 0)) & IGNORE_RECEIVER)
     ekf_on = int(p.get("FS_EKF_ACTION", 1)) != 0 and p.get("FS_EKF_THRESH", 0.8) != 0
@@ -337,7 +402,8 @@ def sections(
             return c.phrase("link.gnss_keeps")
         said: dict[str, dict[str, str]] = {}  # each different end once, in the order met
         for m in STARTS:
-            for end in both_lost(rules, p, State(m), control, telemetry, dead_reckons, ekf_on):
+            for end in both_lost(rules, p, State(m), control, telemetry, dead_reckons, ekf_on,
+                                 back):  # fmt: skip
                 words = outcome(c, rules, end)["text"]
                 said.setdefault(words["en"], words)
         key = "link.gnss_too" if len(said) == 1 else "link.gnss_too_depends"
@@ -360,10 +426,19 @@ def sections(
             played = play(rules, p, start, control, telemetry)
             ends = [played[-1].state if played else start]
             if gnss_too and not keeps_position:
-                ends += both_lost(rules, p, State(m), control, telemetry, dead_reckons, ekf_on)
+                ends += both_lost(rules, p, State(m), control, telemetry, dead_reckons, ekf_on,
+                                  back)  # fmt: skip
             if any(alone(c, rules, e) for e in ends):
                 return True
         return False
+
+    def home_dead_reckoned(control: bool, telemetry: bool) -> bool:
+        """Whether, with GNSS lost too, some way home flies on dead reckoning."""
+        return not keeps_position and any(
+            e.dead_reckoning
+            for m in STARTS
+            for e in both_lost(rules, p, State(m), control, telemetry, dead_reckons, ekf_on, back)
+        )
 
     def steps(control: bool, telemetry: bool, *first: str) -> list[dict[str, Any]]:
         out = [c.phrase(k) for k in first]
@@ -371,6 +446,8 @@ def sections(
             out.append(c.phrase("step.link_no_failsafe"))
         if lands_or_stays(control, telemetry) or not keeps_position:
             out.append(c.phrase("step.link_clear"))
+        if home_dead_reckoned(control, telemetry):
+            out.append(c.phrase("step.dead_reckoned_home"))
         return out
 
     def section(key: str, will: list[dict[str, Any]], facts: list[dict[str, Any]],
@@ -382,9 +459,11 @@ def sections(
     def goal(control: bool, telemetry: bool) -> dict[str, Any]:
         """Whether it gets home with this link and GNSS both lost, and the lines that say
         what it does: the link's failsafes from each mode, then with GNSS lost too."""
-        met = gets_home(rules, p, control, telemetry, keeps_position, dead_reckons, ekf_on)
+        by = gets_home(rules, p, control, telemetry, keeps_position, dead_reckons, ekf_on, back)
         return {
-            "met": met,
+            "met": by is not None,
+            "by": by,
+            "trip_s": None if back is None else round(back.trip_s),
             "will": [*lines(control, telemetry, False), gnss_too(control, telemetry)],
         }
 
@@ -422,6 +501,31 @@ def _silence(c: Card, m: LinkMeasured) -> list[dict[str, Any]]:
 
 
 # --- from the store -----------------------------------------------------------------------
+
+
+def flown(store: Store, airframe_id: str) -> tuple[float | None, float | None]:
+    """The farthest the airframe has flown from where it armed, and its longest flight,
+    over its flights' latest analyses (the no-GNSS analyzer's `no_gnss:range`); None for
+    each when none measured it."""
+    far: list[float] = []
+    armed: list[float] = []
+    for (flight_id,) in store.conn.execute(
+        "SELECT id FROM flight WHERE airframe_id = ?", (airframe_id,)
+    ).fetchall():
+        run = store.conn.execute(
+            "SELECT evidence_json FROM analysis_run WHERE flight_id = ? "
+            "ORDER BY created_hlc DESC LIMIT 1",
+            (flight_id,),
+        ).fetchone()
+        if run is None:
+            continue
+        for e in json.loads(run[0]):
+            v: Mapping[str, Any] = e.get("values", {}) if e["id"] == "no_gnss:range" else {}
+            if v.get("farthest_m") is not None:
+                far.append(float(v["farthest_m"]))
+            if v.get("armed_s") is not None:
+                armed.append(float(v["armed_s"]))
+    return (max(far) if far else None), (max(armed) if armed else None)
 
 
 def measured(store: Store, airframe_id: str) -> LinkMeasured:

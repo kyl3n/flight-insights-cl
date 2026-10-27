@@ -40,7 +40,7 @@
     type Pick,
   } from "../lib/navigation";
   import { recoveryCard, type RecoveryCard } from "../lib/recovery";
-  import { findingAction, findingTitle, severityLook, type Registry } from "../lib/report";
+  import { findingAction, findingTitle, formatNumber, severityLook, type Registry } from "../lib/report";
   import { engineCall } from "../lib/shell";
   import { STATUS, type Status } from "../lib/status";
   import ProcedureSteps from "./ProcedureSteps.svelte";
@@ -125,17 +125,22 @@
     <div class="main">
       {#if card?.goal}
         {@const met = card.goal.met}
-        {@const look = goalLook(met)}
-        <section class="panel goal" class:met aria-labelledby="nav-goal">
+        {@const dead = card.goal.by === "dead_reckoning"}
+        {@const look = goalLook(met, card.goal.by ?? null)}
+        <section class="panel goal" class:met={met && !dead} class:dead={met && dead} aria-labelledby="nav-goal">
           <div class="row">
             <h2 id="nav-goal"><span class="eyebrow">{t("nav.goal.label")}</span> {t("nav.goal.title")}</h2>
             <span class="verdict" style:color={tone(look.status)}>
-              {STATUS[look.status].glyph} {t(met ? "nav.goal.ready" : "nav.goal.notReady", { airframe: card.airframe })}
+              {STATUS[look.status].glyph}
+              {t(dead ? "nav.goal.readyDeadReckoning" : met ? "nav.goal.ready" : "nav.goal.notReady", { airframe: card.airframe })}
             </span>
           </div>
           <ul class="plain">
             {#each card.goal.will as p, i (i)}<li>{card.will_label[app.locale]} {p.text[app.locale]}</li>{/each}
           </ul>
+          {#if dead && card.goal.trip_s != null}
+            <p class="caution">{t("nav.goal.deadReckoning", { trip: formatNumber(card.goal.trip_s, app.locale) })}</p>
+          {/if}
           <p class="faint">{t("nav.goal.from")}</p>
         </section>
       {/if}
@@ -330,7 +335,7 @@
                   </tr>
                 {/each}
                 {#if card?.goal && goalLine}
-                  {@const look = goalLook(card.goal.met)}
+                  {@const look = goalLook(card.goal.met, card.goal.by ?? null)}
                   <tr>
                     <th scope="row">{t("nav.areaName.goal")}</th>
                     <td>{goalLine.text[app.locale]}</td>
@@ -523,6 +528,9 @@
 {/snippet}
 
 <style>
+  .goal .caution {
+    color: var(--caution);
+  }
   .about {
     margin: 0 0 10px;
   }
@@ -618,6 +626,10 @@
   .goal.met {
     border-color: color-mix(in srgb, var(--ok) 45%, var(--border));
     background: color-mix(in srgb, var(--ok) 6%, var(--surface));
+  }
+  .goal.dead {
+    border-color: color-mix(in srgb, var(--caution) 45%, var(--border));
+    background: color-mix(in srgb, var(--caution) 6%, var(--surface));
   }
   .verdict {
     font-size: 13px;

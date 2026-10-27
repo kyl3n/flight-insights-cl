@@ -346,9 +346,16 @@ export function eventFacts(e: NavEvent, locale: Locale): string[] {
   return out;
 }
 
-/** The goal's status: met, or not. */
-export function goalLook(met: boolean): { status: Status; label: MessageKey } {
-  return met ? { status: "ok", label: "nav.goal.met" } : { status: "out", label: "nav.goal.notMet" };
+/** The goal's status: met on a position it can trust, met on dead reckoning (its position
+ * drifts on the way: a caution), or not met. */
+export function goalLook(
+  met: boolean,
+  by: "position" | "dead_reckoning" | null = null,
+): { status: Status; label: MessageKey } {
+  if (!met) return { status: "out", label: "nav.goal.notMet" };
+  return by === "dead_reckoning"
+    ? { status: "caution", label: "nav.goal.metDeadReckoning" }
+    : { status: "ok", label: "nav.goal.met" };
 }
 
 /** A procedure's own steps, as the shared step list shows them. */

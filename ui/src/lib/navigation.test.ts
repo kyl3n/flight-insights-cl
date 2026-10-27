@@ -141,6 +141,12 @@ describe("readiness", () => {
     expect(AREA_LOOK.none.status).toBe("out");
     expect(AREA_LOOK.unavailable.status).toBe("info");
     expect(goalLook(false)).toEqual({ status: "out", label: "nav.goal.notMet" });
+    expect(goalLook(true, "position")).toEqual({ status: "ok", label: "nav.goal.met" });
+    expect(goalLook(true, "dead_reckoning")).toEqual({
+      status: "caution",
+      label: "nav.goal.metDeadReckoning",
+    });
+    expect(goalLook(false, "dead_reckoning").status).toBe("out");
   });
 
   it("says each area as the analyzer does, filled from its values", () => {
