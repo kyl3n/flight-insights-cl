@@ -1079,6 +1079,39 @@
         }
       ]
     },
+    "params.dead_reckoning_timeout_short": {
+      "steps": [
+        {
+          "kind": "ground_check",
+          "text": {
+            "en": "If no switch has it yet, put the GPS-disable function on a spare two-position switch (RCn_OPTION 65), and keep AltHold on the flight-mode switch to take over.",
+            "uk": "Якщо функцію ще не призначено, призначте вимкнення GPS на вільний 2-позиційний перемикач (RCn_OPTION 65) і тримайте AltHold на перемикачі режимів, щоб перебрати керування."
+          }
+        },
+        {
+          "kind": "fly",
+          "text": {
+            "en": "In calm air over open ground, take off in Loiter and climb to a safe height. Switch GNSS off with the GPS-disable switch for 30 seconds, hands off the sticks: about 10 seconds later the estimator starts dead reckoning and the aircraft holds on its estimate, drifting. Switch GNSS back on and land.",
+            "uk": "У тиху погоду над відкритою місцевістю злетіть у Loiter і наберіть безпечну висоту. Вимкніть GNSS перемикачем вимкнення GPS на 30 секунд, не торкаючись стіків: приблизно через 10 секунд оцінювач переходить на навігацію за рахунком, і апарат утримується за своєю оцінкою, дрейфуючи. Увімкніть GNSS знову й сідайте."
+          }
+        },
+        {
+          "kind": "abort",
+          "text": {
+            "en": "If the aircraft drifts towards anything, or the EKF failsafe starts to land it where it should not, switch GNSS back on and take over in AltHold.",
+            "uk": "Якщо апарат зносить до перешкод або аварійний режим EKF починає садити його не там, де слід, увімкніть GNSS знову й перейдіть в AltHold."
+          }
+        },
+        {
+          "kind": "verify",
+          "checks": [{"check": "finding_clears"}],
+          "text": {
+            "en": "The next log holds FS_DR_TIMEOUT as set. The drill shows the estimator dead-reckoning from about 10 s and keeping a position all through, and, once GNSS came back, how long its estimate takes to be 10 m off. That time grows with the cube of the time flown, so it shows how far from home a long return on dead reckoning may land.",
+            "uk": "Наступний журнал містить FS_DR_TIMEOUT із заданим значенням. Тренування показує, що оцінювач перейшов на навігацію за рахунком приблизно з 10 с і весь час утримував позицію, а після повернення GNSS — за скільки його оцінка відійде на 10 м. Цей відхід зростає пропорційно кубу часу польоту, тож видно, наскільки далеко від дому може сісти апарат після довгого повернення за рахунком."
+          }
+        }
+      ]
+    },
     "params.no_gnss_fallback": {
       "steps": [
         {
