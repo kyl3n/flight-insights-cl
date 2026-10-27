@@ -422,7 +422,8 @@ def test_what_the_autotune_flights_measured_is_not_held_against_its_preparation(
     the AutoTune is: a metric the pitch AutoTune flight pushed up (twitching, on roll's
     gains saved the flight before) and that is back afterwards fails neither. In
     ArduPilot's simulator the hover output spread rose so on an AutoTune flight, and the
-    preparation was graded no effect while the AutoTune was confirmed."""
+    preparation was graded no effect while the AutoTune was confirmed. What an AutoTune
+    flight measured is not a measurement at all: it is a boundary."""
     prepared = {"ATC_RAT_RLL_FLTT": 10.0, "ATC_RAT_PIT_FLTT": 10.0, "AUTOTUNE_GMBK": 0.35}
     changes = tuple(
         {"param": p, "current": PARAMS[p], "proposed": v, "stage": "autotune"}
@@ -444,10 +445,8 @@ def test_what_the_autotune_flights_measured_is_not_held_against_its_preparation(
     f5, a5 = gate.fly(LIGHT, AFTER_LIGHT, snapshot=ready, extra=calm)
     grade_flight(gate.store, gate.pack, f5, a5)
     f6, a6 = gate.fly(LOADED, AFTER_LOADED, snapshot=ready)
-    # the shift is there, on the pitch AutoTune flight, put down to roll's saved gain
-    [shift] = [s for s in attribute(gate.store, gate.reg, gate.airframe) if s.metric == D_NOISE]
-    assert (shift.flight, shift.verdict) == (tuned[1], "worse")
-    assert shift.candidates[0].change.name == "ATC_RAT_RLL_D"
+    # the pitch AutoTune flight's twitching is no shift: the flights around it measured alike
+    assert not [s for s in attribute(gate.store, gate.reg, gate.airframe) if s.metric == D_NOISE]
     graded = grade_flight(gate.store, gate.pack, f6, a6)
     assert sorted(str(g["param"]) for g in graded) == [*sorted(prepared), "None"]
     assert {g["status"] for g in graded} == {"confirmed"}
@@ -485,6 +484,34 @@ def test_another_metric_made_worse_by_the_tune_itself_is_regressed(gate: Gate) -
         grade_flight(gate.store, gate.pack, f, a)
     f5, a5 = gate.fly(LIGHT, AFTER_LIGHT, extra={D_NOISE: (8.0, 7.7, 8.3)})
     saved_gains(gate, f5, ("ATC_RAT_RLL_D", 0.0036, 0.006))
+    assert grade_flight(gate.store, gate.pack, f5, a5)[0]["status"] == "regressed"
+    [check] = [c for c in gate.offer()["detail"]["grade"]["checks"]
+               if c["check"] == "no_shift_worse"]  # fmt: skip
+    assert check["passed"] is False and check["shifts"][0]["cause"] == "ATC_RAT_RLL_D"
+
+
+def test_a_lasting_regression_first_flown_on_an_autotune_flight_is_the_tunes(
+    gate: Gate,
+) -> None:
+    """Roll's saved D gain puts more gyro noise into the motors from the pitch AutoTune
+    flight on, and it stays. The AutoTune flights are boundaries, not measurements, so
+    the shift is judged at the first flight after them, inside the offer's window, with
+    every gain they saved bracketed: the tune's own regression."""
+    f1, a1 = gate.fly(LIGHT, BASE_LIGHT, extra={D_NOISE: (5.0, 4.8, 5.2)})
+    gate.plan(f1, a1)
+    gate.plan(*gate.fly(LOADED, BASE_LOADED))
+    tuned: list[str] = []
+    for axis, noise in (("roll", (5.0, 4.8, 5.2)), ("pitch", (8.0, 7.7, 8.3))):
+        f, a = gate.fly(LIGHT, saved=axis, extra={D_NOISE: noise})
+        tuned.append(f)
+        grade_flight(gate.store, gate.pack, f, a)
+    saved_gains(gate, tuned[1], ("ATC_RAT_RLL_D", 0.0036, 0.006))  # roll's, on the pitch flight
+    f5, a5 = gate.fly(LIGHT, AFTER_LIGHT, extra={D_NOISE: (8.0, 7.7, 8.3)})
+    saved_gains(gate, f5, ("ATC_RAT_PIT_D", 0.0036, 0.0058))
+    [shift] = [s for s in attribute(gate.store, gate.reg, gate.airframe) if s.metric == D_NOISE]
+    assert (shift.flight, shift.before, shift.verdict) == (f5, (f1,), "worse")
+    assert {"ATC_RAT_RLL_D", "ATC_RAT_PIT_D"} <= {c.change.name for c in shift.candidates}
+    assert shift.candidates[0].change.name == "ATC_RAT_RLL_D"
     assert grade_flight(gate.store, gate.pack, f5, a5)[0]["status"] == "regressed"
     [check] = [c for c in gate.offer()["detail"]["grade"]["checks"]
                if c["check"] == "no_shift_worse"]  # fmt: skip
