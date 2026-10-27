@@ -1754,7 +1754,7 @@ Rules that keep decisions easy:
 | Weather | The flight's weather record, aircraft-measured against model wind, the airframe's wind envelope | Compare models; filter trends by wind and density |
 | Filter workbench | Pre- and post-filter spectra, spectrogram over time with motor RPM and notch centres overlaid, predicted spectrum, phase-lag readout | Edit candidate filter values and see the prediction update |
 | Tune | Attitude tracking error (the tune's measure) and rate tracking error (its guard) per axis, each with its 95% interval, against a tune-check flight of the same payload band; step and frequency responses of one axis, both flights; the stick inputs counted and those left out, with why; whether the plan improved the tune | Pick the flight to compare with (same band), the payload band and the axis; open the tune-check card |
-| Propulsion and power | Per-motor output and RPM, temperatures, sag, battery resistance, thrust-model fit, motor-out margin by payload | Select motors and segments; see which motor loss is worst |
+| Propulsion and power | Per-motor output and RPM, temperatures, sag, battery resistance; the motor-out margin with each motor stopped in turn, and the payload band; the thrust-model fit (not yet) | Select motors and segments; see which motor loss is worst |
 | System and buses | CPU load, loop timing, latency budget, per-task CPU, bus and interface errors | Align with flight events; compare before and after a change |
 | Navigation and GNSS | Estimator innovations, GPS quality, jamming and spoofing events with their evidence, position-controller error statistics | Select segments |
 | Flying without GNSS | Readiness by area, measured drift and dead-reckoning range, outages and drills, the recovery card | Open an outage or drill; print the recovery card |
@@ -1872,7 +1872,21 @@ Every number, chart point, log field and parameter in the app explains itself. H
   - **Plots:** outputs against the MOT_SPIN_MAX limit, then ESC RPM, temperature, current and voltage, and the battery's voltage, current, power and resistance.
   - **Motor selection:** motors can be shown or hidden.
   - **In the simulator:** the ESC's temperature, current and voltage are left out, because they are placeholders there.
-  - **Later:** the thrust-model fit and motor-out margin by payload come with the heavy-lift work (Phase 2).
+  - **Motor-out margin** (Phase 2; `flight.margin`, `engine/src/flight_insights/margin_view.py`; mock-up `Propulsion.dc.html`):
+    - the target for the frame class;
+    - the worst case, with the motor that would work hardest, and the best split any mixer could find;
+    - the heaviest take-off meeting the target, in kilograms from the flight's weighed take-off or else its estimate (otherwise as a multiple of this flight's weight);
+    - a table of each motor stopped in turn, giving its place and the busiest remaining motor's output against the target;
+    - the frame drawn nose up from ArduPilot's own mixer factors (`knowledge/frames/`), with a coaxial pair on one arm and the worst case marked.
+
+    A frame with no margin (a quad) says why.
+  - **Payload** (Phase 2):
+    - this flight's hover thrust at standard air;
+    - its take-off weight, weighed or estimated from the payload bands;
+    - the air density against standard, shown on this laptop only;
+    - the airframe's bands (`trend.payloads`), with this flight's marked;
+    - the check against the scale, once two or more flights were weighed.
+  - **Not shown yet:** the thrust-curve check from ESC RPM (`MOT_THST_EXPO`). It waits until real flights' ESC telemetry confirms the fit (the simulator's RPM is linear in the command).
 - **System and buses:**
   - **Plots:** main-loop load, the share of long loops, the longest loop, and the messages the logger dropped since arming.
   - **The loop period** from SCHED_LOOP_RATE.
