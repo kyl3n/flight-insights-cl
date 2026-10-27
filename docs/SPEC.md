@@ -1547,7 +1547,7 @@ Claude is called on every analysis, but it only sees derived measurements and a 
 
   The ground station's own position never leaves.
 - **Whole message types blocked:** raw GNSS observables, terrain data, follow-target data, embedded files and free-text messages.
-- **Location-revealing parameters removed:** AHRS origin, fence and rally settings, magnetic declination, system IDs, serial numbers and board unique IDs.
+- **Location-revealing parameters removed:** AHRS origin, fence and rally settings, magnetic declination, the barometer's ground pressure and temperature and the field elevation, system IDs, serial numbers and board unique IDs. The barometer's values are volatile, so they were already left out as learned values; they are named as well, so the policy never rests on the firmware's metadata alone.
 - **Side channels coarsened:** altitudes made relative to take-off, timestamps relative to arming with GPS week and time dropped, magnetic field strength and inclination dropped, ambient temperature and pressure rounded. Position-controller data goes out as error statistics, never as trajectories.
 - **Location work stays on the laptop.** Everything that needs a position is computed locally: weather interpolation, distance and bearing to the ground station, GNSS event positions, wind envelope and drift measurements. Only results without coordinates can leave, such as distance bands, rounded wind values, and event class and timing. The flight's weather leaves as rounded wind, gusts, rain, boundary layer and K-index only (Weather and wind, "In the AI packet").
   - **The local track** (`analyzers/local_track.py`, `FlightData.local_track()` and `local_tracks()`) is the one place analysis reads positions.
