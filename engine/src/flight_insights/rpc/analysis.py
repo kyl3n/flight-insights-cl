@@ -23,6 +23,7 @@
 | flight.tlogs | A flight's tlog sessions: each station clock against the vehicle's, and loss |
 | flight.tune | A flight's tune against one of its payload group's, and the plan's verdict |
 | flight.ab | Each parameter change made in flight, with the flight's two sides compared |
+| trend.revert_test | The single-change test flights that settle a shift, with what each showed |
 | review.file | A parameter file's configuration review and plan, with no flight |
 | airframe.recovery_card | The airframe's recovery card: GNSS loss, spoofing and losing a motor |
 | airframe.sim_export | The airframe's model for ArduPilot's simulator, its parameters, as files |
@@ -45,7 +46,7 @@ from typing import TYPE_CHECKING, Any, cast
 from flight_insights import analyzers, recommend, recovery, review, trends, tune_view, views
 from flight_insights.analyzers.registry import LANGUAGES
 from flight_insights.filters import workbench
-from flight_insights.history import ab, attribution
+from flight_insights.history import ab, attribution, revert
 from flight_insights.rpc.server import (
     BAD_INPUT,
     CONFLICT,
@@ -436,6 +437,45 @@ def add_analysis_methods(server: Server, state: EngineState, guarded: Callable[[
         store, airframe = state.require_store(), _id(params, "airframe_id")
         found = attribution.attribute(store, reg, airframe, metric)
         return [attribution.shift_json(s, reg) for s in found]
+
+    @server.method("trend.revert_test")
+    @guarded
+    def trend_revert_test(_ctx: Context, params: dict[str, Any]) -> dict[str, Any]:
+        """A shift's revert test: its single-change test flights, most likely first, what
+        the later flights showed, and with `step` and `kind` that step's two files."""
+        reg = analyzers.Registry.load(state.pack)
+        store, airframe = state.require_store(), _id(params, "airframe_id")
+        keys: dict[str, str] = {}
+        for name in ("metric", "segment", "group", "flight"):
+            value = params.get(name)
+            if not isinstance(value, str) or not value:
+                raise RpcError(INVALID_PARAMS, f"{name} must name the shift")
+            keys[name] = value
+        if keys["metric"] not in reg.metrics:
+            raise RpcError(INVALID_PARAMS, "metric must be a metric the registry knows")
+        shifts = attribution.attribute(store, reg, airframe, keys["metric"])
+        shift = revert.find_shift(shifts, keys["metric"], keys["segment"], keys["group"],
+                                  keys["flight"])  # fmt: skip
+        if shift is None:
+            raise RpcError(BAD_INPUT, "the airframe has no such shift")
+        try:
+            test = revert.revert_test(store, state.pack, reg, airframe, shift)
+        except revert.RevertError as e:
+            raise RpcError(BAD_INPUT, str(e)) from None
+        out = revert.revert_json(test, reg)
+        step, kind, lang = params.get("step"), params.get("kind"), params.get("lang", "en")
+        if step is not None:
+            if not isinstance(step, int) or isinstance(step, bool):
+                raise RpcError(INVALID_PARAMS, "step must be a step's number")
+            if kind not in ("mission planner", "qgroundcontrol"):
+                raise RpcError(INVALID_PARAMS, "kind must be 'mission planner' or 'qgroundcontrol'")
+            if lang not in LANGUAGES:
+                raise RpcError(INVALID_PARAMS, f"lang must be one of {LANGUAGES}")
+            try:
+                out["files"] = revert.files(test, step, store, state.pack, reg, kind, lang)
+            except revert.RevertError as e:
+                raise RpcError(BAD_INPUT, str(e)) from None
+        return out
 
     @server.method("flight.ab")
     @guarded

@@ -2344,6 +2344,22 @@ The AI layer can propose links the map lacks; those are shown as hypotheses unti
   - roll rate P was ranked first, with high confidence;
   - the tune check's logging switches split nothing.
 
+**The revert test** (`history/revert.py`; texts in `rules/attribution.json` "revert_test"). Steps 5 to 7 of "pointing at the cause", for a shift that made a metric worse:
+
+- **The steps.** Each parameter candidate becomes one single-change test flight, ranked as the shift ranks it, most likely first.
+  - **The revert file** puts that one parameter back as it was, in the firmware the airframe flew last, and leaves every other change in place. Its header carries the card: what it changes, the profile to fly again (the shift's segment, payload and battery), and what the next log should show.
+  - **The undo file** puts it back as it is now, for when the test shows it was not the cause.
+  - A build or firmware change cannot be put back by a file. It is listed for a person, beside the steps.
+- **Which flight tested which change.** Nothing is stored: the airframe's later flights say it, so every laptop reads the same. A later flight in the shift's payload group is that candidate's test when the candidate is back at its value before and every other candidate is still at its value after. A flight that put two back tests neither.
+- **Reading the test.** Against the shift's own flights, with twice its spread before, as the shift's own test uses:
+  - **explained:** back within that of the flights before, and not within it of the flights after;
+  - **not this one:** the other way round;
+  - **unclear:** anything else.
+
+  A metric with an interval on each flight (the tune check's) reads the test flight's interval instead, against the last flight before and the first after: touching one and apart from the other.
+- **Bisection.** Once a step explains the shift, the steps after it are not needed. A step that is not the cause, or is unclear, sends the next one.
+- **Where it shows.** The engine method `trend.revert_test` gives a shift's steps, what each later flight showed and the step to fly next. With a step and a file kind, it also gives that step's two files. The inspector of the trends screen shows it once that screen's mock-up is approved.
+
 **Example of what the user sees** (illustrative values):
 
 *Hover gyro noise in the motor band (80-120 Hz) rose 6 dB from flight 37, outside this airframe's normal spread.*

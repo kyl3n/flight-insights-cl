@@ -853,6 +853,31 @@
     "min_side_s": 20,
     "block_s": 10
   },
+  "revert_test": {
+    "about": "The test that settles a shift that made a metric worse (spec: 'When performance changes', steps 5 to 7). Each parameter candidate, most likely first, is one single-change test flight: a file that puts it back as it was, every other change left in place. A later flight in the shift's payload group with that candidate back and every other one still as after is its test. Within twice the spread before (the shifts' spread_factor) of the flights before and not of the flights after, it explains the shift; the other way round, it is not the cause; else unclear. A metric with an interval on each flight reads the test flight's interval against the last flight before and the first after. Once a step explains the shift the rest are not needed.",
+    "texts": {
+      "header": {
+        "en": "Revert test {step} of {steps}: load this file on its own. It puts {param} back from {after} to {before} and changes nothing else, to see whether that change made {metric} worse from flight {flight}.",
+        "uk": "Тест повернення {step} з {steps}: завантажте лише цей файл. Він повертає {param} з {after} до {before} і більше нічого не змінює, щоб перевірити, чи саме ця зміна погіршила «{metric}» з польоту {flight}."
+      },
+      "fly": {
+        "en": "Fly the same profile as before ({segment}), with the same payload and battery type.",
+        "uk": "Виконайте той самий профіль польоту, що й раніше ({segment}), з тим самим вантажем і типом батареї."
+      },
+      "verify": {
+        "en": "The next log should show {metric} back near {was} {unit} (it has been {is}). If it stays near {is}, this change was not the cause: load the undo file, then the next test.",
+        "uk": "Наступний журнал має показати «{metric}» знову близько {was} {unit} (зараз {is}). Якщо значення лишиться близько {is}, причина не в цій зміні: завантажте файл скасування, а потім наступний тест."
+      },
+      "undo_header": {
+        "en": "Undo file for revert test {step} of {steps}: puts {param} back to {after}, as it is now. Load it if the test shows this change was not the cause.",
+        "uk": "Файл скасування для тесту повернення {step} з {steps}: повертає {param} до {after}, як зараз. Завантажте його, якщо тест покаже, що причина не в цій зміні."
+      },
+      "comment": {
+        "en": "revert test: the only change",
+        "uk": "тест повернення: єдина зміна"
+      }
+    }
+  },
   "ranking": {
     "about": "Each change bracketed by a shift (applied after the last flight before it, by the first flight after it) is scored: the map's strength for this metric, times how well its direction fits (match when the map's sign and the change's direction would move the metric the way it moved, the other way when they would move it opposite, either when the map's sign is 0 or the values are not numbers), times its size (its relative change over size_saturates, at most 1), times its timing (1 at the shift's own boundary, nearby for a boundary the windows spanned). A parameter the map does not tie to the metric scores unlinked; a build change scores build, a firmware change firmware. Learned values, counters, hardware IDs and ground-station settings are listed as context, unscored. Confidence is high when the top candidate is linked, scores at least dominates times the next and no build or firmware change sits with it; medium when it is linked; low otherwise. Uncalibrated: the fleet's confirmed results refine it.",
     "match": 1.0,
