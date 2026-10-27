@@ -226,9 +226,12 @@ def hover(sim: Simulator, _motors: int) -> None:
     sim.land()
 
 
+LEG_SPEEDS = (3.0, 6.0, 9.0)  # m/s
+
+
 def legs(sim: Simulator, _motors: int) -> None:
     sim.take_off(20)
-    for speed in (3.0, 6.0, 9.0):
+    for speed in LEG_SPEEDS:
         for k in range(8):
             course = math.radians(45.0 * k)
             yaw = (45.0 * k + 30.0 * (k % 3)) % 360.0

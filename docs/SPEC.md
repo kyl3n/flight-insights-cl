@@ -2398,9 +2398,12 @@ The app itself never runs a simulator or connects to an aircraft. It exports the
   - **Flown again.** Locally, the exported Callisto and quad were flown in the 4.7.0 simulator on the fixtures' profiles, and exporting from those flights gave the same model again: hover within 0.01%, the same power, and drag within 3% (`tests/test_sim_export.py` for the arithmetic). CI flies them in the simulator-checks workflow (below).
 
 **Checked in CI** (`tools/sim/check_sim.py`, workflow "Simulator checks", on pull requests that touch the export, the flight script, the motor-out model or the frame tables). Models exported from the committed fixtures are flown with the bundle's own script in the 4.7.0 simulator, and compared with what the app predicted:
-- **Round trip.** The default quad (from its legs) and Callisto (from its hover), flown again on the same profile and exported again from those flights. The model must come back: the hover within 0.5%, the power within 1%, the momentum drag within 3% and the bluff-body drag within 8%.
+- **Round trip.** The default quad (from its legs) and Callisto (from its hover), flown again on the same profile and exported again from those flights. The model must come back: the hover within 0.5%, the power within 1%, and the quad's drag at the legs' 3, 6 and 9 m/s within 3%. The drag is checked as the sum the simulator flies, k1 v + k2 v² per unit mass, not term by term: a fit can move some of the drag between its momentum term and its bluff-body term within its own intervals, so that split is reported but not checked.
 - **Losing a motor at the heaviest take-off.** Callisto exported at 40.5 kg, each motor stopped in turn while hovering. The busiest remaining motor must run within 3 points of what the motor-out model of ArduPilot's mixer predicts from the hover just before. The aircraft must hold its height within 1 m and its heading within 15°.
-- RESULTS
+- **Result on 4.7.0** (two local runs, 2026-10-27; CI repeats it on every pull request the workflow covers):
+  - **quad:** hover 0.356894 and 0.356903 against 0.356891, and power 354.3 W against 354.3 W. The drag came back within 1.6% at 3, 6 and 9 m/s. Its split moved: the momentum term 1.7 to 2.6% lower and the bluff-body term 3.8 to 4.7% higher, against fit intervals of about ±2.5% each;
+  - **Callisto:** hover 0.359017 and 0.359018 against 0.359044, and power 3064.8 W against 3065.0 W;
+  - **each of the eight motors lost at 40.5 kg:** the busiest remaining motor ran at 83.7 to 85.8%, 0.5 to 1.0 points above the mixer model's 82.9 to 85.2%. The aircraft lost at most 0.49 m of height, and its heading moved at most 7.0°.
 - **Not yet:** cutting GNSS mid-mission against the recovery card's GNSS sections.
 
 **Limits.** The simulator does not reproduce real motor noise and vibration, so it is for behaviour, failsafes and margins, never for filter tuning.

@@ -6,8 +6,8 @@ the app predicted.
 
 - **Round trip.** The default quad (from its wind-measuring legs) and Callisto (from its
   light hover) are exported, flown again on the same profiles, and exported again from
-  those flights: the hover and power must come back within 0.5% and 1%, the drag within
-  3% (momentum) and 8% (bluff body).
+  those flights: the hover and power must come back within 0.5% and 1%, and the quad's
+  drag at the legs' speeds within 3%.
 - **Losing a motor at the heaviest take-off.** Callisto exported at 40.5 kg (the loaded
   fixture's weight) hovers while each motor is stopped in turn. In each loss the busiest
   remaining motor's output must be within 3 points of what the app's motor-out model of
@@ -24,6 +24,7 @@ from __future__ import annotations
 import argparse
 import importlib.util
 import json
+import math
 import sys
 import tempfile
 from collections.abc import Callable
@@ -58,6 +59,7 @@ PACK = load_pack()
 QUAD = {"wheelbase_mm": 350, "prop_diameter_in": 13.78}  # ArduPilot's default quad's size
 CALLISTO = {"wheelbase_mm": 1325, "prop_diameter_in": 30}  # Callisto.json
 HEAVIEST_KG = 40.5
+G = 9.80665
 Array = np.ndarray[Any, Any]
 
 
@@ -106,9 +108,20 @@ def _close(name: str, got: float, want: float, rel: float) -> list[str]:
     return [] if off <= rel else [line]
 
 
+def _drag(model: dict[str, float], speed: float) -> float:
+    """The simulator's drag on the model, per unit mass, in still sea-level air at this
+    airspeed: k1 v + k2 v^2, with k1 = mdrag_coef sqrt(g rho A / m) and k2 = areaCd rho / 2m."""
+    rho = sx.isa_density(model["refAlt"])
+    area, mdrag = sx.area_cd(model, G)
+    k1 = mdrag * math.sqrt(G * rho * model["disc_area"] / model["mass"])
+    k2 = area * rho / (2.0 * model["mass"])
+    return k1 * speed + k2 * speed * speed
+
+
 def round_trip(fleet: Fleet, fly: Callable[..., Path], ardupilot: Path, work: Path,
                name: str, fixture: str, answers: dict[str, Any], kg: float, flight: str,
-               drag: bool) -> list[str]:  # fmt: skip
+               speeds: tuple[float, ...] = ()) -> tuple[list[str], str]:  # fmt: skip
+    """Problems found, and the airframe flown from the fixture."""
     print(f"round trip: {name}")
     first = fleet.airframe(f"{name} flown", answers)
     fleet.flown(FIXTURES / f"{fixture}.bin", first, kg)
@@ -123,10 +136,16 @@ def round_trip(fleet: Fleet, fly: Callable[..., Path], ardupilot: Path, work: Pa
     problems = _close("hoverThrOut", b["hoverThrOut"], a["hoverThrOut"], 0.005)
     problems += _close("hover power", b["refVoltage"] * b["refCurrent"],
                        a["refVoltage"] * a["refCurrent"], 0.01)  # fmt: skip
-    if drag:
-        problems += _close("mdrag_coef", b["mdrag_coef"], a["mdrag_coef"], 0.03)
-        problems += _close("areaCd", sx.area_cd(b, 9.80665)[0], sx.area_cd(a, 9.80665)[0], 0.08)
-    return problems
+    if speeds:
+        # The drag the simulator flies each model with, at the legs' speeds. The fit can
+        # trade its momentum term against its bluff-body term within its own intervals
+        # (each about 2.5% on these flights), so the split is reported, not checked.
+        for speed in speeds:
+            problems += _close(f"drag at {speed:g} m/s", _drag(b, speed), _drag(a, speed), 0.03)
+        for name, x, y in (("mdrag_coef", b["mdrag_coef"], a["mdrag_coef"]),
+                           ("areaCd", sx.area_cd(b, G)[0], sx.area_cd(a, G)[0])):  # fmt: skip
+            print(f"  info  {name}: {x:.6g} against {y:.6g} ({100 * (x / y - 1):+.2f}%)")
+    return problems, first
 
 
 def _column(table: Any, name: str) -> Array:
@@ -196,7 +215,8 @@ def main(argv: list[str]) -> int:
     parser.add_argument("--ardupilot", type=Path, required=True)
     parser.add_argument("--keep", type=Path, help="keep the bundles and logs in this folder")
     args = parser.parse_args(argv)
-    fly = flight_script().fly
+    script = flight_script()
+    fly = script.fly
     problems: list[str] = []
     with tempfile.TemporaryDirectory() as tmp:
         work = args.keep or Path(tmp)
@@ -204,12 +224,12 @@ def main(argv: list[str]) -> int:
         fleet = Fleet(Path(tmp))
         quad = ("quad", "copter-quad-wind-calm", QUAD, 3.0, "legs")
         callisto = ("callisto", "copter-heavylift-light", CALLISTO, 32.5, "hover")
-        problems += round_trip(fleet, fly, args.ardupilot, work, *quad, drag=True)
-        problems += round_trip(fleet, fly, args.ardupilot, work, *callisto, drag=False)
-        heavy = fleet.airframe("Callisto heaviest", CALLISTO)
-        fleet.flown(FIXTURES / "copter-heavylift-light.bin", heavy, 32.5)
+        problems += round_trip(fleet, fly, args.ardupilot, work, *quad, script.LEG_SPEEDS)[0]
+        found, light = round_trip(fleet, fly, args.ardupilot, work, *callisto)
+        problems += found
+        # The light flight's airframe again, exported at the heaviest take-off.
         folder = work / "heaviest"
-        ex = fleet.bundle(heavy, folder, HEAVIEST_KG)
+        ex = fleet.bundle(light, folder, HEAVIEST_KG)
         stem = sx.stem(ex)
         log = fly(args.ardupilot, folder / f"{stem}.json", ex.sitl, folder / f"{stem}.param",
                   "motors", work / "heaviest-motors.bin")  # fmt: skip
