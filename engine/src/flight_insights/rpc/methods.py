@@ -33,6 +33,7 @@
 | review.file | A parameter file's configuration review, with no flight: see rpc/analysis.py |
 | filter.workbench | Spectra and candidate filter predictions: see rpc/analysis.py |
 | ai.prepare / .record / .selftest | The AI path, shell only (never the UI): see rpc/ai.py |
+| weather.tiles / .store / .held | Weather downloads, shell only: see rpc/weather.py |
 
 Position columns are never written to an IPC file in Phase 0. Keys arrive over
 stdin, live in memory only, and are never logged or echoed in an error.
@@ -69,6 +70,7 @@ from flight_insights.rpc.server import (
     Server,
 )
 from flight_insights.rpc.sync import add_sync_methods
+from flight_insights.rpc.weather import add_weather_methods
 from flight_insights.store import ColumnCache, Store, StoreKeys, is_position, open_store
 from flight_insights.store.cache import schema_fields
 from flight_insights.store.db import StoreError
@@ -506,4 +508,5 @@ def build_server(out: IO[str], pack: Pack | None = None) -> Server:
     add_analysis_methods(server, state, guarded)
     add_ai_methods(server, state, guarded)
     add_sync_methods(server, state, guarded)
+    add_weather_methods(server, state, guarded)
     return server

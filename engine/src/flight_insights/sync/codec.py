@@ -3,10 +3,9 @@
 from __future__ import annotations
 
 import base64
-import sqlite3
 from typing import Any, cast
 
-from flight_insights.store.db import Store
+from flight_insights.store.db import Connection, Store
 
 
 def encode(value: Any) -> Any:
@@ -24,7 +23,7 @@ def decode(value: Any) -> Any:
     return value
 
 
-def columns(conn: sqlite3.Connection, table: str) -> list[str]:
+def columns(conn: Connection, table: str) -> list[str]:
     return [r[1] for r in conn.execute(f"PRAGMA table_info({table})")]
 
 
@@ -37,7 +36,7 @@ def row(store: Store, table: str, where: dict[str, Any]) -> dict[str, Any] | Non
     return {d[0]: v for d, v in zip(cur.description, found, strict=True)}
 
 
-def references(conn: sqlite3.Connection) -> dict[str, list[tuple[str, str]]]:
+def references(conn: Connection) -> dict[str, list[tuple[str, str]]]:
     """For each table, the (table, column) pairs that refer to it by id."""
     out: dict[str, list[tuple[str, str]]] = {}
     for (table,) in conn.execute("SELECT name FROM sqlite_schema WHERE type = 'table'"):

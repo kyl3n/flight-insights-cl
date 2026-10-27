@@ -80,6 +80,17 @@ class Pack:
         choice = _nearest(sorted(entries, key=version_key), firmware)
         return self.json(entries[choice.version]["file"])["boards"]
 
+    def frames(self, firmware: str) -> dict[str, dict[str, Any]]:
+        """FRAME_CLASS -> {name, types: FRAME_TYPE (or "default") -> {name, motors, and
+        vehicles when only some build it}}: each motor's roll, pitch, yaw and throttle
+        factors as the release's matrix mixer sets them (or the nearest earlier release's),
+        read from its source by knowledge/tools/build_motor_frames.py."""
+        entries: dict[str, Any] = self.manifest.get("frames", {})
+        if not entries:
+            raise KnowledgeError("the knowledge pack has no motor frame table")
+        choice = _nearest(sorted(entries, key=version_key), firmware)
+        return self.json(entries[choice.version]["file"])["classes"]
+
     def metadata(self, version: str, vehicle: Vehicle) -> dict[str, dict[str, Any]]:
         """Every parameter of a release: ArduPilot's generated metadata plus the curated
         supplement (params/supplement.json) for parameters the generator leaves out."""

@@ -43,6 +43,15 @@ def unit(table: pa.Table, name: str) -> str:
     return field_meta(table, name).get("unit", "")
 
 
+def degrees(table: pa.Table, name: str) -> Floats:
+    """A latitude or longitude column in degrees. A degE7 column logged without its
+    multiplier (values beyond 180) is scaled here."""
+    out = values(table, name)
+    if "e7" in unit(table, name).lower() and np.nanmax(np.abs(out), initial=0.0) > 180.0:
+        out = out * 1e-7
+    return out
+
+
 def seconds(table: pa.Table, name: str = "TimeUS") -> Floats:
     """A timestamp column in seconds, whatever its stored unit."""
     if unit(table, name) not in ("s", ""):

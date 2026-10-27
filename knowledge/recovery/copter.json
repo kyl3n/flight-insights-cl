@@ -1,0 +1,493 @@
+{
+  "about": "The recovery card per airframe (spec: Flying without GNSS, 'Recommendations and recovery'): what the aircraft will do when GNSS is lost or spoofed with its current settings, how long it holds and how far it can go, and the operator's steps; what it will do when it loses a motor, at what weight it still can, and the operator's steps; and what it will do when it loses its control link, with GNSS and without, played through ArduCopter's own failsafes (rules/failsafes.json), with the operator's steps. Built by engine/src/flight_insights/recovery.py from the airframe's latest parameters, the readiness review and its measured outages. Placeholders are filled from those; each template is in English and Ukrainian.",
+  "landing_tolerance_from": "rules/no_gnss.json landing_tolerance_m",
+  "sensors": {
+    "optical_flow": {
+      "en": "optical flow",
+      "uk": "оптичний потік"
+    },
+    "beacon": {
+      "en": "beacons",
+      "uk": "маяки"
+    },
+    "external_nav": {
+      "en": "external navigation",
+      "uk": "зовнішня навігація"
+    },
+    "wheel_encoder": {
+      "en": "wheel encoders",
+      "uk": "енкодери коліс"
+    },
+    "rangefinder": {
+      "en": "a rangefinder",
+      "uk": "далекомір"
+    }
+  },
+  "dead_reckoning_actions": {
+    "1": "Land",
+    "2": "RTL",
+    "3": "SmartRTL or RTL",
+    "4": "SmartRTL or Land",
+    "6": "Auto DO_LAND_START or RTL"
+  },
+  "texts": {
+    "will_label": {
+      "en": "The aircraft will",
+      "uk": "Апарат"
+    },
+    "card_title": {
+      "en": "{airframe}: recovery card",
+      "uk": "{airframe}: картка дій у разі відмов"
+    },
+    "card_valid": {
+      "en": "Valid while the parameters stay {param_set}.",
+      "uk": "Чинна, доки параметри лишаються {param_set}."
+    },
+    "card_footer": {
+      "en": "Made by Flight Insights from this airframe's own flights and settings. No positions are printed. Print it again after any parameter or build change.",
+      "uk": "Створено Flight Insights за власними польотами й налаштуваннями цього апарата. Позиції не друкуються. Надрукуйте знову після будь-якої зміни параметрів чи збірки."
+    },
+    "home_heading": {
+      "en": "Home heading: fill in before take-off: ______°",
+      "uk": "Курс додому: заповніть перед зльотом: ______°"
+    },
+    "gnss_lost": {
+      "en": "GNSS lost",
+      "uk": "Втрата GNSS"
+    },
+    "spoofing": {
+      "en": "Suspected spoofing: the position jumps or drifts while GNSS looks healthy",
+      "uk": "Підозра на спуфінг: позиція стрибає чи дрейфує, хоча GNSS виглядає справним"
+    },
+    "will.keeps_set": {
+      "en": "keep navigating on {sensors} (source set {set})",
+      "uk": "продовжить навігацію (джерела: {sensors}, набір {set})"
+    },
+    "will.dead_reckon": {
+      "en": "dead-reckon on its wind estimate: the dead-reckoning failsafe acts at once ({dr_action}), and after {dr_timeout} s the EKF failsafe acts",
+      "uk": "вестиме навігацію за рахунком на оцінці вітру: аварійний режим навігації за рахунком спрацює одразу ({dr_action}), а через {dr_timeout} с спрацює аварійний режим EKF"
+    },
+    "will.ekf": {
+      "en": "hold its estimate for a short time, then the EKF failsafe will {ekf_action}",
+      "uk": "недовго утримуватиме оцінку, потім аварійний режим EKF {ekf_action}"
+    },
+    "will.ekf_off": {
+      "en": "hold its estimate for a short time, then drift with the wind: the EKF failsafe is off",
+      "uk": "недовго утримуватиме оцінку, потім дрейфуватиме з вітром: аварійний режим EKF вимкнено"
+    },
+    "ekf.0": {
+      "en": "only report it, and the aircraft drifts with the wind",
+      "uk": "лише повідомить про це, а апарат дрейфуватиме з вітром"
+    },
+    "ekf.1": {
+      "en": "land it in place if it is in a mode that needs a position",
+      "uk": "посадить його на місці, якщо він у режимі, якому потрібна позиція"
+    },
+    "ekf.2": {
+      "en": "switch to AltHold if it is in a mode that needs a position",
+      "uk": "перемкне в AltHold, якщо він у режимі, якому потрібна позиція"
+    },
+    "ekf.3": {
+      "en": "land it in place, in every mode",
+      "uk": "посадить його на місці в будь-якому режимі"
+    },
+    "fact.detection": {
+      "en": "It stops using GNSS about {detection_s} s after the loss (measured).",
+      "uk": "Він перестає використовувати GNSS приблизно через {detection_s} с після втрати (виміряно)."
+    },
+    "fact.hold": {
+      "en": "On its own it keeps a position it can fly on for at least {hold_s} s (measured; outages and drills: {outages}).",
+      "uk": "Сам по собі він зберігає придатну для польоту позицію щонайменше {hold_s} с (виміряно; втрат і тренувань: {outages})."
+    },
+    "fact.hold_unmeasured": {
+      "en": "How long it holds on its own is not measured yet: fly a GNSS-off drill at a safe height.",
+      "uk": "Скільки він утримує позицію сам, ще не виміряно: виконайте тренування з вимкненим GNSS на безпечній висоті."
+    },
+    "fact.range": {
+      "en": "On its own, about {minutes} min before its estimate is {tolerance_m} m off (drift {rate} m a minute, measured).",
+      "uk": "Сам по собі — приблизно {minutes} хв, доки оцінка не відхилиться на {tolerance_m} м (дрейф {rate} м за хвилину, виміряно)."
+    },
+    "fact.hold_set": {
+      "en": "On source set {set} it kept a position it can fly on for at least {hold_s} s (measured; outages and drills: {outages}).",
+      "uk": "На наборі джерел {set} він зберігав придатну для польоту позицію щонайменше {hold_s} с (виміряно; втрат і тренувань: {outages})."
+    },
+    "fact.range_set": {
+      "en": "On source set {set}, about {minutes} min before its estimate is {tolerance_m} m off (drift {rate} m a minute, measured).",
+      "uk": "На наборі джерел {set} — приблизно {minutes} хв, доки оцінка не відхилиться на {tolerance_m} м (дрейф {rate} м за хвилину, виміряно)."
+    },
+    "fact.no_fallback_set": {
+      "en": "No source set keeps a position without GNSS.",
+      "uk": "Жоден набір джерел не зберігає позицію без GNSS."
+    },
+    "step.switch_set": {
+      "en": "Switch to source set {set} with RC{channel}, and wait for the ground station's message that the source changed.",
+      "uk": "Перемкніться на набір джерел {set} каналом RC{channel} і дочекайтеся повідомлення наземної станції про зміну джерела."
+    },
+    "step.no_switch": {
+      "en": "Nothing selects source set {set} yet: use the steps below, and set up a switch (it is in the plan).",
+      "uk": "Набір джерел {set} поки нічим не вмикається: дійте за кроками нижче й налаштуйте перемикач (це є в плані)."
+    },
+    "step.fly_home_set": {
+      "en": "Fly home in Loiter on {sensors}, ready to take over in {mode}.",
+      "uk": "Летіть додому в Loiter (джерела: {sensors}), будучи готовими перебрати керування в {mode}."
+    },
+    "step.mode": {
+      "en": "Switch to {mode}.",
+      "uk": "Перемкніться в {mode}."
+    },
+    "step.mode_station": {
+      "en": "Switch to AltHold from the ground station.",
+      "uk": "Перемкніться в AltHold з наземної станції."
+    },
+    "step.no_mode": {
+      "en": "No mode that needs no position is on a switch: change to AltHold from the ground station if you can, and set one up (it is in the plan).",
+      "uk": "Жоден режим без позиції не призначено на перемикач: перейдіть в AltHold з наземної станції, якщо можете, і налаштуйте перемикач (це є в плані)."
+    },
+    "step.heading": {
+      "en": "Turn the nose to the home heading.",
+      "uk": "Розверніть ніс на курс додому."
+    },
+    "step.no_heading": {
+      "en": "The heading is not reliable without GNSS on this aircraft: fly by sight.",
+      "uk": "Курс цього апарата без GNSS ненадійний: летіть на око."
+    },
+    "step.fly_home": {
+      "en": "Fly home on the heading at a slow, steady speed, and keep the aircraft in sight.",
+      "uk": "Летіть додому за курсом на невеликій сталій швидкості й тримайте апарат у полі зору."
+    },
+    "step.land": {
+      "en": "Land by sight; do not wait for GNSS to return.",
+      "uk": "Сідайте на око; не чекайте повернення GNSS."
+    },
+    "spoof.mode_first": {
+      "en": "Switch to {mode} first: it needs no position, so a false one cannot steer the aircraft.",
+      "uk": "Спершу перемкніться в {mode}: цьому режиму не потрібна позиція, тож хибна позиція не зможе керувати апаратом."
+    },
+    "spoof.mode_station": {
+      "en": "Switch to AltHold from the ground station first: it needs no position, so a false one cannot steer the aircraft.",
+      "uk": "Спершу перемкніться в AltHold з наземної станції: цьому режиму не потрібна позиція, тож хибна позиція не зможе керувати апаратом."
+    },
+    "spoof.reject_switch": {
+      "en": "Then reject GNSS with the GPS-disable switch (RC{channel} high): the estimator may still trust it.",
+      "uk": "Потім відкиньте GNSS перемикачем вимкнення GPS (RC{channel} угору): оцінювач може й далі йому довіряти."
+    },
+    "spoof.reject_set": {
+      "en": "Then switch to source set {set} with RC{channel}, which does not use GNSS: the estimator may still trust it.",
+      "uk": "Потім перемкніться на набір джерел {set} каналом RC{channel}, який не використовує GNSS: оцінювач може й далі йому довіряти."
+    },
+    "spoof.no_reject": {
+      "en": "Nothing on this aircraft rejects GNSS yet: a GPS-disable switch (aux function 65) would.",
+      "uk": "На цьому апараті поки ніщо не відкидає GNSS: це зробив би перемикач вимкнення GPS (допоміжна функція 65)."
+    },
+    "spoof.ekf_lands": {
+      "en": "With GNSS rejected, the EKF failsafe will land the aircraft where it is (FS_EKF_ACTION 3).",
+      "uk": "Після відкидання GNSS аварійний режим EKF посадить апарат на місці (FS_EKF_ACTION 3)."
+    },
+    "spoof.then": {
+      "en": "Then follow \"GNSS lost\".",
+      "uk": "Далі дійте за розділом «Втрата GNSS»."
+    },
+    "motor_lost": {
+      "en": "Motor or ESC lost",
+      "uk": "Відмова мотора чи ESC"
+    },
+    "will.motor_quad": {
+      "en": "come down: a quad cannot fly on three motors",
+      "uk": "знизиться: квадрокоптер не може летіти на трьох моторах"
+    },
+    "will.motor_no_balance": {
+      "en": "come down: no share of thrust between its other motors keeps it level",
+      "uk": "знизиться: жоден розподіл тяги між рештою моторів не втримає його рівно"
+    },
+    "will.motor_hold": {
+      "en": "hold height and heading on its other motors",
+      "uk": "утримає висоту й курс на решті моторів"
+    },
+    "will.motor_hold_level": {
+      "en": "hold height on its other motors, though it may turn",
+      "uk": "утримає висоту на решті моторів, хоча може розвертатися"
+    },
+    "will.motor_short": {
+      "en": "hold height on its other motors with little left to steer with, at the weight it last flew: its busiest motor would need {needed}% output, over the {target}% target",
+      "uk": "утримає висоту на решті моторів, але з малим запасом на керування, за ваги останнього польоту: найнавантаженішому мотору знадобиться {needed}% виходу, понад ціль {target}%"
+    },
+    "will.motor_sink": {
+      "en": "sink: at the weight it last flew, its other motors cannot carry it (its busiest motor would need {needed}% output)",
+      "uk": "знижуватиметься: за ваги останнього польоту решта моторів його не втримає (найнавантаженішому мотору знадобилося б {needed}% виходу)"
+    },
+    "will.motor_message": {
+      "en": "after 1 s descending at full throttle, tell the ground station \"Potential Thrust Loss (N)\", N being the motor it suspects",
+      "uk": "після 1 с зниження на повному газі повідомить наземну станцію «Potential Thrust Loss (N)», де N — мотор, який він підозрює"
+    },
+    "will.motor_gripper": {
+      "en": "release the gripper's load when it reports the thrust loss",
+      "uk": "скине вантаж із захоплювача, коли повідомить про втрату тяги"
+    },
+    "fact.motor_kg": {
+      "en": "With one motor lost it stays within the {target}% output target up to {kg} kg take-off weight (measured on a flight weighed at {takeoff_kg} kg).",
+      "uk": "Із одним відмовленим мотором він залишається в межах цілі {target}% виходу до {kg} кг злітної ваги (виміряно в польоті, зваженому на {takeoff_kg} кг)."
+    },
+    "fact.motor_kg_estimated": {
+      "en": "With one motor lost it stays within the {target}% output target up to {kg} kg take-off weight (measured on a flight of about {flight_kg} kg, estimated from the weighed flights).",
+      "uk": "Із одним відмовленим мотором він залишається в межах цілі {target}% виходу до {kg} кг злітної ваги (виміряно в польоті близько {flight_kg} кг, оціненому за зваженими польотами)."
+    },
+    "fact.motor_ratio": {
+      "en": "With one motor lost it stays within the {target}% output target up to {ratio} times the weight of the flight it was measured on; weigh a flight at import to see kilograms.",
+      "uk": "Із одним відмовленим мотором він залишається в межах цілі {target}% виходу до ваги, у {ratio} раза більшої за вагу польоту, у якому це виміряно; зважте політ під час імпорту, щоб бачити кілограми."
+    },
+    "fact.motor_unmeasured": {
+      "en": "Not measured yet: hover for {hover_s} s or more, {height_m} m or higher, with the motor outputs and battery voltage logged.",
+      "uk": "Ще не виміряно: зависніть на {hover_s} с або довше на висоті від {height_m} м із записом виходів моторів і напруги батареї."
+    },
+    "step.motor_level": {
+      "en": "Stop any manoeuvre and let it level.",
+      "uk": "Припиніть будь-який маневр і дайте апарату вирівнятися."
+    },
+    "step.motor_yaw": {
+      "en": "If it turns, let it: keep it level rather than fighting the heading.",
+      "uk": "Якщо апарат розвертається, не заважайте: тримайте його рівно, а не боріться за курс."
+    },
+    "step.motor_descend": {
+      "en": "Descend at a steady rate.",
+      "uk": "Знижуйтеся з постійною швидкістю."
+    },
+    "step.motor_land": {
+      "en": "Land at the nearest clear spot, not at home.",
+      "uk": "Сідайте на найближчому вільному місці, а не вдома."
+    },
+    "step.motor_clear": {
+      "en": "Keep people clear of where it is coming down.",
+      "uk": "Тримайте людей подалі від місця, де апарат знижується."
+    },
+    "step.motor_chute_switch": {
+      "en": "If the parachute has not opened by itself, release it with its switch (RC{channel} high).",
+      "uk": "Якщо парашут не розкрився сам, випустіть його перемикачем (RC{channel} угору)."
+    },
+    "step.motor_chute_station": {
+      "en": "If the parachute has not opened by itself, release it from the ground station.",
+      "uk": "Якщо парашут не розкрився сам, випустіть його з наземної станції."
+    },
+    "link_lost": {
+      "en": "Ground-station link lost: the pilot's control and the telemetry",
+      "uk": "Втрата зв'язку з наземною станцією: керування пілота й телеметрія"
+    },
+    "radio_lost": {
+      "en": "Pilot's radio lost",
+      "uk": "Втрата радіо пілота"
+    },
+    "telemetry_lost": {
+      "en": "Telemetry link lost, with the pilot's radio working",
+      "uk": "Втрата телеметрії за справного радіо пілота"
+    },
+    "word.or": {
+      "en": "or",
+      "uk": "чи"
+    },
+    "will.link_station": {
+      "en": "lose the pilot's control and the telemetry together: it is flown from the ground station, over the one link",
+      "uk": "втратить і керування пілота, і телеметрію разом: ним керують із наземної станції через один канал"
+    },
+    "will.radio_throttle": {
+      "en": "act at once instead if the receiver sends a failsafe throttle under {value} (FS_THR_VALUE)",
+      "uk": "спрацює одразу, якщо приймач надсилає аварійний газ нижче {value} (FS_THR_VALUE)"
+    },
+    "will.radio_hold": {
+      "en": "not notice the loss at all if the receiver holds its last values instead: set it to stop sending when the signal is lost",
+      "uk": "зовсім не помітить втрати, якщо приймач натомість утримує останні значення: налаштуйте його припиняти передачу при втраті сигналу"
+    },
+    "link.step": {
+      "en": "{outcome} after {t} s ({failsafe} failsafe)",
+      "uk": "{outcome} через {t} с (аварійний режим {failsafe})"
+    },
+    "link.then": {
+      "en": "{a}, then {b}",
+      "uk": "{a}, потім {b}"
+    },
+    "link.no_failsafe": {
+      "en": "{outcome}: no failsafe acts",
+      "uk": "{outcome}: жоден аварійний режим не спрацює"
+    },
+    "link.let_on": {
+      "en": "{outcome}: its failsafe settings let it",
+      "uk": "{outcome}: так дозволяють налаштування аварійного режиму"
+    },
+    "link.any_mode": {
+      "en": "{sequence}, whatever mode it is flown in",
+      "uk": "{sequence} — у будь-якому режимі польоту"
+    },
+    "link.in_modes": {
+      "en": "{sequence}, flown in {modes}",
+      "uk": "{sequence} — у польоті в {modes}"
+    },
+    "link.gnss_keeps": {
+      "en": "do the same if GNSS is lost too: its first source set keeps a position without it",
+      "uk": "діятиме так само й без GNSS: його перший набір джерел зберігає позицію без нього"
+    },
+    "link.gnss_too": {
+      "en": "{outcomes} if GNSS is lost too",
+      "uk": "{outcomes}, якщо GNSS теж втрачено"
+    },
+    "link.gnss_too_depends": {
+      "en": "{outcomes} if GNSS is lost too, by its mode and which is lost first",
+      "uk": "{outcomes}, якщо GNSS теж втрачено, — залежно від режиму й того, що втрачено першим"
+    },
+    "out.rtl": {
+      "en": "fly home and land (RTL)",
+      "uk": "полетить додому й сяде (RTL)"
+    },
+    "out.smart_rtl": {
+      "en": "fly back the way it came and land (SmartRTL, or RTL with no path back)",
+      "uk": "полетить назад тим самим шляхом і сяде (SmartRTL або RTL, якщо шляху назад немає)"
+    },
+    "out.auto_rtl": {
+      "en": "fly the mission's landing (Auto RTL)",
+      "uk": "виконає посадку з місії (Auto RTL)"
+    },
+    "out.brake": {
+      "en": "stop and hold where it is (Brake)",
+      "uk": "зупиниться й зависне на місці (Brake)"
+    },
+    "out.auto": {
+      "en": "carry on with the mission (Auto)",
+      "uk": "продовжить місію (Auto)"
+    },
+    "out.guided": {
+      "en": "carry on with its last command (Guided)",
+      "uk": "виконуватиме останню команду (Guided)"
+    },
+    "out.land": {
+      "en": "land where it is (Land)",
+      "uk": "сяде на місці (Land)"
+    },
+    "out.land_drift": {
+      "en": "land where it is, drifting with the wind (Land)",
+      "uk": "сяде на місці, дрейфуючи з вітром (Land)"
+    },
+    "out.disarm": {
+      "en": "stop its motors (Terminate)",
+      "uk": "зупинить мотори (Terminate)"
+    },
+    "out.flown": {
+      "en": "carry on under the pilot's control",
+      "uk": "продовжить під керуванням пілота"
+    },
+    "out.flown_in": {
+      "en": "carry on in {mode} under the pilot's control",
+      "uk": "продовжить у {mode} під керуванням пілота"
+    },
+    "out.hold_alone": {
+      "en": "hold where it is with no one flying it",
+      "uk": "зависне на місці без керування"
+    },
+    "out.hold_alone_in": {
+      "en": "hold where it is with no one flying it ({mode})",
+      "uk": "зависне на місці без керування ({mode})"
+    },
+    "out.drift_alone": {
+      "en": "hold its height with no one flying it, drifting with the wind",
+      "uk": "утримуватиме висоту без керування, дрейфуючи з вітром"
+    },
+    "out.drift_alone_in": {
+      "en": "hold its height with no one flying it, drifting with the wind ({mode})",
+      "uk": "утримуватиме висоту без керування, дрейфуючи з вітром ({mode})"
+    },
+    "out.lost": {
+      "en": "fly on with no position it can trust: it may drift or fly off",
+      "uk": "летітиме далі без надійної позиції: може дрейфувати чи відлетіти"
+    },
+    "out.lost_in": {
+      "en": "fly on in {mode} with no position it can trust: it may drift or fly off",
+      "uk": "летітиме далі в {mode} без надійної позиції: може дрейфувати чи відлетіти"
+    },
+    "fact.link_failsafes": {
+      "en": "Its flights logged {n} {failsafe} failsafes: {as_configured} as configured, {fell_back} on a fallback mode, {unexpected} not as configured.",
+      "uk": "У його польотах записано спрацювань аварійного режиму {failsafe}: {n}; як налаштовано — {as_configured}, у запасному режимі — {fell_back}, не як налаштовано — {unexpected}."
+    },
+    "fact.link_slowest": {
+      "en": "The slowest {failsafe} failsafe acted {waited_s} s after the loss began (its wait: {wait_s} s).",
+      "uk": "Найповільніший аварійний режим {failsafe} спрацював через {waited_s} с після початку втрати (його очікування: {wait_s} с)."
+    },
+    "fact.link_unanswered": {
+      "en": "{n} losses of the {failsafe} link went unanswered by its failsafe.",
+      "uk": "Втрат зв'язку ({failsafe}) без відповіді аварійного режиму: {n}."
+    },
+    "fact.link_near_miss": {
+      "en": "On one flight the ground station went unheard for {seconds} s, short of its {timeout} s failsafe wait.",
+      "uk": "В одному польоті наземну станцію не було чути {seconds} с — менше за {timeout} с очікування аварійного режиму."
+    },
+    "fact.link_unmeasured": {
+      "en": "No loss of this link is on its flights yet.",
+      "uk": "У його польотах поки немає втрат цього каналу."
+    },
+    "step.link_antennas": {
+      "en": "Turn the ground antennas toward the aircraft and keep the way between them clear.",
+      "uk": "Розверніть наземні антени до апарата й не загороджуйте простір між ними."
+    },
+    "step.radio_antennas": {
+      "en": "Face the aircraft with the transmitter and keep its antennas clear.",
+      "uk": "Станьте обличчям до апарата з пультом і не закривайте його антени."
+    },
+    "step.link_back_station": {
+      "en": "When the link comes back, it stays in the mode the failsafe chose: pick a mode in the ground station to fly it again.",
+      "uk": "Коли зв'язок відновиться, апарат лишиться в режимі, який вибрав аварійний режим: виберіть режим на наземній станції, щоб знову ним керувати."
+    },
+    "step.link_back_switch": {
+      "en": "When the link comes back, it stays in the mode the failsafe chose: move the flight-mode switch to fly it again.",
+      "uk": "Коли зв'язок відновиться, апарат лишиться в режимі, який вибрав аварійний режим: перемкніть перемикач режимів, щоб знову ним керувати."
+    },
+    "step.link_no_failsafe": {
+      "en": "No failsafe acts on this loss: set one before the next flight.",
+      "uk": "Жоден аварійний режим не діє на цю втрату: налаштуйте його до наступного польоту."
+    },
+    "step.link_clear": {
+      "en": "If it is landing where it is or drifting, keep people clear of the ground under it and downwind.",
+      "uk": "Якщо апарат сідає на місці чи дрейфує, тримайте людей подалі від місця під ним і з підвітряного боку."
+    },
+    "step.telemetry_fly": {
+      "en": "Fly on with the pilot's radio; if the failsafe has taken over, move the flight-mode switch to fly it again.",
+      "uk": "Летіть далі з радіо пілота; якщо аварійний режим перебрав керування, перемкніть перемикач режимів, щоб знову ним керувати."
+    }
+  },
+  "link": {
+    "about": "The link sections (engine/src/flight_insights/recovery_link.py). defaults are ArduCopter 4.7.0's own (Parameters.cpp: FS_THR_ENABLE 1, FS_GCS_ENABLE 0, FS_GCS_TIMEOUT 5, FS_OPTIONS 16, continue under pilot control on a GCS failsafe, though its own description says 0; config.h: FS_THR_VALUE 975; RC_Channels_VarInfo.h: RC_FS_TIMEOUT 1), for a parameter the log did not hold. mode_words name each mode as the ground station shows it; failsafe_names name the failsafe inside the step text.",
+    "defaults": {
+      "FS_THR_ENABLE": 1.0,
+      "FS_THR_VALUE": 975.0,
+      "RC_FS_TIMEOUT": 1.0,
+      "FS_GCS_ENABLE": 0.0,
+      "FS_GCS_TIMEOUT": 5.0,
+      "FS_OPTIONS": 16.0
+    },
+    "mode_words": {
+      "LOITER": "Loiter",
+      "ALT_HOLD": "AltHold",
+      "AUTO": "Auto",
+      "GUIDED": "Guided",
+      "RTL": "RTL",
+      "SMART_RTL": "SmartRTL",
+      "AUTO_RTL": "Auto RTL",
+      "LAND": "Land",
+      "BRAKE": "Brake",
+      "POSHOLD": "PosHold",
+      "STABILIZE": "Stabilize"
+    },
+    "failsafe_names": {
+      "FAILSAFE_RADIO": {
+        "en": "radio",
+        "uk": "радіо"
+      },
+      "FAILSAFE_GCS": {
+        "en": "ground-station",
+        "uk": "наземної станції"
+      },
+      "FAILSAFE_EKFINAV": {
+        "en": "EKF",
+        "uk": "EKF"
+      },
+      "FAILSAFE_DEADRECKON": {
+        "en": "dead-reckoning",
+        "uk": "навігації за рахунком"
+      }
+    }
+  }
+}

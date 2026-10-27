@@ -106,7 +106,33 @@ CHECKS: Mapping[str, tuple[str, ...]] = {
     "metric": ("metric",),
     "has_metric": ("metric",),
     "param_is": ("param", "value"),
+    # in every payload band flown before the change, flown again with it, the metric
+    # better by at least `by` (a share) with 95% intervals apart
+    "metric_improves": ("metric", "by"),
+    # the same bands, flown again with it: no band worse by `by` with intervals apart
+    "metric_not_worse": ("metric", "by"),
+    # no metric shifted worse after the change, beyond the airframe's spread (attribution)
+    "no_shift_worse": (),
+    # with the change, the heaviest band's value within max_ratio times, or max_above
+    # over, the lightest band's
+    "metric_vs_lightest": ("metric",),
 }
+METRIC_CHECKS = (
+    "metric", "has_metric", "metric_improves", "metric_not_worse", "metric_vs_lightest",
+)  # fmt: skip
+PARAM_NAME = re.compile(r"[A-Z][A-Z0-9_]{0,15}")
+
+
+@dataclass(frozen=True)
+class AttributionLink:
+    """Parameters that should move metrics (rules/attribution.json): each metric with
+    the sign it moves by (+1 with the value, -1 against it, 0 either way) and a weight."""
+
+    group: str
+    params: tuple[re.Pattern[str], ...]
+    metrics: tuple[tuple[str, int, float], ...]  # metric name, may hold {axis}
+    why: Mapping[str, str]
+    sources: tuple[str, ...]
 
 
 @dataclass(frozen=True)
@@ -128,6 +154,7 @@ class Registry:
     procedure_texts: Mapping[str, Mapping[str, str]] = dataclasses.field(
         default_factory=dict[str, Any]
     )
+    attribution: tuple[AttributionLink, ...] = ()
 
     def names(self, firmware: str | None) -> Mapping[str, Any]:
         """Mode, event and error names of the flight's release, or the nearest earlier
@@ -154,17 +181,80 @@ class Registry:
         }
         options, questions, coverage = _options(pack, findings)
         procedures, procedure_texts = _procedures(pack, findings, metrics)
+        _attribution_weather(rules, metrics)
         return Registry(
             metrics, findings, knowledge_version(pack), rules, pack, options, questions,
-            coverage, procedures, procedure_texts,
+            coverage, procedures, procedure_texts, _attribution(rules, metrics),
         )  # fmt: skip
+
+
+def _attribution(
+    rules: Mapping[str, Any], metrics: Mapping[str, Metric]
+) -> tuple[AttributionLink, ...]:
+    """The parameter-to-metric map, checked: patterns that compile, metrics the registry
+    knows (for some axis, where one is named), signs and strengths, and its texts."""
+    doc: Mapping[str, Any] | None = rules.get("attribution")
+    if doc is None:
+        return ()
+    strengths: Mapping[str, float] = doc["strengths"]
+    axes = set(cast(Mapping[str, str], doc["axes"]).values())
+    out: list[AttributionLink] = []
+    for i, raw in enumerate(cast(list[Mapping[str, Any]], doc["links"])):
+        where = f"attribution.json: link {raw.get('group', i)}"
+        try:
+            params = tuple(re.compile(str(p)) for p in raw["params"])
+        except re.error as e:
+            raise KnowledgeError(f"{where}: a parameter pattern does not compile: {e}") from None
+        captures = any("axis" in p.groupindex for p in params)
+        links: list[tuple[str, int, float]] = []
+        for m in cast(list[Mapping[str, Any]], raw["metrics"]):
+            name, sign, strength = str(m["metric"]), m.get("sign"), m.get("strength")
+            if sign not in (-1, 0, 1) or strength not in strengths:
+                raise KnowledgeError(f"{where}: {name} needs a sign of -1, 0 or 1 and a strength")
+            if "{axis}" in name and not captures:
+                raise KnowledgeError(f"{where}: {name} names an axis its parameters do not give")
+            names = {name.format(axis=a) for a in axes} if "{axis}" in name else {name}
+            if not names & set(metrics):
+                raise KnowledgeError(f"{where}: no metric {name}")
+            links.append((name, int(sign), float(strengths[str(strength)])))
+        sources = raw.get("sources")
+        if not (isinstance(sources, list) and sources):
+            raise KnowledgeError(f"{where}: needs its sources")
+        out.append(
+            AttributionLink(
+                str(raw["group"]), params, tuple(links), _text(where, raw, "why"),
+                tuple(str(x) for x in cast(list[Any], sources)),
+            )
+        )  # fmt: skip
+    return tuple(out)
+
+
+def _attribution_weather(rules: Mapping[str, Any], metrics: Mapping[str, Metric]) -> None:
+    """The weather confounder's rules, checked: each variable's threshold, and metric
+    prefixes that each name some metric the registry knows."""
+    doc: Mapping[str, Any] | None = rules.get("attribution", {}).get("weather")
+    if doc is None:
+        return
+    where = "attribution.json: weather"
+    if not 0.0 <= float(doc["min_coverage"]) <= 1.0:
+        raise KnowledgeError(f"{where}: min_coverage must be a share")
+    for name, v in cast(Mapping[str, Mapping[str, Any]], doc["variables"]).items():
+        if not float(v["differ"]) > 0.0:
+            raise KnowledgeError(f"{where}: {name} needs a threshold above 0")
+        for prefix in cast(list[str], v["metrics"]):
+            if not any(m.startswith(prefix) for m in metrics):
+                raise KnowledgeError(f"{where}: {name}: no metric starts with {prefix}")
+    sources = doc.get("sources")
+    if not (isinstance(sources, list) and sources):
+        raise KnowledgeError(f"{where}: needs its sources")
 
 
 def knowledge_version(pack: Pack) -> str:
     """A short hash of every file an analysis reads from the pack: the registry, the
-    rules and the names. A result made with another version is recomputed, not reused."""
+    rules, the names and the motor frames. A result made with another version is
+    recomputed, not reused."""
     h = hashlib.sha256()
-    for folder in ("metrics", "rules", "enums", "options", "procedures"):
+    for folder in ("metrics", "rules", "enums", "options", "procedures", "frames"):
         for path in sorted((pack.root / folder).glob("*.json")):
             h.update(f"{folder}/{path.name}\0".encode())
             h.update(path.read_bytes())
@@ -345,7 +435,25 @@ def _procedures(
                     raise KnowledgeError(
                         f"{where}: add_temporary needs a param and set_bits, clear_bits or a value"
                     )
-            procedures[code] = {"temporary": temporary, "add_temporary": add, "steps": steps}
+            applied_when = raw.get("applied_when")
+            if applied_when is not None and applied_when.get("finding") not in findings:
+                raise KnowledgeError(f"{where}: applied_when names no finding the registry knows")
+            if raw.get("graded_by", "findings") not in ("findings", "checks"):
+                raise KnowledgeError(f"{where}: graded_by is 'findings' or 'checks'")
+            # What the work itself may change (AutoTune saves gains): the undo file keeps
+            # the flight's values of these too.
+            undo_also: object = raw.get("undo_also", [])
+            if not isinstance(undo_also, list) or not all(
+                isinstance(n, str) and PARAM_NAME.fullmatch(n)
+                for n in cast(list[object], undo_also)
+            ):
+                raise KnowledgeError(f"{where}: undo_also lists parameter names")
+            undo_also = [str(n) for n in cast(list[str], undo_also)]
+            procedures[code] = {
+                "temporary": temporary, "add_temporary": add, "steps": steps,
+                "applied_when": applied_when, "graded_by": raw.get("graded_by", "findings"),
+                "undo_also": tuple(undo_also),
+            }  # fmt: skip
     return procedures, texts
 
 
@@ -361,8 +469,14 @@ def _procedure_step(
         needs = CHECKS.get(check.get("check"))
         if needs is None or any(k not in check for k in needs):
             raise KnowledgeError(f"{where}: unknown or incomplete check {check}")
-        if check["check"] in ("metric", "has_metric") and check["metric"] not in metrics:
+        if check["check"] in METRIC_CHECKS and check["metric"] not in metrics:
             raise KnowledgeError(f"{where}: no metric {check['metric']}")
+        if check["check"] == "metric_vs_lightest" and ("max_ratio" in check) == (
+            "max_above" in check
+        ):
+            raise KnowledgeError(f"{where}: metric_vs_lightest needs max_ratio or max_above")
+        if not isinstance(check.get("required", False), bool):
+            raise KnowledgeError(f"{where}: 'required' is true or false")
     when = s.get("when")
     if when is not None and not (isinstance(when.get("param"), str) and when.get("in")):
         raise KnowledgeError(f"{where}: 'when' needs a param and the values it keeps the step for")

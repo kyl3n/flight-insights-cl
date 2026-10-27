@@ -5,6 +5,7 @@
   import type { MessageKey } from "../lib/i18n";
   import {
     PARTS,
+    badWeights,
     declined,
     decisions,
     describeChange,
@@ -49,6 +50,7 @@
 
   const files = $derived(scanned?.files ?? []);
   const waiting = $derived(undecided(files, choices));
+  const unreadable = $derived(badWeights(files, choices));
   const newFlights = $derived(
     files
       .filter((f) => f.kind === "dataflash" && !["skip", "undecided"].includes(choices[f.id]?.choice.kind ?? ""))
@@ -390,11 +392,17 @@
             <span class="mono">{f.name}</span>
             <label>{t("import.picks.packs")}<input type="text" bind:value={c.packs} placeholder={t("import.picks.packsHint")} /></label>
             <label>{t("import.picks.payload")}<input type="text" bind:value={c.payload} /></label>
+            <label>
+              {t("import.picks.weight")}
+              <input type="text" inputmode="decimal" bind:value={c.takeoffKg} placeholder={t("import.picks.weightHint")}
+                aria-invalid={unreadable.includes(f)} />
+            </label>
           </div>
         {/each}
       </section>
     {/if}
 
+    {#if unreadable.length}<p class="error" role="alert">{t("import.weightInvalid", { max: 1000 })}</p>{/if}
     {#if error}<p class="error" role="alert">{error}</p>{/if}
 
     <footer>
@@ -405,7 +413,7 @@
             : t("import.foot.ready", { flights: newFlights, changes: buildChanges })}
         </span>
         <button type="button" onclick={close} disabled={phase === "committing"}>{t("import.cancel")}</button>
-        <button type="button" class="primary" onclick={go} disabled={waiting.length > 0 || phase === "committing"}>
+        <button type="button" class="primary" onclick={go} disabled={waiting.length > 0 || unreadable.length > 0 || phase === "committing"}>
           {phase === "committing" ? t("setup.saving") : t("import.go", { count: files.length })}
         </button>
       {:else}

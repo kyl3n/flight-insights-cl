@@ -1,0 +1,26 @@
+{
+  "about": "The airframe's model for ArduPilot's simulator (spec: Simulator checks; sim/export.py). The model is the simulator's frame model (libraries/SITL/SIM_Frame.cpp, Frame::Model), written at standard sea-level air (ref_alt_m, ref_temp_c) so the file holds nothing about the site; the simulator then flies it in the air of whatever home it is given. The bluff-body drag is set through a reference test at ref_speed_ms, its angle solved so the simulator works out the measured areaCd. Full-pack voltage is MOT_BAT_VOLT_MAX when it is set (the wiki's 'maximum voltage of your batteries'), else the cell count times full_cell_v for the battery chemistry (LiPo when the setup does not say). Parameters: the flight's set without the classes in drop_classes, without what the location policy removes, and without the groups in drop, each with why; the motor outputs move to the simulator's channels (motor n on output n), which is the only wiring the simulator's frame reads.",
+  "uncalibrated": true,
+  "ref_alt_m": 0.0,
+  "ref_temp_c": 15.0,
+  "ref_speed_ms": 10.0,
+  "gravity": 9.80665,
+  "full_cell_v": {"LiPo": 4.2, "LiHV": 4.35, "Li-ion": 4.2, "LiFePO4": 3.65},
+  "default_chemistry": "LiPo",
+  "drop_classes": ["calibration", "learned", "counter", "hardware", "ground station"],
+  "drop": [
+    {"pattern": "^(SERIAL\\d*_|BRD_|CAN_|NET_|SCR_|DID_|EAHRS_|RC_PROTOCOLS$|RSSI_)", "why": "ports, buses and board settings of the real flight controller; the simulator wires its own"},
+    {"pattern": "^GPS\\d*_", "why": "the GNSS receivers' settings; the simulator brings its own receiver"},
+    {"pattern": "^(COMPASS_|AHRS_ORIENTATION$|AHRS_TRIM_[XYZ]$|INS_POS\\d_|INS_ACC_BODYFIX$|INS_TCAL)", "why": "how the real sensors are mounted and calibrated; the simulator's sensors are its own"},
+    {"pattern": "^BATT\\w?_(MONITOR|VOLT_PIN|CURR_PIN|VOLT_MULT|AMP_PERVLT|AMP_OFFSET|VLT_OFFSET|BUS|ADDR|SERIAL_NUM|ESC_MASK|SUM_MASK|CURR_MULT|OPTIONS|MAX_VOLT|MAX_AMPS|SHUNT|I2C_\\w+|FL_\\w+|SMB_\\w+)$", "why": "how the real battery monitor is wired; the simulator measures its own battery"},
+    {"pattern": "^(RNGFND\\d*_|FLOW_|PRX\\d*_|VISO_|BCN_|RPM\\d*_|TEMP\\d*_|EFI_|GEN_|ARSPD|ICE_|ADSB_|AVD_)", "why": "sensors and devices the simulator does not have unless they are set up in it"},
+    {"pattern": "^(NTF_|LED_|RELAY\\d*_|CAM\\d*_|MNT\\d*_|OSD\\d*_|VTX_|SERVO_(BLH|DSHOT|FTW|ROB|SBUS|VOLZ|GPIO)_)", "why": "lights, cameras, gimbals, screens and ESC protocols the simulator does not drive"},
+    {"pattern": "^SERVO\\d+_(FUNCTION|MIN|MAX|TRIM|REVERSED)$", "why": "the output wiring: the motors move to the simulator's channels, and outputs left on those channels go"}
+  ],
+  "sources": [
+    "the model's fields and how the simulator uses them: libraries/SITL/SIM_Frame.cpp (Frame::Model, Frame::load_frame_params, Frame::init: hover from hoverThrOut and the reference power, areaCd from refSpd, refAngle and mdrag_coef, inertia estimated from mass and diagonal_size when not given) and libraries/SITL/SIM_Motor.cpp (thrust in the square of the battery voltage over maxVoltage; momentum drag per motor of mdrag_coef times the square root of air density, rotor area and thrust) at Copter-4.7.0",
+    "air density at ref_alt_m: the 1976 standard atmosphere the simulator uses (AP_Baro::get_air_density_for_alt_amsl), 1.225 kg/m3 at sea level",
+    "full cell voltages: 4.2 V for LiPo (ArduPilot wiki, Copter, Setting up for tuning: MOT_BAT_VOLT_MAX 'should be set to the maximum voltage of your batteries, e.g. 4.2v x No. Cells for standard LiPos, or as appropriate if using a different battery type'); LiHV 4.35 V, Li-ion 4.2 V and LiFePO4 3.65 V are those chemistries' usual charge-termination voltages",
+    "motor outputs: the simulator drives model motor n from output n (SIM_Motor::calculate_forces reads input.servos[motor_offset + servo]); ArduPilot's motor n is SERVOx_FUNCTION 33 + n - 1 for motors 1 to 8 and 82 + n - 9 for 9 to 12 (SRV_Channel.h)"
+  ]
+}

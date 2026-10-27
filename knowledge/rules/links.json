@@ -1,0 +1,21 @@
+{
+  "about": "How the link analyzer reads the telemetry and RC links from what ArduPilot and the ground station recorded (spec: Links, ground station and whole-system faults). RADIO_STATUS carries RSSI and noise in device-dependent units (MAVLink common.xml), so they are read in decibels only for SiK firmware radios (SiK and RFD), which the platform setup names or which identify themselves in the tlog by SiK's own system and component IDs ('3', 'D'). TxBuf is a percentage on every radio. The radios' own logs (IP mesh radios such as Doodle Labs, Silvus and DigiQ, or wfb-ng) are a later import.",
+  "calibrated": false,
+  "outage_s": 2.0,
+  "sik": {
+    "sender": [51, 68],
+    "answers": ["SiK", "RFD"],
+    "db_per_unit": 1.9,
+    "range_doubling_db": 6.0
+  },
+  "txbuf": {"slows_streams": 50, "slows_a_lot": 20},
+  "rc_fs_thr_margin": 10,
+  "sources": [
+    "libraries/GCS_MAVLink/GCS_Common.cpp at Copter-4.7.0: handle_radio_status (TxBuf under 50% adds 20 ms to every stream message, under 20% adds 60 ms; RAD is logged as each RADIO_STATUS arrives); log_mavlink_stats (MAV about once a second per active link: txp, rxp, rxdp cumulative 16-bit counts; mgs, the last time the GCS's system ID was heard)",
+    "https://github.com/ArduPilot/ardupilot_wiki/blob/master/common/source/docs/common-3dr-radio-advanced-configuration-and-technical-information.rst: SiK RSSI scales as about 1.9 per dB (signal_dBm = RSSI / 1.9 - 127); fade margin is RSSI minus noise in dB, and each 6 dB of it doubles range",
+    "SiK firmware (ArduPilot/SiK, Firmware/radio/mavlink.c and serial.c): RADIO_STATUS sent with system ID '3' (51) and component ID 'D' (68); txbuf is the free space of the radio's buffer of data from the autopilot waiting for air time, in percent (serial_read_space); rssi, remrssi, noise and remnoise are the radios' averages",
+    "https://mavlink.io/en/messages/common.html#RADIO_STATUS: rssi, remrssi, noise and remnoise in device-dependent units; txbuf the remaining free transmit buffer in percent",
+    "libraries/AP_Logger/LogFile.cpp at Copter-4.7.0: Write_RCIN with RCI2 flags (bit 0 valid input, bit 1 in RC failsafe, bit 2 the receiver's protocol failsafe; OMask the MAVLink overrides); RSSI.RXRSSI (0 to 1) and RXLQ (percent) from AP_RSSI",
+    "https://ardupilot.org/copter/docs/radio-failsafe.html: FS_THR_VALUE at least 10 PWM below the lowest throttle the receiver sends with the transmitter on"
+  ]
+}

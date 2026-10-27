@@ -168,14 +168,30 @@ def test_no_planted_coordinate_leaves_through_a_tool(
     flight = flown(engine, log)
     parent = sent_packet(engine, flight)
     planted_reads = [
-        ("segment_stats", {"message": m, "field": f, "start_s": None, "end_s": None})
+        # from well before arming, where the planted rows sit, to the end of the flight
+        ("segment_stats", {"message": m, "field": f, "start_s": -100_000, "end_s": None})
         for m, f in (("POS", "Lat"), ("GPS", "Lng"), ("ORGN", "Lat"), ("GPS", "Alt"),
-                     ("GPS", "GMS"), ("AHR2", "Lat"), ("BARO", "Alt"), ("MSG", "Message"))
+                     ("GPS", "GMS"), ("AHR2", "Lat"), ("BARO", "Alt"), ("MSG", "Message"),
+                     ("MAVC", "X"), ("MAVC", "Y"), ("MAVC", "Z"), ("VNKF", "Lat"),
+                     ("VNKF", "Lon"), ("RGPJ", "Lat"), ("RGPJ", "Alt"))
     ]  # fmt: skip
     for name, inputs in CALLS + planted_reads:
         reply = rpc(engine, "ai.tool", packet_id=parent["packet_id"], name=name, input=inputs)
         assert reply["result"]["engine"]["ok"], (name, inputs)
         assert leaks(reply["result"]["packet_json"]) == [], (name, inputs)
+    # The policy refuses each planted position before it is read: the scrubber's own
+    # check, which would withhold the result, is the second line, not the first.
+    for _, inputs in planted_reads:
+        if (inputs["message"], inputs["field"]) == ("BARO", "Alt"):
+            continue  # height above the take-off point: allowed, and checked above
+        reply = rpc(engine, "ai.tool", packet_id=parent["packet_id"], name="segment_stats",
+                    input=inputs)  # fmt: skip
+        tool = json.loads(reply["result"]["packet_json"])["tool"]
+        assert not tool["ok"], inputs
+        assert tool["error"] in (
+            "that field is not available: it can reveal where the aircraft flew",
+            "this flight's log has no such field",
+        ), inputs
 
 
 def _reply(**over: Any) -> dict[str, Any]:

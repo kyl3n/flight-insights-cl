@@ -7,7 +7,8 @@
   carries the test card: the checks before flying, what to fly, when to stop and what
   the next log should show.
 - The revert file: the settings that were only for the test flight, back as they were.
-- The undo file: every value the plan changed, back as it was.
+- The undo file: every value the plan changed, back as it was, and the values an
+  action's own work may change (the gains AutoTune saves).
 - The test card on its own, as text to print.
 
 Nothing here talks to an aircraft: the files are loaded by a person in Mission Planner
@@ -54,9 +55,10 @@ def _file(
     kind: Kind,
     lang: str,
     mark_temporary: bool = False,
+    comments: Mapping[str, str] | None = None,
 ) -> dict[str, Any]:
     text = _texts(reg, lang)
-    comments = {
+    comments = dict(comments or {}) | {
         r.native or "": why(reg, r.lead)[lang]
         + (f" ({text('temporary_note')})" if mark_temporary and r.native_revert is not None else "")
         for r in recs
@@ -128,14 +130,21 @@ def export_revert(
 def export_undo(
     plan: Plan, reg: Registry, kind: Kind, lang: str = "en", only: Collection[str] | None = None
 ) -> dict[str, Any]:
-    """Every value the plan changes, back to what the flight had. A parameter the plan
-    makes appear has no earlier value; it hides again once its switch is back off."""
+    """Every value the plan changes, back to what the flight had, and what the work of
+    an action on offer may change by itself (the gains AutoTune saves). A parameter the
+    plan makes appear has no earlier value; it hides again once its switch is back off."""
     recs = [r for r in _chosen(plan, only) if r.native_current is not None]
-    if not recs:
+    actions = [r for r in plan.recommendations if r.param is None and r.status == "next"]
+    values = {n: v for a in actions for n, v in a.undo.items()}
+    values |= {r.native or "": float(r.native_current or 0) for r in recs}
+    if not values:
         raise ExportError("the plan changes nothing that the flight already had")
-    values = {r.native or "": float(r.native_current or 0) for r in recs}
     header = [_texts(reg, lang)("undo_header")]
-    return _file(plan, reg, recs, values, header, f"flight-insights-{plan.flight}-undo", kind, lang)
+    extra = {n: why(reg, a.lead)[lang] for a in actions for n in a.undo}
+    return _file(
+        plan, reg, recs, values, header, f"flight-insights-{plan.flight}-undo", kind, lang,
+        comments=extra,
+    )  # fmt: skip
 
 
 def export_card(

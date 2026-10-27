@@ -1,0 +1,46 @@
+{
+  "about": "How the GNSS analyzer finds and classifies disturbances (spec: GNSS jamming and spoofing). No single signal settles it and receivers' own spoofing flags are unreliable alone, so it combines signal-level evidence (fix, satellites, accuracy, the u-blox jamming indicator and AGC, GPS time stopping) with physical consistency checks a spoofer cannot fake all at once (the estimator rejecting GNSS, GNSS against the estimator's track, a sustained one-sided velocity innovation, the barometer against GNSS altitude, GPS time against the log's clock, a second receiver). Channels that trip within merge_s of each other are one event. Positions are read only through local tracks, as metres from one origin; what leaves are times, counts, test ratios and the classification, never coordinates, absolute altitudes or GPS time. The thresholds are the app's starting points, marked uncalibrated until real disturbances have been seen across the fleet.",
+  "calibrated": false,
+  "merge_s": 5.0,
+  "short_s": 10.0,
+  "min_trip_s": 1.0,
+  "response_s": 30.0,
+  "signal": {
+    "min_fix": 3,
+    "min_sats": 6,
+    "sats_drop": 4,
+    "hacc_m": 3.0,
+    "hacc_factor": 3.0,
+    "time_stop_s": 2.0
+  },
+  "ublox": {
+    "cw_jamming": 80,
+    "agc_drop": 0.3,
+    "state_warning": 2,
+    "state_generations": ["M10"],
+    "hardware": {"00080000": "M8", "00190000": "M9 or F9", "000A0000": "M10"}
+  },
+  "consistency": {
+    "test_ratio": 1.0,
+    "logged_ratio_scale": 100,
+    "track_m": 15.0,
+    "drift_window_s": 10.0,
+    "drift_mps": 0.25,
+    "baro_m": 10.0,
+    "time_jump_s": 1.0,
+    "receivers_m": 10.0
+  },
+  "reset": {"m": 5.0, "mps": 50.0},
+  "onboard_correlation": 0.6,
+  "glitch_codes": [2],
+  "yaw_reset": ["emergency yaw reset", "yaw aligned using GPS"],
+  "classes": ["jamming", "spoofing", "obstruction", "onboard", "receiver"],
+  "sources": [
+    "libraries/AP_GPS/LogStructure.h and AP_GPS_UBLOX.cpp at Copter-4.7.0: UBX1 from MON-HW (log_mon_hw: jamInd the continuous-wave jamming indicator, 0 to 255; agcCnt the automatic gain control) or, in builds with AP_GPS_UBLOX_CFGV2_ENABLED (off by default), from MON-RF (log_mon_rf: jamInd the jamming state, 0 unknown, 1 OK, 2 warning, 3 critical). An M10 does not answer MON-HW, so its UBX1 is MON-RF. The receiver's hardware version is logged as 'u-blox <n> HW: <version> SW: <version>'",
+    "https://content.u-blox.com/sites/default/files/products/documents/u-blox8-M8_ReceiverDescrProtSpec_UBX-13003221.pdf: MON-HW jamInd and agcCnt; https://www.u-blox.com/en/docs/UBX-21022436 (M10 interface description): MON-RF jammingState",
+    "libraries/AP_NavEKF3/AP_NavEKF3_Logging.cpp at Copter-4.7.0, Log_Write_XKF4: SV, SP, SH, SM and SVT are written as (int16_t)(100*ratio) in a 'c' field whose FMTU multiplier is '-', so the value read by the documented rule (the multiplier applies; the format's own scaling does not) is 100 times the test ratio: logged_ratio_scale. Above 1 the measurement is rejected (AP_NavEKF3_PosVelFusion.cpp). ERR subsystem GPS code 2 is a GPS glitch",
+    "libraries/AP_NavEKF3/AP_NavEKF3_MagFusion.cpp at Copter-4.7.0: an emergency yaw reset from the GSF yaw estimator, driven by GPS velocity, announces 'EKF3 IMU<n> emergency yaw reset' or 'EKF3 IMU<n> yaw aligned using GPS'",
+    "Local SITL flights at Copter-4.7.0 (SIM_GPS1_JAM, a 60 m SIM_GPS1_GLTCH_X step, an 80 m ramp over 60 s, SIM_GPS1_NUMSATS 5): the step was rejected at a test ratio of about 16 and reset onto GNSS after about 10 s; the ramp was followed at ratios of 0.3 to 0.6 with a one-sided velocity innovation near 0.4 m/s against under 0.03 m/s in calm flight, which sets drift_mps",
+    "Spec: GNSS jamming and spoofing, evidence table and classification (jamming: signal-power evidence with the position consistent; spoofing: consistency failures while the signal looks healthy; obstruction: short, satellites lost, AGC normal; onboard: tied to current or a transmitter; receiver fault: one receiver only)"
+  ]
+}

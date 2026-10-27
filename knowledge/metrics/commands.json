@@ -1,0 +1,84 @@
+{
+  "about": "Commands and their results, and the operator's answer to critical warnings (spec: Links, ground station and whole-system faults, Ground station and operator).",
+  "metrics": {
+    "command.refused_in_flight": {
+      "name": {
+        "en": "Commands refused in flight",
+        "uk": "Команди, відхилені в польоті"
+      },
+      "unit": "count",
+      "direction": "lower",
+      "definition": {
+        "en": "Commands the aircraft refused while armed: denied, failed, temporarily rejected, or in a frame it does not take.",
+        "uk": "Команди, які апарат відхилив під час взведення: заборонені, невдалі, тимчасово відхилені або в системі координат, яку він не приймає."
+      },
+      "method": {
+        "en": "Each MAVC record while armed whose result is one of those. Commands it does not support at all (often a ground station probing on connection) are counted apart and not here.",
+        "uk": "Кожен запис MAVC під час взведення з одним із цих результатів. Команди, які він зовсім не підтримує (часто наземна станція перевіряє їх під час підключення), рахуються окремо, а не тут."
+      },
+      "messages": [
+        "MAVC"
+      ],
+      "zones": {
+        "target": [
+          null,
+          1
+        ],
+        "caution": [
+          1,
+          null
+        ]
+      },
+      "source": {
+        "kind": "app",
+        "title": "The app's band: any command refused in flight is worth a look, since the operator asked for something the aircraft did not do (MAV_RESULT, mavlink.io common messages)"
+      }
+    }
+  },
+  "findings": {
+    "command.refused_in_flight": {
+      "stage": "operations",
+      "title": {
+        "en": "{count} commands refused in flight; the first, {command} from {sender} at {at_s} s, was {result}",
+        "uk": "{count} команд відхилено в польоті; першу, {command} від «{sender}» на {at_s} с, було {result}"
+      },
+      "action": {
+        "en": "Find out why the aircraft refused it at that moment (its mode, arming state or a check that failed) from the messages the ground station showed then. A mode or action the operator relies on in an emergency should be rehearsed so it is accepted when needed.",
+        "uk": "З'ясуйте, чому апарат відхилив її саме тоді (режим, стан взведення чи невдала перевірка), за повідомленнями, які тоді показала наземна станція. Режим чи дію, на які оператор розраховує в аварійній ситуації, варто відпрацювати, щоб вони приймалися, коли потрібно."
+      }
+    },
+    "command.arming_refused": {
+      "stage": "operations",
+      "title": {
+        "en": "Arming was refused {count} times before take-off; the first {waited_s} s before it armed",
+        "uk": "Взведення відхилено {count} разів перед зльотом; перше — за {waited_s} с до взведення"
+      },
+      "action": {
+        "en": "The pre-arm messages the ground station showed say which check failed. A check that keeps failing before flights points to a setup or calibration to fix rather than retry.",
+        "uk": "Повідомлення перед взведенням, які показала наземна станція, кажуть, яка перевірка не пройшла. Перевірка, що постійно не проходить перед польотами, вказує на налаштування чи калібрування, які треба виправити, а не повторювати спробу."
+      }
+    },
+    "command.unanswered": {
+      "stage": "operations",
+      "title": {
+        "en": "{count} commands from the ground station got no reply; the first, {command} at {at_s} s",
+        "uk": "{count} команд від наземної станції лишилися без відповіді; перша — {command} на {at_s} с"
+      },
+      "action": {
+        "en": "{lost} of them reached the aircraft and only the reply was lost on the way down; {never} never reached it. Look at the uplink and downlink loss at those times.",
+        "uk": "{lost} з них дійшли до апарата, і загубилася лише відповідь на шляху вниз; {never} не дійшли зовсім. Перегляньте втрати каналів угору і вниз у ці моменти."
+      }
+    },
+    "operator.unanswered_warning": {
+      "stage": "operations",
+      "title": {
+        "en": "{count} warnings in flight had no operator action within {within_s} s; the first at {at_s} s",
+        "uk": "{count} попереджень у польоті лишилися без дії оператора протягом {within_s} с; перше — на {at_s} с"
+      },
+      "action": {
+        "en": "Check whether the ground station showed and sounded these warnings, and whether the operator could see them while flying. A warning that goes unseen is a warning that does not help.",
+        "uk": "Перевірте, чи наземна станція показала й озвучила ці попередження і чи міг оператор їх бачити під час польоту. Непомічене попередження нічим не допомагає."
+      }
+    }
+  }
+}

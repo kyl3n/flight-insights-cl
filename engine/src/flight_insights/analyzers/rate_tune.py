@@ -104,7 +104,7 @@ def _loop(
     ta, rate = attitude
     t = np.asarray(pid.column("TimeUS").to_numpy(), np.int64)
     excitation: Mapping[str, Any] = reg.rules["tune"]["excitation"]
-    ok = (t >= flight.arm_us) & (t <= flight.disarm_us)
+    ok = flight.during(t)
     stick = np.zeros(len(t), dtype=bool)
     for a, b, name in modes(flight, reg):
         if name in excitation["stick_modes"]:
@@ -146,26 +146,26 @@ def _stretches(loop: _Loop, gap_us: float, shortest: int) -> list[Stretch]:
     return out
 
 
-def _frequency(
-    spectra: CrossSpectra, rules: Mapping[str, Any], seed: int
-) -> tuple[Margins, dict[str, tuple[float, float] | None]] | None:
-    """The frequency response's margins, with intervals over resampled windows."""
-    band = (
+def _band(rules: Mapping[str, Any]) -> tuple[float, float, float, float, float]:
+    return (
         float(rules["max_error"]), float(rules["low_hz"]), float(rules["high_hz"]),
         float(rules["peak_drop"]), float(rules["peak_reach"]),
     )  # fmt: skip
-    found = margins(spectra.response(), *band)
-    if found is None:
-        return None
+
+
+def _frequency(
+    spectra: CrossSpectra, rules: Mapping[str, Any], seed: int
+) -> dict[str, tuple[float, float] | None]:
+    """The frequency response's margins' intervals, over resampled windows."""
+    band = _band(rules)
 
     def stats(pick: Pick) -> dict[str, float | None]:
         m = margins(spectra.response(pick), *band)
         return {a: None if m is None else getattr(m, a) for a in MARGINS}
 
-    spread = bootstrap(
+    return bootstrap(
         spectra.windows, stats, MARGINS, seed, int(rules["resamples"]), float(rules["level"])
     )
-    return found, spread
 
 
 def _step(
@@ -212,10 +212,50 @@ def _summary(axis: str, seconds: float, freq: Margins | None, fig: StepFigures |
     return " ".join(parts).rstrip(",;")
 
 
-def _axis(
-    flight: FlightData, reg: Registry, axis: str, hz: float, out: Result
-) -> tuple[str, float, float] | None:
-    """Measures one axis into `out`; returns (axis, Ms, where) when its margin is low."""
+@dataclass(frozen=True)
+class Responses:
+    """One axis's stick flying that measures the rate loop alone, read as cross-spectra
+    and correlations, with the frequency response's margins."""
+
+    hz: float
+    seconds: float  # of stick flying measured
+    used: Array  # the times of the samples measured
+    spectra: CrossSpectra
+    corr: Correlations
+    margins: Margins
+
+    def step_response(self, rules: Mapping[str, Any]) -> Array | None:
+        """The step response, where the inputs measured the loop past its bandwidth: a
+        step's rise and overshoot rest on the response up to it and beyond."""
+        if self.margins.bandwidth_hz is None:
+            return None
+        return step(self.corr, loading=float(rules["loading"]))
+
+
+def loop_hz(flight: FlightData, reg: Registry) -> float | str:
+    """How often the rate PIDs were logged, when the responses can be measured from
+    them; otherwise why not."""
+    if not flight.logged:
+        return "a parameter file has no flight to measure"
+    if flight.vehicle != "copter":  # Plane's and QuadPlane's rate loops: Phase 3
+        return "the rate-loop responses are for Copter"
+    needed = needed_hz(flight, reg)
+    hz = min(logged_hz(flight, m) for m in PID_MESSAGES.values())
+    if hz == 0:
+        return "the log has no rate PID messages (PIDR, PIDP, PIDY)"
+    if hz < needed:
+        return f"the rate PIDs are logged at {hz:.0f} Hz; the responses need {needed:.0f}"
+    ang = logged_hz(flight, "ANG")
+    if ang < needed:
+        return (
+            f"the attitude targets (ANG) are logged at {ang:.0f} Hz; "
+            f"the responses need {needed:.0f}"
+        )
+    return hz
+
+
+def responses(flight: FlightData, reg: Registry, axis: str, hz: float) -> Responses | None:
+    """An axis's responses, or None with too little stick flying to measure them."""
     rules: Mapping[str, Any] = reg.rules["tune"]["response"]
     gap_us = float(reg.rules["tune"]["excitation"]["gap_periods"]) * 1e6 / hz
     loop = _loop(flight, reg, axis, gap_us, rules)
@@ -232,17 +272,29 @@ def _axis(
         return None
     if spectra.windows < int(rules["min_windows"]) or corr.blocks < int(rules["min_blocks"]):
         return None
-    seed = int(rules["seed"][axis])
-    freq = _frequency(spectra, rules, seed)
-    if freq is None:
+    m = margins(spectra.response(), *_band(rules))
+    if m is None:
         return None
-    m, freq_spread = freq
+    seconds = sum(len(s.target) for s in moving) / hz
+    return Responses(hz, seconds, loop.t[loop.ok], spectra, corr, m)
+
+
+def _axis(
+    flight: FlightData, reg: Registry, axis: str, hz: float, out: Result
+) -> tuple[str, float, float] | None:
+    """Measures one axis into `out`; returns (axis, Ms, where) when its margin is low."""
+    rules: Mapping[str, Any] = reg.rules["tune"]["response"]
+    r = responses(flight, reg, axis, hz)
+    if r is None:
+        return None
+    seed = int(rules["seed"][axis])
+    m, freq_spread = r.margins, _frequency(r.spectra, rules, seed)
     # A step's rise and overshoot rest on the response up to the bandwidth and past it:
     # taken only when the inputs measured that far
-    stepped = None if m.bandwidth_hz is None else _step(corr, hz, rules, seed + 100)
+    stepped = None if m.bandwidth_hz is None else _step(r.corr, hz, rules, seed + 100)
     fig, step_spread = (None, {}) if stepped is None else stepped
     feed_forward = _feed_forward(flight, axis, rules)
-    seconds = sum(len(s.target) for s in moving) / hz
+    seconds, spectra, corr = r.seconds, r.spectra, r.corr
     values: dict[str, Any] = {
         "seconds": round(seconds, 1),
         "windows": spectra.windows,
@@ -261,7 +313,7 @@ def _axis(
     }
     if fig is not None:
         values["step_gain"] = round(fig.gain, 3)
-    used = loop.t[loop.ok]
+    used = r.used
     ev = Evidence(
         id=f"rate:{axis}",
         kind="metric",
@@ -304,24 +356,9 @@ def _axis(
 
 
 def _rate_tune(flight: FlightData, reg: Registry) -> Result:
-    if not flight.logged:
-        return Result(skipped="a parameter file has no flight to measure")
-    if flight.vehicle != "copter":  # Plane's and QuadPlane's rate loops: Phase 3
-        return Result(skipped="the rate-loop responses are for Copter")
-    needed = needed_hz(flight, reg)
-    hz = min(logged_hz(flight, m) for m in PID_MESSAGES.values())
-    if hz == 0:
-        return Result(skipped="the log has no rate PID messages (PIDR, PIDP, PIDY)")
-    if hz < needed:
-        return Result(
-            skipped=f"the rate PIDs are logged at {hz:.0f} Hz; the responses need {needed:.0f}"
-        )
-    ang = logged_hz(flight, "ANG")
-    if ang < needed:
-        return Result(
-            skipped=f"the attitude targets (ANG) are logged at {ang:.0f} Hz; "
-            f"the responses need {needed:.0f}"
-        )
+    hz = loop_hz(flight, reg)
+    if isinstance(hz, str):
+        return Result(skipped=hz)
     out = Result()
     low = [found for axis in AXES if (found := _axis(flight, reg, axis, hz, out))]
     if not out.evidence:
@@ -357,4 +394,5 @@ RATE_TUNE = Analyzer(
         for m in ("bandwidth", "sensitivity_peak", "rise_time", "overshoot", "settling")
     ),
     findings=("tune.low_margin",),
+    spans=True,
 )

@@ -96,12 +96,26 @@ def climbed(low: tuple[float, float] | None = None) -> tuple[list[int], list[flo
     return t.tolist(), alt.tolist()
 
 
+def ang_table(t: np.ndarray[Any, Any], follow: float = 0.8, trim_deg: float = 0.0) -> pa.Table:
+    """The attitude target from the rate doublets (their integral), held about a trim
+    angle, and an attitude that makes `follow` of each move away from the trim."""
+    deg = {b"unit": b"deg", b"multiplier": b"1"}
+    columns: dict[str, tuple[pa.DataType, Any]] = {}
+    for axis, name in (("R", "Roll"), ("P", "Pitch"), ("Y", "Yaw")):
+        move = np.cumsum(doublets(t, STARTS[axis])) / HZ
+        columns[f"Des{name}"] = (pa.float32(), trim_deg + move)
+        columns[name] = (pa.float32(), trim_deg + follow * move)
+    return table(t.tolist(), columns, {k: deg for k in columns})
+
+
 def tune_flight(
     rate: pa.Table | None = None,
     modes: list[tuple[int, int]] | None = None,
     height: tuple[list[int], list[float]] | None = None,
     flags: Mapping[str, list[tuple[float, float]]] | None = None,
     rcin: pa.Table | None = None,
+    answers: Mapping[str, Any] | None = None,
+    ang: pa.Table | None = None,
     **params: float,
 ) -> Any:
     t = _times()
@@ -121,8 +135,9 @@ def tune_flight(
         "CTUN": table(ht, {"Alt": (pa.float32(), h)}, {"Alt": METRE}),
         "RCIN": rcin if rcin is not None else sticks(),
         **pids,
+        **({"ANG": ang} if ang is not None else {}),
     }
-    return flight(tables, ARM, DISARM, params={"LOG_BITMASK": LOGGED} | params)
+    return flight(tables, ARM, DISARM, params={"LOG_BITMASK": LOGGED} | params, answers=answers)
 
 
 def metrics(r: Result) -> dict[str, Any]:
@@ -170,7 +185,7 @@ def test_a_slower_rate_loop_tracks_worse(reg: Registry) -> None:
 
 def test_each_axis_gets_its_tracking_error_with_an_interval(reg: Registry) -> None:
     r = TUNE.run(tune_flight(), reg)
-    assert r.skipped is None and not r.findings
+    assert r.skipped is None and [f.code for f in r.findings] == ["tune.autotune_offer"]
     m = metrics(r)
     assert set(m) == {"roll", "pitch", "yaw"}
     for axis, value in m.items():
@@ -178,6 +193,30 @@ def test_each_axis_gets_its_tracking_error_with_an_interval(reg: Registry) -> No
         assert value.spread == pytest.approx({"low": 25.0, "high": 25.0, "events": 8.0}, abs=1e-6)
         assert value.zone is None and value.segment == "inputs"  # judged against its own flights
         assert value.evidence_id == f"tune:{axis}"
+
+
+@pytest.mark.parametrize("trim", [0.0, 6.0])
+def test_attitude_error_is_the_share_of_the_commanded_move_missed(
+    reg: Registry, trim: float
+) -> None:
+    """An attitude that makes 80% of each move misses 20% of it, whatever trim angle the
+    aircraft holds in the wind: the trim is not the pilot's command."""
+    r = TUNE.run(tune_flight(ang=ang_table(_times(), follow=0.8, trim_deg=trim)), reg)
+    values = {m.metric: m for m in r.metrics}
+    for axis in ("roll", "pitch"):
+        m = values[f"tune.attitude_error_{axis}"]
+        assert m.value == pytest.approx(20.0, abs=0.05)
+        assert m.spread["low"] <= m.value <= m.spread["high"] and m.spread["events"] == 8
+    assert "tune.attitude_error_yaw" not in values  # yaw's heading is held, not commanded
+    [offer] = r.findings
+    assert {e.id for e in offer.evidence} >= {"tune:attitude:roll", "tune:attitude:pitch"}
+
+
+def test_attitude_error_needs_the_attitude_logged_every_loop(reg: Registry) -> None:
+    slow = ang_table(_times(10.0))
+    r = TUNE.run(tune_flight(ang=slow), reg)
+    assert not any(m.metric.startswith("tune.attitude_error") for m in r.metrics)
+    assert any(m.metric == "tune.tracking_error_roll" for m in r.metrics)
 
 
 def test_the_interval_is_seeded_and_holds_the_mean() -> None:
@@ -229,7 +268,7 @@ def test_too_few_counted_inputs_give_no_value_and_say_why(reg: Registry) -> None
     every = [(s, s + 2.0) for s in STARTS["R"]]
     r = TUNE.run(tune_flight(flags={"R": every}), reg)
     assert set(metrics(r)) == {"pitch", "yaw"}
-    [few] = r.findings
+    [few] = [f for f in r.findings if f.code == "tune.few_inputs"]
     assert few.code == "tune.few_inputs" and few.severity == "info"
     assert {k: few.params[k] for k in ("roll", "pitch", "yaw", "needed", "saturated")} == {
         "roll": 0, "pitch": 8, "yaw": 8, "needed": 6, "saturated": 8,
@@ -323,3 +362,36 @@ def test_the_simulated_tune_check_measures_roll_and_pitch(reg: Registry, tmp_pat
         assert m["spread"]["high"] - m["spread"]["low"] < 1.0  # the same input, the same answer
     codes = {f["code"] for f in out["findings"]}
     assert not codes & {"tune.few_inputs", "logging.tune_evidence"}
+
+
+# --- what the tune check offers next -------------------------------------------------------
+
+
+def test_a_measured_tune_check_offers_autotune_to_measure_against(reg: Registry) -> None:
+    [offer] = TUNE.run(tune_flight(), reg).findings
+    assert (offer.code, offer.severity, offer.params["axes"]) == (
+        "tune.autotune_offer",
+        "info",
+        "roll, pitch",
+    )
+    assert {e.id for e in offer.evidence} == {"tune:roll", "tune:pitch"}
+    assert offer.changes == ()  # small propellers, a fixed payload: nothing to set first
+
+
+def test_large_props_and_a_varying_payload_set_autotune_up_first(reg: Registry) -> None:
+    """ArduPilot: 13-inch props or more, rate filters at 10 Hz; a payload that varies gets
+    more gain back-off. One axis a pack is the procedure's text, not a change to keep."""
+    fl = tune_flight(answers={"prop_diameter_in": 24, "payload": "variable"},
+                     ATC_RAT_RLL_FLTT=20.0, ATC_RAT_RLL_FLTD=20.0, ATC_RAT_PIT_FLTT=20.0,
+                     ATC_RAT_PIT_FLTD=10.0, AUTOTUNE_AXES=7.0, AUTOTUNE_GMBK=0.25)  # fmt: skip
+    [offer] = TUNE.run(fl, reg).findings
+    assert {c.param: c.proposed for c in offer.changes} == {
+        "ATC_RAT_RLL_FLTT": 10.0, "ATC_RAT_RLL_FLTD": 10.0, "ATC_RAT_PIT_FLTT": 10.0,
+        "AUTOTUNE_GMBK": 0.35,
+    }  # fmt: skip
+    assert all(c.stage == "autotune" for c in offer.changes) and offer.params["large_props"]
+
+
+def test_a_flight_with_autotune_in_it_is_not_offered_it_again(reg: Registry) -> None:
+    r = TUNE.run(tune_flight(modes=[(0, 2), (55, 15)]), reg)  # AutoTune after the inputs
+    assert "tune.autotune_offer" not in {f.code for f in r.findings}

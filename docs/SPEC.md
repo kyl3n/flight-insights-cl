@@ -115,6 +115,7 @@ DataFlash .bin logs are the primary input because they describe themselves: FMT 
 | Parameter files (Mission Planner `.param`, QGroundControl `.params`) | Parameter history; audit without a flight | v1 |
 | Methodic Configurator vehicle folder | Planned changes and their reasons | v1 |
 | wfb-ng link statistics | Per-antenna RSSI, FEC recovered and lost packets | Later |
+| IP mesh radio logs (Doodle Labs, Silvus, DigiQ SkyPulse) | Each radio's own signal quality, throughput and retransmissions | Later: the format work needs sample logs from the radios |
 | Download from the vehicle over MAVLink | Convenience | Later |
 
 **Pipeline**
@@ -212,7 +213,7 @@ Every airframe has a build profile listing its components. It is set up once whe
 | Batteries | Chemistry, cells, capacity, C rating, pack ID | Cell count from voltage; pack resistance |
 | Power module | Model, calibration | Calibration parameters |
 | GNSS and compass | Model, antenna, mounting | Yes: receiver type, compass IDs |
-| Telemetry radio | Type (SiK, RFD, wfb-ng), antennas, firmware | Partly, from radio status messages |
+| Telemetry radio | Type (SiK, RFD, IP mesh such as Doodle Labs, Silvus or DigiQ SkyPulse, wfb-ng), antennas, firmware | Partly: SiK radios name themselves in the tlog's radio status messages |
 | RC receiver | Protocol, model | Protocol |
 | CAN peripherals | Node name, firmware version | Yes: DroneCAN node information is logged ([log messages](https://ardupilot.org/copter/docs/logmessages.html)) |
 | Video, companion computer, gimbal, payload mount | Model, mounting, power source | Mostly no |
@@ -249,7 +250,7 @@ Each step can start from a template or another platform, and pre-fills from a pa
 
 1. **Airframe.** The app proposes an airframe for each log from the board's ID and the parameters, with its confidence. The user confirms it, picks another, or creates a new airframe, which opens setup from its platform.
 2. **Changes.** "Has anything changed since this airframe's last flight?" Detected changes, such as a new board, IMU or compass, different firmware or CAN nodes, a shift in motor noise frequency or a step in battery resistance, are listed with their evidence for confirmation, followed by a checklist of every part category for anything else. Each confirmed change creates a new build version.
-3. **Batteries and payload** and the ground station for each flight, as quick picks. The ground station fills in automatically when logs are imported on the ground station computer itself.
+3. **Batteries and payload** and the ground station for each flight, as quick picks, with the take-off weight in kilograms where the aircraft was weighed before the flight (above 0 and up to 1000 kg; a decimal comma is read as a point). The ground station fills in automatically when logs are imported on the ground station computer itself.
 
 A log that the app cannot match, for example a new board whose parameters look like an existing airframe's, is held until the user decides whether the flight controller was replaced or this is a different aircraft.
 
@@ -378,18 +379,32 @@ Every flight gets a weather record from an accurate numerical weather model, che
 **How the location stays private.** The app downloads weather for a whole region from an online weather API and works out each flight's exact weather on the laptop. The provider learns only the region and the download times, never a flight's position or time.
 
 - **Region from the logs:** on the laptop, the app snaps each flight's positions to a fixed grid of large tiles, 2° by 2° (roughly 140 by 220 km at mid-latitudes), and adds that tile and its neighbours to the download list, permanently. The provider learns which large tiles the fleet works in, never a position.
-- **Grid:** weather at evenly spaced points across each tile, every 0.1° (about 11 km), about 440 points per tile; Open-Meteo returns up to 1,000 points in one request ([multiple locations](https://openmeteo.substack.com/p/weather-data-for-multiple-locations)).
-- **Fixed schedule:** known tiles are downloaded on a timer, every 6 hours for recent data and daily for reanalysis, whether or not anyone flew, so request times do not reveal flight times. A newly added tile is backfilled in whole months after a random delay, so that request does not point at a flight date either.
+  - **Which positions:** the estimator's (`POS`), or, in a log without them, GPS positions with a 3D fix. A tile counts when it holds at least 1% of the flight's positions, so a few samples from a GNSS glitch or a spoofed jump add no tile; a flight that crosses into the next tile is covered by the neighbours anyway.
+  - **Names, not positions:** a tile is named by its south-west corner, such as `N50E030` or `S34W058`. Longitude wraps round the date line; there is no row of tiles beyond either pole.
+  - **Kept on each laptop:** each flight's tiles are a local table, never synced. Every laptop has the logs and finds the same tiles, as it does with analysis results.
+  - **Only the shell asks:** one shell-only engine method, `weather.tiles`, returns the tile names to download and each source's grid step. The interface cannot call it, and it returns no coordinate.
+- **Grid:** weather at evenly spaced points across each tile, at each model's own resolution: every 0.1° (about 11 km) for the forecast models, 400 points per tile, and every 0.25° for ERA5, 64 points. ERA5's grid is a regular 0.25° one, so its points are its cells exactly. ECMWF IFS HRES (9 km) is on its O1280 reduced Gaussian grid, so each 0.1° point reads its nearest model cell, about one point per cell; a finer grid would add requests, not information, since a model's effective resolution is several cells. A tile's points are its south and west edges and everything inside; its north and east edges are the next tiles' south and west, so no point is asked for twice. Open-Meteo returns up to 1,000 points in one request ([multiple locations](https://openmeteo.substack.com/p/weather-data-for-multiple-locations)).
+- **Fixed schedule:** known tiles are downloaded on a timer, whether or not anyone flew, so request times do not reveal flight times. Every request goes out at a slot instant: every 6 hours from 00:00 UTC, plus an offset minute drawn at random once per laptop, or, in a fleet, derived from the fleet key so every laptop keeps the same one. What a request asks for depends only on the slot, the tile and what is already held:
+  - **Forecast:** each slot asks for the 6 hours that ended 6 hours before it (the model run covering them is out by then), from ECMWF IFS HRES. Windows missed while the laptop was closed are asked for at a later slot for up to 5 days; older ones are left to reanalysis.
+  - **Reanalysis:** ERA5 over a fixed window, the last 24 months up to 6 days ago (ERA5 is published about 5 days after the fact). Whole calendar months are asked for once complete, 2 a slot, so a new tile fills in a few days; the days of a month not yet complete are asked for one by one. A window of whole months around each flight is never used: it would reveal flight dates.
+  - **Space weather:** the planetary K-index, once a slot, with no parameters.
+  - **A new tile** waits a random delay of 1 to 72 hours, fixed per tile, before any request names it.
+  - **A laptop closed at a slot instant** waits for the next instant rather than catching up when it is opened, so request times never follow someone opening the app after a flight. Woken within 15 minutes of an instant, it still sends that slot. In a fleet, shared downloads cover the slots a laptop misses.
+  - **Nothing is downloaded,** space weather included, until an Open-Meteo key is set.
 - **Fetched once:** one laptop's download is encrypted and shared through Drive, so each tile and period is fetched once for the whole fleet.
+  - **Named by a keyed hash:** each download is an object in its own folder, `weather/<folder>/`. The folder name is a keyed hash, under the fleet's object-name key, of the source, tile and period, so Google learns neither the tile nor the period and cannot test a guess. The object is in the fleet's `.fio` format, encrypted and signed. Its plaintext names the download again, and is checked against the folder before it is kept.
+  - **Looked for first:** before asking the provider, a laptop looks in the download's folder. It keeps the first object that holds: signed by a laptop still in the fleet, with the right name inside, and a reply the engine accepts. A laptop removed from the fleet has every weather object refused, so another laptop fetches those downloads again.
+  - **One schedule, taking turns:** in a fleet, the offset minute and the seed for new tiles' delays come from the fleet key, so every laptop keeps the same schedule. Each slot ranks the laptops by a keyed hash that changes from slot to slot. Each waits 3 minutes per place ahead of it, up to 12, so the first to start fetches and shares, and the rest find its downloads.
+  - **Stored compressed:** what is shared is the gzipped reply the engine keeps (`weather.export`), kept by the next laptop as it arrives (`weather.store` with `gzip`), with a gzip bomb or a cut-off stream refused.
 - **Interpolated on the laptop:** between grid points, between hours and between model heights, to the flight's position, height and time.
 - **Routed privately:** in the field, requests can go through the company VPN, so the provider does not see a laptop's network address. Without it, the provider sees only the address of the laptop's internet connection, which reveals at most an approximate area.
 
 | Source | What it gives | Why it is used |
 | --- | --- | --- |
-| Open-Meteo commercial API, Professional plan | Hourly data from many forecast models, including ECMWF IFS HRES at its full 9 km resolution since ECMWF moved to fully open data on 1 October 2025; wind at 10, 80, 120 and 180 m, gusts, temperature, humidity, pressure, cloud and precipitation; an archive of past forecasts | One provider for forecast-grade records within hours. The free API is for non-commercial use only, and historical data needs the Professional plan ([pricing and terms](https://open-meteo.com/en/pricing), [ECMWF open data](https://openmeteo.substack.com/p/ecmwf-transitions-to-open-data)) |
-| ERA5 reanalysis, through the same API | Hourly, 0.25° grid, with 100 m wind, published about 5 days after the fact | Upgrades each flight's record to reanalysis quality ([ERA5](https://cds.climate.copernicus.eu/datasets/reanalysis-era5-single-levels)) |
+| Open-Meteo commercial API, Professional plan | Hourly data from many forecast models, including ECMWF IFS HRES at its full 9 km resolution since ECMWF moved to fully open data on 1 October 2025, the model the app downloads: wind at 10, 100 and 200 m, gusts, temperature, humidity and dew point, surface and sea-level pressure, cloud, precipitation and boundary-layer height ([ECMWF API](https://open-meteo.com/en/docs/ecmwf-api)); an archive of past forecasts | One provider for forecast-grade records within hours. The free API is for non-commercial use only, and historical data needs the Professional plan ([pricing and terms](https://open-meteo.com/en/pricing), [ECMWF open data](https://openmeteo.substack.com/p/ecmwf-transitions-to-open-data)) |
+| ERA5 reanalysis, through the same API | Hourly, 0.25° grid, with 10 m and 100 m wind, gusts, temperature, humidity, pressure, cloud and precipitation, published about 5 days after the fact | Upgrades each flight's record to reanalysis quality ([ERA5](https://cds.climate.copernicus.eu/datasets/reanalysis-era5-single-levels)) |
 | ECMWF open data and Copernicus downloads (fallback) | The same models as files; ECMWF's open files cover the whole globe | Backup route; downloading global files reveals no region at all |
-| The aircraft | EKF wind estimate on planes; on multirotors, wind derived from the lean angle needed to hold position, calibrated per airframe on calm flights | Wind at the exact place, height and time of the flight |
+| The aircraft | EKF wind estimate on planes, and on multirotors with drag fusion; on multirotors, wind derived from the lean angle needed at each airspeed, with the airframe's drag fitted from flights that change speed and heading (in any wind, calm flights included) | Wind at the exact place, height and time of the flight |
 | A ground measurement, if taken | Handheld or mast anemometer reading at take-off, entered or imported | Ground truth at the launch site |
 | Space weather | NOAA's planetary K-index, 3-hourly; NOAA issues warnings from Kp 4 ([NOAA SWPC](https://swpc-drupal.woc.noaa.gov/products/planetary-k-index)) | Context for GNSS and compass anomalies; needs no location at all |
 
@@ -401,14 +416,46 @@ Every flight gets a weather record from an accurate numerical weather model, che
 - The aircraft-measured wind profile, and the difference between it and each model.
 - Source, model run and quality tag for every value, so a forecast-grade record is visibly different from a reanalysis-grade one.
 
+**How the record is made now** (`weather/record.py`, rules in `knowledge/rules/weather.json`, "record"). The record is worked out on the laptop, and it holds values only: no coordinate and no tile.
+- **Sampling:** the flight is sampled along its own track every 10 s, from arming to disarming, from the estimator's positions. Height is taken above take-off.
+- **Space and time:** at each sample, each model field is read bilinearly from the grid points around it. Each reply's points are matched to grid nodes by the order the request asked for them, and nodes in neighbouring tiles are used where the sample lies near an edge. Values are taken linearly between the hours around the sample, across forecast windows or reanalysis days.
+- **Which model:** ERA5 is used wherever it covers the sample, else the forecast. The record says which one (`reanalysis`, `forecast` or `mixed`), and the share of samples covered.
+- **Wind:**
+  - It is carried as east and north components, so averages never wrap round north.
+  - Up to the flight's height it follows the log law between the model's levels (10, 100 and 200 m). Below 10 m it uses a roughness length of 0.03 m (open flat terrain), and above the top level it keeps the top value.
+  - The record gives the mean and largest wind at the flight's height, the direction it blows from, the 10 m wind, and the largest 10 m gust.
+- **At take-off:** temperature, dew point and pressure are carried from the model's ground to the take-off elevation by the standard lapse rate and the hypsometric equation. Open-Meteo gives each point's values at that point's ground. Density altitude is then worked out from virtual temperature, at take-off and at the top of the flight, and cloud base from the dew-point spread.
+- **Also recorded:** mean precipitation, cloud cover and boundary-layer height, and the highest planetary K-index of the 3-hour intervals the flight overlaps.
+- **Kept and remade:** each flight's record is kept locally (`flight_weather`, never synced). It is made again when the downloads that could cover the flight's tiles and hours change, for instance when ERA5 arrives after the forecast. The engine method `flight.weather` returns it.
+- **Kept current:** after each scheduled round the shell asks the engine to make again every record whose downloads changed (`weather.refresh`, shell-only), whether the round finished or was cut short; analysing a flight makes its own record first, so its grading reads current weather. Trends, attribution and findings read the kept records and work nothing out themselves.
+- **In the AI packet:** the packet's `weather` holds the record's quality and coverage, the mean, largest and 10 m wind and the largest gust (to 0.5 m/s), precipitation (to 0.1 mm/h), the boundary layer (to 100 m) and the K-index. Temperature, dew point, humidity, pressure, density altitude and cloud base stay on the laptop: they narrow down the field's elevation and climate, as ambient pressure and temperature do (Location scrubber), and the wind direction stays too. Both checks know the block's shape, and a packet holding any other weather value is refused.
+- **Not yet:** scoring the models against the measured wind over time (one model is compared per flight, below).
+
+**How the aircraft measures the wind now** (`analyzers/wind.py`, rules in `knowledge/rules/wind.json`). Multirotors only.
+- **Windows:** 2 s windows of the primary estimator core (XKF1), kept when steady: at least 3 m above take-off, horizontal acceleration under 0.5 m/s/s, climb under 1 m/s, tilt under 35 degrees.
+- **The drag in each:** in steady flight the forward and sideways specific force in the body frame is the drag, as thrust has none. It is taken from the estimator's attitude applied to its velocity's change, less gravity, so it does not rest on the accelerometers' level.
+- **The model, per body axis:** drag = -k1 v - k2 v|v| + b, where v is the airspeed (ground velocity less the wind). k1 is the rotors' momentum drag, k2 the frame's bluff-body drag, and b the lean the aircraft needs in still air (an offset centre of gravity, or accelerometers not quite level). ArduPilot's EKF3 drag fusion and its simulator use the same two terms.
+- **The fit:** one wind for the flight, fitted with k1, k2 and b by least squares (exact for the linear model), then Gauss-Newton with the square term. The square term is kept only when it lowers the Bayesian information criterion.
+- **When it measures:** only a flight that changes speed and heading can tell the drag from the wind. It needs 30 steady windows whose ground speeds span 3 m/s, and a bootstrap interval of the wind speed narrower than 1.5 m/s.
+- **Each window's wind:** its airspeed inverted from its drag, per axis, taken from its ground velocity. The flight's wind is their mean speed, its peak their 95th percentile, each with a seeded bootstrap interval. The drag coefficients and the lean in still air are given as metrics too, for the airframe's history.
+- **The estimator's own wind** (XKF2 VWN, VWE) is given beside it over the same windows when drag fusion is on; without drag fusion EKF3 keeps its wind at zero.
+- **A flight that only hovers borrows its airframe's drag** (`weather/measured.py`; rules in `rules/wind.json`, "calibration"). The analyzers read one flight each, so this works beside the weather record:
+  - **Which flights:** the airframe's other flights with a measured wind of their own, in the same payload band and on the same build, the latest five of them. A flight with no hover thrust to place it in a band (a hover leaning hard into the wind) goes by its payload label instead.
+  - **What it borrows:** the median of their drag (k1, k2) and lean in still air.
+  - **What it gives:** each of the flight's steady windows then gives the wind from its own lean, at least 10 of them.
+  - **Where it shows:** the engine method `flight.weather` returns the measured wind (from the flight itself or from its airframe, and which flights' drag it used) beside the record. It also returns the difference: the model's wind at the flight's height less the measured, and the model's direction turned from the measured, given only when the measured wind is over 0.5 m/s.
+- **Checked in ArduPilot's simulator** (`copter-quad-wind`, `copter-quad-wind-calm`, `copter-quad-wind-hover`). With legs at 3, 6 and 9 m/s on eight courses, a set gusting 5 m/s wind from the west was measured as 4.98 m/s from 271 degrees. In still air it read 0.09 m/s, with the same drag in both flights. A hover in the same wind, using the calm flight's drag, read 5.01 m/s from 271 degrees.
+
 **What the app does with it**
 
 - **Normalizes performance.** Power, position-hold error, tune metrics and link quality are compared at matched wind and density, so a windy day is never mistaken for a regression; attribution already lists weather as a possible cause, and now has real values for it.
+  - **Built now:** a shift in a metric the weather can move is listed with the median wind, gusts, density altitude or temperature of the flights before it and after it, and loses one step of confidence when one of them differs beyond its threshold; in grading, such a shift fails the check without making the change's grade regressed (Change attribution, below). Each trend point carries its flight's wind, gusts, density altitude and temperature, so the trend screen can filter by them once it is built.
 - **Measures the wind envelope.** The lean angle each airframe needs to hold position is fitted against measured wind, per payload band. Extrapolated to the configured maximum lean angle and to thrust headroom, it gives the strongest wind the airframe can hold, with an uncertainty band.
 - **Scores the models.** Over time the app learns which model best matches the wind your aircraft actually measured in your operating area, and weights it accordingly.
 - **Explains anomalies.** A GNSS or compass anomaly during elevated geomagnetic activity is shown with that context instead of being blamed on the aircraft.
+  - **Built now:** when the highest planetary K-index of the flight's 3-hour intervals is 4 or more, each GNSS finding (`gnss.*`, and `no_gnss.position_lost`) in the flight's analysis (`analysis.get`) carries the K-index and a note in English and Ukrainian (`knowledge/rules/weather.json`, "space_weather"). It is context only: severity, confidence and recommendations do not change. The flight report shows it once the weather screens are built.
 
-**Offline.** Each laptop keeps the region's data locally, so weather records fill in with no connection. A flight imported before its period was downloaded is completed at the next scheduled download, and upgraded to reanalysis about five days later.
+**Offline.** Each laptop keeps the region's data locally, so weather records fill in with no connection. Every reply is kept as it came, compressed, inside the encrypted store, under its source (forecast, reanalysis or space weather), tile and UTC period (a month, a day or a 6-hour slot); a reply that is not JSON, or is the provider's error, is refused. The engine also keeps when this laptop first listed each tile, so a new tile's backfill waits its random delay across restarts. Both are this laptop's own tables: downloads are shared through Drive as encrypted objects, not as synced records. The shell hands each reply over through two shell-only engine methods, `weather.store` and `weather.held`. A flight imported before its period was downloaded is completed at the next scheduled download, and upgraded to reanalysis about five days later.
 
 ## Analyzers common to all vehicles
 
@@ -661,8 +708,8 @@ Copter analysis follows ArduPilot's own tuning order: setup parameters, a stable
 
 | Analyzer | Reads | Measures or detects |
 | --- | --- | --- |
-| Rate-loop tune | Rate targets vs actual, PID terms (P, I, D, FF, slew modifier, limit flags), the attitude target | Tracking error per axis through the pilot's stick inputs, with a 95% interval (the tune check, below); frequency response per axis (bandwidth, sensitivity peak) and step response by deconvolution (overshoot, rise time, settling), both read through the attitude target (rate-loop responses, below); oscillation peaks not at motor frequency, I-term saturation, D-term noise share, slew limiter activity |
-| Autotune review | Autotune messages and events, resulting gains | Completion, saved or discarded gains, `AUTOTUNE_AGGR` outside 0.05-0.10, D below `AUTOTUNE_MIN_D`, payload state during the tune |
+| Rate-loop tune | Rate targets vs actual, PID terms (P, I, D, FF, slew modifier, limit flags), the attitude target | Attitude and rate tracking error per axis through the pilot's stick inputs, with 95% intervals (the tune check, below), and the AutoTune offer that follows it, with its heavy-lift preparation; frequency response per axis (bandwidth, sensitivity peak) and step response by deconvolution (overshoot, rise time, settling), both read through the attitude target (rate-loop responses, below); oscillation peaks not at motor frequency, I-term saturation, D-term noise share, slew limiter activity |
+| Autotune review | Autotune mode, events and gain updates (`ATUN`), the gains before | Completion per axis, saved or discarded gains, failures, gain limits during the rate steps, rate D left at `AUTOTUNE_MIN_D`, ESC desyncs during the tune (see AutoTune review below); `AUTOTUNE_AGGR` outside 0.05-0.10 is the parameter audit's out-of-range check; the payload state during the tune comes from the flight's payload band |
 | Attitude and input shaping | Desired vs actual attitude, `ATC_INPUT_TC` | Pilot feel; a user-modified `ATC_INPUT_TC` carried into 4.7 without the 33% reduction the release notes call for |
 | Thrust headroom | Motor outputs, motor battery data, thrust-loss and yaw-imbalance messages | Saturation against `MOT_SPIN_MAX`, headroom at peak demand, output spread (CG offset, twisted or weak motor) |
 | Payload | Motor outputs, battery voltage, attitude, barometer pressure and temperature in steady hover | Hover thrust at standard air, which gives the mass ratio between flights and, with one known take-off weight, kilograms (Vehicle fingerprinting, "Payload estimation without a scale") |
@@ -679,7 +726,15 @@ How well each axis's rate loop follows its target, measured the same way on ever
 - **Stick inputs** are found in the rate targets (`RATE.RDes`, `PDes`, `YDes`): runs past 10 deg/s, the two lobes of a doublet joined (gaps up to 0.6 s), lasting 0.3 s or more, from 0.2 s before to 1 s after (never overlapping the next). Thresholds are in the rule pack (`rules/tune.json`), uncalibrated.
 - **An input counts only when it measures the rate loop and nothing else.** It is left out when the log has a gap in it (5 logging periods); it was flown outside Stabilize, Acro, AltHold or Sport, or across a mode change (AutoTune twitches on its own; Loiter and the autopilot modes shape their own targets); the aircraft was under 2 m above take-off (`CTUN.Alt` from arming); the axis's rate PID reported its output saturated (`PIDx.Flags` bit 0: the motors could not give what it asked, so the error says nothing about the gains); or the stick for that axis did not move past its dead zone (`RCIN`, through `RCMAP_*` and the channel's trim, range and dead zone), when a gust moved the aircraft.
 - **Tracking error** of an input is RMS(target - actual) / RMS(target), in percent; an axis's value is the mean over its counted inputs, with a 95% percentile bootstrap interval over them, seeded, so every laptop gets the same interval. It needs 6 counted inputs and `RATE` logged at 200 Hz or more (90% of the loop rate on a slower loop). It has no fixed zones: it is judged against the airframe's own flights of the same profile and payload.
+- **Attitude tracking error** (roll and pitch) is measured over the same counted inputs, from `ANG` (logged every loop with bit 0; `ATT` is only 10 Hz in 4.7): RMS(`DesRoll` - `Roll`) over the input, divided by the RMS of how far the input moved `DesRoll` from its value when the input began, so a trim angle held in wind is not counted as the pilot's command. Same mean, interval and minimum of 6 inputs. It is the tune's measure, and the Phase 2 gate's.
+  - **Why attitude, not rate.** The rate target carries the attitude loop's corrections, so a stiffer attitude loop makes it busier, and a heavy aircraft's rate lag dominates the rate error whatever the gains. In SITL on the Callisto X8 with soft rate gains, AutoTune (roll, then pitch) took attitude error from 7.0% to 2.4% light and from 9.0% to 3.1% loaded (-66%), while rate tracking error moved only 4-10%: AutoTune also raised the angle P (7 to 20) and the acceleration limits. Putting the acceleration limits back changed attitude error by under 0.1 point, so it reads the tune, not the input shaping.
+  - **Sources.** ArduPilot judges a tune by how closely the achieved attitude follows the desired in Stabilize or AltHold (the wiki's Roll/Pitch tuning page). The rotorcraft handling-qualities standard, ADS-33E-PRF, takes the attitude response to the pilot's input as its primary small-amplitude criterion, and Ivler et al. (VFS 2022) scale it to small multirotors. Its frequency-domain form needs frequency sweeps; stick doublets cannot reach a well-tuned loop's bandwidth (rate-loop responses, below), so the time-domain error is what a tune-check flight measures reliably.
+  - **Rate tracking error** stays reported, as the inner loop's own measure, and guards the gate: it must not get clearly worse.
 - **Too few inputs counted** on roll or pitch, after at least 6 were flown in a stick mode on some axis, is an info finding (`tune.few_inputs`) saying how many were left out for each reason, with the profile to fly again.
+- **AutoTune offer.** A tune check that measured roll or pitch, in a flight with no AutoTune in it, offers AutoTune (`tune.autotune_offer`, info): ArduPilot's next step once the filters are set, measured by the next tune checks, light and loaded. Its procedure says how: AltHold on one switch position and AutoTune on a spare switch, calm air, one axis a pack where a battery cannot finish them all (`AUTOTUNE_AXES` 1 for roll, then 2 for pitch), `AUTOTUNE_AGGR` left at its default, land and disarm in AutoTune to save, and the abort criteria. `AUTOTUNE_AXES` is the procedure's to say, not a change kept, because it changes from pack to pack.
+  - **On propellers of 13 inches or more** (setup's prop diameter), the roll and pitch rate filters (`ATC_RAT_*_FLTT`, `FLTD`) are proposed at 10 Hz first, as ArduPilot's AutoTune page says for large copters.
+  - **With a payload that varies** (setup answer), `AUTOTUNE_GMBK` is proposed at 0.35, or kept if higher: more of the tuned gain is backed off for stability margin. 0.35 is an app starting value, uncalibrated, within the parameter's range.
+  - **AutoTune itself stays an action**, alongside those changes: it is marked applied when the AutoTune review shows roll and pitch saved, over one flight or several, and graded on the next tune checks (Closing the loop, below). Once AutoTune was saved on the airframe's current build, later plans hold the offer back; a new build (motors, propellers) offers it again.
 
 ### Rate-loop responses
 
@@ -702,6 +757,20 @@ Every flight that logs the rate PIDs also gets four checks of the rate loop's he
 - **Oscillation in hover**: peaks of the measured rate (`RATE`, 200 Hz or more) from 1 to 40 Hz in steady hover, 10 dB or more above the spectrum around them, with 1 deg/s RMS or more within 1 Hz, and not within 5% of a harmonic of the motors' hover frequency (`tune.oscillation`, with the frequency and size). Below about 2 Hz it is usually the attitude loop or a swinging payload; from 2 to 20 Hz usually the rate gains; above that often a flexing arm or frame, or a loose mount. Each axis also gets its rate's RMS from 1 to 40 Hz in steady hover (`tune.hover_unsteady_*`), judged against the airframe's own flights.
 - **Checked in the simulator**: the default quad with motor vibration and no harmonic notch puts 60% of its D term above 40 Hz; at twice the default roll and pitch P and D it oscillates at 23 Hz, about 41 deg/s RMS, and the finding names it.
 
+### AutoTune review
+
+Every flight that enters AutoTune gets a review of what the tune did (`analyzers/autotune.py`; `rules/autotune.json`, uncalibrated). A session is a span in AutoTune mode, to the next mode change or disarm. The log says how it ended through AutoTune's events (`EV`, named from the release's enum table) and what it tried through its gain updates (`ATUN`: axis, step, and the rate P and D tried). An axis is finished when a later axis starts or the session succeeds; its last update holds the tuned rate P and D (on yaw the D column is the yaw rate filter).
+
+- **Saved** (`autotune.saved`, info): finished axes whose gains the firmware kept, logged as `AUTOTUNE_SAVEDGAINS` at disarm. The evidence lists each axis's rate P and D before (the flight's parameters) and as tuned, with the change. The next flight's parameter snapshot holds the gains as saved, including the `AUTOTUNE_GMBK` back-off.
+- **Not saved** (`autotune.not_saved`, caution): an axis finished but nothing was kept. ArduPilot keeps AutoTune's gains only when the aircraft disarms still in AutoTune, or with the test-gains switch on the tuned gains; otherwise the original gains come back. The tuned values stay in the evidence.
+- **Stopped** (`autotune.incomplete`, info): AutoTune left before every axis in `AUTOTUNE_AXES` finished, with the axes still to tune.
+- **Failed** (`autotune.failed`, caution): `AUTOTUNE_FAILED`, the axis and step it gave up on. The causes are an aircraft that will not settle level between twitches, or a twitch that cannot be sized within the lean limit.
+- **Gain limit in a rate step** (`autotune.rate_limit`, caution): `AUTOTUNE_REACHED_LIMIT` while tuning rate D or P. The response never bounced back, usually because gyro noise or a flexible frame hid it. A limit in the angle steps is ordinary and only noted in the evidence.
+- **Rate D at its floor** (`autotune.d_at_min`, caution, filters stage): rate D within 5% of `AUTOTUNE_MIN_D` when the D search ends. This is read before the back-off, which can take the final D below the floor. AutoTune wanted less D than it may set, which points to noise reaching D, not to the gains.
+- **ESC desync during AutoTune** (`autotune.desync`, out): the motor checks' RPM-collapse detection, inside a session. ArduPilot warns that AutoTune's large, fast output changes can desync ESCs, especially on motors under 500 KV. Without ESC RPM, motors under 500 KV in the platform setup (`motor_kv`) raise `autotune.low_kv_unchecked` (info), asking for ESC telemetry before the next tune.
+
+The simulator fixtures `copter-quad-autotune-saved` (roll from the soft gains, finished and saved: rate P 0.054 to about 0.118) and `copter-quad-autotune-aborted` (stopped after 25 s, nothing kept) check the review end to end.
+
 ### Heavy-lift and variable-payload copters
 
 ArduPilot's controller has flown aircraft from 100 g to 500 kg, but large aircraft change the rules: flexible frames, slow actuators, and large or loosely mounted payloads ([advanced tuning](https://ardupilot.org/copter/docs/tuning-process-instructions.html)). When the fingerprint says heavy-lift, these checks join the Copter set.
@@ -709,6 +778,25 @@ ArduPilot's controller has flown aircraft from 100 g to 500 kg, but large aircra
 **Scaled starting values.** ArduPilot ties defaults to prop size: `INS_GYRO_FILTER` 20 Hz and `MOT_THST_EXPO` 0.75 for 20-inch props and larger; `ATC_ACC_R_MAX` and `ATC_ACC_P_MAX` 500 for 20-inch and 200 for 30-inch props ([setup guide](https://ardupilot.org/copter/docs/setting-up-for-tuning.html)). For props of 13 inches or more, Autotune guidance sets the roll and pitch rate `FLTT` and `FLTD` filters to 10 Hz ([Autotune](https://ardupilot.org/copter/docs/autotune.html)). The audit compares the vehicle against these by prop class.
 
 **Actuator response.** Large props and low-KV motors respond slowly. The analyzer measures commanded-to-RPM lag from ESC telemetry, checks slew limiting in the rate loop, flags desync and stall reports, and checks motor start-up settings. Autotune's large, fast output changes can cause ESC sync problems with motors under 500 KV, so it warns before recommending Autotune on such aircraft.
+
+**Response time measured now** (`analyzers/motor_lag.py`, `spectral/lag.py`, rules in `knowledge/rules/motor_lag.json`):
+
+- **The command.** RCOU is logged at only 10 Hz, too slow to time a motor. So each motor's command is rebuilt from the mixer's inputs, which RATE logs every loop with `LOG_BITMASK` bit 0 (as on the tune-check card), times the frame's own mixer factors (checked in SITL).
+- **The answer** is the motor's ESC RPM.
+- **The grid.** Both go on a 100 Hz grid that starts on an ESC row, so the RPM is read as logged. The command is averaged over each step, centred, from its integral; the average's known gain, sinc(f / 100 Hz), is taken back out. Stretches where any motor's command is near its limits are left out.
+- **The fit.** Welch cross-spectra from command to RPM (2.56 s windows) and a first-order lag with dead time fitted over 1–8 Hz, to the bins whose estimated random error is under 20%. The lowest bins are left out: with windows this short, their leakage biased a 40 ms lag about 2 ms short.
+- **The result.** The response time (time constant plus dead time: when a step reaches 63%) per motor, with a seeded bootstrap interval. The median over motors is the metric `motors.response_ms`, which has no zones until real heavy-lift flights calibrate it.
+- **The finding.** `motors.slow_motor` (caution) names a motor more than 10 ms and 50% slower than its siblings' median, its interval clear of theirs.
+- **Accuracy.**
+  - Synthetic motors: a 40 ms lag after 8 ms of dead time comes back within 1.5 ms; a 110 ms one within 3 ms.
+  - Slower motors: a 200 ms lag, whose corner lies below the band, scatters about 10% between data sets, and the interval shows it.
+  - The logged RPM time can be up to one 10 ms logging step after the ESC measured it. The result includes that, and the ESC's telemetry path.
+- **In SITL**, which models no motor dynamics, every motor of the heavy-lift X8 answers in 4.5–5 ms, all of it dead time (the simulation step and the logging).
+- **Not yet:**
+  - the response compared with the rate loop's bandwidth;
+  - motor start-up settings;
+  - the AutoTune KV warning, which waits on the motor KV from setup;
+  - zones, which wait on HL1's flights.
 
 **Attitude versus throttle priority.** After a good tune, ArduPilot suggests raising `ATC_THR_MIX_MAX` to 0.9 on large-prop copters that pitch up when slowing from fast forward flight. The analyzer recommends it only when the log shows that pattern and the tune shows no oscillation, because the same change makes descent difficult if the gains are too high.
 
@@ -735,6 +823,56 @@ Whether an aircraft can keep flying after losing a motor depends first on how ma
 The defaults are starting points that the team can change for each platform.
 
 **How it is computed.** From the frame's motor positions and spin directions, the thrust model (`MOT_THST_EXPO`, spin limits, measured hover throttle at each payload) and battery sag, the app works out for each motor in turn what the others must deliver to keep the aircraft level and holding height with that motor stopped. The worst motor sets the margin. The result shows the output needed from the busiest remaining motor, whether yaw can still be held, and the heaviest payload at which the target is met. On coaxial frames it allows for the lower propeller working in the upper one's wash, using the airframe's own measured data for each pair where ESC telemetry provides it.
+
+**The frame's geometry comes from the firmware.** `knowledge/frames/<version>.json` holds every frame ArduPilot's matrix mixer sets up, by `FRAME_CLASS` and `FRAME_TYPE`: each motor's roll, pitch, yaw and throttle factors. The values are exactly what the mixer leaves after its own normalisation, with roll, pitch and yaw at a largest magnitude of 0.5 and throttle at a largest of 1.
+
+- **How the table is made.** `knowledge/tools/build_motor_frames.py` reads each release's `AP_MotorsMatrix.cpp` and replays every case as the firmware runs it: angles become cos(angle + 90) for roll and cos(angle) for pitch, raw factors are taken as given, and a co-rotating X8 scales its top layer by 0.9. The generator refuses any construct it does not know, so a change in a later release is read by a person.
+- **Plane-only frames.** Frames only Plane builds (QuadPlane's no-yaw-torque frames) are marked.
+- **Checked in CI.** The fixtures workflow regenerates the table from the release's source and fails on any difference. The 4.7.0, 4.7.1 and 4.7.2 tables are identical.
+- **Checked in SITL.** `knowledge/tools/check_motor_frames_sitl.py` flies each of the 20 frames ArduPilot's simulator has a model for, out of the table's 41 Copter frames, in the same workflow.
+  - **The flight:** System ID mode adds a chirp to the mixer's roll, pitch, yaw and throttle input in turn (`SID_AXIS` 10 to 13), with `MOT_THST_EXPO` 0 and `MOT_BAT_VOLT_MAX` 0 so the mixer's output is linear in its inputs.
+  - **The pairing:** with fast and medium attitude logging both on, System ID logs RATE every loop, so each 10 Hz RCOU row pairs exactly with its own loop's mixer inputs.
+  - **The fit:** a least-squares fit per motor gives its four factors, scaled by the largest throttle factor. Each must match the table within 2% of its axis's range.
+  - **Result on 4.7.0:** all 20 match, the worst factor 1.04% off (octa-quad CW X). This includes the co-rotating X8's 0.9 top layer.
+- **The simulator's model of each frame** (`sitl`, for the simulator export below). The generator also reads the simulator's frame models from the release's `libraries/SITL/SIM_Frame.cpp` and names, for each frame, the model whose motors point the same way: each simulated motor's arm angle gives its factors as the mixer would, and only the direction of each motor's roll, pitch and yaw factors is compared, so the co-rotating X8 matches its model. The match is by geometry, never by ArduPilot's default parameter files, which can disagree with their own models. In 4.7.0, 19 of the table's Copter frames have a model. The match found three faults in ArduPilot's own simulator, and the frames they touch have no model:
+  - octa-quad plus: the simulator's "octa-quad" is an X, though its default parameters leave `FRAME_TYPE` at plus;
+  - octa-quad CW X: its "octa-quad-cwx" spins motors 3, 4, 7 and 8 the other way from the mixer;
+  - deca X: the simulator's name lookup finds "deca" (plus) before "deca-cwx", so that model can never be chosen.
+
+**Measured now:** `analyzers/motor_out.py`, with the solver in `motor_out.py` and `simplex.py`. Rules are in `knowledge/rules/motor_out.json`; the targets are the table's defaults, marked uncalibrated.
+
+- **The weight:** steady hover read as the payload estimate reads it. That is each motor's output through the thrust curve at the measured battery voltage, times the tilt, at the air the aircraft flew in. It is counted in full single-motor thrusts.
+- **For each motor in turn,** the thrusts ArduPilot's mixer settles on once the motor has stopped. The mixer asks each motor for its throttle, roll, pitch and yaw factors times four demands, so the thrusts it can ask for lie in the space those factors span. Once the attitude and height controllers have settled, the demands are the ones that carry the weight with no roll, pitch or yaw moment, and with five or more motors left that balance is unique.
+  - The arms are the frame table's factors over each motor's throttle factor, so a co-rotating X8's 0.9 control scaling is not taken for geometry.
+  - A propeller's yaw torque is taken in proportion to its thrust.
+  - **Beside it, the best any split could do:** a linear program finds the least thrust the busiest remaining motor could make with no roll or pitch moment, and no yaw torque where the class must hold its heading. It is a two-phase simplex in numpy, checked against vertex enumeration. The evidence gives both. The margin is the mixer's, because that is what the aircraft will do; the best split is what a mixer that knew the motor was lost could reach.
+  - **Why not the best split alone.** Until 2026-10-27 the margin was the best split's. In ArduPilot's simulator, the X8 at 40.5 kg losing each motor in turn ran its busiest motor at 1.52 times its hover thrust, as the mixer model says (1.5), where the best split asks 1.33. On that flight the best split showed 6 points of margin, but the aircraft had none.
+- **The output:** that thrust goes back through the curve to an output at the hover voltage. The worst motor gives the margin: the target output less the output needed, in points.
+- **The heaviest take-off:** the take-off weight at which the target is still met, as a multiple of this flight's weight. The needed thrust grows in proportion to the weight.
+- **Findings:**
+  - short of the target (caution), with the motor lost, the busiest motor, the output needed and the heaviest take-off;
+  - no thrust split balancing the aircraft (caution).
+
+  Both are operating limits, in the plan's operations stage and offered at any stage (Recommendation engine, "Stages"): they never hold the tuning back.
+- **Skipped:** a quad, which has no margin; helicopters; frame types the mixer does not set up for Copter.
+- **What the mixer does, against the best split,** in times the busiest motor's hover thrust:
+  - a hexa X stops the opposite motor too and carries on four at 1.5, which is also the best split;
+  - an X8 leans on the lost motor's partner at 1.5, where the best split would ask 1.33;
+  - an octa X needs 1.5 (best 1.41), a dodeca-hexa 1.38 (best 1.2), and a deca 1.44 (best 1.25);
+  - a co-rotating X8 holding its heading needs 2, as does a Y6, which is also their best split.
+
+  Every 4.7.0 frame of six or more motors balances on its mixer with no motor below zero thrust, whichever motor is lost.
+- **Checked on** the SITL heavy-lift X8 (Callisto):
+  - Light, at 39% hover thrust, the busiest motor needs 72% output (best split 66%): 13 points of margin, and up to 1.27 times the weight.
+  - Loaded, at 40.5 kg, the busiest motor needs 85.7% (best split 79%): 0.7 points short of the 85% target, so the flight gets the finding.
+  - **Flown in the simulator:** the model exported at 40.5 kg (Simulator checks), each motor failed in turn while hovering (`SIM_ENGINE_FAIL`). The busiest motor ran at 83.7 to 85.8% as the battery drained, against 82.9 to 85.2% that the mixer model predicts from the hover just before each loss: within 0.8 points for every motor (the best split predicted 7 points less). Altitude held within 0.3 m and the heading within 7°.
+  - Both flights' heaviest take-offs agree within 3% once the payload estimate's 1.25 between them is allowed for.
+- **Not yet:**
+  - the lower propeller of a coaxial pair working in the upper one's wash;
+  - battery sag at the higher output;
+  - real motor losses compared with the prediction;
+  - the margin by payload band in trends.
+- **On the recovery card** (below, "Recommendations and recovery"): the latest margin on the current frame, in kilograms from the measuring flight's weight. That weight is the one weighed at import, or else the hover thrust times the airframe's kilograms per percent of thrust from its weighed flights (payload bands). On the simulator's X8, the loaded flight's weight estimated from the weighed light one came out at 40.8 kg (40.5 kg true), and its heaviest take-off within the target at 40.3 kg, within 3% of the light flight's 41.1 kg.
 
 **From the logs.** The margin is tracked per flight, so it shows the effect of rising hover throttle from payload, battery ageing or wear. Real motor or ESC failures (telemetry stopping, RPM collapsing, stall flags, thrust-loss events) are compared with the prediction: which motor, how the others responded, how high they went, and whether yaw held. When ArduPilot's thrust-loss check fires, it logs the event and may favour altitude over yaw ([log messages](https://ardupilot.org/copter/docs/logmessages.html)).
 
@@ -779,7 +917,27 @@ Tlogs are worth analysing in full: the onboard log records what the aircraft exp
 - **Onboard .bin:** high-rate and complete, but lost with the aircraft or its SD card, and blind to most of what happens on the ground side.
 - **tlog:** written by the ground station (Mission Planner on every connection, QGroundControl when its save settings are on), as MAVLink packets with wall-clock timestamps ([pymavlink format note](https://docs.ros.org/en/melodic/api/mavlink/html/mavlogdump_8py_source.html)). Too low-rate and lossy for filter or tune work, but the only record of downlink loss as seen on the ground, commands and their replies, what the operator was shown, and parameter edits. After a loss it is often the only record left.
 
-**Pairing and alignment.** The app pairs tlogs with the onboard log of the same flight by vehicle system ID and time overlap; one flight can have several tlogs from several ground stations. Clocks are aligned from the system-time messages that map boot time to wall-clock time, then refined by cross-correlating attitude in both logs. The result is one incident timeline per flight.
+**Pairing and alignment.** The result is one incident timeline per flight (`tlog/align.py`, `tlog/sessions.py`).
+
+- **Pairing.** A tlog joins the flights of each vehicle boot it recorded. The boot's UTC time comes from the vehicle's own system-time messages (GPS time less the time since boot), and must lie within 2 s of the onboard log's. One flight can have several tlogs from several ground stations, and one tlog several flights.
+- **Kept once.** A tlog's decoded tables are kept once, under the tlog's own key in the column cache, with position columns under the positions key. Every flight of its boots reads them, and they are rebuilt from the file when evicted.
+- **The station's clock against the vehicle's.** Every vehicle message carrying its time since boot pairs when it was sent with when the station recorded it:
+  - **The model:** recorded = offset + (1 + drift) × sent + delay, and the delay is never negative, so the least delay lies on a line.
+  - **The fit:** the least value of each 10 s window, fitted by least squares. Windows far above the line (a station stall, or packets held back) are dropped.
+  - **What the offset includes:** the link's least delay, which one-way timestamps cannot separate.
+  - **Reboots:** a reboot inside a tlog starts a new boot, fitted on its own.
+  - **Tested:** a planted 3.217 s offset and 50 ppm drift come back within 20 ms and 0.5 ppm.
+- **Checked against the onboard attitude.** The attitude the station recorded is cross-correlated with the onboard attitude, both on the vehicle's boot clock:
+  - **aligned:** a correlation of at least 0.9 within 50 ms of zero lag confirms the pairing;
+  - **corrected:** clear agreement at another lag is applied as a correction;
+  - **unconfirmed:** an aircraft that barely moved leaves the pairing resting on the boot time alone.
+- **Packets lost on the way down.** They are counted per sender from MAVLink sequence numbers, in the order the station recorded them. A late or repeated packet is counted apart, and fills the gap it left.
+- **Sessions** (`tlog_session`) are kept on each laptop and never synced, like analysis results. Each holds:
+  - the fit and its quality: windows fitted and dropped, the spread about the line, and the delay's median and 95th percentile;
+  - the attitude lag and correlation;
+  - the packets received, lost and out of order.
+
+  Analyzers read a session's packets with the vehicle boot time each one maps to.
 
 | Fault area | Onboard .bin | tlog | What gets flagged |
 | --- | --- | --- | --- |
@@ -804,9 +962,29 @@ Tlogs are worth analysing in full: the onboard log records what the aircraft exp
 - **Geometry and interference,** computed locally: link quality against distance from the ground station, altitude, the station's bearing in the aircraft's body frame (airframe shadowing an antenna at certain headings), motor current (EMI) and video transmitter activity.
 - **Latency and bandwidth.** Round-trip time from time-sync exchanges and command-to-reply times; the byte rate implied by configured stream rates against measured throughput.
 
+**Measured now** (`analyzers/links.py`, rules in `knowledge/rules/links.json`), from what ArduPilot and the ground station recorded, while armed:
+
+- **Downlink loss:** the share of the vehicle's packets the station never received, from the tlog session's sequence counts. With several stations, the worst one's view.
+- **Downlink outage:** the longest time the station heard nothing at all from the vehicle, on the vehicle's clock through the tlog session. Any packet counts, which times an outage more finely than 1 Hz heartbeats. Gaps over 2 s are counted as outages.
+- **Uplink loss:** the autopilot's own count of packets it missed (`MAV.rxdp` against `rxp`, 16-bit counts taken across their wraps), on each link that heard the GCS. A link needs at least 50 packets before its share is judged.
+- **GCS silence:** the longest the autopilot did not hear the GCS (`MAV.mgs`), as a share of `FS_GCS_TIMEOUT`. From 0.4 to 1 it is a near miss and a finding. Past 1 it is left to the failsafe analysis, which judges whether the failsafe fired.
+- **TX buffer:** the share of the flight the radio's buffer was less than half free. That makes ArduPilot slow every stream by 20 ms, or 60 ms under 20% free. It comes from `RAD` on the vehicle, else the tlog's RADIO\_STATUS, and holds for every radio, since MAVLink defines TxBuf as a percentage.
+- **Fade margin and asymmetry, SiK firmware only.** MAVLink leaves RSSI and noise in each device's own units, so they are read as decibels (1.9 units a dB) only for SiK firmware radios. Those are radios the platform's setup names as SiK or RFD, or that identify themselves in the tlog with SiK's own system and component IDs ('3', 'D').
+  - **Fade margin:** the 5th percentile of RSSI minus noise at each end, with the weaker end reported. 12 dB or more is the target.
+  - **Asymmetry:** the median gap between the two ends' RSSI.
+- **Not yet:** latency. ArduPilot sends a time-sync request every 10 s, but does not log the round trip, and a QGroundControl tlog holds none of the station's own packets to pair them with. For now the tlog clock fit's delay figures (median and 95th percentile above the least delay) stand in. Link quality against distance, and the predicted range, need the local position accessor (GNSS work). Geometry and interference come with them.
+- **The radios' own logs** (IP mesh radios such as Doodle Labs, Silvus and DigiQ SkyPulse, and wfb-ng) are a later import. The format work waits for sample logs from the radios. Until then their quality is judged from the MAVLink loss and silence above, which hold for every radio.
+
 ### RC link
 
 Receiver RSSI and link quality where reported, frame loss, failsafe entries and recoveries, impossible channel jumps, and the throttle-failsafe threshold (`FS_THR_VALUE`) against the lowest throttle the receiver actually delivered.
+
+**Measured now**, skipped when `RC_OPTIONS` tells ArduPilot to ignore the receiver (the ground station flies it):
+
+- **Receiver RSSI and link quality** (`RSSI.RXRSSI` and `RXLQ`): their 5th percentile while armed. They have no fixed zones, since each receiver scales them its own way, and are judged against the airframe's own flights.
+- **The receiver's own failsafes:** each time the receiver itself flagged failsafe while armed (`RCI2.Flags` bit 2), with the longest. One is a near miss and a finding.
+- **`FS_THR_VALUE` margin:** the lowest throttle the receiver sent with valid input, outside failsafe and not overridden over MAVLink, less `FS_THR_VALUE`. Under 10 PWM is a finding. The receiver's own failsafe throttle is left out: the SITL receiver fixture sends 950 µs on loss and the margin still reads from the stick's 1000 µs.
+- **Not yet:** impossible channel jumps, and the ExpressLRS margin, which needs RSSI in dBm, not the autopilot's 0 to 1 scale.
 
 ### GNSS quality and interference
 
@@ -822,9 +1000,62 @@ Jamming and spoofing are classified in depth in their own section, GNSS jamming 
 - **Warnings versus response.** Time from each critical status message to the operator's next action, which surfaces alerts that went unseen.
 - **Ground-station health.** Gaps or jumps in tlog timestamps (laptop sleep, USB or serial drops, reconnects) and two stations issuing conflicting commands.
 
+**Measured now** (`analyzers/commands.py`, rules in `knowledge/rules/commands.json`):
+
+- **What the aircraft answered.** ArduPilot logs every command it handles, with its result and its sender (`MAVC`). Only the command, the result and the sender are read, never a command's parameters or coordinates. The location rules deny those on the AI path too.
+  - **In flight:** commands refused while armed (denied, failed, temporarily rejected, or in a frame the aircraft does not take) are a metric. Any refusal is a finding, naming the first and who sent it: the ground station by `MAV_GCS_SYSID` (to `MAV_GCS_SYSID_HI`), the aircraft's own components by `MAV_SYSID`, or another system. Commands the aircraft does not support at all, often a ground station probing on connection, are counted apart.
+  - **Before take-off:** an arm command refused in the 10 minutes before arming is a finding, with how long before arming the first one came.
+- **Commands with no reply.** These need the ground station's own packets in the tlog. Mission Planner records them; QGroundControl records only what it receives.
+  - A command and its resends, each within 1.5 s of the last, count once.
+  - One with no `COMMAND_ACK` within 3 s is unanswered.
+  - `MAVC` then says whether it reached the aircraft, so only its reply was lost on the way down, or never arrived.
+- **Warnings and the operator's answer.**
+  - **Warnings:** the tlog's STATUSTEXT at warning severity or worse while armed, which is where ArduPilot announces its failsafes. One repeated within 5 s counts once. Only severity and time are read; the text stays on the laptop.
+  - **The operator's answer:** the next command from the ground station, or a mode change the pilot or ground station asked for (`RC_COMMAND`, `GCS_COMMAND`). A failsafe's own mode change is not the operator's.
+  - **The finding:** a warning with no answer within 30 s is a finding.
+  - The thresholds are the app's starting points, marked uncalibrated.
+- **Not yet:** ground-station health (timestamp gaps, reconnects, conflicting stations) and the merged incident timeline with first fault come next.
+
 ### Whole-system incident timeline
 
 All sources merge into one timeline per flight: onboard log, every tlog, parameter change sets and the app's recommendations. First-fault detection picks the earliest abnormal event that explains the rest, for example a link outage leading to a GCS failsafe, an RTL, and a battery failsafe far from home. The AI layer reasons over this merged timeline, not over each log separately.
+
+**Measured now** (`analyzers/incident.py`, `views.timeline`, rules in `knowledge/rules/incident.json`):
+
+- **Abnormal events** are put on the flight's clock, from a minute before arming to disarming:
+  - telemetry link outages: more than 2 s with no packet from the vehicle in any tlog;
+  - the ground station unheard, from 0.4 of `FS_GCS_TIMEOUT`, timed from when it was last heard;
+  - the receiver's own failsafe flag, and its failsafe throttle under `FS_THR_VALUE`;
+  - the battery failsafe's voltage under `BATT_LOW_VOLT`;
+  - GNSS fix lost (below 3D after having it);
+  - parameters changed in flight;
+  - commands refused;
+  - errors (ERR), until resolved;
+  - the mode changes failsafes and checks make.
+- **First fault.**
+  - **The main event:** the flight's first failsafe or crash check while armed, else its first error.
+  - **Walking back:** from the main event, each step takes the nearest earlier event that the rule table names as a possible cause within its window, so the chain keeps every step. For example: link outage, then the ground station unheard, then the GCS failsafe.
+  - **The first fault** is where the chain starts.
+  - **Walking forward:** the events the rules tie to the main event are the ones it explains.
+  - **The finding:** `incident.first_fault` (caution) when there is a chain, or `incident.unexplained` (info) when nothing earlier explains the main event.
+  - **Confidence:** order and timing point to a cause but do not prove it, so the confidence is medium. The windows are marked uncalibrated.
+- **The timeline view** (`flight.timeline`, for the incident screen) gives the lanes in seconds after arming:
+  - link, receiver, errors and battery;
+  - GNSS fix (lost, and its status);
+  - parameters changed;
+  - mode, with each change's reason;
+  - pilot overrides arriving over MAVLink;
+  - commands, with results;
+  - warnings;
+  - the first fault's chain, and what it explains.
+
+  The ground station's warning text is shown, since it stays on this laptop. The screen itself waits for its mock-up's approval.
+- **Not yet:**
+  - the radios' own logs;
+  - distance and the station's bearing in the event detail (they need the local position accessor);
+  - the AI packet's timeline, which needs a scrubber-tested packet field.
+
+  The AI layer sees the first-fault finding meanwhile.
 
 Ground-station position and distances are computed on the machine; only distance bands and correlations can pass the scrubber.
 
@@ -848,7 +1079,74 @@ Failsafe events come from the per-subsystem error codes in the onboard log, the 
 
 **Near misses.** Most flights never trip a failsafe, but many come close: RC signal within a few dB of the sensitivity limit, estimator variances near the threshold, a landing with less energy than the return margin. These are recorded as near misses and analysed the same way, so the fleet learns from far more events than actual failsafes.
 
+**Measured now** (`analyzers/precursors.py`, rules in `knowledge/rules/precursors.json`), for Copter, while armed:
+
+- **Precursors.** Each is a series with a caution band. Where a metric already defines the band, the series is judged by that metric's target zone, so a flight's metric and its warnings agree.
+  - **Ground station:**
+    - the GCS unheard, as a share of `FS_GCS_TIMEOUT` (`MAV.mgs`);
+    - packets missed on the way up (`MAV.rxdp`) and lost on the way down (the tlog's sequence numbers), each over a 10 s sliding window that needs at least 20 packets;
+    - the radio's buffer under half free.
+  - **Battery,** per monitor:
+    - how long the failsafe's own voltage has stayed under `BATT_LOW_VOLT`, as a share of `BATT_LOW_TIMER`;
+    - the sag-compensated voltage (`VoltR`) within 3% of `BATT_LOW_VOLT`;
+    - the charge used, as a share of `BATT_CAPACITY` less `BATT_LOW_MAH`.
+  - **Radio:** the receiver's own failsafe flag.
+- **Lead time.** Before each failsafe, the first time each of its precursors left its band within 300 s, or since arming, is that precursor's lead. A finding names the earliest. A failsafe that none of the logged precursors warned of is recorded as unwarned, which points to a sudden cause.
+- **Near misses.**
+  - **The battery's:** the longest low-voltage spell against `BATT_LOW_TIMER`, and the charge used against the failsafe's budget. Each is a metric with the airframe's trend. A caution on a flight with no battery failsafe is a near miss.
+  - **The ground station's and the receiver's:** these are the link analyzer's (see Telemetry link and RC link), so one event raises one finding.
+  - **The EKF's:** these come with the GNSS work.
+- **Not yet:** the fleet ranking of which precursors warn earliest, and how often they warn with nothing following, waits for enough failsafes across the fleet. The bands are the app's starting points and are marked uncalibrated until then.
+
 **Did the failsafe work?** Each event is checked: the action matched the configuration, the trigger time matched the timeout, the vehicle recovered or landed as intended, and the failsafe option bits combined as expected with any other failsafe active at the time.
+
+- **Events.** Each failsafe runs from its error (ERR, `FAILSAFE_OCCURRED`) to the one that resolves it. A second error before then is an event of its own, because the firmware acts on it again: a battery's critical stage after its low stage, or another monitor's. Failsafes that fire while disarmed are not judged.
+- **The response the log shows.** The firmware acts in the same loop that logs the error, so the response is the first of these within 1 s:
+  - a mode change logged with the failsafe's reason (`MODE.Rsn`, ModeReason, from the generated enum tables);
+  - a disarm logged with the failsafe's method (`ARM.Method`);
+  - otherwise the aircraft carried on.
+- **The response the settings call for** is rebuilt from ArduCopter's own source, kept in the rule pack (`rules/failsafes.json`) with the source lines it came from. Copter only; Plane and QuadPlane come with Phase 3.
+  1. **The setting:** `FS_THR_ENABLE`, `FS_GCS_ENABLE` (numbered differently from the radio's), the battery stage actions (`BATT*_FS_LOW_ACT` and `BATT*_FS_CRT_ACT` on every monitor), or `FS_EKF_ACTION`.
+  2. **The firmware's deviations, in its order:**
+     - on the ground it disarms: in the arming delay, landed, in Stabilize or Acro with the throttle at zero, or in Auto before the mission started;
+     - while landing, with a battery failsafe already active whose action is Land or Terminate, it keeps landing;
+     - with `FS_OPTIONS` "continue if landing" it keeps landing; for the battery failsafe, only when its own action is not None;
+     - other `FS_OPTIONS` bits let it carry on: in Auto (not Auto RTL), in a Guided mode, or under pilot control for the GCS failsafe.
+  3. **The modes it tries in turn**, each falling back to the next when it cannot start: SmartRTL, then RTL, then Land; Auto's landing sequence, then RTL; Brake, then Land. Asking for the mode it is already in logs no change.
+  4. **The EKF failsafe** acts only in modes that need a position, unless `FS_EKF_ACTION` is 3. It lands instead of holding altitude when the radio is lost too.
+- **What the log leaves open counts every way.** Some things are not logged: whether RTL was already landing, which battery stage fired, or whether the throttle had been at zero for the firmware's 0.4 s debounce. These are read where the log holds them:
+  - the land detector's events (EV);
+  - the mission command running (CMD);
+  - the pilot's throttle (`CTUN.ThI`);
+  - battery health (`BAT.H`), since a monitor with no healthy reading for 5 s raises a failsafe with no action.
+
+  What is still open widens the responses allowed. It lowers the finding's confidence only where it could change the answer. A response is never called wrong when a reading of the log allows it.
+- **Battery stages.** A first battery failsafe is most likely the low stage, and a later one the critical stage. Each monitor's stage only rises, so with one monitor a later failsafe is a higher stage than the one before could have been.
+- **Findings:**
+  - **As configured** (info): a first response the settings allow.
+  - **Fell back** (caution): a later mode, so the first could not start. Examples are SmartRTL with no return path, or RTL with no home.
+  - **Unexpected** (out): no reading of the log allows it. Look for a parameter changed in flight, a script, or a firmware the check does not cover.
+
+  That a failsafe fired at all stays the system health finding. Evidence names what was read. Mission commands are position messages, so evidence that read them is withheld from AI packets by the location policy.
+- **When the loss began, and whether it fired on time.** Each failsafe waits a set time after its loss begins, checked at its scheduler's rate. The onboard log shows the onset for three of them:
+  - **Ground station:** `MAV.mgs`, when each link last heard the GCS's system ID (heartbeat or manual control), logged about once a second. The failsafe is due `FS_GCS_TIMEOUT` after the newest, checked at 3 Hz.
+  - **Battery:** `BAT` is logged in the same loop, just before the check, so its samples are what the firmware judged. The voltage stages are due `BATT_LOW_TIMER` after the voltage the settings name (`Volt`, or `VoltR` with `BATT_FS_VOLTSRC` 1) went under its threshold. The capacity stages are due at once. The stage whose condition held at the failsafe, and was most recently due, explains it.
+  - **Radio:**
+    - the receiver's own failsafe flag (`RCI2.Flags` bit 2), after which frames stop counting as input (unless `RC_OPTIONS` ignores the flag), so `RC_FS_TIMEOUT` runs out;
+    - or the throttle channel under `FS_THR_VALUE`, which trips within three frames.
+    - A receiver that just stops leaves no trace before the failsafe, so that onset is reported as not measurable.
+
+  A failsafe later than its wait, plus one check, the log's sampling and a 0.1 s margin, is **late** (caution). That points to an overloaded main loop or a setting changed in flight. The EKF failsafe's onset needs the estimator's filtered variances and comes with the GNSS work.
+- **Losses no failsafe answered.** Losses read the same way while armed:
+  - a GCS not heard for longer than its timeout;
+  - a battery stage past its wait;
+  - a receiver flagging failsafe past `RC_FS_TIMEOUT`;
+  - the throttle under `FS_THR_VALUE` past three frames. This is read only where `FS_THR_VALUE` sits at least 10 under the stick's lowest, so a stick at its lowest is never mistaken for it, and never on a MAVLink-overridden channel.
+
+  A loss counts as answered when a failsafe of its kind started from about when it was due until the loss ended, or was already in force, even one from before arming. For the battery, any battery failsafe by then answers it, because which monitor and stage one was raised for is not logged.
+  - **Off during loss:** the failsafe is switched off (`FS_GCS_ENABLE` 0, `FS_THR_ENABLE` 0, `BATT_LOW_TIMER` 0). For a radio loss that is a safety finding, and for a battery loss it is out. For a GCS loss it is a safety finding when the ground station is the only control link (`RC_OPTIONS` bit 0), and info when a pilot's radio is in hand.
+  - **Missed** (out): the failsafe is on but none fired.
+- **Next:** lead time and near misses, as above.
 
 ### RF early warning
 
@@ -902,6 +1200,52 @@ Each event records its start and end, class and confidence, the evidence behind 
 - **Yaw risk:** an estimator yaw reset driven by GPS velocity during a spoofing event is flagged high severity, since it can corrupt heading.
 - **Configuration audit:** u-blox status and raw logging switched on so evidence exists; estimator source sets with a non-GNSS fallback and switching; GPS glitch and EKF failsafe settings; Copter's dead-reckoning failsafe (4.3 and later, [ArduPilot](https://ardupilot.org/copter/docs/deadreckoning-failsafe.html)) with `FS_DR_TIMEOUT` set from the hold time actually measured; a second receiver of another make or band set; antenna placement and ground plane; a healthy compass so yaw never depends on GNSS.
 
+### Measured now
+
+`analyzers/gnss.py`, rules in `knowledge/rules/gnss.json`. The thresholds are starting points, marked uncalibrated until real disturbances have been seen across the fleet.
+
+- **Signal channels, per receiver:**
+  - the fix below 3D;
+  - satellites under 6, or 4 fewer than the flight's typical count;
+  - horizontal accuracy (GPA) past both 3 m and three times its usual value;
+  - the u-blox status (UBX1):
+    - the continuous-wave jamming indicator past 80 of 255 (MON-HW);
+    - or, on an M10, the jamming state at warning or worse (MON-RF). An M10 does not answer MON-HW, and 4.7.0 logs MON-RF only in builds with `AP_GPS_UBLOX_CFGV2_ENABLED`. The generation comes from the receiver's own version message;
+    - the AGC count 30% below its usual level;
+  - GPS time standing still for 2 s while the log's clock runs.
+- **Consistency checks:**
+  - the primary estimator core rejecting GNSS: a position, velocity or height test ratio (`XKF4`) above 1, or a GPS glitch error. 4.7.0 writes each ratio as 100 times its value in a field whose multiplier says 1 (`Log_Write_XKF4`). The decoder follows the log's own units as always, and the rules hold the scale with its source;
+  - a receiver more than 15 m from the estimator's position, as local tracks from one origin;
+  - **a one-sided velocity innovation** (`XKF3`) averaging over 0.25 m/s for 10 s. This catches the slow drift the estimator follows, which no test ratio trips. In SITL, an 80 m ramp over 60 s was followed at test ratios of 0.3 to 0.6, with an innovation near 0.4 m/s against under 0.03 m/s in calm flight;
+  - GNSS altitude moving 10 m from the barometer's, against their usual offset;
+  - GPS time jumping more than 1 s against the log's clock (not counting the catch-up after it stood still);
+  - two receivers more than 10 m apart.
+- **Drills are left out:** trips that begin during a GNSS-off drill (aux function 65) are the no-GNSS analyzer's to measure, not disturbances.
+- **Events:** a channel's own trips less than 5 s apart are joined first, so a fix that flickers is lost all along; a trip must then last 1 s. Trips within 5 s of each other are one event.
+- **Classes and confidence:**
+  - **Spoofing:** a consistency check failed while the signal looked healthy (no signal trip within 5 s of its start). High when two independent sources agree (the estimator, the barometer, GPS time, a second receiver); medium with two channels from one source, or one lasting 10 s; else low.
+  - **Onboard:** the u-blox status showed jamming and its indicator follows the motor current over the flight (r ≥ 0.6).
+  - **Jamming:** the u-blox status showed it (high with other signal loss as well, else medium); or, with no u-blox status logged, the fix or accuracy went for 10 s or more (medium with two signal channels, else low).
+  - **Receiver:** only one of two receivers degraded (low).
+  - **Obstruction:** the rest. Satellites lost with the accuracy held, brief losses, or a loss while the u-blox status shows a quiet band, since broadband jamming would have moved the AGC (medium then, else low).
+- **How the aircraft coped, per event:**
+  - how long the estimator rejected GNSS, or that it kept following a drifting position;
+  - the failsafes and checks that triggered;
+  - the first mode change within 30 s, with its reason;
+  - the estimator's position resets;
+  - a heading reset from GNSS velocity during spoofing, a safety finding of its own.
+- **Metrics:** time disturbed, fewest satellites, and the 95th-percentile horizontal accuracy.
+- **What leaves the laptop:** times, durations, the class, the channels, test ratios, satellites and accuracy. The metres between position estimates, the altitude gap, GPS time and the status text stay in evidence that cites the fields they came from, so the location policy withholds them from the AI path.
+- **Checked on** committed SITL fixtures with golden tests (`copter-quad-gnss-jam`, `-step` and `-ramp`: jamming; spoofing the estimator rejected; a drift it followed, then the jump back), a local SITL flight on 5 satellites (an obstruction), every other committed fixture (no events), and synthetic flights for the u-blox status, onboard interference, GPS time, a second receiver and heading resets.
+- **Not yet:**
+  - per-satellite C/N0 and raw measurements;
+  - the inertial prediction and the GPS course against the compass;
+  - optical flow as an independent velocity;
+  - the station clock from the tlog;
+  - what the operator did, from the tlog (the incident timeline covers commands);
+  - the configuration audit;
+  - events across flights and the fleet.
+
 ### Across flights and the fleet
 
 - Events from several airframes at the same time point to an external source; repeated events on one airframe only point to its hardware.
@@ -924,6 +1268,30 @@ The app assumes every aircraft will lose GNSS at some point, through jamming, sp
 | Failsafes | Copter's dead-reckoning failsafe (`FS_DR_ENABLE`, `FS_DR_TIMEOUT`), the EKF failsafe action and threshold, GNSS glitch settings, and the mode the aircraft ends in |
 | Pilot fallback | A mode that needs no position, such as AltHold, on a switch, and a GNSS-disable switch (aux function 65) set up for drills |
 
+### Readiness checked now
+
+`analyzers/no_gnss_readiness.py`, rules in `knowledge/rules/no_gnss.json` (readiness), each with its ArduPilot 4.7.0 source. It reads the parameters and the platform setup, so it runs on a parameter file as well as a flight.
+
+- **Each area gets a status:** ready, gap (something to fix), none (nothing set up) or unavailable (not in this firmware build). Its facts go with it as evidence, for the readiness screen.
+- **Position without GNSS:** a source set copes without GNSS when one of its horizontal sources is not GNSS (beacons, optical flow, external navigation, wheel encoders). Each source needs its sensor set up (its type parameter). Optical flow also needs a downward rangefinder and `EK3_FLOW_USE` 1.
+- **Switching:** a coping set other than set 1 needs something to select it, an aux function 90 switch. A joystick flown through a ground station drives channels 1 to 4 only (`MANUAL_CONTROL`), so the finding also names the station's source-set command (`MAV_CMD_SET_EKF_SOURCE_SET`).
+- **Heading:** set 1, and each coping set, must keep a heading once GNSS goes: not GPS yaw (2) or the GPS-driven yaw estimator (8), and a compass yaw needs a compass in use.
+- **Height:** reported only. EKF3 falls back to the barometer when its height source is lost.
+- **Wind:** drag fusion is on when `EK3_DRAG_BCOEF_X` or `_Y` is above 1, or `EK3_DRAG_MCOEF` above 0.001. It is unavailable on helicopters and in builds for 1 MB boards. Without it the estimator never dead-reckons, so `FS_DR_ENABLE` and `FS_DR_TIMEOUT` never act.
+- **Failsafes:** the EKF failsafe's action and threshold, and whether the dead-reckoning failsafe can act.
+- **Pilot fallback:** Stabilize, Acro, AltHold or Sport (FlowHold with optical flow) on the flight-mode switch or an aux mode switch. A craft flown from the ground station (`RC_OPTIONS` bit 0) changes modes there. The drill switch (aux 65) is reported.
+- **Findings:**
+  - a set naming sensors not set up (caution);
+  - nothing to select the non-GNSS set (caution);
+  - a heading that goes with GNSS (caution);
+  - drag fusion off (info, or caution when the platform setup says it flies without GNSS);
+  - no position-free mode on a switch (info).
+
+  Each finding carries a procedure. Drag fusion's follows the ArduPilot wiki: mass over frontal and side area, then the drag test flight for `EK3_DRAG_MCOEF`.
+- **Changes to existing parameter checks:**
+  - "no fallback source set" now looks at all three sets, so a third set on visual odometry counts and a second set on GNSS does not;
+  - "dead-reckoning failsafe off" is raised only when drag fusion lets that failsafe act.
+
 ### Performance, from the logs
 
 - **Every GNSS outage is measured:** time to detection, how the estimator responded (lane switch, source switch, failsafe), how far the position estimate drifted (from the jump when GNSS returns, or against optical flow or vision), heading drift, and whether the aircraft got home.
@@ -931,18 +1299,103 @@ The app assumes every aircraft will lose GNSS at some point, through jamming, sp
 - **Dead-reckoning range.** From the measured drift per minute, the app works out how long and how far each airframe can fly before its estimate is worse than a set landing tolerance, and compares that with typical mission distances. A multirotor with no other position source holds its estimate for only about 30 seconds ([ArduPilot forum](https://discuss.ardupilot.org/t/dead-reckoning-stops-early-due-to-ekf-failsafe/130207)), so these numbers show plainly what extra sensors and calibration buy.
 - **Trends.** Drift and detection time are tracked per airframe, so a degrading compass or a changed build shows up.
 
+### Measured now
+
+`analyzers/no_gnss.py`, rules in `knowledge/rules/no_gnss.json`. The thresholds are starting points, marked uncalibrated.
+
+- **Outages:** 3 s or more with no receiver holding a 3D fix (gaps under 1 s closed). A second receiver with a fix means no outage. An outage is a **drill** when the GPS-disable switch (aux function 65, logged as `AUXF`) turned GNSS off at its start. The GNSS analyzer leaves drills alone.
+- **Measured from the estimator's own status** (`XKF4.SS` of the primary core):
+  - **detection:** how long after the loss it stopped using GNSS (bit 13);
+  - **hold:** how long it kept a position the aircraft could fly on, whether absolute (bit 4) or relative from optical flow or vision (bit 3). It is the whole outage when it kept one throughout;
+  - how long after GNSS returned it used it again;
+  - the source set in use (aux function 90), the failsafes that triggered, and the mode change during the outage, with its reason.
+- **Drift:** when GNSS returns to an estimator that still claims a position, GNSS's first fixed position is compared with the estimate carried forward from just before the return. The comparison uses local tracks from one origin, because the estimator takes GNSS back within a sample and its position jumps. It is read only when GNSS comes back trustworthy: holding its fix for 3 s, its accuracy within 3 m, and implying no drift faster than 20 m/s (a jammed receiver's first fix back can be kilometres off). For outages of 10 s or more it is given per minute too, and against a 10 m landing tolerance. Once the estimator gives its position up, its logged position is a stale value (in SITL it jumped 26 m and stayed), so no drift is read.
+- **Findings:** the position kept (info) or the position given up (caution), each with what happened.
+- **Metrics:**
+  - the shortest hold (30 s or more is the target; under 10 s is out);
+  - the longest detection;
+  - the worst drift per minute.
+- **What leaves the laptop:** times, flags, the source set and words. Drift stays in evidence that cites the position fields.
+- **Checked on** committed SITL fixtures with golden tests (`copter-quad-nognss-drill`: a windy drill with no other source; `copter-quad-nognss-flow`: a windy drill on optical flow), and local SITL flights at 4.7.0, LOITER at 15 m:
+  - **A GNSS-off drill and a simulated receiver loss:** the estimator stopped using GNSS 3.9 s after the loss and gave up its position at 6.9 s; the EKF failsafe landed the aircraft.
+  - **The same drill in a 6 m/s wind:** the same timing; the aircraft blew 27 m downwind.
+  - **On optical flow and a rangefinder (source set 2):** a 30 s drill kept a relative position throughout, 1.1 m from GNSS on its return, and 0.2 m in the same wind.
+- **Not yet:**
+  - heading drift;
+  - drift against optical flow or vision during the outage;
+  - whether the aircraft got home;
+  - trends per airframe;
+  - readiness from the logs (compass health and interference, barometer error) and drag coefficients computed from the take-off weight and measured areas;
+  - settings sized from the measured hold (`FS_DR_TIMEOUT`).
+
 ### Recommendations and recovery
 
 - **Settings sized from measured performance,** for example `FS_DR_TIMEOUT` from the hold time the airframe actually achieved, and source-switching thresholds from the GNSS quality seen before past outages.
 - **Hardware and calibration ranked by measured benefit:** optical flow and rangefinder for low-altitude hold, visual odometry, a compass further from power wiring, and drag-fusion calibration flights.
 - **A recovery card per airframe:** what the aircraft will do on GNSS loss with its current settings, how long it can hold and how far it can travel on dead reckoning, and the operator's steps, from switching to the non-GNSS source set to flying home on a heading in AltHold.
 - **Loss and spoofing are handled differently.** On suspected spoofing the card says to reject GNSS manually first, because the estimator may still be trusting it.
+- **Losing a motor** gets its own section, from the motor-out margin (Propulsion, "Motor-out margin").
+- **Losing the control link** gets its own sections, with GNSS and without: the goal is getting home when both the radio link and GNSS are lost.
+
+**Built now:** `recovery.py`, with the RPC `airframe.recovery_card`. The wording is in `knowledge/recovery/copter.json`, in English and Ukrainian. The card is built on the laptop from:
+
+- the airframe's latest parameters, through the readiness review;
+- its measured outages over all its flights' latest analyses: the shortest hold, the longest detection and the worst drift a minute. These are kept apart by the source set they were flown on, so a hold measured on optical flow is never claimed for the aircraft on its own;
+- the landing tolerance;
+- the motor-out margin of its latest flight that measured it on the current frame, with that flight's weight;
+- its link failsafes over the same analyses (Failsafe causes and RF early warning, "Did the failsafe work?").
+
+It holds these sections:
+
+- **GNSS lost:**
+  - What the aircraft will do on its own, from the source sets, drag fusion and `FS_DR_ENABLE`, and the EKF failsafe.
+  - What was measured, and how long until the estimate is off by the landing tolerance.
+  - The operator's steps:
+    - with a usable source set on a switch: change to it, fly home in Loiter and land by sight;
+    - otherwise: take over in the fallback mode (AltHold first), turn to the home heading, fly home on it and land by sight;
+    - with a heading that goes with GNSS: fly by sight.
+- **Suspected spoofing:**
+  - Take over in the fallback mode first.
+  - Then reject GNSS with the GPS-disable switch or the non-GNSS source set. The card says when the EKF failsafe will then land it (`FS_EKF_ACTION` 3).
+  - Then follow "GNSS lost".
+- **Motor or ESC lost** (frames the matrix mixer sets up; helicopters have none):
+  - What the aircraft will do:
+    - a quad comes down, and so does a frame where no share of thrust between the other motors keeps it level;
+    - otherwise, at the weight it last flew: it holds height, with the heading too where its class's target holds the heading. When the busiest motor would need more than the target it has little left to steer with; past 100% output it sinks.
+    - From ArduPilot 4.7.0's own thrust-loss check (`crash_check.cpp`): after 1 s descending at full throttle, it sends "Potential Thrust Loss (N)" with the motor it suspects, unless `FLIGHT_OPTIONS` bit 0 turns the check off. With bit 2 and the gripper on, it drops the gripper's load.
+  - What was measured: the heaviest take-off within the target, in kilograms (weighed, or estimated from the weighed flights), else as a multiple of the measuring flight's weight; or the hover still needed to measure it.
+  - The operator's steps:
+    - when it can fly on the rest: stop manoeuvring and let it level, let it turn where its class does not hold the heading, descend steadily, and land at the nearest clear spot, not at home;
+    - when it comes down: keep people clear. With `CHUTE_ENABLED`, release the parachute if it has not opened by itself, with its switch (aux function 22 or 23) or from the ground station. ArduPilot releases it after 1 s sinking faster than `CHUTE_CRT_SINK`, or, in modes with the crash check and above `CHUTE_ALT_MIN`, after 1 s more than 30° from the attitude it wants while falling (`crash_check.cpp`, `AP_Parachute.cpp`).
+- **Control link lost** (`recovery_link.py`). A ground station that flies the aircraft (`RC_OPTIONS` bit 0, a joystick through the station) gets one section, "Ground-station link lost", because the pilot's control and the telemetry go together. A pilot's radio gets two: "Pilot's radio lost" and "Telemetry link lost, with the pilot's radio working".
+  - **What the aircraft will do** is played through ArduCopter 4.7.0's own failsafes, as rebuilt for judging logged failsafes (`rules/failsafes.json`):
+    - **Which failsafes fire, and when.** A receiver that stops sending sets off the radio failsafe `RC_FS_TIMEOUT` later (`radio.cpp`). One that sends a failsafe throttle under `FS_THR_VALUE` sets it off at once, and one that holds its last values never does: the card says both, since only the receiver's own setup tells which it does. A joystick's sticks reach the autopilot as RC overrides, which count as the radio's input (`RC_Channels::read_input`), so losing the station's link sets off the radio failsafe `RC_FS_TIMEOUT` later too, then the ground-station failsafe at `FS_GCS_TIMEOUT`.
+    - **What each does.** Each failsafe acts on the mode the one before left it in: its setting, then the firmware's deviations (continue in Auto, in Guided, under pilot control, while landing), then its modes in turn. A mode that needs a position is refused without one, and the next is tried.
+    - **Per mode.** This is played from Loiter, AltHold, Guided and Auto. The card gives one line for each outcome, naming the modes it holds for, or one line for any mode. Each line gives the times and the failsafes that change what the aircraft does. Where nothing changes, it says why: no failsafe is on, or the failsafe's settings let the aircraft carry on, such as with no one flying it.
+    - **GNSS lost too.** Without a first source set that keeps a position, the aircraft loses its position:
+      - the dead-reckoning failsafe acts first where drag fusion lets it;
+      - then the EKF failsafe acts (`ekf_check.cpp`). Its AltHold becomes Land while the radio failsafe is in force, so a station-flown aircraft whose radio failsafe is off holds its height with no one flying it, drifting with the wind.
+
+      Which loss comes first is not known, so both orders are played from each mode, and the card names every end they reach.
+  - **What was measured,** over the airframe's flights' latest analyses:
+    - each link failsafe: as configured, on a fallback mode, or not as configured;
+    - the slowest failsafe against its wait;
+    - losses no failsafe answered;
+    - the longest the ground station went unheard short of its failsafe's wait.
+  - **The operator's steps:**
+    - turn the ground antennas toward the aircraft (face it with the transmitter);
+    - when the link comes back, the aircraft stays in the mode the failsafe chose: pick a mode in the ground station, or move the flight-mode switch, to fly it again;
+    - with no failsafe on, set one before the next flight;
+    - when it lands where it is or drifts, keep people clear of the ground under it and downwind.
+  - **Settings the log did not hold** are taken at the firmware's defaults (`FS_THR_ENABLE` 1, `FS_THR_VALUE` 975, `RC_FS_TIMEOUT` 1 s, `FS_GCS_ENABLE` 0, `FS_GCS_TIMEOUT` 5 s, `FS_OPTIONS` 16). `FS_OPTIONS` defaults to "continue under pilot control on a GCS failsafe", though its own description says 0 (`Parameters.cpp`). The simulator checks found it.
+
+The card carries times, modes, switches, weights and distances from the measured drift, never a position. It is printed on the laptop and never sent.
 
 ## Recommendation engine
 
 The engine turns findings into a staged plan: a short list of changes for the next test flight, each with its evidence and a way to verify it. Nothing is applied automatically.
 
-**Stages follow ArduPilot's tuning order.** A later stage is not offered while an earlier one is unverified, except for safety findings, which always surface first, and failsafes the firmware ships on but found off (vibration `FS_VIBE_ENABLE`, dead reckoning `FS_DR_ENABLE`, the EKF threshold `FS_EKF_THRESH`, crash check `FS_CRASH_CHECK`; the rule pack's `any_stage` list), which are offered with whatever stage is on offer: going back to the firmware's value touches no tuning, and it protects the tuning flights themselves. A stage is unverified while it holds a problem: a safety or stability recommendation, or a finding at caution or worse. A better option fixes no problem, so it never holds a later stage back. It is offered with the stage on offer when it belongs to that stage or an earlier one, and waits otherwise.
+**Stages follow ArduPilot's tuning order.** A later stage is not offered while an earlier one is unverified, except for safety findings, which always surface first, and failsafes the firmware ships on but found off (vibration `FS_VIBE_ENABLE`, dead reckoning `FS_DR_ENABLE`, the EKF threshold `FS_EKF_THRESH`, crash check `FS_CRASH_CHECK`; the rule pack's `any_stage` list), which are offered with whatever stage is on offer: going back to the firmware's value touches no tuning, and it protects the tuning flights themselves. The motor-out margin found short at a flight's weight (`motor_out.short`, `motor_out.no_balance`) is on that list too. It is an operating limit, in the operations stage: flying lighter, more thrust or the motor-loss steps touch no tuning, so it never holds the filters or the rate tune back, and it matters on every flight at that weight, the tuning flights included. A stage is unverified while it holds a problem: a safety or stability recommendation, or a finding at caution or worse. A better option fixes no problem, so it never holds a later stage back. It is offered with the stage on offer when it belongs to that stage or an earlier one, and waits otherwise.
 
 1. Mechanical: vibration, mounting, props, motor faults
 2. Evidence: logging needed for the next analysis
@@ -1025,7 +1478,7 @@ The numbers above are illustrative. `expected_effect` comes from simulation wher
   - Mission Planner `.param` files carry the reason after each value (`NAME,VALUE  # why`), as Methodic Configurator writes them.
   - QGroundControl `.params` files carry the reasons as header comments, since its rows have five fixed fields.
 - A revert file: the settings that were for the test flight only, back as they were. A person loads it once the next log has confirmed the change.
-- An undo file: every value the plan changed, back as the flight had it. A person loads it if the test goes wrong. A parameter the plan made appear has no earlier value; it hides again once its switch is back off.
+- An undo file: every value the plan changed, back as the flight had it. A person loads it if the test goes wrong. A parameter the plan made appear has no earlier value; it hides again once its switch is back off. Work that changes values by itself is covered too: a procedure lists what its work may change (`undo_also`), and the undo file keeps the flight's values of those. AutoTune saves rate P, I and D, angle P and the acceleration limit of each axis it tunes (`AC_AutoTune_Multi::save_tuning_gains`, 4.7.0), so a tune that flies worse is undone like any change. The Plan view offers the undo file whenever it holds something: an accepted change, or such an action on offer.
 - The test card on its own, as text to print.
 - A full parameter snapshot for the airframe's history.
 - A flight report (HTML or PDF) for people who will not open the app.
@@ -1054,7 +1507,7 @@ The numbers above are illustrative. `expected_effect` comes from simulation wher
   - They are for the test flight of the stage on offer. Those a later stage's finding asks for wait for their own stage, even where they share a parameter with a change on offer, and their finding waits as an action: logging the rate loop for a tune check is not added to a filter test flight.
 - **Better options that need new hardware or firmware** are actions with their steps, never parameter changes.
 - **Parameter lists** name the bits a bitmask gains or loses, from the metadata.
-- **The checks** the app can run on the next flight: the finding clears, a message is logged, a metric is within a limit, a metric is given at all (it needs enough data, such as 6 counted stick inputs for tracking error), a parameter holds a value.
+- **The checks** the app can run on the next flight: the finding clears, a message is logged, a metric is within a limit, a metric is given at all (it needs enough data, such as 6 counted stick inputs for tracking error), a parameter holds a value, a metric is better than before the change in every payload band or no worse, and a loaded flight's metric is within a limit of the light one's (Closing the loop, below). A check can be marked required.
 
 **Closing the loop.** When the next log from the same airframe arrives, each applied recommendation is graded: confirmed, no measurable effect, or regressed, against its own `expected_effect`. Those grades calibrate the rule pack thresholds and feed the AI layer's evaluation set.
 
@@ -1067,7 +1520,7 @@ The numbers above are illustrative. `expected_effect` comes from simulation wher
   - If a later plan wants another value for a parameter whose proposal nobody acted on, the earlier proposal is marked **superseded**.
   - Blocked recommendations are not kept.
 - **A person's decisions:** accept, reject, or mark applied. Each decision is checked against the version that was read, so no decision is lost. Grades and supersession are the engine's alone.
-- **Applied:** a parameter change counts as applied when a later flight of the same airframe flies with the proposed value. "Later" means by UTC take-off, or by import order when a log has no UTC. An action counts as applied once a person marks it done.
+- **Applied:** a parameter change counts as applied when a later flight of the same airframe flies with the proposed value. "Later" means by UTC take-off, or by import order when a log has no UTC. An action counts as applied once a person marks it done, or once later flights raise the finding its procedure names as showing it done (below). An action a person marks done was done after the airframe's latest flight so far: the flights after that one are the ones with it.
 - **The grade.** The default expected effect is that the findings the recommendation answered clear.
   - **Confirmed:** none of them is raised again, or only at a lower severity.
   - **No effect:** the lead finding is raised again at the same severity.
@@ -1075,6 +1528,16 @@ The numbers above are illustrative. `expected_effect` comes from simulation wher
   - A later log whose analyzer could not judge the change (for example, no raw IMU data) leaves it applied and ungraded.
   - The grade records the flight that gave it and the severities before and after.
   - Grading runs whenever a flight is analysed.
+- **Measured checks** (`recommend/measured.py`) compare a metric before the change and with it, within each payload band, never a loaded flight against a light one. "Before" is each band's latest flight without the change and "with" its latest flight with it, up to the flight being graded. A parameter change is in the flights that flew with its proposed value; an action is in the flights after the one that showed it done.
+  - `metric_improves {metric, by}`: every band flown before the change is flown again with it, and there the metric is better by at least `by` (a share of its value before), with the two 95% intervals apart where the metric has them. A band worse by the same margin, intervals apart, marks the check worse.
+  - `metric_not_worse {metric, by}`: the same bands, flown again with it, none worse by `by` with the intervals apart. A guard on what the change is not meant to improve; one band clearly worse fails it at once.
+  - `no_shift_worse`: no metric shifted worse after the change beyond the airframe's spread (change attribution, below).
+  - `metric_vs_lightest {metric, max_ratio | max_above}`: with the change, the heaviest band's value is at most `max_ratio` times the lightest's, or at most `max_above` over it. ArduPilot tunes light, and the same gains may fly a heavier aircraft slower, but not less stable.
+- **Required checks.** A check marked `required` that cannot judge yet (a band not flown again, a metric not measured) keeps the grade pending: the recommendation stays applied, with what was measured so far kept beside it. A band already flown again that is worse is graded regressed at once, without waiting for the others: no loaded test flight is needed on gains a light one already showed worse. A check that is not required and cannot judge does not hold the grade back.
+- **Graded by its checks.** Some findings are offers that a later flight raises again whatever happened (AutoTune can always be run). A procedure marked `graded_by: checks` is graded on its checks alone: worse in any band is **regressed**, a failed check is **no effect**, and all checks passed is **confirmed**.
+  - The AutoTune offer is graded this way. It is confirmed when roll and pitch attitude tracking error are each at least 20% lower in every payload band flown before, with the intervals apart (required), rate tracking error is no worse, and no other metric shifted worse (`no_shift_worse`). Where they are measured, the sensitivity peak must also be under 2 on the graded flight, loaded rise time within 1.5 times the light flight's, and the loaded sensitivity peak within 0.2 of the light one's. This is the Phase 2 gate's measure (the tune check, "Attitude tracking error", says why attitude).
+- **Shown done by a later finding.** A procedure's `applied_when` names the finding that shows its work done, and the axes that finding must cover. The AutoTune offer is applied once `autotune.saved` has covered roll and pitch, over one flight or several (one axis a pack), with no person needed to mark it. The finding's own changes (rate filters at 10 Hz, more gain back-off) prepare that work: they are flown on the AutoTune flights, which measure no tracking, so they are graded only on flights after the work was done, with the same checks.
+- **Not offered again once done** (`rules/recommend.json`, `held_once_done`). A tune check's AutoTune offer is held back from the plan once a flight of the same airframe and build, flown no later, saved an AutoTune. The plan says what it held back and why, and the flight report still shows the finding. A new build version offers it again.
 
 ## AI layer
 
@@ -1098,11 +1561,25 @@ Claude is called on every analysis, but it only sees derived measurements and a 
 **Location scrubber: deny by default**
 
 - **Allowlist only.** Only engine-built feature objects and allowlisted parameters leave the machine. Raw log messages never do.
-- **Unit-driven field removal.** Any field whose logged unit is latitude or longitude is dropped at decode for the AI path, whatever message it sits in. That covers GPS, estimator and backup-AHRS positions, origin, mission commands, fence points, camera triggers and ADS-B, plus fields in messages added by future firmware. Tlogs get the same treatment from the units in MAVLink's message definitions (`degE7`, and degrees for float latitude and longitude fields). Mission and command coordinates carry no units, so `MISSION_ITEM`, `MISSION_ITEM_INT` and `COMMAND_INT` x/y in a global frame, and `COMMAND_LONG` param5/param6, are identified from the `MAV_CMD` parameter definitions (every command marked as carrying a location, including region-of-interest commands). Some position data carries no position unit, so it is treated as position whatever its units say: DataFlash columns stored as scaled latitude or longitude (format `L`), raw GNSS observation messages (`GRAW`, `GRXH`, `GRXS`), and RTCM correction payloads in tlogs (`GPS_RTCM_DATA`, `GPS_INJECT_DATA`), which carry the base station's position. The ground station's own position never leaves.
+- **Unit-driven field removal.** Any field whose logged unit is latitude or longitude is dropped at decode for the AI path, whatever message it sits in. That covers GPS, estimator and backup-AHRS positions, origin, mission commands, fence points, camera triggers and ADS-B, plus fields in messages added by future firmware. Tlogs get the same treatment from the units in MAVLink's message definitions (`degE7`, and degrees for float latitude and longitude fields). Mission and command coordinates carry no units, so `MISSION_ITEM`, `MISSION_ITEM_INT` and `COMMAND_INT` x/y in a global frame, and `COMMAND_LONG` param5/param6, are identified from the `MAV_CMD` parameter definitions (every command marked as carrying a location, including region-of-interest commands). Some position data carries no position unit, so it is treated as position whatever its units say: DataFlash columns stored as scaled latitude or longitude (format `L`), raw GNSS observation messages (`GRAW`, `GRXH`, `GRXS`), and RTCM correction payloads in tlogs (`GPS_RTCM_DATA`, `GPS_INJECT_DATA`), which carry the base station's position.
+
+  Two more rules cover DataFlash fields that hold a position with no position unit:
+  - **By name:** any field named as a latitude or longitude is a position, whatever its units. In 4.7, `VNKF` logs them in plain degrees and `RGPJ` as unitless integers.
+  - **By list:** fields that have neither a position unit nor a position name are listed in the rules. These are the MAVLink command log's coordinates (`MAVC` X and Y, and its Z altitude) and replayed GNSS altitude.
+
+  A message with any such field counts as one that holds a position. Of `MAVC`, only the command, its result, its sender and its target may be read.
+
+  The ground station's own position never leaves.
 - **Whole message types blocked:** raw GNSS observables, terrain data, follow-target data, embedded files and free-text messages.
-- **Location-revealing parameters removed:** AHRS origin, fence and rally settings, magnetic declination, system IDs, serial numbers and board unique IDs.
+- **Location-revealing parameters removed:** AHRS origin, fence and rally settings, magnetic declination, the barometer's ground pressure and temperature and the field elevation, system IDs, serial numbers and board unique IDs. The barometer's values are volatile, so they were already left out as learned values; they are named as well, so the policy never rests on the firmware's metadata alone.
 - **Side channels coarsened:** altitudes made relative to take-off, timestamps relative to arming with GPS week and time dropped, magnetic field strength and inclination dropped, ambient temperature and pressure rounded. Position-controller data goes out as error statistics, never as trajectories.
-- **Location work stays on the laptop.** Everything that needs a position is computed locally: weather interpolation, distance and bearing to the ground station, GNSS event positions, wind envelope and drift measurements. Only results without coordinates can leave, such as distance bands, rounded wind values, and event class and timing.
+- **Location work stays on the laptop.** Everything that needs a position is computed locally: weather interpolation, distance and bearing to the ground station, GNSS event positions, wind envelope and drift measurements. Only results without coordinates can leave, such as distance bands, rounded wind values, and event class and timing. The flight's weather leaves as rounded wind, gusts, rain, boundary layer and K-index only (Weather and wind, "In the AI packet").
+  - **The local track** (`analyzers/local_track.py`, `FlightData.local_track()` and `local_tracks()`) is the one place analysis reads positions.
+    - **What it reads:** the estimator's position (`POS`), else the first GNSS receiver's, through the cache's positions key. `local_tracks()` gives the estimator's track and each receiver's from one origin, so they can be compared.
+    - **What it holds:** east, north and up metres from the first fix (for several sources, the estimator's first fix), converted exactly through Earth-centred coordinates on the WGS84 ellipsoid. It holds no latitude or longitude, and the origin never leaves `local_track.py`.
+    - **What it gives:** distances, heights, and east and north offsets.
+    - **What it refuses:** to be pickled, copied or turned into JSON. It shows only its size.
+    - **Evidence** refuses an array or a track as a value, so what leaves an analyzer is computed results such as a distance or a drift.
 - **Checked twice.** The Rust shell repeats the location check with a separate implementation just before a packet is sent, so one bug cannot let coordinates through. The shell's check has three layers, written independently of the engine's:
   1. **Its own copy of the packet's shape:** any key or text field it does not expect is refused.
   2. **Coordinate detectors:** decimal-degree pairs, degrees-minutes-seconds, hemisphere letters, UTM, MGRS, geohash, plus codes, "lat"/"lon" labels, integers in the form of a coordinate ×1e7, and degrees given to more decimals than a packet needs. Numbers written inside text are checked as well. It also refuses any parameter that reveals the place or the aircraft, from its own list.
@@ -1215,7 +1692,7 @@ Claude is called on every analysis, but it only sees derived measurements and a 
 
 **Sending** (the shell's `claude.rs`, through `net.rs`):
 
-- **One way out.** Every HTTP client is built in the shell's `net.rs`, and every request goes through its checks: HTTPS only, no redirects, and only to a host on its allowlist. Today the allowlist holds just the Claude API. The update server, the Google Drive API and the Open-Meteo API join it with their own work. TLS is rustls with the ring provider, and certificates are checked against the operating system's trust store.
+- **One way out.** Every HTTP client is built in the shell's `net.rs`, and every request goes through its checks: HTTPS only, no redirects, and only to a host on its allowlist. Today the allowlist holds the Claude API (`api.anthropic.com`), the Google Drive API (`oauth2.googleapis.com`, `www.googleapis.com`), the Open-Meteo commercial API (`customer-api.open-meteo.com` for forecasts, `customer-archive-api.open-meteo.com` for ERA5) and NOAA SWPC (`services.swpc.noaa.gov`, the planetary K-index). The update server joins it with its own work. TLS is rustls with the ring provider, and certificates are checked against the operating system's trust store.
 - **Every analysis queues its flight.** A worker sends one flight at a time, in the background.
   - It sends only when the start-up gate is `ready` and a key is set.
   - A flight whose current analysis already has an answer is not sent again unless a person asks ("Send now").
@@ -1271,7 +1748,7 @@ Rules that keep decisions easy:
 | Incident timeline | Onboard events, tlog events, commands, warnings, bus errors, ground station session records, parameter and build changes on one time axis, first fault marked | Jump from any event to its data |
 | Weather | The flight's weather record, aircraft-measured against model wind, the airframe's wind envelope | Compare models; filter trends by wind and density |
 | Filter workbench | Pre- and post-filter spectra, spectrogram over time with motor RPM and notch centres overlaid, predicted spectrum, phase-lag readout | Edit candidate filter values and see the prediction update |
-| Tune | Tracking error per axis with its 95% interval against a flight of the same profile and payload band; step and frequency responses per axis, before and after; the stick inputs counted and those left out, with why; whether the plan improved the tune | Pick the flight to compare with, the payload band and the axis; open the tune-check card |
+| Tune | Attitude tracking error (the tune's measure) and rate tracking error (its guard) per axis, each with its 95% interval, against a tune-check flight of the same payload band; step and frequency responses of one axis, both flights; the stick inputs counted and those left out, with why; whether the plan improved the tune | Pick the flight to compare with (same band), the payload band and the axis; open the tune-check card |
 | Propulsion and power | Per-motor output and RPM, temperatures, sag, battery resistance, thrust-model fit, motor-out margin by payload | Select motors and segments; see which motor loss is worst |
 | System and buses | CPU load, loop timing, latency budget, per-task CPU, bus and interface errors | Align with flight events; compare before and after a change |
 | Navigation and GNSS | Estimator innovations, GPS quality, jamming and spoofing events with their evidence, position-controller error statistics | Select segments |
@@ -1282,6 +1759,30 @@ Rules that keep decisions easy:
 | Sync | Each laptop, last sync, items waiting to upload, quarantined items with reasons | Retry; open a quarantined item's details |
 | Ask | Chat about this flight, airframe or platform | Answers cite evidence and open the matching plot |
 | Compare | Two flights, airframes or platforms side by side | Pick metrics |
+
+**The Tune view** (`flight.tune`, `engine/src/flight_insights/tune_view.py`; mock-up `Tune.dc.html`):
+
+- **Which flights.**
+  - A tune-check flight is one the tune check measured tracking error on.
+  - Flights are compared only within a payload band (Performance trends, "Like with like"), never light against loaded.
+  - In another band than its own, "this flight" stands for that band's tune-check flight flown on the same tune: the same values of every parameter the attribution map ties to the metrics shown (`rules/attribution.json`), nearest in flying order. Learned values such as the hover throttle are not tied, so they split nothing. With none, the view says the band is still to fly on these gains.
+  - Unless a person picks another flight of the band, the comparison is the latest tune-check flight before it on a different tune (before the last change that could move the tune), or else the latest before it.
+- **Tracking error.** Attitude error on roll and pitch comes first, as the gate's measure, then rate tracking error on each axis as its guard. Each change is judged as the AutoTune offer's checks judge a band, by the share its procedure asks (20%):
+  - intervals apart and at least that large;
+  - short of it;
+  - within the spread.
+- **Responses** of the chosen axis:
+  - **Rebuilt from both logs** as the rate-loop analyzer measured them.
+  - **The step:** shown only where the inputs measured past the bandwidth. This flight's step carries a per-sample 95% interval from the same resampled blocks as its figures' intervals.
+  - **The frequency response:** drawn over its measured band only; the range above it is shaded as not measured, and each flight's bandwidth is marked.
+  - **The figures** (rise time, overshoot, settling, bandwidth, sensitivity peak) are the flights' analysed metrics, with this flight's interval.
+- **Stick inputs** of this flight on a time line from arming, counted or left out, with each reason left out said once, with its first time.
+- **The plan's verdict:**
+  - the airframe's AutoTune action and its checks as last graded, or still waiting for a band;
+  - the attitude error per axis, then the guards merged across axes, each with its bands;
+  - the changes that prepared it, with their grades.
+- **The tune-check card:** the profile's ground check, flight and abort steps from the tune-check procedure.
+- **Wind at take-off** joins the comparison with the weather work (F2).
 
 ### Explanations for every metric and data point
 
@@ -1383,6 +1884,8 @@ Each band shows its source on hover. Changing a platform's targets is an enginee
 **Zones and direction.** Three zones (target, caution, out of range), always labelled in text as well as colour. Each metric has a direction: lower is better (noise, vibration, loss), within a band (hover throttle, overshoot), or higher is better (fade margin, satellites, efficiency).
 
 **Like with like.** Trends are filtered by flight phase and payload band by default, so a heavy hover is never plotted against a light one. Where physics allows, metrics are normalized, for example hover power per unit mass using the hover-thrust ratio.
+
+**Payload bands.** A flight's band comes from its hover thrust at standard air (`payload.hover_thrust`, see Vehicle fingerprinting), not from the text it was labelled with, so the same label on two loads splits and two labels for one load join. The reference is the airframe's lightest flights: the median of those within 5% of the lightest one, so one light outlier does not move every band. Band k holds the flights within half a step of the reference times 1.1^k: band 0 is the lightest, band 2 about 21% heavier (`band_step` and `lightest_within` in `rules/payload.json`). A flight with no hover thrust (too little steady hover, or no motor outputs in the log) keeps its payload label as its group. The dashboard, a metric's series, the fleet's key metrics and a flight report's baselines each compare within the flight's own group; the picker lists the bands lightest first, with the labels their flights were imported with, then the label groups. A flight weighed at import gives the airframe's kilograms per percent of hover thrust (the median over its weighed flights), which turns every band and flight into kilograms. With two or more weighed, each one's weight is also estimated from the others' and shown beside the scale's, so the estimate is checked on the aircraft itself (`trend.payloads`).
 
 | Metric | Unit | Better | Range source |
 | --- | --- | --- | --- |
@@ -1534,7 +2037,7 @@ The airframe, not the log, is the unit the app reasons about: every flight, para
 | Ground station | Name, current version, the airframes it has flown |
 | Ground station version | Computer specs, software and versions, radios and their settings, antennas and cables, effective date |
 | Session record | Ground station computer load, USB and serial errors and network status, per second during a flight |
-| Flight | Log content keys (.bin and tlogs), airframe, build version, ground station version, parameter snapshot, firmware version, packs and payload used, duration, segments, data-quality flags |
+| Flight | Log content keys (.bin and tlogs), airframe, build version, ground station version, parameter snapshot, firmware version, packs and payload used, take-off weight where weighed, duration, segments, data-quality flags |
 | Weather record | Model and reanalysis values at the flight's time and height band, aircraft-measured wind, ground measurement, space weather, source and quality tags |
 | System snapshot | The flight controller's system files saved at download: threads, tasks, serial ports, memory, CAN statistics |
 | Parameter snapshot | Full set per flight in its dialect, plus the diff from the previous flight |
@@ -1553,7 +2056,7 @@ The airframe, not the log, is the unit the app reasons about: every flight, para
 - **When it joins,** its hashes are made again with the fleet's key, derived from the fleet's root key. Raw IDs are never stored, so each flight's hash is remade by reading its log again from where it was imported. The flight key, the cached columns, the airframe's board and this computer's ground-station hash follow it.
 - **A flight whose log is no longer on disk** keeps its old hash. Imports on that laptop also hash a board with its old key, so the airframe is still recognised there.
 
-**Storage.** SQLite for entities, Parquet per flight for decoded columns. The shared Google Drive folder is the permanent record (see Shared storage and sync); each laptop's database is a complete working copy that can be rebuilt from it. Decoded columns can be evicted and rebuilt from the original log; findings and snapshots are kept.
+**Storage.** SQLite for entities, Parquet per flight (and per tlog) for decoded columns. The shared Google Drive folder is the permanent record (see Shared storage and sync); each laptop's database is a complete working copy that can be rebuilt from it. Decoded columns can be evicted and rebuilt from the original log; findings and snapshots are kept.
 
 **Encryption at rest.** Local logs and caches contain full GPS tracks. The app requires OS full-disk encryption on the machine and encrypts its own database with SQLCipher, using a key held in the OS keychain. The Parquet cache uses Parquet modular encryption, with position columns under their own key, so analysis and AI paths never touch them. The shell reads both keys from the keychain and passes them to the engine at start-up; they are never written to disk. Nothing is deleted: positions are kept, encrypted, like everything else.
 
@@ -1584,7 +2087,8 @@ Every laptop keeps a full working copy of all data and shares it through one com
 - **Layout on the drive.** Everything lives under one folder, "Flight Insights", in the shared drive:
   - `devices/<laptop-id>/` for each laptop's objects;
   - `registry/` for the device registry's events;
-  - `keys/<laptop-id>/` for the fleet's service keys (see Security, "Service keys").
+  - `keys/<laptop-id>/` for the fleet's service keys (see Security, "Service keys");
+  - `weather/<folder>/<laptop-id>/` for shared weather downloads, one folder per download, named by a keyed hash (see Weather and wind, "Fetched once").
 
   Folders are created the first time they are needed. If two laptops create the same folder at the same moment, Drive keeps both: a path then stands for all folders of that name, every listing reads them all, and new files go into the one with the smallest id.
 - **Transfers.** Uploads are resumable, in 8 MiB chunks, and carry on from what Drive holds after a dropped connection. The SHA-256 Drive reports is compared with the app's own before an object counts as sent. A name already present is never written again. A refused access token is renewed once; Google's "slow down" (429) and server errors are retried with growing waits. A revoked refresh token asks the person to sign in again.
@@ -1643,7 +2147,7 @@ devices/<laptop-id>/<sequence>-<object-key>.fio
 | Records | laptop, platform, build_version, airframe, component, battery_pack, ground_station, ground_station_version, source_file, param_snapshot, flight, change_set, recommendation, ai_packet, ai_exchange | A new record whole, with each field's clock; a changed record as its changed fields |
 | Links | flight_source, flight_battery, build_component | Added once, never changed |
 | Children | param_value and param_change, with their parameter snapshot | Sent with the snapshot when it is new |
-| Local only | analysis_run, finding, metric_value (recomputed); station_folder, ignored_file, source_location (this laptop's paths); the sync tables themselves | Never sent |
+| Local only | analysis_run, finding, metric_value (recomputed); tlog_session, flight_tiles, flight_weather (derived from the logs); weather_tile, weather_download (this laptop's weather, shared as drive objects); station_folder, ignored_file, source_location (this laptop's paths); the sync tables themselves | Never sent |
 
 A few fields of synced records name a row that exists only on the laptop that wrote them, and stay there: `recommendation.finding_id` and `ai_packet.run_id`. Each record also carries a **portable reference** to the same thing:
 
@@ -1802,6 +2306,14 @@ Every flight is tied to the exact parameter set it flew with, and every change b
 | Battery and failsafe parameters | Failsafe margins |
 | Notch count and options, in-flight FFT, raw IMU and batch logging, log bitmask, EKF lane and IMU masks, loop rate, fast-rate loop, scripting, stream and DroneCAN rates | CPU load, slow-loop share, maximum loop time, free memory, latency budget |
 
+The map lives in the rule pack (`knowledge/rules/attribution.json`, 25 links in Phase 2). Each link names its parameters as patterns over the 4.7 names, and for each metric:
+
+- **A direction.** +1 when the metric moves the way the parameter's value moves (more rate D, more D-term noise), -1 the other way (more rate P, less attitude tracking error), or 0 when it can go either way: a bitmask, a switch, 0 meaning off (`ATC_RAT_*_SMAX`, `ATC_ACC_*_MAX`), or a value whose effect depends on where it sits (a notch's frequency).
+- **A strength** (strong, medium, weak) that weights how firmly the link holds.
+- **Its axis.** A pattern that captures the axis (`ATC_RAT_(RLL|PIT|YAW)_P`) ties each axis's parameter to that axis's metrics.
+
+Every link gives its reason in English and Ukrainian, with sources: ArduPilot's own parameter documentation for each parameter's role, and control texts for the direction (Astrom and Murray). The registry refuses a link whose metric it does not know, or whose direction, strength, texts or sources are missing, and a test checks every pattern against each release's parameters. Only tuning and calibration parameters are tied to metrics: learned values, counters, hardware IDs and ground-station settings change on their own and are context only. The map ties measurement changes too: a current-sensor scale (`BATT_AMP_PERVLT`) moves every power figure, and the thrust curve (`MOT_THST_EXPO`, `MOT_SPIN_*`, `MOT_PWM_*`) moves the hover-thrust estimate, with nothing changed on the aircraft. The map is a prior, uncalibrated; rows above whose metrics no analyzer gives yet (position, TECS, transition, telemetry) join it with their analyzers.
+
 The AI layer can propose links the map lacks; those are shown as hypotheses until a later flight confirms them.
 
 **Attribution method**
@@ -1822,6 +2334,71 @@ The AI layer can propose links the map lacks; those are shown as hypotheses unti
 6. **Bisect when several changes landed together.** The app orders single-change test flights from most to least likely and stops once the shift is explained.
 7. **Credit improvements the same way,** so a change that helped is confirmed and kept, not just remembered.
 
+**How a shift is measured and ranked** (`history/attribution.py`; numbers in `rules/attribution.json`, uncalibrated):
+
+- **Series.** Each metric, per airframe, segment and payload group, one point per flight, never a loaded flight against a light one.
+- **Boundaries.** A boundary is where changes first apply: a parameter change set, a build change, a firmware change. One whose changes are all context (learned values, counters) is none.
+- **Windows.** At each boundary, the flights since the last boundary that could move this metric (a parameter the map ties to it, a build or a firmware change), and until the next one, at most 5 each side. A change that cannot move the metric does not cut its series short.
+- **The test.** With 3 flights before and 2 after, the effect is the median after minus the median before. It is compared with the flights' spread before (1.4826 times their median absolute deviation, at least 1% of the median), with a seeded percentile bootstrap interval of the difference of medians.
+  - It is a shift when the effect is at least twice the spread and the interval leaves out 0, and inconclusive when it is that large but the interval holds 0.
+  - With fewer flights, a metric measured with an interval on each flight (the tune check's) compares the last flight before with the first after: a shift when the intervals are apart and the change is at least 10%.
+  - A shift is worse or better by the metric's direction; a band metric only moved. Where two boundaries' windows overlap, the better-linked, larger shift is kept.
+- **Bracketing.** Every change applied after the last flight before the shift and by the first flight after it is a candidate.
+- **Ranking.** Each candidate's score multiplies four things:
+  - the map's strength for this metric;
+  - how well its direction fits: a match counts 1.0, either-way 0.6, and a change that would have pushed the metric the other way 0.2;
+  - its size: the relative change over 25%, at most 1;
+  - its timing: 1 at the shift's own boundary, 0.5 for one the windows spanned.
+
+  A parameter the map does not tie to the metric scores 0.05, a build change 0.5 and a firmware change 0.3. Learned values, counters, hardware IDs and ground-station settings are listed as context, unscored.
+- **The fleet.** What the platform's other airframes showed for the same change then weighs in (Fleet evidence, below): confirmed multiplies the score by 1.5, contradicted by 0.5, and a change the map does not tie to the metric but the fleet confirmed scores 0.6 as a learned link.
+- **Confidence.** High when the top candidate is linked, scores at least twice the next, and no build or firmware change sits with it; medium when it is linked; low otherwise.
+- **Weather.** For a metric the weather can move (`rules/attribution.json`, "weather": wind and gusts for tracking, attitude and response errors, hover power, current and motor saturation; density altitude for power, hover throttle, saturation and the motor-out margin; temperature for ESC temperature and battery resistance), the shift lists each variable's median over the flights before and after it, from the records that cover at least half of their flight. A difference of at least 3 m/s of wind, 4 m/s of gusts, 300 m of density altitude or 8 °C lowers the confidence one step (high to medium, medium to low). Uncalibrated; with no records nothing changes.
+- **Where it shows.** The engine gives the shifts with their ranked candidates and each link's reason (`trend.attribution`). The trend marker and the inspector come with the trends and history screen, whose mock-up waits for approval.
+- **In grading.** A procedure's check `no_shift_worse` fails when a metric shifted worse between the first flight with the change and the one graded. When the shift's top-ranked cause is the change's own parameter, or a value its work saves (the gains AutoTune saves), the grade is regressed, unless the weather differed beyond the thresholds above: then the check fails and the grade is not regressed on that shift alone. The AutoTune offer carries it: this is the Phase 2 gate's "nothing else regresses". A metric with too few flights to judge is no shift, so it passes until those flights are flown.
+
+**The in-flight A/B split** (`history/ab.py`; numbers in `rules/attribution.json` "in_flight", uncalibrated). Method step 4 above, measured within one flight:
+
+- **What splits a flight.** A parameter changed while armed. The log records a ground station's write as `PARM`, and a transmitter tuning knob as `PTUN`. A script's own changes are not logged at all (4.7.0 logs `PARM` only for a ground station's write, `GCS_Param.cpp`), so a flight a script changes cannot be split. The change splits the flight only when the map ties it to a metric that an analyzer able to measure part of a flight emits.
+  - Such changes within 5 s of each other are one moment, as when a person sets several values at once.
+  - Any other change within 5 s is listed with the moment but neither makes one nor stretches it. The tune check's own logging switched on and off is one such change.
+- **The tuning knob** (`TUNE`, `TUNE2`; an RC channel with `RCx_OPTION` 219). About three times a second the firmware sets what the knob's function names from the knob's position, without saving it, and logs `PTUN` with the function, the value and the knob's range (`tuning.cpp`).
+  - **Its value is what flew.** While a knob is set up, the stored parameter is not what the aircraft flies, so each side is measured with the knob's value. The log's own parameter at arming already holds it, because `PARM` is written from the value in use.
+  - **A turn** runs from the knob leaving a value it held for 2 s to reaching the next. Values within 2% of the knob's range are the same value, so a receiver's jitter is no turn, and a knob nudged and put back has not turned. A turn while disarmed sets the value the flight starts with.
+  - **What each function sets** is a table in the rule pack: the canonical parameters, with a scale where the knob's units differ (WP Speed is set in cm/s; `WP_SPD` is in m/s). Functions that set no parameter are left out: the helicopter's external gyro, declination and the system ID signal. So are the helicopters' feed-forward functions, which only a helicopter sets.
+  - Each change is labelled with how it was made: in flight by a ground station, or by the tuning knob.
+- **The sides.** Before: from the last moment that moves the same metrics (or arming) to this one's first change. After: from 2 s past its last change to the next such moment (or disarming). A change that cannot move those metrics does not cut a side short, as between flights. A side under 20 s is not compared, and the split says why.
+- **Measuring a side.** The analyzers that keep to the part of the flight they are given (`spans`: the tune check, the rate-loop response and rate-loop health) measure each side. They use the parameters as they stood just before and just after the moment. Arming stays where it was, so heights keep their ground.
+- **The test.**
+  - **A metric with an interval on each side** (the tune check's tracking errors) compares the two as a pair, as two flights do: a shift when the intervals are apart and the change is at least 10%.
+  - **Any other metric** is measured on 10 s blocks across each side, and tested as a shift over flights is: at least 3 blocks before and 2 after, the effect at least twice the blocks' spread, with a bootstrap interval.
+- **The causes.** The moment's changes, ranked by the map as a shift's are (strength, direction, size; timing is always exact). There is no build, firmware or weather between the sides to confound them.
+- **Where it shows.** The engine gives each split with its sides in seconds after arming, its results and its ranked changes (`flight.ab`). It joins the trends and history screen, whose mock-up waits for approval. It does not enter AI packets.
+- **Checked on SITL** (`copter-quad-tune-ab`). Six roll doublets, then the roll rate gains written to 0.4 of their defaults mid-flight, then six more:
+  - roll rate tracking error went from 25.1% to 41.0%, and roll attitude tracking error from 6.6% to 17.2%, each with the two sides' intervals apart;
+  - roll rate P was ranked first, with high confidence;
+  - the tune check's logging switches split nothing.
+- **And with the knob** (`copter-quad-tune-knob`). The same flight, but the roll rate P is on a knob (`TUNE` 49, from 0.054 to 0.135), turned from its top to its bottom between the doublets:
+  - the turn took 0.3 s;
+  - roll rate tracking error went from 25.1% to 36.5%, and roll attitude tracking error from 6.6% to 16.0%, each with the two sides' intervals apart;
+  - roll rate P from the knob was ranked first, with high confidence.
+
+**The revert test** (`history/revert.py`; texts in `rules/attribution.json` "revert_test"). Steps 5 to 7 of "pointing at the cause", for a shift that made a metric worse:
+
+- **The steps.** Each parameter candidate becomes one single-change test flight, ranked as the shift ranks it, most likely first.
+  - **The revert file** puts that one parameter back as it was, in the firmware the airframe flew last, and leaves every other change in place. Its header carries the card: what it changes, the profile to fly again (the shift's segment, payload and battery), and what the next log should show.
+  - **The undo file** puts it back as it is now, for when the test shows it was not the cause.
+  - A build or firmware change cannot be put back by a file. It is listed for a person, beside the steps.
+- **Which flight tested which change.** Nothing is stored: the airframe's later flights say it, so every laptop reads the same. A later flight in the shift's payload group is that candidate's test when the candidate is back at its value before and every other candidate is still at its value after. A flight that put two back tests neither.
+- **Reading the test.** Against the shift's own flights, with twice its spread before, as the shift's own test uses:
+  - **explained:** back within that of the flights before, and not within it of the flights after;
+  - **not this one:** the other way round;
+  - **unclear:** anything else.
+
+  A metric with an interval on each flight (the tune check's) reads the test flight's interval instead, against the last flight before and the first after: touching one and apart from the other.
+- **Bisection.** Once a step explains the shift, the steps after it are not needed. A step that is not the cause, or is unclear, sends the next one.
+- **Where it shows.** The engine method `trend.revert_test` gives a shift's steps, what each later flight showed and the step to fly next. With a step and a file kind, it also gives that step's two files. The inspector of the trends screen shows it once that screen's mock-up is approved.
+
 **Example of what the user sees** (illustrative values):
 
 *Hover gyro noise in the motor band (80-120 Hz) rose 6 dB from flight 37, outside this airframe's normal spread.*
@@ -1837,6 +2414,22 @@ The AI layer can propose links the map lacks; those are shown as hypotheses unti
 
 **Fleet evidence.** When the same parameter change is made on several airframes of a platform, their before-and-after results are pooled. A change that consistently moves a metric across airframes is ranked higher everywhere it appears, and the platform's parameter map gains a confirmed link.
 
+- **Measured now** (`history/fleet.py`; numbers in `rules/attribution.json` "fleet", uncalibrated). Each of the platform's other airframes votes once per parameter, the way it was changed and metric, with the way the metric moved. An airframe's own shifts never count towards its own ranking.
+- **What counts as a vote.** A shift, not inconclusive, gives one when either:
+  - its top-ranked candidate is tied to the metric by the map and the shift is at medium or high confidence;
+  - or the change was the only one at that boundary, tied or not, since nothing else changed with it.
+- **Confirmed and contradicted.**
+  - **Confirmed:** at least 3 airframes agree, and at most a quarter of the votes disagree.
+  - **Contradicted:** the same the other way round.
+  - **Learned link:** a change the map does not tie to the metric, once confirmed. This is how the platform's map gains a link from its own flights.
+- **Where it shows.** Each ranked candidate carries its votes. The engine method `trend.fleet` lists the platform's confirmed links, with whether the map already holds each.
+
+**Credit for improvements** (`history/credit.py`). Step 7 of "pointing at the cause", measured:
+
+- **What is credited.** A shift that made a metric better, at medium or high confidence, credits its top-ranked parameter change when the map or the fleet ties that change to the metric.
+- **Following the change.** The credit is kept while every later flight still has the value the change set. The first later flight with any other value undoes it, and is named with the value it had instead, because putting back a change that helped is where a regression starts.
+- **Where it shows.** The engine method `trend.credits` lists an airframe's credits, each kept or since undone. A worse shift is never credited: it gets the revert test.
+
 ### History and upgrades
 
 **History view.** Per airframe, a timeline like a version history: snapshots, diffs, origin labels, tags such as "after Autotune", and export of any past snapshot as a `.param` file to roll back.
@@ -1845,15 +2438,71 @@ The AI layer can propose links the map lacks; those are shown as hypotheses unti
 
 Snapshot capture starts in Phase 0, so attribution has real history to work with when it arrives in Phase 2.
 
-## Simulator checks (proposed)
+## Simulator checks
 
-ArduPilot's simulator (SITL) runs the real flight code against a physics model, so settings can be rehearsed before they are flown. The app can pair with it in three ways:
+ArduPilot's simulator (SITL) runs the real flight code against a physics model, so settings can be rehearsed before they are flown. Adopted on 2026-10-26, in Phase 2. The app pairs with it in three ways:
 
 1. **Rehearse GNSS-denied recovery.** Fly the airframe's model, cut GNSS mid-mission, and check that the failsafe settings bring it home and how far it drifts, before trying it in the field.
 2. **Confirm motor-out margin.** On hexa and octo frames, fail each motor in turn at maximum payload (SITL's `SIM_ENGINE_FAIL`) to check the predicted margin and see how yaw behaves.
 3. **Catch configuration mistakes.** Load a proposed parameter file and run a scripted mission to check that arming checks, mode changes and failsafes behave as intended.
 
-**How the app connects.** It builds the airframe's simulator model from its logs and setup: mass, hover throttle, thrust curve, battery resistance, disc area and drag. These are the fields of ArduPilot's own frame models, such as Callisto, an 8-motor, 32.5 kg heavy-lift ([Callisto model](https://github.com/ArduPilot/ardupilot/blob/master/Tools/autotest/models/Callisto.json), [custom SITL models](https://discuss.ardupilot.org/t/customizing-sitl-multicopter-simulations-tailoring-realism-to-your-drone/105549)). It exports the model, the parameters and a test script, then imports the simulator's logs and compares them with real flights.
+The app itself never runs a simulator or connects to an aircraft. It exports the files, and people and CI run them.
+
+**The model** (`engine/src/flight_insights/sim/export.py`; rules in `knowledge/rules/sim.json`; engine method `airframe.sim_export`). The app writes the fields of ArduPilot's own frame model (`Frame::Model` in `libraries/SITL/SIM_Frame.cpp`), such as Callisto's ([Callisto model](https://github.com/ArduPilot/ardupilot/blob/master/Tools/autotest/models/Callisto.json), [custom SITL models](https://discuss.ardupilot.org/t/customizing-sitl-multicopter-simulations-tailoring-realism-to-your-drone/105549)), from one of the airframe's flights (its latest with a steady hover, or one a person picks), its setup and its parameters. Each value comes with where it came from.
+
+- **The simulator's frame:** from the frame table's `sitl` (above, Motor-out margin). An airframe whose frame the simulator cannot model gets no export.
+- **The weight:** the take-off weight a person asks for, else the flight's: weighed at import, else estimated through the payload bands, else the setup's typical take-off weight (named as such).
+- **Hover** (`hoverThrOut`). The simulator's motor makes its share of the weight times ((1 − e) c + e c²) / hoverThrOut, times the air's density over the reference altitude's, times the square of the battery voltage over `maxVoltage`. So the flight's steady hover is read through that same law: each sample's motor outputs through the thrust curve, times the square of its voltage over the full pack's, times the tilt, at standard air. A heavier take-off scales it in proportion, as the simulator itself scales a payload.
+- **The air the hover is read in.** The barometer's pressure, at the weather record's air temperature, or at the barometer's own temperature when the flight has no record. The barometer reads the board's temperature, a little above the air's, so the hover then reads light. In the simulator, its own standard atmosphere at that pressure. The simulator's barometer reports a board temperature around 25 °C, so reading its density from that temperature put the hover 6% low.
+- **Power** (`refVoltage` × `refCurrent`). The flight's measured hover power, at the take-off weight as an ideal rotor's (in the 1.5 power of the thrust). The simulator draws the same power per newton whatever the air, so it is not scaled for density. With no battery current in the log, it is an ideal rotor's power from momentum theory, the least a real one draws, and the note says so: the simulator sizes its rotors from this power, so it is never left out.
+- **Drag** (`mdrag_coef`; `refSpd` and `refAngle`). The measured drag (Weather and wind, "The aircraft"): the flight's own, or its airframe's from flights in the same payload band and on the same build when it only hovered. The simulator's momentum drag is `mdrag_coef` √(ρ A T) per motor, so `mdrag_coef` = k1 √(m / (g ρ A)). Its bluff-body drag takes areaCd only through a reference test flown at `refSpd` and tilted `refAngle`, so the angle is solved, at 10 m/s, for areaCd = 2 m k2 / ρ. With no drag measured, the simulator's defaults stay and say so.
+- **From the setup:** `diagonal_size` from the wheelbase, and `disc_area` from the propeller diameter and the number of arms (a coaxial pair shares a disc, as the simulator counts it). Both are required: with the simulator's 0.35 m default, Callisto's tuned gains could not hold the model in a hover.
+- **From the parameters and the pack:** `propExpo`, `pwmMin`, `pwmMax`, `spin_min` and `spin_max` from the thrust curve and output range. `maxVoltage` is `MOT_BAT_VOLT_MAX`, or the cell count times the chemistry's full cell (LiPo and Li-ion 4.2 V, LiHV 4.35 V, LiFePO4 3.65 V). `battCapacityAh` comes from the setup's pack, or `BATT_CAPACITY`. `refBatRes` is the firmware's own estimate the flight ended with (`BAT.Res`), as ArduPilot's models take it. It settles slowly, so a short flight reads low: Callisto's 15 s hover read 15 mΩ against the model's 24 mΩ.
+- **Left to the simulator:** the moment of inertia (its estimate from mass and size), `refRotRate` and `slew_max`.
+- **Nothing about the site.** `refAlt` is 0 and `refTempC` 15: the model is at standard sea-level air, and the simulator flies it in the air of whatever home it is given.
+- **The boot parameters.** The flight's set, as its firmware names them, with these left out, each counted with why:
+  - calibration, learned values (among them the barometer's ground pressure and the field's elevation), counters, hardware IDs and ground-station rates;
+  - everything the location policy removes;
+  - the real hardware's ports, buses, GNSS receivers, sensor mounting, battery-monitor wiring, devices and output wiring.
+
+  The motors move to the simulator's channels (motor n on output n), which is the only wiring its frame reads, and `MOT_PWM_MIN`/`MAX` are written out.
+- **The files:** the model as JSON, the parameters as a `.param` file to load after the simulator's `copter.parm`, a note with the command lines and the source of every value, and the flight script. A bundle made from an HL1 or HL2 flight stays on the team's machines: only bundles from the simulator's own flights are committed.
+- **The flight script** (`knowledge/sim/fly_sitl.py`, copied into every bundle). It starts ArduPilot's simulator from a checkout of the release with the model and parameters, flies one flight and keeps the log for the app to import. It needs only pymavlink. Flights:
+  - **hover:** 30 s at 15 m, for the hover and power the model came from;
+  - **legs:** at 20 m, legs at 3, 6 and 9 m/s on eight courses, then a hover facing eight ways, for the drag;
+  - **motors:** a hover with each motor stopped in turn for 12 s (`SIM_ENGINE_FAIL`, `SIM_ENGINE_MUL` 0), for the motor-out margin.
+
+  It talks only to the simulator it starts on this computer: the link must be loopback and the vehicle must have the simulator's own `SIM_` parameters. The only parameters it ever writes are `SIM_` ones, through one guarded call. It cannot write to an aircraft.
+- **Checked against ArduPilot's own models.** From the simulator's flights of its default quad and of Callisto, the export gives back:
+  - the hover within 0.1% (Callisto 0.35904 against 0.35910 at sea level);
+  - the hover power within 0.5%;
+  - the momentum drag within 2%, and the bluff-body drag within 5%;
+  - Callisto loaded, from the light flight at 40.5 kg, within 1% of the loaded flight's own.
+  - **Flown again.** Locally, the exported Callisto and quad were flown in the 4.7.0 simulator on the fixtures' profiles, and exporting from those flights gave the same model again: hover within 0.01%, the same power, and drag within 3% (`tests/test_sim_export.py` for the arithmetic). CI flies them in the simulator-checks workflow (below).
+
+**Checked in CI** (`tools/sim/check_sim.py`, workflow "Simulator checks", on pull requests that touch the export, the flight script, the motor-out model, the frame tables, the recovery card or the failsafe rules). Models exported from the committed fixtures are flown with the bundle's own script in the 4.7.0 simulator, and compared with what the app predicted:
+- **Round trip.** The default quad (from its legs) and Callisto (from its hover), flown again on the same profile and exported again from those flights. The model must come back: the hover within 0.5%, the power within 1%, and the quad's drag at the legs' 3, 6 and 9 m/s within 3%. The drag is checked as the sum the simulator flies, k1 v + k2 v² per unit mass, not term by term: a fit can move some of the drag between its momentum term and its bluff-body term within its own intervals, so that split is reported but not checked.
+- **Losing a motor at the heaviest take-off.** Callisto exported at 40.5 kg, each motor stopped in turn while hovering. The busiest remaining motor must run within 3 points of what the motor-out model of ArduPilot's mixer predicts from the hover just before. The aircraft must hold its height within 1 m and its heading within 15°.
+- **Result on 4.7.0** (two local runs, 2026-10-27; CI repeats it on every pull request the workflow covers):
+  - **quad:** hover 0.356894 and 0.356903 against 0.356891, and power 354.3 W against 354.3 W. The drag came back within 1.6% at 3, 6 and 9 m/s. Its split moved: the momentum term 1.7 to 2.6% lower and the bluff-body term 3.8 to 4.7% higher, against fit intervals of about ±2.5% each;
+  - **Callisto:** hover 0.359017 and 0.359018 against 0.359044, and power 3064.8 W against 3065.0 W;
+  - **each of the eight motors lost at 40.5 kg:** the busiest remaining motor ran at 83.7 to 85.8%, 0.5 to 1.0 points above the mixer model's 82.9 to 85.2%. The aircraft lost at most 0.49 m of height, and its heading moved at most 7.0°.
+- **The recovery card's link and GNSS sections** (`tools/sim/check_card.py`, the same workflow, on pull requests that also touch the card or the failsafe rules).
+  - **How it flies.** ArduPilot's default quad is flown as the team flies theirs: from the ground station, the joystick's sticks sent as `MANUAL_CONTROL` with the station's heartbeats (`RC_OPTIONS` bit 0). It takes off to 10 m in GUIDED and flies 5 s in its start mode. Then the link is cut, the sticks and heartbeats stopping together, and in two cases GNSS too (`SIM_GPS1_ENABLE` 0). Two more cases fly on a pilot's receiver with the telemetry up, and lose the receiver: no pulses (`SIM_RC_FAIL` 1), or its failsafe throttle under `FS_THR_VALUE` (`SIM_RC_FAIL` 2).
+  - **The test.** The log's mode changes made by a failsafe after the cut must be the card's, in order. The radio failsafe must come within 0.5 s of the card's time, and the ground station's within 1 s, which covers a heartbeat's spacing and its 3 Hz check. With GNSS lost too, the last change must be where the card's order "link first" ends.
+  - **The cases:**
+    - the radio failsafe's RTL;
+    - the radio failsafe's Land, then the ground station's RTL;
+    - the radio failsafe off in AltHold, which carries on under "pilot control";
+    - the same settings in Guided, which returns;
+    - RTL, then GNSS lost and the EKF failsafe's Land;
+    - the radio failsafe off with the EKF failsafe's AltHold, which is left holding height with no one flying it;
+    - a receiver that stops sending, which returns after `RC_FS_TIMEOUT`;
+    - a receiver sending its failsafe throttle, which returns at once.
+  - **Result on 4.7.0** (local runs, 2026-10-27): every case as the card says.
+    - The radio failsafe acted 1.01 to 1.02 s after the cut, and the ground station's 5.22 to 5.35 s after it.
+    - On the receiver's failsafe throttle the radio failsafe acted 0.07 s after it. The run found that `FS_OPTIONS` defaults to 16 (continue under pilot control on a GCS failsafe), not the 0 its description gives. The card's defaults now hold it.
+- **Not yet:** the GNSS-lost section's hold and drift on dead reckoning.
 
 **Limits.** The simulator does not reproduce real motor noise and vibration, so it is for behaviour, failsafes and margins, never for filter tuning.
 
@@ -1891,7 +2540,14 @@ A tuning tool earns trust only by being right on real aircraft, so validation is
 4. repeats from 1 with the new plan, as a person works through the stages (a problem in an earlier stage, such as logging dropouts, comes first), until everything the weaker setup plants has been on offer, for at most three plans;
 5. checks last that the revert file takes the test-flight settings out, and that the undo file puts back every value it changed.
 
-- **Rehearsals:** a quad with ESC telemetry whose harmonic notch is off (switched on, following ESC RPM, with raw IMU and fast harmonic notch logging for the test flight); the heavy-lift X8 whose notch follows throttle, flown loaded, with hover learning off; failsafes the firmware ships on, found off.
+- **Rehearsals:** a quad with ESC telemetry whose harmonic notch is off (switched on, following ESC RPM, with raw IMU and fast harmonic notch logging for the test flight); the heavy-lift X8 whose notch follows throttle, flown loaded, with hover learning off; failsafes the firmware ships on, found off; and the gate's AutoTune loop (below).
+- **An action whose work is flights of its own** (AutoTune) is rehearsed as the gate flies it, on the heavy-lift X8 with its roll and pitch rate gains at 0.4 of the model's (`heavylift-autotune`):
+  1. an earlier flight logging raw IMU, as the reference airframes have;
+  2. the tune check, light, then loaded (8 kg more: the simulator starts again on a fresh pack with the payload, keeping every parameter). The plan must offer AutoTune, with the rate filters at 10 Hz and the gain back-off it prepares;
+  3. the plan's files loaded as its procedure says;
+  4. AutoTune roll, then pitch, each on a fresh pack, with `AUTOTUNE_AXES` set for that flight as the procedure's text says. Roll alone must not count as done; roll and pitch must mark the action applied, with nothing that prepares it graded on these flights;
+  5. the tune check light, which must leave the grade waiting for the loaded band, then loaded, which must confirm the action and what prepared it, each check passed;
+  6. last, the undo file must put back what the first plan's flight had, the gains AutoTune saved included.
 - **What it proves:** the procedure (its order, files, gates and reboots, checks, revert and undo). SITL's vibration is synthetic, so not that the values suit a real aircraft. Hardware, firmware and bench steps are listed in its report as a person's work.
 - **Safety:** it only ever talks to a simulator it started itself on the same computer. Every link is checked before anything is written: the address must be loopback, and the vehicle must have the simulator's own `SIM_` parameters. Anything else is refused, so it can never write to an aircraft.
 - **Runs:** by hand, and on pull requests that change procedures, the recommendation rules, the plan code or the tool ("Procedure rehearsal" workflow). The simulator's logs stay in its working folder; the workflow keeps only the files, the cards and the report.
@@ -1942,14 +2598,15 @@ The app handles logs that reveal where and how aircraft fly, so it is built to l
 | Tampered update or rule pack | App, engine, rule pack and knowledge pack each signed; the updater verifies signatures before install |
 | Dependency compromise | Pinned dependencies, software bill of materials per release, reproducible engine builds |
 
-**Network behaviour.** The desktop app connects to exactly four endpoints, all configurable and proxy-aware: the update server, the Google Drive API for encrypted sync, the Claude API for scrubbed AI requests, and the Open-Meteo API for regional weather. No analytics, no third-party crash reporting; crash dumps stay local until a user exports one.
+**Network behaviour.** The desktop app connects to exactly five endpoints, all configurable and proxy-aware: the update server, the Google Drive API for encrypted sync, the Claude API for scrubbed AI requests, the Open-Meteo API for regional weather, and NOAA's Space Weather Prediction Center for the planetary K-index, which is requested with no parameters at all. No analytics, no third-party crash reporting; crash dumps stay local until a user exports one.
 
 **Service keys, with no server to run.** The Claude API key and the Open-Meteo key live in the shared drive, encrypted with the fleet key like every other object, so Google sees only ciphertext. An admin enters each key once in the app; every enrolled laptop receives it through sync and stores it in its OS keychain. Requests go from the Rust shell straight to each service. Spend is visible in the Claude Console, where a spending limit can be set, and the app adds up each laptop's usage from the token counts in replies. Every AI packet sent is kept as a record and synced, so anyone can audit what left any laptop. When a laptop is revoked, the app asks the admin for new keys and has the old ones deleted, because the lost laptop held copies.
 
 - **How they travel.** A set of service keys is one object under `keys/<laptop-id>/`, in the same `.fio` format as every other object: encrypted with the current fleet key and signed by the laptop that wrote it. Its sequence number is the writer's clock in seconds, always past the newest set already there, so the newest set wins on every laptop.
 - **Which set counts.** A set counts only when it is written with the current fleet key by a laptop still in the fleet. A set that fails any check is passed over, never applied. A revocation rotates the fleet key, so every earlier set stops counting: the laptops keep the key they hold until an admin enters a new one, which the app asks for.
 - **Entering and removing.** In a fleet, a key saved in Settings on any laptop goes out at the next sync round, and removing it there removes it from every laptop. The sync worker carries the sets: a set never reaches the engine or the interface.
-- **What a set holds** (format `fi.keys/1`): the Claude API key. The Open-Meteo key joins it when weather lands.
+- **What a set holds** (format `fi.keys/2`): the Claude API key and the Open-Meteo key. A laptop that changes either key writes a new set with both, as its keychain holds them. Sets written by an app from before weather (`fi.keys/1`) hold only the Claude key, so each key is taken from the newest set that holds it: an older app's set changes the Claude key and leaves the Open-Meteo key as it was. An older app reads only `fi.keys/1` sets, so it never removes a key it does not know.
+- **In the shell:** the interface can set or remove each key and learn only whether one is set, never the key itself. An Open-Meteo key is accepted only in a form that needs no escaping in a URL (letters, digits, `-` and `_`), since it is sent as the `apikey` parameter.
 
 **Distribution.** Signed Windows installer and signed Linux packages from an internal update channel; machine-wide installs supported for managed fleets.
 
@@ -1998,7 +2655,7 @@ The largest risk is a confident wrong recommendation on a heavy aircraft; most o
 - [ ] Licensing of ArduPilot WebTools, if any code reuse is wanted.
 - [ ] Legal review of shipping parameter metadata generated from the documentation comments in ArduPilot's GPLv3 source, as ground stations do, in the knowledge pack.
 - [ ] Legal review of shipping pymavlink (LGPL-3.0) in the frozen engine: it is bundled unmodified for tlog decoding, and must stay replaceable by the user.
-- [ ] Whether to adopt the simulator checks, and in which phase.
+- [x] Whether to adopt the simulator checks, and in which phase: adopted on 2026-10-26, in Phase 2 (see Simulator checks).
 
 ## Sources
 

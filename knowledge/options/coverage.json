@@ -59,7 +59,8 @@
         "esc.edt_status",
         "esc.telemetry_errors",
         "esc.telemetry_dropouts",
-        "esc.supply_drop"
+        "esc.supply_drop",
+        "motors.slow_motor"
       ]
     },
     "thrust_model": {
@@ -166,7 +167,12 @@
         "params.no_gnss_fallback",
         "params.second_gnss_unset",
         "params.ekf_failsafe_off",
-        "params.dead_reckoning_failsafe_off"
+        "params.dead_reckoning_failsafe_off",
+        "no_gnss.source_not_fitted",
+        "no_gnss.no_source_switch",
+        "no_gnss.heading_needs_gnss",
+        "no_gnss.drag_fusion_off",
+        "no_gnss.no_pilot_fallback"
       ]
     },
     "links_failsafes": {

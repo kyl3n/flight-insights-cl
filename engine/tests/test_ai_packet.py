@@ -68,7 +68,7 @@ def test_the_corpus_files_are_the_self_tests_own_cases() -> None:
 
 def test_the_self_test_passes(engine: tuple[Any, Any, Path]) -> None:
     result = rpc(engine, "ai.selftest")["result"]
-    assert result == {"ok": True, "cases": 31, "failed": []}
+    assert result == {"ok": True, "cases": 34, "failed": []}
 
 
 def test_numbers_are_rounded_to_what_reasoning_needs() -> None:
@@ -83,7 +83,10 @@ def test_numbers_are_rounded_to_what_reasoning_needs() -> None:
     ("log", "vehicle"),
     [("copter-heavylift-loaded.bin", "copter"), ("plane-circuit.bin", "plane"),
      ("heli-hover.bin", "copter"), ("quadplane-hover.bin", "plane"),
-     ("copter-quad-tune-default.bin", "copter"), ("copter-quad-tune-low.bin", "copter")],
+     ("copter-quad-tune-default.bin", "copter"), ("copter-quad-tune-low.bin", "copter"),
+     ("copter-quad-autotune-saved.bin", "copter"),
+     # flights with failsafes, whose error times in µs once stopped the packet
+     ("copter-quad-fs-gcs.bin", "copter"), ("copter-quad-fs-off.bin", "copter")],
 )  # fmt: skip
 def test_each_fixture_makes_a_packet_that_may_leave(
     engine: tuple[Any, Any, Path], log: str, vehicle: str
@@ -162,6 +165,53 @@ def test_evidence_that_read_a_location_field_is_withheld_with_its_metrics() -> N
     assert by_id["week"]["fields"] == ["TimeUS"]  # the allowed field is still named
     assert by_id["vibe"]["values"] == {"reading": 512.25}
     assert {m["metric"] for m in metrics} == {"m.vibe", "m.logging"}
+
+
+def test_when_something_happened_reaches_the_packet_as_seconds_after_arming() -> None:
+    # A log's own clock in microseconds is in the form of a coordinate scaled by 1e7, and
+    # the location check refuses the whole packet for it: every flight with a logged error
+    # or a board-supply dip would never get an AI read. Evidence says when in seconds.
+    import dataclasses
+
+    import numpy as np
+    import pyarrow as pa
+    from flight_builder import ARM, DISARM, hover_flight, table
+
+    from flight_insights.ai.scrubber import (
+        _number_rules,  # pyright: ignore[reportPrivateUsage]
+        _numbers,  # pyright: ignore[reportPrivateUsage]
+    )
+    from flight_insights.analyzers import Registry
+    from flight_insights.analyzers.power import POWER
+    from flight_insights.analyzers.system import SYSTEM
+
+    pack = load_pack()
+    reg = Registry.load(pack)
+    err = [ARM + 23_500_000, ARM + 31_250_000]  # a battery failsafe, then a GPS glitch
+    vcc = np.linspace(ARM, DISARM, 101).astype(np.int64)
+    tables = {
+        "ERR": table(err, {"Subsys": (pa.uint8(), [6, 11]), "ECode": (pa.uint8(), [1, 2])}),
+        "POWR": table(vcc.tolist(), {"Vcc": (pa.float32(), [5.1] * 70 + [4.1] + [5.1] * 30)},
+                      {"Vcc": {b"unit": b"V", b"multiplier": b"1.0"}}),
+    }  # fmt: skip
+    f = hover_flight(tables)
+    results = [SYSTEM.run(f, reg), POWER.run(f, reg)]
+    findings = [x for r in results for x in r.findings]
+    evidence = {e.id: e for x in findings for e in x.evidence}
+    assert {"system.failsafe", "system.error", "power.board_voltage"} <= {x.code for x in findings}
+    analysis: dict[str, Any] = {
+        "evidence": [dataclasses.asdict(e) for e in evidence.values()],
+        "metrics": [],
+        "findings": [{"key": x.code, "code": x.code, "severity": x.severity,
+                      "confidence": x.confidence, "params": dict(x.params),
+                      "evidence": [e.id for e in x.evidence]} for x in findings],
+    }  # fmt: skip
+    _, _, packed = _analysis(analysis, ARM, Policy.load(pack, "4.7.0"), {})
+    refused = [(where, x) for where, x, d in _numbers(packed) if _number_rules(x, d)]
+    assert refused == []
+    values = [e["values"] for e in packed]
+    assert {"subsystem": 6, "code": 1, "at_s": [23.5]} in values
+    assert any(v.get("lowest_at_s") == pytest.approx(27.3) for v in values)
 
 
 def test_no_planted_coordinate_survives_from_any_message(

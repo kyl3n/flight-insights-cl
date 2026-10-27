@@ -90,6 +90,7 @@ input::placeholder{color:#6E7883}
 <div style="display: flex; flex-direction: column; gap: 4px; padding: 10px 12px; border-radius: 8px; background: #151A1F; border: 1px solid #262D35; font-size: 13px;">
 <span style="font-family: 'IBM Plex Mono', ui-monospace, monospace; color: #E7EAEE;">{{k.file}}</span>
 <span style="color: #CBD2D9;">Packs {{k.packs}} · payload {{k.payload}}</span>
+<span style="color: #CBD2D9;">Take-off weight, kg: {{k.weight}}</span>
 <span style="color: #CBD2D9;">Ground station: Field tablet 2 · version 3</span>
 <span style="font-size: 12px; color: #8A949E;">{{k.note}}</span>
 </div>
@@ -130,10 +131,10 @@ class Component extends DCLogic {
     }));
     const parts = ['Motors', 'Propellers', 'ESCs', 'Batteries', 'GNSS or compass', 'Payload or mounts', 'Wiring or connectors', 'Links or antennas'];
     const packs = [
-      ['00000142.BIN', 'B-12, B-14', '≈ 4.2 kg', 'Payload estimated from hover throttle'],
-      ['00000088.BIN', 'B-03, B-05', '≈ 3.1 kg', 'Payload estimated from hover throttle'],
-      ['00000089.BIN', 'B-07, B-08', 'pick', 'Payload needs the build decision first']
-    ].map((k) => ({ file: k[0], packs: k[1], payload: k[2], note: k[3] }));
+      ['00000142.BIN', 'B-12, B-14', '≈ 4.2 kg', 'Payload estimated from hover throttle', '24.6 (as weighed)'],
+      ['00000088.BIN', 'B-03, B-05', '≈ 3.1 kg', 'Payload estimated from hover throttle', '—'],
+      ['00000089.BIN', 'B-07, B-08', 'pick', 'Payload needs the build decision first', '—']
+    ].map((k) => ({ file: k[0], packs: k[1], payload: k[2], note: k[3], weight: k[4] }));
     const blocked = !choice;
     return {
       logs, choices, parts, packs,

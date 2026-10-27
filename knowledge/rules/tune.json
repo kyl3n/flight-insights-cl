@@ -39,6 +39,21 @@
       "DZ": 20
     }
   },
+  "attitude": {
+    "about": "Attitude tracking error of one event (roll and pitch): the RMS of (ANG.DesRoll - ANG.Roll) over the RMS of how far the input moved the attitude target from its value when the event began, in percent, so a trim angle held in wind is not counted as the pilot's command. An event counts for it as for the rate's, with at least min_samples ANG samples and a target moved by min_move_deg RMS or more; the same number of events is needed (tracking.min_events), and the interval is the same seeded bootstrap with its own seeds. It is the tune's measure: in SITL on the Callisto X8 with soft rate gains, AutoTune (roll then pitch) took attitude error from 7.0% to 2.4% light and from 9.0% to 3.1% loaded, while the rate tracking error moved 4-10%, because AutoTune also raises the angle P (7 to 20) and the acceleration limits, and the attitude loop's corrections are part of the rate target.",
+    "min_samples": 50,
+    "min_move_deg": 1.0,
+    "seed": {
+      "roll": 11,
+      "pitch": 12
+    },
+    "sources": [
+      "libraries/AP_Logger/LogStructure.h and ArduCopter/Log.cpp at Copter-4.7.0: ANG (DesRoll, Roll, DesPitch, Pitch, DesYaw, Yaw) is written every loop with LOG_BITMASK bit 0 (MASK_LOG_ATTITUDE_FAST); ATT at 10 Hz (bit 1, MASK_LOG_ATTITUDE_MED).",
+      "ArduPilot Copter docs, Roll/Pitch tuning (ardupilot_wiki copter/source/docs/tuning.rst): judge the tune 'by graphing the dataflash log's ATT message's Roll-In vs Roll and Pitch-In vs Pitch'; the actual roll 'should closely follow the Roll-In while in Stabilize or AltHold modes', and pitch the same. In 4.7 the desired attitude is ATT/ANG DesRoll and DesPitch.",
+      "ADS-33E-PRF (US Army, 2000), 3.3: the short-term, small-amplitude attitude response to the pilot's input is the primary rotorcraft handling-qualities criterion; Ivler et al., 'Toward a UAS Handling Qualities Specification' (VFS Forum 78, 2022) scale it to small multirotors and flight-test it on a hexacopter.",
+      "AC_AutoTune_Multi::save_tuning_gains at Copter-4.7.0: AutoTune saves the rate P, I and D, the angle P (stabilize) and the acceleration limit of each axis it tunes."
+    ]
+  },
   "tracking": {
     "about": "Tracking error of one event: the RMS of (target - actual) over the RMS of the target, in percent. An axis's value is the mean over its counted events, with a 95% percentile bootstrap interval over the events, seeded so every laptop gets the same interval. Below min_events counted events the value is not given: the interval would be too wide to compare flights.",
     "min_events": 6,
@@ -128,6 +143,15 @@
       "libraries/AC_PID/AC_PID.cpp at Copter-4.7.0: the integrator is held within IMAX; update_all multiplies P and D by the slew limiter's modifier (logged as Dmod) and logs the oscillation slew rate (SRate). libraries/Filter/SlewLimiter.cpp: with SMAX 0 the modifier is always 1; otherwise it never drops below 0.1.",
       "ATC_RAT_RLL_SMAX at 4.7.0: 'Sets an upper limit on the slew rate produced by the combined P and D gains ... This limits the amplitude of high frequency oscillations caused by an excessive gain.' Copter's default is 0, off (AC_AttitudeControl_Multi.h).",
       "knowledge/rules/filters.json noise_band_low_hz: the same 40 Hz the filter analysis counts as noise above the control band."
+    ]
+  },
+  "autotune_offer": {
+    "about": "When a tune check offers AutoTune, and how it is set up: ArduPilot's tuning order puts AutoTune after the filters; the next tune check, light and loaded, grades it (procedure tune.autotune_offer). On propellers of 13 inches or more the roll and pitch rate filters (FLTT, FLTD) go to 10 Hz first; with a payload that varies, AUTOTUNE_GMBK is raised for more stability margin.",
+    "gmbk_variable_payload": 0.35,
+    "sources": [
+      "ArduPilot Copter docs, AutoTune: for large copters (props of at least 13 inches) set ATC_RAT_RLL_FLTT, FLTD, ATC_RAT_PIT_FLTT and FLTD to 10 Hz; tune one axis at a time if a battery cannot finish them all (AUTOTUNE_AXES) (https://ardupilot.org/copter/docs/autotune.html).",
+      "ArduPilot Copter docs, AutoTune: AUTOTUNE_GMBK (default 0.25) is the share by which the tuned P and D are reduced for stability margin; raise it for more margin. 0.35 for a payload that varies is an app starting value, uncalibrated, within its range 0 to 0.5.",
+      "rules/audit.json starting_tune: large_prop_in and large_rate_filter_hz, shared with the never-tuned starting values."
     ]
   }
 }

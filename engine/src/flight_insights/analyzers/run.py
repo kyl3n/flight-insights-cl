@@ -18,33 +18,50 @@ from collections.abc import Iterable, Mapping, Sequence
 from typing import Any
 
 from flight_insights import __version__
+from flight_insights.analyzers.autotune import AUTOTUNE
 from flight_insights.analyzers.buses import BUSES
+from flight_insights.analyzers.commands import COMMANDS
 from flight_insights.analyzers.esc_rpm import ESC_RPM
+from flight_insights.analyzers.failsafes import FAILSAFES
 from flight_insights.analyzers.filter_model import FILTER_MODEL
 from flight_insights.analyzers.filters import FILTERS
 from flight_insights.analyzers.flight import FlightData
+from flight_insights.analyzers.gnss import GNSS
+from flight_insights.analyzers.incident import INCIDENT
+from flight_insights.analyzers.links import LINKS
 from flight_insights.analyzers.log_adequacy import LOG_ADEQUACY
 from flight_insights.analyzers.model import Analyzer, Evidence, Result
+from flight_insights.analyzers.motor_lag import MOTOR_LAG
+from flight_insights.analyzers.motor_out import MOTOR_OUT
 from flight_insights.analyzers.motors_health import MOTORS_HEALTH
+from flight_insights.analyzers.no_gnss import NO_GNSS
+from flight_insights.analyzers.no_gnss_readiness import NO_GNSS_READINESS
 from flight_insights.analyzers.options import OPTIONS
 from flight_insights.analyzers.params_audit import PARAMS_AUDIT
 from flight_insights.analyzers.payload import PAYLOAD
 from flight_insights.analyzers.power import POWER
+from flight_insights.analyzers.precursors import PRECURSORS
 from flight_insights.analyzers.rate_health import RATE_HEALTH
 from flight_insights.analyzers.rate_tune import RATE_TUNE
 from flight_insights.analyzers.registry import Registry
 from flight_insights.analyzers.system import SYSTEM
 from flight_insights.analyzers.tune import TUNE
 from flight_insights.analyzers.vibration import VIBRATION
+from flight_insights.analyzers.wind import WIND
 from flight_insights.knowledge import Pack
 from flight_insights.store.cache import ColumnCache
 from flight_insights.store.db import Store
+from flight_insights.tlog import sessions as tlog_sessions
 
 log = logging.getLogger(__name__)
 
 ANALYZERS: tuple[Analyzer, ...] = (
-    LOG_ADEQUACY, SYSTEM, VIBRATION, ESC_RPM, FILTER_MODEL, FILTERS, POWER, MOTORS_HEALTH,
-    BUSES, PAYLOAD, TUNE, RATE_TUNE, RATE_HEALTH, OPTIONS, PARAMS_AUDIT,
+    LOG_ADEQUACY, SYSTEM, FAILSAFES, LINKS, PRECURSORS, COMMANDS, INCIDENT, GNSS, NO_GNSS,
+    NO_GNSS_READINESS, VIBRATION,
+    ESC_RPM, FILTER_MODEL, FILTERS, POWER, MOTORS_HEALTH, MOTOR_LAG, BUSES, PAYLOAD, MOTOR_OUT,
+    WIND, TUNE,
+    RATE_TUNE,
+    RATE_HEALTH, AUTOTUNE, OPTIONS, PARAMS_AUDIT,
 )  # fmt: skip
 
 
@@ -103,6 +120,8 @@ def run_analysis(
         latest = analysis_results(store, flight_id, reg, analyzers)
         if latest is not None and latest["current"]:
             return latest
+    if tlog_sessions.needs_refresh(store, flight_id):  # a tlog linked before sessions were kept
+        tlog_sessions.refresh(store, cache, flight_id)
     flight = FlightData.load(store, cache, pack, flight_id)
     outcomes: dict[str, dict[str, Any]] = {}
     results: list[tuple[Analyzer, Result]] = []

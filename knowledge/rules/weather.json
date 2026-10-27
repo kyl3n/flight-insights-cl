@@ -1,0 +1,42 @@
+{
+  "about": "Which weather the fleet downloads (spec: Weather and wind, 'How the location stays private'; engine/src/flight_insights/weather/tiles.py). Each flight's positions are snapped on the laptop to large fixed tiles; the tiles it flew in, and every tile around them, join the download list for good. Only tile names leave the engine, never a position, and only to the shell, which turns each tile into its grid of points for the weather API.",
+  "tile_deg": 2,
+  "neighbours": 1,
+  "min_share": 0.01,
+  "gps_min_status": 3,
+  "grids_deg": {
+    "forecast": 0.1,
+    "reanalysis": 0.25
+  },
+  "sources": [
+    "docs/SPEC.md, Weather and wind: 2 by 2 degree tiles plus their neighbours, from the logs on the laptop; the provider learns which large tiles the fleet works in, never a position",
+    "min_share: a tile counts when it holds at least 1% of the flight's positions, so a few samples from a GNSS glitch or a spoofed position do not add a tile; a flight crossing into the next tile is covered by the neighbours anyway",
+    "gps_min_status: GPS Status 3 is a 3D fix (libraries/AP_GPS/AP_GPS.h GPS_OK_FIX_3D at Copter-4.7.0); GPS positions are used only when the estimator's own (POS) are absent",
+    "grids_deg: each model's own resolution. ECMWF IFS HRES is about 9 km on its O1280 reduced Gaussian grid (open data since 1 October 2025, https://openmeteo.substack.com/p/ecmwf-transitions-to-open-data; Open-Meteo serves it on that grid, open-meteo.com/en/docs/ecmwf-api), so points every 0.1 degrees each read their nearest model cell, about one point per cell; the models' effective resolution is several cells, so a finer grid would add requests, not information. ERA5 is on a regular 0.25 degree grid (https://cds.climate.copernicus.eu/datasets/reanalysis-era5-single-levels), which the points match exactly; a 2 degree tile is 20 by 20 = 400 points at 0.1 degrees (its south and west edges and inside; the north and east edges are the next tiles'), within Open-Meteo's 1,000 locations a request (https://openmeteo.substack.com/p/weather-data-for-multiple-locations)",
+    "record: the flight is sampled every sample_s along its track. Below the lowest model wind level, the log law with a roughness length z0_m of 0.03 m, open flat terrain (WMO Guide to Instruments and Methods of Observation, WMO-No. 8, Annex 5.B, Davenport classes); temperature carried by the standard atmosphere's lapse rate, 6.5 K/km (ICAO Doc 7488), dew point by about 1.8 K/km; cloud base from the dew-point spread, about 125 m a kelvin (Espy; WMO cloud base estimate); density altitude from virtual temperature with the US National Weather Service's fit to the standard atmosphere (44.3308 - 42.2665 rho^0.234969 km)"
+  ],
+  "record": {
+    "sample_s": 10,
+    "z0_m": 0.03,
+    "lapse_k_per_m": 0.0065,
+    "dew_lapse_k_per_m": 0.0018,
+    "cloud_base_m_per_k": 125
+  },
+  "space_weather": {
+    "about": "Context for a flight's GNSS and compass findings: when the highest planetary K-index of the 3-hour intervals the flight overlaps (its weather record's kp_max) is kp_elevated or more, each finding whose code starts with one of codes carries it, with the note, so a disturbance is weighed against the sky before it is blamed on the aircraft. Context only: it changes no severity, confidence or recommendation.",
+    "kp_elevated": 4,
+    "codes": [
+      "gnss.",
+      "no_gnss.position_lost"
+    ],
+    "note": {
+      "en": "Geomagnetic activity was elevated during this flight (planetary K-index {kp}; NOAA issues warnings from 4). It can degrade satellite positioning and disturb compass readings, more so at high latitudes, so weigh it before blaming the aircraft.",
+      "uk": "Під час цього польоту геомагнітна активність була підвищеною (планетарний K-індекс {kp}; NOAA видає попередження від 4). Вона може погіршувати супутникове позиціонування та збурювати показання компаса, особливо у високих широтах, тож урахуйте це, перш ніж шукати причину в апараті."
+    },
+    "sources": [
+      "kp_elevated: NOAA SWPC issues warnings and alerts from a planetary K-index of 4 (https://swpc-drupal.woc.noaa.gov/products/planetary-k-index); docs/SPEC.md's environment table puts Kp 4 or above at caution",
+      "GNSS: NOAA SWPC, Space Weather and GPS Systems (https://www.swpc.noaa.gov/impacts/space-weather-and-gps-systems): geomagnetic storms disturb the ionosphere, which degrades GNSS accuracy and can cause loss of lock",
+      "compass: NOAA SWPC, Geomagnetic Storms (https://www.swpc.noaa.gov/phenomena/geomagnetic-storms): storms disturb the Earth's magnetic field, strongest at high latitudes, which affects magnetic heading"
+    ]
+  }
+}

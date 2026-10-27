@@ -27,9 +27,11 @@ class FakeCache:
     def names(self, _key: str) -> list[str]:
         return sorted(self.tables)
 
-    def read(self, _key: str, name: str, columns: list[str] | None = None) -> pa.Table:
+    def read(
+        self, _key: str, name: str, columns: list[str] | None = None, positions: bool = False
+    ) -> pa.Table:
         t = self.tables[name]
-        return t.select(columns) if columns else t
+        return t.select([c for c in columns if c in t.column_names]) if columns else t
 
 
 def table(

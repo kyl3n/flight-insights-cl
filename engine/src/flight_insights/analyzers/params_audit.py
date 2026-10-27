@@ -31,6 +31,7 @@ from typing import Any, cast
 from flight_insights.analyzers.facts import CELL_VOLTS, MONITORS
 from flight_insights.analyzers.flight import FlightData
 from flight_insights.analyzers.model import Analyzer, CandidateChange, Evidence, Finding, Result
+from flight_insights.analyzers.no_gnss_readiness import coping_sets, drag_fusion, source_sets
 from flight_insights.analyzers.registry import Registry
 from flight_insights.knowledge import KnowledgeError
 from flight_insights.params.dialect import Dialect
@@ -201,11 +202,12 @@ def _audit(flight: FlightData, reg: Registry) -> Result:
 
     contradicted: set[str] = set(problems) | set(undefined)
     if vehicle == "copter":
-        contradicted |= _failsafes(flight, rules, dialect.meta, out)
+        readiness: Mapping[str, Any] = reg.rules["no_gnss"]["readiness"]
+        contradicted |= _failsafes(flight, rules, dialect.meta, readiness, out)
         contradicted |= _battery(flight, rules, out)
         contradicted |= _other_monitors(flight, out)
         contradicted |= _power_setup(flight, rules, out)
-        _navigation(flight, out)
+        _navigation(flight, readiness, out)
         _never_tuned(flight, rules, out)
 
     # --- the four verdicts ----------------------------------------------------------------
@@ -256,8 +258,9 @@ def _audit(flight: FlightData, reg: Registry) -> Result:
 
 
 def _failsafes(
-    flight: FlightData, rules: Mapping[str, Any], meta: Mapping[str, Any], out: Result
-) -> set[str]:
+    flight: FlightData, rules: Mapping[str, Any], meta: Mapping[str, Any],
+    readiness: Mapping[str, Any], out: Result,
+) -> set[str]:  # fmt: skip
     p = flight.params
     flagged: set[str] = set()
 
@@ -302,12 +305,15 @@ def _failsafes(
     if p.get("FS_CRASH_CHECK") == 0:
         add("params.crash_check_off", "caution", ["FS_CRASH_CHECK"], {})
     # Failsafes the firmware ships switched on, switched off: back to the firmware's own
-    # value (from the log's defaults; none proposed where the defaults are unknown).
+    # value (from the log's defaults; none proposed where the defaults are unknown). The
+    # dead-reckoning one can only act while drag fusion gives the estimator the wind.
     for name, code in (
         ("FS_VIBE_ENABLE", "params.vibe_failsafe_off"),
         ("FS_DR_ENABLE", "params.dead_reckoning_failsafe_off"),
         ("FS_EKF_THRESH", "params.ekf_failsafe_off"),
     ):
+        if name == "FS_DR_ENABLE" and not drag_fusion(p, readiness):
+            continue
         if p.get(name) == 0:
             add(code, "caution", [name], {}, back_to_default(name))
     # Flown from the ground station alone (RC_OPTIONS bit 0 ignores the receiver), the
@@ -518,7 +524,7 @@ def _battery(flight: FlightData, rules: Mapping[str, Any], out: Result) -> set[s
     return flagged
 
 
-def _navigation(flight: FlightData, out: Result) -> None:
+def _navigation(flight: FlightData, readiness: Mapping[str, Any], out: Result) -> None:
     """GNSS, compass, estimator sources and the fence against the setup answers. Each
     needs a person's choice (the receiver's type, the sensor, the site), so they carry
     procedures rather than values."""
@@ -541,10 +547,12 @@ def _navigation(flight: FlightData, out: Result) -> None:
     if a.get("compass_mounting") == "on the flight controller" and p.get("COMPASS_MOTCT") == 0:
         add("params.compassmot_not_done", "info", ["COMPASS_MOTCT"],
             "the compass sits on the flight controller and CompassMot was never run")  # fmt: skip
-    sources = ("EK3_SRC2_POSXY", "EK3_SRC2_VELXY")
-    if a.get("flies_without_gnss") is True and all(p.get(n) == 0 for n in sources):
-        add("params.no_gnss_fallback", "caution", list(sources),
-            "flies without GNSS (platform setup), with no second EKF source set")  # fmt: skip
+    sources = [f"EK3_SRC{n}_{f}" for n in (1, 2, 3) for f in ("POSXY", "VELXY")]
+    if (a.get("flies_without_gnss") is True and source_sets(p, readiness)
+            and not coping_sets(p, readiness)):  # fmt: skip
+        add("params.no_gnss_fallback", "caution", [n for n in sources if n in p],
+            "flies without GNSS (platform setup), with no EKF source set that keeps a "
+            "position without it")  # fmt: skip
     if p.get("FENCE_ENABLE") == 0:
         add("params.fence_off", "info", ["FENCE_ENABLE"], "the geofence is off")
 
@@ -642,7 +650,7 @@ def _never_tuned(flight: FlightData, rules: Mapping[str, Any], out: Result) -> N
 
 PARAMS_AUDIT = Analyzer(
     name="params",
-    version=5,
+    version=6,
     run=_audit,
     metrics=(),
     findings=(

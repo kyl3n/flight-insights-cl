@@ -127,6 +127,9 @@ class Recommendation:
     revert: float | None = None  # what a test-flight setting goes back to, canonical
     native_revert: float | None = None
     alternatives: list[Alternative] = field(default_factory=list[Alternative])
+    # For an action: what its work may change on its own (AutoTune saves gains), as the
+    # flight had them, in this firmware's names and units, for the undo file.
+    undo: dict[str, float] = field(default_factory=dict[str, float])
 
     @property
     def lead(self) -> Source:
@@ -571,13 +574,21 @@ def _build_plan(
         )
 
     # Findings that need a person and leave nothing to load become actions, and so does
-    # any finding with steps of its own (new ESC firmware for a better option).
+    # any finding with steps of its own (new ESC firmware for a better option). Work a
+    # later log shows done (`applied_when`: AutoTune, saved) is an action even when its
+    # finding also has changes to load first: they prepare the work, they are not it.
     answered = {s.finding for r in recs if r.status in ("next", "disputed") for s in r.sources}
     for source, f in sources:
         needs_person = source.severity in ACTION_SEVERITIES or source.code in procedures
-        if needs_person and source.finding not in answered:
+        shown_done = bool(procedures.get(source.code, {}).get("applied_when"))
+        if needs_person and (source.finding not in answered or shown_done):
             stage = str(f.get("stage") or "mechanical")
-            recs.append(Recommendation(None, None, None, None, stage, [source]))
+            action = Recommendation(None, None, None, None, stage, [source])
+            for name in procedures.get(source.code, {}).get("undo_also", ()):
+                if params.get(name) is not None:
+                    nname, nvalue = native(name, params[name])
+                    action.undo[nname] = float(params[name] if nvalue is None else nvalue)
+            recs.append(action)
 
     # The earliest stage with a problem left is on offer, with safety at any stage, and
     # the rule pack's any-stage findings (failsafes found off). A better option fixes no
@@ -798,8 +809,11 @@ def to_json(plan: Plan, reg: Registry) -> dict[str, Any]:
             "reboot": r.reboot,
             "temporary": r.temporary,
             "revert": r.native_revert,
+            "undo": sorted(r.undo),  # an action's: what its work may change, kept in the undo file
             "verify": dict(rules["verify"][r.stage]) if r.stage in rules["verify"] else None,
             "procedure": procedure.to_json(procedure.procedure(plan, reg, r)),
+            "applied_when": reg.procedures.get(lead.code, {}).get("applied_when"),
+            "graded_by": reg.procedures.get(lead.code, {}).get("graded_by", "findings"),
             "source": f"finding:{lead.code}",
             "sources": [source(s) for s in sorted(r.sources, key=Source.priority)],
             "notes": [
@@ -828,5 +842,7 @@ def to_json(plan: Plan, reg: Registry) -> dict[str, Any]:
             {"number": s.number, "params": list(s.params), "after": s.after} for s in plan.steps
         ],
         "session": procedure.to_json(procedure.session(plan, reg)),
-        "held_back": [h | {"text": texts(rules, "held_back", h)} for h in plan.held_back],
+        "held_back": [
+            h | {"text": texts(rules, str(h.get("reason", "held_back")), h)} for h in plan.held_back
+        ],
     }

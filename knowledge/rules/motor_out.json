@@ -1,0 +1,41 @@
+{
+  "about": "The motor-out margin (spec: Propulsion, 'Motor-out margin'): for each frame class, the output the busiest remaining motor may need after losing one motor at the flight's weight, and whether the heading must hold too. Hexa and Y6 frames (6 motors) may lose yaw, so only level flight is asked of them; frames of 8 or more must hold the heading as well. A quad cannot fly on three motors, so it has no margin. The targets are the spec's defaults, which the team can change per platform; marked uncalibrated until real motor losses have been compared with the prediction.",
+  "calibrated": false,
+  "classes": {
+    "1": {
+      "name": "QUAD",
+      "margin": false
+    },
+    "2": {
+      "name": "HEXA",
+      "max_output": 0.9,
+      "hold_yaw": false
+    },
+    "3": {
+      "name": "OCTA",
+      "max_output": 0.85,
+      "hold_yaw": true
+    },
+    "4": {
+      "name": "OCTAQUAD",
+      "max_output": 0.85,
+      "hold_yaw": true
+    },
+    "5": {
+      "name": "Y6",
+      "max_output": 0.9,
+      "hold_yaw": false
+    },
+    "12": {
+      "name": "DODECAHEXA",
+      "max_output": 0.85,
+      "hold_yaw": true
+    },
+    "14": {
+      "name": "DECA",
+      "max_output": 0.85,
+      "hold_yaw": true
+    }
+  },
+  "sources": ["Spec: Propulsion, 'Motor-out margin', the frame table: a hexa hovers on the remaining motors at maximum payload using no more than 90% of their output, yaw may be lost; an octo or coaxial X8 hovers and holds yaw with the remaining motors at no more than 85%; a quad has no margin (https://discuss.ardupilot.org/t/would-it-be-possible-for-arducopter-to-recover-from-losing-a-motor/114978, https://discuss.ardupilot.org/t/hexacopter-redundancy/72447)", "knowledge/frames/<version>.json, from libraries/AP_Motors/AP_MotorsMatrix.cpp: each motor's roll, pitch and yaw factor, whose ratio to its throttle factor is its arm; a co-rotating X8's 0.9 top-layer scale is control, not geometry", "libraries/AP_Motors/AP_Motors_Thrust_Linearization.cpp at Copter-4.7.0: a motor's thrust is (1 - e) x + e x^2 of full thrust at MOT_BAT_VOLT_MAX, x its output over the spin range times the battery voltage scale, so the output for a thrust is the curve inverted and scaled back by the measured voltage"]
+}

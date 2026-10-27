@@ -338,7 +338,11 @@ def _board(flight: FlightData, reg: Registry, out: Result) -> None:
         messages=("POWR",),
         fields=("Vcc",),
         segment=flight.armed,
-        values={"typical_v": round(typical, 3), "lowest_v": round(low, 3), "lowest_at_us": when},
+        values={
+            "typical_v": round(typical, 3),
+            "lowest_v": round(low, 3),
+            "lowest_at_s": round((when - flight.arm_us) / 1e6, 3),  # after arming
+        },
     )
     out.evidence.append(ev)
     low_zone = reg.metrics["power.board_voltage_min"].zone(low)
@@ -375,7 +379,7 @@ def _power(flight: FlightData, reg: Registry) -> Result:
 
 POWER = Analyzer(
     name="power",
-    version=2,
+    version=3,
     run=_power,
     metrics=(
         "power.hover_power", "power.energy_per_minute", "power.peak_current",

@@ -9,6 +9,7 @@ import {
   stageStates,
   checksPassed,
   hasRevert,
+  hasUndo,
   loadTicks,
   saveTicks,
   stepLabel,
@@ -63,6 +64,15 @@ describe("plan", () => {
 
   it("counts decisions on parameter changes only", () => {
     expect(decisionCounts(PLAN)).toEqual({ accepted: 1, open: 1 });
+  });
+
+  it("has an undo file for an accepted change, or for an action whose work saves values", () => {
+    expect(hasUndo(PLAN)).toBe(true);
+    const autotune = rec({ param: null, canonical: null, stage: "autotune", undo: ["ATC_RAT_RLL_P"] });
+    const none = { ...PLAN, recommendations: [rec({})] };
+    expect(hasUndo(none)).toBe(false);
+    expect(hasUndo({ ...PLAN, recommendations: [autotune] })).toBe(true);
+    expect(hasUndo({ ...PLAN, recommendations: [{ ...autotune, status: "waiting" }] })).toBe(false);
   });
 
   it("ticks the work, not what to fly or check", () => {

@@ -2,6 +2,13 @@
   "about": "The location scrubber's rules for the AI path (spec: AI layer, \"Location scrubber: deny by default\"). Every log field an AI packet or AI tool may read passes these rules; a test checks them against every message each release can log (knowledge/logs), so a message a new release adds that holds a position fails the build until it is classified here. Fields whose unit or type marks a latitude or longitude are denied wherever they appear.",
   "position_units": ["deglatitude", "deglongitude", "1e-7 deglatitude", "1e-7 deglongitude"],
   "position_types": ["latitude/longitude"],
+  "position_names_about": "Fields named as a latitude or longitude are positions whatever their units say: some messages log them in plain degrees or as unitless integers (VNKF, RGPJ in 4.7).",
+  "position_names": "(?i)^(lat|lon|lng|latitude|longitude)$",
+  "unitless_positions_about": "Fields that hold a position with neither a position unit nor a position name, from ArduPilot's LogStructure.h: a MAVLink command's coordinates (MAVC X and Y are latitude and longitude x1e7 in a global frame, and Z its altitude, which can be above sea level) and replayed GNSS altitude. Each is denied wherever it appears, and its message counts as one that holds a position.",
+  "unitless_positions": {
+    "MAVC": {"X": "a command's latitude", "Y": "a command's longitude", "Z": "a command's altitude, which can be above sea level"},
+    "RGPJ": {"Alt": "replayed GNSS altitude above sea level"}
+  },
   "position_messages_about": "Messages that hold a position. Only the fields listed for each may be read on the AI path; every other field of the message is denied (altitudes beside a position are absolute, and courses and distances with a position give the track). A message listed with no fields is denied whole.",
   "position_messages": {
     "ADSB": {"reason": "other aircraft and their positions", "allow": []},
@@ -20,6 +27,7 @@
     "GSN1": {"reason": "external navigation position", "allow": []},
     "ILB4": {"reason": "Inertial Labs position", "allow": []},
     "ILB7": {"reason": "Inertial Labs GNSS position", "allow": []},
+    "MAVC": {"reason": "MAVLink commands with their coordinates; some commands' parameters (scripts, custom messages) can carry anything", "allow": ["TimeUS", "TS", "TC", "SS", "SC", "Fr", "Cmd", "Res", "WL"]},
     "MISE": {"reason": "mission items with their coordinates", "allow": []},
     "NTUN": {"reason": "navigation targets with their coordinates", "allow": ["TimeUS", "Dist", "TBrg", "NavBrg", "AltE", "XT", "XTi", "AsE"]},
     "OABR": {"reason": "object avoidance with its positions", "allow": []},
@@ -29,12 +37,14 @@
     "POS": {"reason": "estimated position", "allow": ["TimeUS", "RelHomeAlt", "RelOriginAlt"]},
     "RALY": {"reason": "rally points", "allow": []},
     "RFRN": {"reason": "reference frame with its origin", "allow": []},
+    "RGPJ": {"reason": "GNSS data kept for replay, with its position", "allow": []},
     "RSLL": {"reason": "rally with its positions", "allow": []},
     "RSO2": {"reason": "position with altitude", "allow": []},
     "RSO3": {"reason": "position with altitude", "allow": []},
     "SIM": {"reason": "the simulator's true position", "allow": []},
     "TERR": {"reason": "terrain data around the aircraft", "allow": []},
-    "TRIG": {"reason": "camera trigger positions", "allow": []}
+    "TRIG": {"reason": "camera trigger positions", "allow": []},
+    "VNKF": {"reason": "VectorNav navigation solution with its position", "allow": ["TimeUS", "InsStatus", "VelD"]}
   },
   "blocked_messages_about": "Messages denied whole although no field carries a position unit, each with its reason.",
   "blocked_messages": {
@@ -82,7 +92,7 @@
     "ILB3": ["Diff"],
     "LOEG": ["EP"]
   },
-  "removed_parameters_about": "Parameters removed from every AI packet: origins and positions, magnetic declination, fence and rally settings, script slots that can hold anything, identities and serial numbers, and the simulator's settings (spec: Location scrubber, \"Location-revealing parameters removed\").",
+  "removed_parameters_about": "Parameters removed from every AI packet: origins and positions, magnetic declination, the barometer's ground pressure and temperature and the field's elevation (the autopilot keeps them as volatile values, which keeps them out already; named here so the policy does not rest on the metadata), fence and rally settings, script slots that can hold anything, identities and serial numbers, and the simulator's settings (spec: Location scrubber, \"Location-revealing parameters removed\").",
   "removed_parameters": [
     "^AHRS_ORIG",
     "^BCN_(LATITUDE|LONGITUDE|ALT)$",
@@ -92,6 +102,7 @@
     "^RALLY_",
     "^SCR_USER\\d+$",
     "^SIM_",
+    "^BARO\\d?_(GND_PRESS|GND_TEMP|FIELD_ELV)$",
     "SYSID",
     "SERIAL_NUM$",
     "(_LAT|_LNG|_LON|_LONG|LATITUDE|LONGITUDE)$"

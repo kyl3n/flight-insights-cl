@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import json
 import shutil
+from collections.abc import Callable
 from pathlib import Path
 from typing import Any, cast
 
@@ -135,6 +136,62 @@ def test_an_incomplete_registry_entry_is_refused(pack: Pack, tmp_path: Path, cas
     else:
         key, value = cast(tuple[str, str], what)
         entry[key] = value
+    path.write_text(json.dumps(doc), encoding="utf-8")
+    with pytest.raises(KnowledgeError, match=message):
+        Registry.load(load_pack(root))
+
+
+def _offer_verify(doc: dict[str, Any], kind: str = "metric_improves") -> dict[str, Any]:
+    """The AutoTune offer's first verify check of this kind."""
+    steps = doc["procedures"]["tune.autotune_offer"]["steps"]
+    checks = next(s for s in steps if s["kind"] == "verify")["checks"]
+    return next(c for c in checks if c["check"] == kind)
+
+
+BROKEN_PROCEDURES: dict[str, tuple[Callable[[dict[str, Any]], object], str]] = {
+    # the AutoTune offer's procedure edited badly
+    "applied when a finding nobody raises": (
+        lambda d: d["procedures"]["tune.autotune_offer"]["applied_when"].update(
+            finding="autotune.done"
+        ),
+        "applied_when names no finding",
+    ),
+    "graded by something else": (
+        lambda d: d["procedures"]["tune.autotune_offer"].update(graded_by="feel"),
+        "graded_by",
+    ),
+    "an improvement with no size": (lambda d: _offer_verify(d).pop("by"), "incomplete check"),
+    "a guard with no size": (
+        lambda d: _offer_verify(d, "metric_not_worse").pop("by"),
+        "incomplete check",
+    ),
+    "an improvement on a metric nobody measures": (
+        lambda d: _offer_verify(d).update(metric="tune.feel"),
+        "no metric tune.feel",
+    ),
+    "light against loaded with no limit": (
+        lambda d: _offer_verify(d, "metric_vs_lightest").pop("max_ratio"),
+        "max_ratio or max_above",
+    ),
+    "light against loaded with two limits": (
+        lambda d: _offer_verify(d, "metric_vs_lightest").update(max_above=0.1),
+        "max_ratio or max_above",
+    ),
+    "required as text": (lambda d: _offer_verify(d).update(required="yes"), "true or false"),
+    "undo also with something not a parameter": (
+        lambda d: d["procedures"]["tune.autotune_offer"]["undo_also"].append("rate gains"),
+        "undo_also lists parameter names",
+    ),
+}
+
+
+@pytest.mark.parametrize("case", sorted(BROKEN_PROCEDURES))
+def test_a_broken_grading_procedure_is_refused(pack: Pack, tmp_path: Path, case: str) -> None:
+    edit, message = BROKEN_PROCEDURES[case]
+    root = copy_pack(pack, tmp_path)
+    path = root / "procedures" / "copter.json"
+    doc: dict[str, Any] = json.loads(path.read_text(encoding="utf-8"))
+    edit(doc)
     path.write_text(json.dumps(doc), encoding="utf-8")
     with pytest.raises(KnowledgeError, match=message):
         Registry.load(load_pack(root))

@@ -57,6 +57,8 @@ struct Packet {
     aircraft: Aircraft,
     answers: Option<BTreeMap<String, Atom>>,
     flight: Option<Flight>,
+    #[allow(dead_code)]
+    weather: Option<Weather>,
     metrics: Option<Vec<Metric>>,
     findings: Option<Vec<Finding>>,
     evidence: Option<Vec<Evidence>>,
@@ -148,6 +150,33 @@ struct Flight {
     duration_s: Option<f64>,
     hover_s: Option<f64>,
     modes: Option<Vec<Mode>>,
+}
+
+/// The flight's modelled weather: wind, gusts, precipitation, the boundary layer and
+/// the K-index. Temperature, humidity, pressure, density altitude and cloud base narrow
+/// down the place, so they have no field here and a packet holding one is refused.
+#[derive(Deserialize)]
+#[serde(deny_unknown_fields)]
+#[allow(dead_code)]
+struct Weather {
+    quality: Quality,
+    coverage: f64,
+    wind_ms: Option<f64>,
+    wind_max_ms: Option<f64>,
+    surface_wind_ms: Option<f64>,
+    gust_max_ms: Option<f64>,
+    precipitation_mm_h: Option<f64>,
+    boundary_layer_m: Option<f64>,
+    kp_max: Option<f64>,
+}
+
+#[derive(Deserialize)]
+#[serde(rename_all = "lowercase")]
+enum Quality {
+    Forecast,
+    Reanalysis,
+    Mixed,
+    None,
 }
 
 #[derive(Deserialize)]
@@ -640,8 +669,9 @@ fn tool(l: &mut Limits, t: &Tool) {
 }
 
 /// Parameters that reveal where the aircraft is or which aircraft it is: origins and
-/// positions, magnetic declination, fences and rally points, script slots that can hold
-/// anything, identities, serial numbers and the simulator's settings.
+/// positions, magnetic declination, the barometer's ground pressure and temperature and the
+/// field's elevation, fences and rally points, script slots that can hold anything,
+/// identities, serial numbers and the simulator's settings.
 fn removed_parameter(name: &str) -> bool {
     const PREFIXES: [&str; 6] = [
         "AHRS_ORIG",
@@ -661,6 +691,18 @@ fn removed_parameter(name: &str) -> bool {
             .strip_prefix("SCR_USER")
             .is_some_and(|n| !n.is_empty() && n.chars().all(|c| c.is_ascii_digit()))
         || matches!(name, "BCN_ALT")
+        || baro_ground(name)
+}
+
+/// BARO_FIELD_ELV, BARO_GND_TEMP and BAROn_GND_PRESS (n a single digit, or none).
+fn baro_ground(name: &str) -> bool {
+    let Some(rest) = name.strip_prefix("BARO") else {
+        return false;
+    };
+    let rest = rest
+        .strip_prefix(|c: char| c.is_ascii_digit())
+        .unwrap_or(rest);
+    matches!(rest, "_GND_PRESS" | "_GND_TEMP" | "_FIELD_ELV")
 }
 
 // --- layer 2: coordinates in text and in numbers -----------------------------------------
@@ -901,7 +943,7 @@ const CLEAN: [(&str, &str); 5] = [
         include_str!("../../../tests/scrubber/packets/clean/tool_spectrum.json"),
     ),
 ];
-const LEAKY: [(&str, &str); 26] = [
+const LEAKY: [(&str, &str); 29] = [
     (
         "bool_as_number",
         include_str!("../../../tests/scrubber/packets/leaky/bool_as_number.json"),
@@ -921,6 +963,10 @@ const LEAKY: [(&str, &str); 26] = [
     (
         "compass_declination",
         include_str!("../../../tests/scrubber/packets/leaky/compass_declination.json"),
+    ),
+    (
+        "field_elevation",
+        include_str!("../../../tests/scrubber/packets/leaky/field_elevation.json"),
     ),
     (
         "long_text",
@@ -1005,6 +1051,14 @@ const LEAKY: [(&str, &str); 26] = [
     (
         "unknown_key",
         include_str!("../../../tests/scrubber/packets/leaky/unknown_key.json"),
+    ),
+    (
+        "weather_density_altitude",
+        include_str!("../../../tests/scrubber/packets/leaky/weather_density_altitude.json"),
+    ),
+    (
+        "weather_tripwire",
+        include_str!("../../../tests/scrubber/packets/leaky/weather_tripwire.json"),
     ),
 ];
 const TRIPWIRE: &str = include_str!("../../../tests/scrubber/tripwire.json");
@@ -1256,10 +1310,22 @@ mod tests {
             "BRD_SERIAL_NUM",
             "BCN_LONGITUDE",
             "SIM_OPOS_LAT",
+            "BARO_FIELD_ELV",
+            "BARO_GND_TEMP",
+            "BARO1_GND_PRESS",
+            "BARO3_GND_PRESS",
         ] {
             assert!(removed_parameter(name), "{name}");
         }
-        for name in ["ATC_RAT_PIT_P", "ARM_FENCE", "SCR_USER", "MOT_PWM_TYPE"] {
+        for name in [
+            "ATC_RAT_PIT_P",
+            "ARM_FENCE",
+            "SCR_USER",
+            "MOT_PWM_TYPE",
+            "BARO_ALT_OFFSET",
+            "BARO12_GND_PRESS",
+            "BARO1_DEVID",
+        ] {
             assert!(!removed_parameter(name), "{name}");
         }
     }

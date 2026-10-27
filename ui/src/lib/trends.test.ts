@@ -1,12 +1,13 @@
 import { describe, expect, it } from "vitest";
-import { cardKey, changeTone, chartData, multiples, payloads, placeEvents, sparkPath, yRange, type Series, type TrendPoint } from "./trends";
+import { cardKey, changeTone, chartData, groupName, groupOption, multiples, placeEvents, sparkPath, worstCheck, yRange, type PayloadGroup, type Series, type TrendPoint } from "./trends";
 
 const pt = (flight: string, value: number): TrendPoint => ({
-  flight, utc_us: null, value, spread: {}, zone: "target", payload: null, good: true,
+  flight, utc_us: null, value, spread: {}, zone: "target", payload: null, group: "band:0", kg: null,
+  takeoff_kg: null, good: true,
 });
 
 const S: Series = {
-  airframe: "a", metric: "vibration.p95", segment: "hover", payload: null, unit: "m/s/s",
+  airframe: "a", metric: "vibration.p95", segment: "hover", group: "band:0", payload: null, unit: "m/s/s",
   direction: "lower", zones: { target: [[null, 30]], caution: [[30, 60]], out: [[60, null]] },
   source: { kind: "ardupilot", title: "Vibration" },
   points: [pt("f1", 12), pt("f2", 13), pt("f3", 14)],
@@ -42,12 +43,29 @@ describe("trends", () => {
     expect(multiples([], 100, 50)).toEqual({ bands: [], rows: [] });
   });
 
-  it("draws sparklines, lists payloads and judges a change by the metric's direction", () => {
+  it("names payload groups by kilograms, else by how much heavier, else by label", () => {
+    const band = (band: number, kg: [number, number] | null = null, labels: string[] = []): PayloadGroup => ({
+      group: `band:${band}`, band, low: 30, high: 33, above_lightest: band * 10, kg, flights: 2, labels,
+    });
+    expect(groupName(band(0), "en")).toBe("Lightest flights");
+    expect(groupName(band(2), "en")).toBe("20% heavier than the lightest");
+    expect(groupName(band(2), "uk")).toBe("на 20% важче за найлегші");
+    expect(groupName(band(1, [26.5, 29.2]), "en")).toBe("26.5–29.2 kg");
+    expect(groupName({ label: "camera" }, "en")).toBe("camera");
+    expect(groupName({ label: null }, "en")).toBe("No payload label");
+    expect(groupOption(band(1, null, ["camera", "10 kg"]), "en")).toBe("10% heavier than the lightest · camera, 10 kg");
+    const labelled: PayloadGroup = { group: "label:x", label: "x", flights: 1, labels: ["x"] };
+    expect(groupOption(labelled, "en")).toBe("x"); // its label is already its name
+    expect(worstCheck([])).toBeNull();
+    expect(worstCheck([
+      { flight: "a", weighed_kg: 24, estimated_kg: 23.5, error_pct: -2.1 },
+      { flight: "b", weighed_kg: 29.4, estimated_kg: 30, error_pct: 2.0 },
+    ])).toBe(2.1);
+  });
+
+  it("draws sparklines and judges a change by the metric's direction", () => {
     expect(sparkPath([1])).toBe("");
     expect(sparkPath([0, 1], 10, 10)).toBe("M2.0 8.0 L8.0 2.0");
-    expect(payloads([{ payload: "5 kg" }, { payload: null }, { payload: "2 kg" }, { payload: "5 kg" }])).toEqual([
-      null, "2 kg", "5 kg",
-    ]);
     expect(changeTone(2, "lower")).toBe("worse");
     expect(changeTone(-2, "lower")).toBe("better");
     expect(changeTone(2, "higher")).toBe("better");

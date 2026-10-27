@@ -123,13 +123,12 @@ def _assemble(
                 tuple(r.native or "" for r in reverted),
             )
         )
-    undone = [r for r in changes if r.native_current is not None]
+    undone = [r.native or "" for r in changes if r.native_current is not None]
+    undone += [n for r in recs if r.param is None for n in r.undo if n not in undone]
     if undone:
         out.append(
             ProcedureStep(
-                "undo",
-                _fill(texts["undo"], {"params": ", ".join(r.native or "" for r in undone)}),
-                tuple(r.native or "" for r in undone),
+                "undo", _fill(texts["undo"], {"params": ", ".join(undone)}), tuple(undone)
             )
         )
     return out

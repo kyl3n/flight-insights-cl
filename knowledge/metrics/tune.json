@@ -55,6 +55,62 @@
         "title": "No universal range: judged against this airframe's own flights of the same tune-check profile and payload"
       }
     },
+    "tune.attitude_error_roll": {
+      "name": {
+        "en": "Roll attitude tracking error",
+        "uk": "Похибка відстеження кута крену"
+      },
+      "unit": "%",
+      "direction": "lower",
+      "definition": {
+        "en": "How far the aircraft's roll angle strays from the angle the controller asked for while the pilot moves the roll stick, as a share of how far the stick moved that target. It is what the pilot and the payload feel, and the tune's measure: AutoTune raises the angle and acceleration gains as well as the rate gains, and only this error shows all of it. It compares flights of the same tune-check profile, before and after a tuning change, light and loaded.",
+        "uk": "Наскільки кут крену апарата відхиляється від кута, який задав регулятор, поки пілот рухає стік крену, як частка того, наскільки стік змістив це задане значення. Це те, що відчувають пілот і вантаж, і міра налаштування: AutoTune підвищує коефіцієнти кута та прискорення, а не лише швидкості, і лише ця похибка показує все це. Вона порівнює польоти за однаковим профілем перевірки налаштування, до і після зміни, з вантажем і без."
+      },
+      "method": {
+        "en": "Over the same counted stick inputs as the roll rate tracking error, from ANG (logged every loop with LOG_BITMASK bit 0): RMS(ANG.DesRoll - ANG.Roll) over the input, divided by the RMS of how far the input moved ANG.DesRoll from its value when the input began, so a trim angle held in wind is not counted as the pilot's command. An input counts with at least 50 ANG samples and a target moved by 1 degree RMS or more. The value is the mean over the counted inputs, with a seeded 95% bootstrap interval over them; it needs 6 of them and ANG logged at 200 Hz or more.",
+        "uk": "За тими самими врахованими рухами стіка, що й похибка відстеження швидкості крену, з ANG (записується щоциклу з LOG_BITMASK біт 0): RMS(ANG.DesRoll - ANG.Roll) за рух, поділене на RMS того, наскільки рух змістив ANG.DesRoll від значення на його початку, щоб кут балансування на вітрі не вважався командою пілота. Рух враховується, якщо є щонайменше 50 зразків ANG і задане значення змістилося на 1 градус RMS або більше. Значення — середнє за врахованими рухами з відтворюваним 95% бутстреп-інтервалом; потрібно 6 рухів і ANG із частотою від 200 Гц."
+      },
+      "messages": [
+        "ANG",
+        "RATE",
+        "PIDR",
+        "MODE",
+        "CTUN",
+        "RCIN"
+      ],
+      "source": {
+        "kind": "baseline",
+        "title": "No universal range: judged against this airframe's own flights of the same tune-check profile and payload"
+      }
+    },
+    "tune.attitude_error_pitch": {
+      "name": {
+        "en": "Pitch attitude tracking error",
+        "uk": "Похибка відстеження кута тангажу"
+      },
+      "unit": "%",
+      "direction": "lower",
+      "definition": {
+        "en": "How far the aircraft's pitch angle strays from the angle the controller asked for while the pilot moves the pitch stick, as a share of how far the stick moved that target. It is what the pilot and the payload feel, and the tune's measure: AutoTune raises the angle and acceleration gains as well as the rate gains, and only this error shows all of it. It compares flights of the same tune-check profile, before and after a tuning change, light and loaded.",
+        "uk": "Наскільки кут тангажу апарата відхиляється від кута, який задав регулятор, поки пілот рухає стік тангажу, як частка того, наскільки стік змістив це задане значення. Це те, що відчувають пілот і вантаж, і міра налаштування: AutoTune підвищує коефіцієнти кута та прискорення, а не лише швидкості, і лише ця похибка показує все це. Вона порівнює польоти за однаковим профілем перевірки налаштування, до і після зміни, з вантажем і без."
+      },
+      "method": {
+        "en": "Over the same counted stick inputs as the pitch rate tracking error, from ANG (logged every loop with LOG_BITMASK bit 0): RMS(ANG.DesPitch - ANG.Pitch) over the input, divided by the RMS of how far the input moved ANG.DesPitch from its value when the input began, so a trim angle held in wind is not counted as the pilot's command. An input counts with at least 50 ANG samples and a target moved by 1 degree RMS or more. The value is the mean over the counted inputs, with a seeded 95% bootstrap interval over them; it needs 6 of them and ANG logged at 200 Hz or more.",
+        "uk": "За тими самими врахованими рухами стіка, що й похибка відстеження швидкості тангажу, з ANG (записується щоциклу з LOG_BITMASK біт 0): RMS(ANG.DesPitch - ANG.Pitch) за рух, поділене на RMS того, наскільки рух змістив ANG.DesPitch від значення на його початку, щоб кут балансування на вітрі не вважався командою пілота. Рух враховується, якщо є щонайменше 50 зразків ANG і задане значення змістилося на 1 градус RMS або більше. Значення — середнє за врахованими рухами з відтворюваним 95% бутстреп-інтервалом; потрібно 6 рухів і ANG із частотою від 200 Гц."
+      },
+      "messages": [
+        "ANG",
+        "RATE",
+        "PIDP",
+        "MODE",
+        "CTUN",
+        "RCIN"
+      ],
+      "source": {
+        "kind": "baseline",
+        "title": "No universal range: judged against this airframe's own flights of the same tune-check profile and payload"
+      }
+    },
     "tune.tracking_error_yaw": {
       "name": {
         "en": "Yaw rate tracking error",
@@ -943,6 +999,17 @@
       "action": {
         "en": "Below about 2 Hz it is usually the attitude loop or a swinging payload; from 2 to 20 Hz usually the rate gains; above that often a flexing arm or frame, or a loose mount. Check the payload mount, the arms and the motor mounts, then lower that axis's rate P and D by about a quarter or run AutoTune, and fly the tune check again.",
         "uk": "Нижче приблизно 2 Гц це зазвичай контур положення або вантаж, що розгойдується; від 2 до 20 Гц — зазвичай коефіцієнти контуру швидкості; вище — часто гнучкий промінь чи рама або слабке кріплення. Перевірте кріплення вантажу, промені й кріплення моторів, потім зменште P і D швидкості цієї осі приблизно на чверть або запустіть AutoTune і повторіть перевірку налаштування."
+      }
+    },
+    "tune.autotune_offer": {
+      "stage": "autotune",
+      "title": {
+        "en": "AutoTune {axes}, then fly this tune check again to measure it",
+        "uk": "Запустіть AutoTune для {axes}, потім повторіть цю перевірку налаштування, щоб виміряти результат"
+      },
+      "action": {
+        "en": "This flight measured how the rate loop tracks the sticks. ArduPilot's next step once the filters are set is AutoTune; flying the same tune check after it, light and then loaded, shows whether tracking improved, in each payload band. On large propellers the rate filters go to 10 Hz first and one axis is tuned per pack; with a payload that varies the gain back-off is raised. The plan's file carries those settings.",
+        "uk": "Цей політ виміряв, як контур швидкості відстежує стіки. Наступний крок ArduPilot після налаштування фільтрів — AutoTune; та сама перевірка налаштування після нього, спершу без вантажу, потім з вантажем, покаже, чи покращилося відстеження в кожному діапазоні навантаження. На великих гвинтах спершу фільтри швидкості ставлять на 10 Гц і налаштовують по одній осі на батарею; за змінного вантажу збільшують запас коефіцієнтів. Файл плану містить ці налаштування."
       }
     }
   }

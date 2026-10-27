@@ -31,7 +31,7 @@ A desktop app, for Windows and Linux first, that analyzes ArduPilot flight data.
 ## Location and privacy (non-negotiable)
 
 - Nothing sent to any server may contain coordinates, or anything else that reveals where the aircraft flew. All location work runs on the laptop.
-- The engine opens no network port and makes no network requests. Only the Rust shell talks to the network, and only to four endpoints: the update server, the Google Drive API, the Claude API and the Open-Meteo API.
+- The engine opens no network port and makes no network requests. Only the Rust shell talks to the network, and only to five endpoints: the update server, the Google Drive API, the Claude API, the Open-Meteo API and NOAA's Space Weather Prediction Center (SWPC).
 - Every AI packet goes through the engine's location scrubber, which drops everything not on an allowlist. The Rust shell then checks the packet again with a separate implementation just before sending it. Any change to what a packet can contain needs a scrubber test.
 - Weather is downloaded for whole regional tiles. Never request weather for an exact position.
 - Everything written to the shared Google Drive is encrypted on the laptop before upload.

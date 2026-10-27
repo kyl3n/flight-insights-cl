@@ -11,16 +11,28 @@
 | recommend.history | An airframe's recommendations, with what happened to each |
 | trend.overview | The airframe dashboard: each metric's latest value, zone, change and drift |
 | trend.series | One metric's series for an airframe, with its zones, baseline and drift |
+| trend.payloads | An airframe's payload bands by hover thrust, in kg once a flight is weighed |
 | trend.events | What changed on an airframe, placed at the flight it first applies to |
+| trend.attribution | An airframe's shifts (of one metric, or all), with their ranked causes |
 | trend.platform | One metric for every airframe of a platform, on shared axes |
 | flight.list | Flights, newest first, with a summary of each one's latest analysis |
 | fleet.overview | Each airframe's status, stage, key metrics and last flight; what is urgent |
 | filter.workbench | A flight's spectra before, as flown and with candidate filter values |
 | flight.propulsion | A flight's motor outputs, ESC telemetry and battery, reduced for display |
 | flight.system | A flight's loop load and timing, logging drops and errors, for display |
+| flight.tlogs | A flight's tlog sessions: each station clock against the vehicle's, and loss |
+| flight.tune | A flight's tune against one of its payload group's, and the plan's verdict |
+| flight.ab | Each parameter change made in flight, with the flight's two sides compared |
+| trend.revert_test | The single-change test flights that settle a shift, with what each showed |
+| trend.credits | The changes an airframe's improvements credit, each kept or since undone |
+| trend.fleet | A platform's confirmed links: one change, one move, on enough airframes |
 | review.file | A parameter file's configuration review and plan, with no flight |
+| airframe.recovery_card | The airframe's recovery card: GNSS, spoofing, the link and a motor lost |
+| airframe.sim_export | The airframe's model for ArduPilot's simulator, its parameters, as files |
 
-Analysing a flight also grades its airframe's earlier recommendations against it.
+Analysing a flight also makes its weather record, where the downloads cover it, and grades
+its airframe's earlier recommendations against it. A GNSS or compass finding of a flight
+flown while the planetary K-index was elevated carries it as context.
 
 Results hold metric values, findings with the evidence they rest on, and no
 positions: the analyzers read cached columns, where positions stay encrypted.
@@ -33,9 +45,10 @@ from collections.abc import Callable
 from pathlib import Path
 from typing import TYPE_CHECKING, Any, cast
 
-from flight_insights import analyzers, recommend, review, trends, views
+from flight_insights import analyzers, recommend, recovery, review, trends, tune_view, views
 from flight_insights.analyzers.registry import LANGUAGES
 from flight_insights.filters import workbench
+from flight_insights.history import ab, attribution, credit, fleet, revert
 from flight_insights.rpc.server import (
     BAD_INPUT,
     CONFLICT,
@@ -44,6 +57,10 @@ from flight_insights.rpc.server import (
     RpcError,
     Server,
 )
+from flight_insights.sim import export as sim_export
+from flight_insights.tlog import sessions as tlog_sessions
+from flight_insights.weather import context as weather_context
+from flight_insights.weather import record as weather_record
 
 if TYPE_CHECKING:
     from flight_insights.rpc.methods import EngineState
@@ -71,6 +88,8 @@ def add_analysis_methods(server: Server, state: EngineState, guarded: Callable[[
             out = analyzers.run_analysis(store, cache, state.pack, flight, force=force)
         except analyzers.FlightError as e:
             raise RpcError(BAD_INPUT, str(e)) from None
+        # its weather record first: grading weighs a shift against the weather
+        weather_record.refresh(store, cache, state.pack, [flight])
         recommend.grade_flight(store, state.pack, flight, out)
         return out
 
@@ -78,7 +97,11 @@ def add_analysis_methods(server: Server, state: EngineState, guarded: Callable[[
     @guarded
     def analysis_get(_ctx: Context, params: dict[str, Any]) -> dict[str, Any] | None:
         reg = analyzers.Registry.load(state.pack)
-        return analyzers.analysis_results(state.require_store(), _flight(params), reg)
+        store = state.require_store()
+        result = analyzers.analysis_results(store, _flight(params), reg)
+        if result is not None:
+            weather_context.space_weather(store, state.pack, result)
+        return result
 
     @server.method("recommend.plan")
     @guarded
@@ -222,6 +245,93 @@ def add_analysis_methods(server: Server, state: EngineState, guarded: Callable[[
     def flight_system(_ctx: Context, params: dict[str, Any]) -> dict[str, Any]:
         return _view(params, views.system)
 
+    @server.method("flight.timeline")
+    @guarded
+    def flight_timeline(_ctx: Context, params: dict[str, Any]) -> dict[str, Any]:
+        return _view(params, views.timeline)
+
+    @server.method("airframe.recovery_card")
+    @guarded
+    def airframe_recovery_card(_ctx: Context, params: dict[str, Any]) -> dict[str, Any]:
+        store, cache = state.require_store(), state.cache
+        assert cache is not None
+        airframe = _id(params, "airframe_id")
+        try:
+            return recovery.card(
+                store, cache, state.pack, analyzers.Registry.load(state.pack), airframe
+            )
+        except recovery.RecoveryError as e:
+            raise RpcError(BAD_INPUT, str(e)) from None
+
+    @server.method("airframe.sim_export")
+    @guarded
+    def airframe_sim_export(_ctx: Context, params: dict[str, Any]) -> dict[str, Any]:
+        store, cache = state.require_store(), state.cache
+        assert cache is not None
+        airframe = _id(params, "airframe_id")
+        flight = params.get("flight_id")
+        if flight is not None and (not isinstance(flight, str) or not flight):
+            raise RpcError(INVALID_PARAMS, "flight_id must be an id")
+        kg = params.get("takeoff_kg")
+        most_kg = float(state.pack.json("rules/payload.json")["max_takeoff_kg"])
+        if kg is not None and (
+            isinstance(kg, bool)
+            or not isinstance(kg, int | float)
+            or not math.isfinite(kg)
+            or not 0 < kg <= most_kg
+        ):
+            raise RpcError(
+                INVALID_PARAMS, f"takeoff_kg must be a weight above 0 and up to {most_kg:g} kg"
+            )
+        try:
+            ex = sim_export.export(store, cache, state.pack, airframe, flight, kg)
+        except sim_export.ExportError as e:
+            raise RpcError(BAD_INPUT, str(e)) from None
+        return {
+            "flight": ex.flight, "frame": ex.frame, "sitl": ex.sitl, "model": ex.model,
+            "sources": ex.sources,
+            "left_out": {why: len(names) for why, names in sorted(ex.left_out.items())},
+            "files": sim_export.files(ex, state.pack),
+        }  # fmt: skip
+
+    @server.method("flight.tlogs")
+    @guarded
+    def flight_tlogs(_ctx: Context, params: dict[str, Any]) -> list[dict[str, Any]]:
+        store = state.require_store()
+        flight_id = _flight(params)
+        if store.get("flight", flight_id) is None:
+            raise RpcError(BAD_INPUT, "no such flight")
+        return tlog_sessions.sessions(store, flight_id)
+
+    opened: dict[str, analyzers.FlightData] = {}  # the last few flights the Tune view read
+
+    def _open(flight_id: str) -> analyzers.FlightData:
+        store, cache = state.require_store(), state.cache
+        assert cache is not None
+        if flight_id not in opened:
+            if len(opened) >= 4:
+                opened.pop(next(iter(opened)))
+            opened[flight_id] = analyzers.FlightData.load(store, cache, state.pack, flight_id)
+        return opened[flight_id]
+
+    @server.method("flight.tune")
+    @guarded
+    def flight_tune(_ctx: Context, params: dict[str, Any]) -> dict[str, Any]:
+        axis = params.get("axis", "roll")
+        compare, group = params.get("compare_id"), params.get("group")
+        if axis not in ("roll", "pitch", "yaw"):
+            raise RpcError(INVALID_PARAMS, "axis must be roll, pitch or yaw")
+        for name, value in (("compare_id", compare), ("group", group)):
+            if value is not None and not isinstance(value, str):
+                raise RpcError(INVALID_PARAMS, f"{name} must be a string or null")
+        try:
+            return tune_view.tune(
+                state.require_store(), state.pack, analyzers.Registry.load(state.pack),
+                _flight(params), _open, axis, compare, group,
+            )  # fmt: skip
+        except (analyzers.FlightError, tune_view.TuneViewError) as e:
+            raise RpcError(BAD_INPUT, str(e)) from None
+
     @server.method("filter.workbench")
     @guarded
     def filter_workbench(_ctx: Context, params: dict[str, Any]) -> dict[str, Any]:
@@ -285,20 +395,123 @@ def add_analysis_methods(server: Server, state: EngineState, guarded: Callable[[
     def trend_series(_ctx: Context, params: dict[str, Any]) -> dict[str, Any]:
         reg = analyzers.Registry.load(state.pack)
         metric, segment = _metric(params, reg)
-        payload, any_payload = params.get("payload"), params.get("any_payload", False)
-        if payload is not None and not isinstance(payload, str):
-            raise RpcError(INVALID_PARAMS, "payload must be a payload label or null")
+        group, any_payload = params.get("group"), params.get("any_payload", False)
+        if group is not None and (
+            not isinstance(group, str) or not group.startswith(("band:", "label:"))
+        ):
+            raise RpcError(INVALID_PARAMS, "group must be 'band:<n>', 'label:<text>' or null")
+        if isinstance(group, str) and group.startswith("band:"):
+            try:
+                int(group[5:])
+            except ValueError:
+                raise RpcError(
+                    INVALID_PARAMS, "a band group is 'band:' and a whole number"
+                ) from None
         if not isinstance(any_payload, bool):
             raise RpcError(INVALID_PARAMS, "any_payload must be true or false")
+        flight = params.get("flight_id")
+        if flight is not None and not isinstance(flight, str):
+            raise RpcError(INVALID_PARAMS, "flight_id must be text or null")
         return trends.series(
             state.require_store(), reg, _id(params, "airframe_id"), metric, segment,
-            payload, any_payload,
+            group, any_payload, flight,
         )  # fmt: skip
+
+    @server.method("trend.payloads")
+    @guarded
+    def trend_payloads(_ctx: Context, params: dict[str, Any]) -> dict[str, Any]:
+        reg = analyzers.Registry.load(state.pack)
+        return trends.payloads(state.require_store(), reg, _id(params, "airframe_id"))
 
     @server.method("trend.events")
     @guarded
     def trend_events(_ctx: Context, params: dict[str, Any]) -> list[dict[str, Any]]:
         return trends.events(state.require_store(), _id(params, "airframe_id"))
+
+    @server.method("trend.attribution")
+    @guarded
+    def trend_attribution(_ctx: Context, params: dict[str, Any]) -> list[dict[str, Any]]:
+        """The airframe's shifts, each with its ranked candidate causes."""
+        reg = analyzers.Registry.load(state.pack)
+        metric = params.get("metric")
+        if metric is not None and (not isinstance(metric, str) or metric not in reg.metrics):
+            raise RpcError(INVALID_PARAMS, "metric must be a metric the registry knows, or null")
+        store, airframe = state.require_store(), _id(params, "airframe_id")
+        found = attribution.attribute(store, reg, airframe, metric)
+        return [attribution.shift_json(s, reg) for s in found]
+
+    @server.method("trend.credits")
+    @guarded
+    def trend_credits(_ctx: Context, params: dict[str, Any]) -> list[dict[str, Any]]:
+        """The changes the airframe's better shifts credit, kept or since undone."""
+        reg = analyzers.Registry.load(state.pack)
+        store, airframe = state.require_store(), _id(params, "airframe_id")
+        return [credit.credit_json(c, reg)
+                for c in credit.credits(store, state.pack, reg, airframe)]  # fmt: skip
+
+    @server.method("trend.fleet")
+    @guarded
+    def trend_fleet(_ctx: Context, params: dict[str, Any]) -> list[dict[str, Any]]:
+        """The platform's confirmed links, and whether the map already holds each."""
+        reg = analyzers.Registry.load(state.pack)
+        return fleet.links(state.require_store(), reg, _id(params, "platform_id"))
+
+    @server.method("trend.revert_test")
+    @guarded
+    def trend_revert_test(_ctx: Context, params: dict[str, Any]) -> dict[str, Any]:
+        """A shift's revert test: its single-change test flights, most likely first, what
+        the later flights showed, and with `step` and `kind` that step's two files."""
+        reg = analyzers.Registry.load(state.pack)
+        store, airframe = state.require_store(), _id(params, "airframe_id")
+        keys: dict[str, str] = {}
+        for name in ("metric", "segment", "group", "flight"):
+            value = params.get(name)
+            if not isinstance(value, str) or not value:
+                raise RpcError(INVALID_PARAMS, f"{name} must name the shift")
+            keys[name] = value
+        if keys["metric"] not in reg.metrics:
+            raise RpcError(INVALID_PARAMS, "metric must be a metric the registry knows")
+        shifts = attribution.attribute(store, reg, airframe, keys["metric"])
+        shift = revert.find_shift(shifts, keys["metric"], keys["segment"], keys["group"],
+                                  keys["flight"])  # fmt: skip
+        if shift is None:
+            raise RpcError(BAD_INPUT, "the airframe has no such shift")
+        try:
+            test = revert.revert_test(store, state.pack, reg, airframe, shift)
+        except revert.RevertError as e:
+            raise RpcError(BAD_INPUT, str(e)) from None
+        out = revert.revert_json(test, reg)
+        step, kind, lang = params.get("step"), params.get("kind"), params.get("lang", "en")
+        if step is not None:
+            if not isinstance(step, int) or isinstance(step, bool):
+                raise RpcError(INVALID_PARAMS, "step must be a step's number")
+            if kind not in ("mission planner", "qgroundcontrol"):
+                raise RpcError(INVALID_PARAMS, "kind must be 'mission planner' or 'qgroundcontrol'")
+            if lang not in LANGUAGES:
+                raise RpcError(INVALID_PARAMS, f"lang must be one of {LANGUAGES}")
+            try:
+                out["files"] = revert.files(test, step, store, state.pack, reg, kind, lang)
+            except revert.RevertError as e:
+                raise RpcError(BAD_INPUT, str(e)) from None
+        return out
+
+    @server.method("flight.ab")
+    @guarded
+    def flight_ab(_ctx: Context, params: dict[str, Any]) -> list[dict[str, Any]]:
+        """The in-flight A/B split: each change made while armed, both sides compared on
+        what the map ties it to, with times in seconds after arming."""
+        store, cache = state.require_store(), state.cache
+        assert cache is not None
+        flight_id = _flight(params)
+        row = store.get("flight", flight_id)
+        if row is None:
+            raise RpcError(BAD_INPUT, "no such flight")
+        try:
+            found = ab.split(store, cache, state.pack, flight_id)
+        except analyzers.FlightError as e:
+            raise RpcError(BAD_INPUT, str(e)) from None
+        reg = analyzers.Registry.load(state.pack)
+        return [ab.split_json(s, reg, int(row["arm_us"])) for s in found]
 
     @server.method("trend.platform")
     @guarded

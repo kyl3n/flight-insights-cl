@@ -40,6 +40,11 @@ BASE: dict[str, Any] = {
         "duration_s": 1084.2, "hover_s": 312.5,
         "modes": [{"mode": "LOITER", "s": 900.1}, {"mode": "LAND", "s": 42}],
     },
+    "weather": {
+        "quality": "reanalysis", "coverage": 0.95, "wind_ms": 6.5, "wind_max_ms": 9,
+        "surface_wind_ms": 4.5, "gust_max_ms": 11.5, "precipitation_mm_h": 0, "boundary_layer_m":
+        900, "kp_max": 5.33,
+    },
     "metrics": [
         {"metric": "vibration.p95", "segment": "hover", "value": 14.21, "zone": "target"},
         {"metric": "power.hover_power", "segment": "hover", "value": 1950.4, "zone": None},
@@ -164,10 +169,16 @@ LEAKY: dict[str, tuple[str, Change] | tuple[str, Change, dict[str, Any]]] = {
     "text_geohash": ("A geohash.", _set("evidence", 1, "summary", value="cell t2kgq8x4")),
     "text_plus_code": ("An Open Location Code.",
                        _set("evidence", 1, "summary", value="7JCM9RQ6+2X")),
+    "weather_density_altitude": ("Density altitude, which gives away the field's elevation.",
+                                 _set("weather", "density_altitude_m", value=1850)),
+    "weather_tripwire": ("A gust value that is the flight's latitude to four decimals.",
+                         _set("weather", "gust_max_ms", value=round(LAT, 4))),
     "removed_parameter": ("A parameter the rules remove: the estimator origin.",
                           _set("parameters", "AHRS_ORIG_LAT", value=12.3)),
     "compass_declination": ("Magnetic declination narrows down the place.",
                             _set("parameters", "COMPASS_DEC", value=0.04)),
+    "field_elevation": ("The barometer's field elevation gives away the site's altitude.",
+                        _set("parameters", "BARO_FIELD_ELV", value=1850)),
     "long_text": ("Text longer than the schema allows.",
                   _set("evidence", 0, "summary", value="x" * 300)),
     "bool_as_number": ("A boolean where a number belongs.",

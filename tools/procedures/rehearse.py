@@ -51,8 +51,8 @@ import sys
 import tempfile
 import time
 import traceback
-from collections.abc import Iterator, Mapping, Sequence
-from dataclasses import asdict, dataclass, field
+from collections.abc import Callable, Iterator, Mapping, Sequence
+from dataclasses import asdict, dataclass, field, replace
 from pathlib import Path
 from typing import Any
 
@@ -134,12 +134,34 @@ class Simulator:
     """SITL started by this tool, in its own working folder. The only thing it writes to:
     every connection is checked before it is used."""
 
-    def __init__(self, command: list[str], work: Path) -> None:
+    def __init__(
+        self,
+        command: list[str],
+        work: Path,
+        restart: Callable[[float, int | None], list[str]] | None = None,
+    ) -> None:
         self.work = work
         self.out = (work / "sitl.txt").open("ab")
         self.proc = subprocess.Popen(command, cwd=work, stdout=self.out, stderr=subprocess.STDOUT)
         self.links = 0
         self._vehicle: Vehicle | None = None
+        self._restart = restart  # the command line for a payload and speed-up
+
+    def power_cycle(self, payload_kg: float = 0.0, speedup: int | None = None) -> Vehicle:
+        """A fresh pack: the simulator starts again in the same folder, keeping its
+        EEPROM (every parameter), carrying `payload_kg` more than its frame model."""
+        if self._restart is None:
+            raise RehearsalFailed("this simulator cannot be started again")
+        if self._vehicle is not None:
+            self._vehicle.close()
+            self._vehicle = None
+        self.proc.terminate()
+        self.proc.wait(timeout=30)
+        self.proc = subprocess.Popen(
+            self._restart(payload_kg, speedup), cwd=self.work, stdout=self.out,
+            stderr=subprocess.STDOUT,
+        )  # fmt: skip
+        return self.connect()
 
     @property
     def vehicle(self) -> Vehicle:
@@ -355,7 +377,12 @@ def load_back(sim: Simulator, path: Path, expected: Mapping[str, float]) -> dict
 def rehearse(r: Rehearsal, ardupilot: Path, out: Path, work: Path) -> Report:
     report = Report(r.name)
     print(f"== {r.name}: {r.description}", flush=True)
-    sim = Simulator(sitl_command(r.setup, ardupilot, work), work)
+
+    def restart(payload_kg: float, speedup: int | None) -> list[str]:
+        scenario = replace(r.setup, payload_kg=payload_kg, speedup=speedup or r.setup.speedup)
+        return sitl_command(scenario, ardupilot, work)
+
+    sim = Simulator(sitl_command(r.setup, ardupilot, work), work, restart)
     try:
         with contextlib.ExitStack() as stack:
             app = App(work, r.answers, stack)
@@ -383,6 +410,9 @@ def _rehearse(r: Rehearsal, sim: Simulator, app: App, out: Path, report: Report)
     v = sim.connect()
     for name, value in r.setup.params.items():  # planted after boot, keeping the defaults
         sim.set(name, value(v.get_param(name)) if callable(value) else value)
+    if r.work:
+        _rehearse_work(r, sim, app, out, report)
+        return
 
     # The weaker setup, flown.
     t0 = time.time()
@@ -442,6 +472,120 @@ def _rehearse(r: Rehearsal, sim: Simulator, app: App, out: Path, report: Report)
         names = read_param_file(last.files["undo"]).values()
         back = load_back(sim, last.files["undo"], {k: last.start[k] for k in names})
         report.check("the undo file puts back every value it changed", not back, back or None)
+
+
+def _fly(app: App, sim: Simulator, fly: Callable[[Vehicle], None]) -> tuple[Plan, dict[str, Any]]:
+    """One flight, imported and planned as the app does (grading earlier plans first)."""
+    t = time.time()
+    fly(sim.vehicle)
+    return app.plan(app.import_log(sim.log_since(t)))
+
+
+def _action(app: App, code: str) -> dict[str, Any]:
+    [row] = [
+        r for r in app.records().values() if r["finding_code"] == code and r["param"] is None
+    ]  # fmt: skip
+    return row
+
+
+def _rehearse_work(r: Rehearsal, sim: Simulator, app: App, out: Path, report: Report) -> None:
+    """An action whose work is flights of its own, as the gate flies it: the test flight
+    light and loaded, the plan's files loaded, the work flown on fresh packs (AutoTune,
+    one axis a pack), then the test flight light and loaded again, which grades it."""
+    [code] = r.expects
+    for fly in r.before:  # the airframe's earlier flights
+        _fly(app, sim, fly)
+
+    # The weaker setup, flown light and loaded: two payload bands, before the change.
+    plan, _ = _fly(app, sim, r.setup.fly)
+    sim.power_cycle(r.loaded_kg)
+    plan, recorded = _fly(app, sim, r.setup.fly)
+    mine = [rec for rec in plan.recommendations if rec.lead.code == code]
+    actions = [rec for rec in mine if rec.param is None]
+    report.check(
+        "the weaker setup offers the action, with what prepares it",
+        [rec.status for rec in actions] == ["next"],
+        {"on offer": [(rec.param, rec.proposed, rec.status) for rec in mine], "stage": plan.stage},
+    )
+    if [rec.status for rec in actions] != ["next"]:
+        return
+    done = _carry_out_plan(app, sim, plan, out / "plan1", report, 1)
+    prepared = {
+        rec["id"]: rec["param"] for rec in recorded["recommendations"]
+        if rec["source"] == f"finding:{code}" and rec["canonical"] is not None
+    }  # fmt: skip
+
+    # The work, each on a fresh pack, with its own settings for that flight only.
+    for n, w in enumerate(r.work, 1):
+        v = sim.power_cycle(0.0, w.speedup)
+        before = {name: v.get_param(name) for name in w.params}
+        for name, value in w.params.items():
+            sim.set(name, value)
+        _fly(app, sim, w.fly)
+        for name, value in before.items():
+            sim.set(name, value)
+        action = _action(app, code)
+        report.note(f"{w.name}: {action['status']}, axes {action['detail'].get('applied_axes')}")
+        if n < len(r.work):
+            report.check(f"{w.name}: not done until every axis is", action["status"] != "applied")
+    action = _action(app, code)
+    report.check(
+        "the work's own flights show it done",
+        action["status"] == "applied" and bool(action["detail"].get("applied_flight")),
+        action["detail"].get("applied_axes"),
+    )
+    records = app.records()
+    report.check(
+        "what prepares it waits for it: not graded on its flights",
+        all("grade" not in records[i]["detail"] and "grade_pending" not in records[i]["detail"]
+            for i in prepared),
+    )  # fmt: skip
+
+    # The test flight again, light then loaded: pending, then graded.
+    sim.power_cycle(0.0)
+    _fly(app, sim, r.test_flight)
+    action = _action(app, code)
+    pending = action["detail"].get("grade_pending", {})
+    report.check(
+        "light alone leaves the grade waiting for the loaded band",
+        action["status"] == "applied" and bool(pending),
+        _bands(pending.get("checks", ())),
+    )
+    sim.power_cycle(r.loaded_kg)
+    _fly(app, sim, r.test_flight)
+    records = app.records()
+    for rid in [action["id"], *prepared]:
+        row = records[rid]
+        grade = row["detail"].get("grade") or row["detail"].get("grade_pending") or {}
+        checks = grade.get("checks", ())
+        report.check(
+            f"{row['param'] or code} confirmed, light and loaded",
+            row["status"] == "confirmed"
+            and not any(c["passed"] is False for c in checks)
+            and all(c["passed"] is True for c in checks if c.get("required")),
+            {"status": row["status"], "checks": _bands(checks)},
+        )
+
+    # Last, the undo file of the plan carried out puts back what the flight had,
+    # the gains the work saved included.
+    if "undo" in done.files:
+        names = read_param_file(done.files["undo"]).values()
+        back = load_back(sim, done.files["undo"], {k: done.start[k] for k in names})
+        report.check("the undo file puts back the gains the work saved", not back, back or None)
+
+
+def _bands(checks: Sequence[Mapping[str, Any]]) -> list[Any]:
+    """Each measured check's result by payload band, or light against heavy, for the report."""
+    out: list[Any] = []
+    for c in checks:
+        if c.get("check") == "metric_improves":
+            bands = [(b["group"], b["verdict"], b.get("change")) for b in c.get("bands", ())]
+            out.append((c["metric"], c["passed"], bands))
+        elif c.get("check") == "no_shift_worse":
+            out.append(("no_shift_worse", c["passed"], c.get("shifts")))
+        else:
+            out.append((c.get("metric"), c["passed"], c.get("light"), c.get("heavy")))
+    return out
 
 
 def _carry_out_plan(

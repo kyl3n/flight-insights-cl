@@ -94,6 +94,7 @@ export interface LogChoices {
   otherReason: ChangeKind;
   packs: string; // "B-12, B-14"
   payload: string;
+  takeoffKg: string; // as typed; see weightKg
 }
 
 export function initialChoice(file: ScannedFile): Choice {
@@ -113,6 +114,7 @@ export function initialChoices(file: ScannedFile): LogChoices {
     otherReason: "upgrade",
     packs: "",
     payload: "",
+    takeoffKg: "",
   };
 }
 
@@ -130,6 +132,26 @@ export function undecided(files: ScannedFile[], choices: Record<string, LogChoic
   });
 }
 
+export const MAX_TAKEOFF_KG = 1000; // the engine refuses more (rules/payload.json)
+
+/** A take-off weight as typed, in kilograms: blank is none, and a decimal comma reads
+ * as a point. Anything else, or a weight outside 0 to 1000 kg, is "invalid". */
+export function weightKg(text: string): number | null | "invalid" {
+  const s = text.trim().replace(",", ".");
+  if (!s) return null;
+  if (!/^\d+(\.\d+)?$/.test(s)) return "invalid";
+  const v = Number(s);
+  return v > 0 && v <= MAX_TAKEOFF_KG ? v : "invalid";
+}
+
+/** Logs being imported whose take-off weight can't be read; the import waits for them. */
+export function badWeights(files: ScannedFile[], choices: Record<string, LogChoices>): ScannedFile[] {
+  return files.filter((f) => {
+    const c = choices[f.id];
+    return f.kind === "dataflash" && c !== undefined && c.choice.kind !== "skip" && weightKg(c.takeoffKg) === "invalid";
+  });
+}
+
 export function packList(text: string): string[] {
   return [...new Set(text.split(/[,;]/).map((s) => s.trim()).filter(Boolean))];
 }
@@ -143,6 +165,7 @@ export interface Decision {
   packs?: string[];
   payload?: string;
   station_version_id?: string;
+  takeoff_kg?: number;
 }
 
 /** The import.commit decisions for the batch. Held logs are imported without an airframe.
@@ -171,6 +194,8 @@ export function decisions(
       const packs = packList(c.packs);
       if (packs.length) d.packs = packs;
       if (c.payload.trim()) d.payload = c.payload.trim();
+      const kg = weightKg(c.takeoffKg);
+      if (typeof kg === "number") d.takeoff_kg = kg;
     }
     return d;
   });

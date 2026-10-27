@@ -248,6 +248,7 @@ pub const UI_METHODS: &[&str] = &[
     "airframe.create",
     "airframe.list",
     "airframe.get",
+    "airframe.recovery_card",
     "airframe.record_change",
     "station.schema",
     "station.create",
@@ -273,12 +274,20 @@ pub const UI_METHODS: &[&str] = &[
     "recommend.history",
     "trend.overview",
     "trend.series",
+    "trend.payloads",
     "trend.events",
+    "trend.attribution",
+    "trend.revert_test",
+    "trend.credits",
+    "trend.fleet",
     "trend.platform",
     "flight.list",
     "fleet.overview",
     "flight.propulsion",
     "flight.system",
+    "flight.timeline",
+    "flight.tune",
+    "flight.ab",
     "review.file",
     "filter.workbench",
     "ai.results",
@@ -311,6 +320,16 @@ pub const SYNC_SHELL_ONLY: &[&str] = &[
     "sync.quarantine",
     "sync.unknown",
     "board.rekey",
+];
+
+/// Weather's engine methods, the shell's alone: the tiles the fleet flies in are for the
+/// downloader, and the interface has no use for them or for the replies kept.
+pub const WEATHER_SHELL_ONLY: &[&str] = &[
+    "weather.tiles",
+    "weather.store",
+    "weather.held",
+    "weather.export",
+    "weather.refresh",
 ];
 
 #[cfg(test)]
@@ -361,6 +380,12 @@ mod tests {
             );
         }
         assert!(SYNC_SHELL_ONLY.iter().all(|m| !UI_METHODS.contains(m)));
+    }
+
+    #[test]
+    fn the_ui_never_reads_where_the_fleet_flies() {
+        assert!(UI_METHODS.iter().all(|m| !m.starts_with("weather.")));
+        assert!(WEATHER_SHELL_ONLY.iter().all(|m| !UI_METHODS.contains(m)));
     }
 
     #[test]

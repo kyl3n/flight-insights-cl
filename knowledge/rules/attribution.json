@@ -1,0 +1,1022 @@
+{
+  "about": "Which parameter changes should move which metrics (spec: Parameter history and change attribution, 'Which parameters should move which metrics'). Each link names parameters (regular expressions over 4.7 names; a group named axis maps RLL/R to roll, PIT/P to pitch, YAW/Y to yaw in the metric names) and the metrics they should move: sign +1 when the metric moves the way the parameter's value moves, -1 the other way, 0 when it can go either way (a bitmask, a switch, 0 meaning off, or a value whose effect depends on where it sits); strength weights how firmly the link holds. Only tuning-class changes are candidates (knowledge/params/classes.json): learned values and counters are context only. The map is a prior, uncalibrated: attribution weighs it with how large and how well-timed each change is, and the fleet's results refine it.",
+  "uncalibrated": true,
+  "strengths": {
+    "strong": 1.0,
+    "medium": 0.6,
+    "weak": 0.3
+  },
+  "axes": {
+    "RLL": "roll",
+    "PIT": "pitch",
+    "YAW": "yaw",
+    "R": "roll",
+    "P": "pitch",
+    "Y": "yaw"
+  },
+  "links": [
+    {
+      "group": "rate P",
+      "params": [
+        "ATC_RAT_(?P<axis>RLL|PIT|YAW)_P"
+      ],
+      "metrics": [
+        {
+          "metric": "tune.attitude_error_{axis}",
+          "sign": -1,
+          "strength": "strong"
+        },
+        {
+          "metric": "tune.tracking_error_{axis}",
+          "sign": -1,
+          "strength": "strong"
+        },
+        {
+          "metric": "tune.rise_time_{axis}",
+          "sign": -1,
+          "strength": "medium"
+        },
+        {
+          "metric": "tune.bandwidth_{axis}",
+          "sign": 1,
+          "strength": "medium"
+        },
+        {
+          "metric": "tune.overshoot_{axis}",
+          "sign": 1,
+          "strength": "medium"
+        },
+        {
+          "metric": "tune.sensitivity_peak_{axis}",
+          "sign": 1,
+          "strength": "medium"
+        }
+      ],
+      "why": {
+        "en": "The rate loop's main gain: more of it follows the target closer and faster, with more overshoot and a smaller stability margin.",
+        "uk": "Основний коефіцієнт контуру швидкості: більший — точніше й швидше відстеження, але більше перерегулювання й менший запас стійкості."
+      },
+      "sources": [
+        "ArduPilot 4.7.0 parameter documentation, ATC_RAT_RLL_P: 'Corrects in proportion to the difference between the desired roll rate vs actual roll rate'",
+        "Astrom and Murray, Feedback Systems (2nd ed., 2021), ch. 11-12: more loop gain lowers the tracking error and raises the bandwidth, at the cost of a higher sensitivity peak; derivative action adds damping and passes more high-frequency noise; a lower filter cutoff passes less noise and adds phase lag."
+      ]
+    },
+    {
+      "group": "rate I",
+      "params": [
+        "ATC_RAT_(?P<axis>RLL|PIT|YAW)_I"
+      ],
+      "metrics": [
+        {
+          "metric": "tune.tracking_error_{axis}",
+          "sign": -1,
+          "strength": "weak"
+        },
+        {
+          "metric": "tune.overshoot_{axis}",
+          "sign": 1,
+          "strength": "weak"
+        },
+        {
+          "metric": "tune.i_at_limit_{axis}",
+          "sign": 1,
+          "strength": "weak"
+        }
+      ],
+      "why": {
+        "en": "The rate loop's integrator: it removes the slow part of the error, and more of it winds up sooner.",
+        "uk": "Інтегратор контуру швидкості: усуває повільну частину похибки, а більший швидше накопичується до межі."
+      },
+      "sources": [
+        "ArduPilot 4.7.0 parameter documentation, ATC_RAT_RLL_I: 'Corrects long-term difference in desired roll rate vs actual roll rate'",
+        "Astrom and Murray, Feedback Systems (2nd ed., 2021), ch. 11-12: more loop gain lowers the tracking error and raises the bandwidth, at the cost of a higher sensitivity peak; derivative action adds damping and passes more high-frequency noise; a lower filter cutoff passes less noise and adds phase lag."
+      ]
+    },
+    {
+      "group": "rate D",
+      "params": [
+        "ATC_RAT_(?P<axis>RLL|PIT|YAW)_D"
+      ],
+      "metrics": [
+        {
+          "metric": "tune.overshoot_{axis}",
+          "sign": -1,
+          "strength": "medium"
+        },
+        {
+          "metric": "tune.sensitivity_peak_{axis}",
+          "sign": -1,
+          "strength": "medium"
+        },
+        {
+          "metric": "tune.d_noise_{axis}",
+          "sign": 1,
+          "strength": "strong"
+        },
+        {
+          "metric": "esc.peak_temperature",
+          "sign": 1,
+          "strength": "weak"
+        },
+        {
+          "metric": "tune.hover_unsteady_{axis}",
+          "sign": 0,
+          "strength": "weak"
+        }
+      ],
+      "why": {
+        "en": "The rate loop's damping: more of it calms overshoot, and passes more gyro noise to the motors, which heats them.",
+        "uk": "Демпфування контуру швидкості: більше — менше перерегулювання, але більше шуму гіроскопа на мотори, що їх нагріває."
+      },
+      "sources": [
+        "ArduPilot 4.7.0 parameter documentation, ATC_RAT_RLL_D: 'Compensates for short-term change in desired roll rate vs actual roll rate'",
+        "Astrom and Murray, Feedback Systems (2nd ed., 2021), ch. 11-12: more loop gain lowers the tracking error and raises the bandwidth, at the cost of a higher sensitivity peak; derivative action adds damping and passes more high-frequency noise; a lower filter cutoff passes less noise and adds phase lag."
+      ]
+    },
+    {
+      "group": "rate feed-forward",
+      "params": [
+        "ATC_RAT_(?P<axis>RLL|PIT|YAW)_(FF|D_FF)"
+      ],
+      "metrics": [
+        {
+          "metric": "tune.tracking_error_{axis}",
+          "sign": -1,
+          "strength": "strong"
+        },
+        {
+          "metric": "tune.attitude_error_{axis}",
+          "sign": -1,
+          "strength": "medium"
+        },
+        {
+          "metric": "tune.rise_time_{axis}",
+          "sign": -1,
+          "strength": "medium"
+        },
+        {
+          "metric": "tune.overshoot_{axis}",
+          "sign": 1,
+          "strength": "weak"
+        }
+      ],
+      "why": {
+        "en": "Feed-forward drives the motors from the target itself, before any error builds: the response is quicker, and too much of it overshoots.",
+        "uk": "Пряма подача керує моторами з самого заданого значення, ще до похибки: відповідь швидша, а надмірна — з перерегулюванням."
+      },
+      "sources": [
+        "ArduPilot 4.7.0 parameter documentation, ATC_RAT_RLL_FF: 'Roll axis rate controller feed forward'",
+        "Astrom and Murray, Feedback Systems (2nd ed., 2021), ch. 11-12: more loop gain lowers the tracking error and raises the bandwidth, at the cost of a higher sensitivity peak; derivative action adds damping and passes more high-frequency noise; a lower filter cutoff passes less noise and adds phase lag."
+      ]
+    },
+    {
+      "group": "rate D filter",
+      "params": [
+        "ATC_RAT_(?P<axis>RLL|PIT|YAW)_FLTD"
+      ],
+      "metrics": [
+        {
+          "metric": "tune.d_noise_{axis}",
+          "sign": 1,
+          "strength": "strong"
+        },
+        {
+          "metric": "esc.peak_temperature",
+          "sign": 1,
+          "strength": "weak"
+        },
+        {
+          "metric": "tune.sensitivity_peak_{axis}",
+          "sign": 0,
+          "strength": "weak"
+        }
+      ],
+      "why": {
+        "en": "The cutoff of the D term's filter: higher passes more noise through D; lower adds lag.",
+        "uk": "Частота зрізу фільтра D: вища пропускає більше шуму через D, нижча додає запізнення."
+      },
+      "sources": [
+        "ArduPilot 4.7.0 parameter documentation, ATC_RAT_RLL_FLTD: 'Roll axis rate controller derivative frequency in Hz'",
+        "Astrom and Murray, Feedback Systems (2nd ed., 2021), ch. 11-12: more loop gain lowers the tracking error and raises the bandwidth, at the cost of a higher sensitivity peak; derivative action adds damping and passes more high-frequency noise; a lower filter cutoff passes less noise and adds phase lag."
+      ]
+    },
+    {
+      "group": "rate target and error filters",
+      "params": [
+        "ATC_RAT_(?P<axis>RLL|PIT|YAW)_(FLTT|FLTE)"
+      ],
+      "metrics": [
+        {
+          "metric": "tune.tracking_error_{axis}",
+          "sign": 0,
+          "strength": "medium"
+        },
+        {
+          "metric": "tune.rise_time_{axis}",
+          "sign": -1,
+          "strength": "weak"
+        },
+        {
+          "metric": "tune.hover_unsteady_{axis}",
+          "sign": 0,
+          "strength": "weak"
+        }
+      ],
+      "why": {
+        "en": "The cutoffs of the rate target's and the error's filters: they shape what the loop is asked to follow.",
+        "uk": "Частоти зрізу фільтрів заданого значення й похибки: вони формують те, що контур має відстежувати."
+      },
+      "sources": [
+        "ArduPilot 4.7.0 parameter documentation, ATC_RAT_RLL_FLTT: 'Roll axis rate controller target frequency in Hz'",
+        "ArduPilot 4.7.0 parameter documentation, ATC_RAT_RLL_FLTE: 'Roll axis rate controller error frequency in Hz'"
+      ]
+    },
+    {
+      "group": "integrator limit",
+      "params": [
+        "ATC_RAT_(?P<axis>RLL|PIT|YAW)_IMAX"
+      ],
+      "metrics": [
+        {
+          "metric": "tune.i_at_limit_{axis}",
+          "sign": -1,
+          "strength": "strong"
+        }
+      ],
+      "why": {
+        "en": "How far the integrator may go: a higher limit leaves it at the limit less often.",
+        "uk": "Межа інтегратора: вища — інтегратор рідше впирається в неї."
+      },
+      "sources": [
+        "ArduPilot 4.7.0 parameter documentation, ATC_RAT_RLL_IMAX: 'Constrains the maximum that the I term will output'"
+      ]
+    },
+    {
+      "group": "slew limiter",
+      "params": [
+        "ATC_RAT_(?P<axis>RLL|PIT|YAW)_SMAX"
+      ],
+      "metrics": [
+        {
+          "metric": "tune.slew_limited_{axis}",
+          "sign": 0,
+          "strength": "strong"
+        }
+      ],
+      "why": {
+        "en": "The slew limiter cuts P and D when their output moves too fast; 0 switches it off, so either way is possible.",
+        "uk": "Обмежувач швидкості зміни зменшує P і D, коли їхній вихід змінюється надто швидко; 0 вимикає його, тож можливо обидва напрями."
+      },
+      "sources": [
+        "ArduPilot 4.7.0 parameter documentation, ATC_RAT_RLL_SMAX: 'If the amplitude of the control action produced by the rate feedback exceeds this value, then the D+P gain is reduced to respect the limit'"
+      ]
+    },
+    {
+      "group": "angle P",
+      "params": [
+        "ATC_ANG_(?P<axis>RLL|PIT|YAW)_P"
+      ],
+      "metrics": [
+        {
+          "metric": "tune.attitude_error_{axis}",
+          "sign": -1,
+          "strength": "strong"
+        },
+        {
+          "metric": "tune.tracking_error_{axis}",
+          "sign": 1,
+          "strength": "medium"
+        },
+        {
+          "metric": "tune.hover_unsteady_{axis}",
+          "sign": -1,
+          "strength": "weak"
+        }
+      ],
+      "why": {
+        "en": "The attitude loop's gain: more of it holds the attitude closer, and asks the rate loop for busier rates, so the rate tracking error can rise while the attitude improves.",
+        "uk": "Коефіцієнт контуру кута: більший — кут утримується точніше, але контур швидкості отримує активніші задання, тож похибка швидкості може зрости, хоч кут кращий."
+      },
+      "sources": [
+        "ArduPilot 4.7.0 parameter documentation, ATC_ANG_RLL_P: 'Converts the error between the desired roll angle and actual angle to a desired roll rate'",
+        "SITL, Callisto X8 (rules/tune.json attitude): angle P 7 to 20 with AutoTune took attitude error down 66% while rate tracking error moved 4-10%."
+      ]
+    },
+    {
+      "group": "acceleration limits",
+      "params": [
+        "ATC_ACC_(?P<axis>R|P|Y)_MAX"
+      ],
+      "metrics": [
+        {
+          "metric": "tune.attitude_error_{axis}",
+          "sign": 0,
+          "strength": "weak"
+        },
+        {
+          "metric": "tune.tracking_error_{axis}",
+          "sign": 0,
+          "strength": "medium"
+        },
+        {
+          "metric": "motors.saturation_flight",
+          "sign": 0,
+          "strength": "medium"
+        }
+      ],
+      "why": {
+        "en": "How sharply the stick's command is shaped: higher is crisper and asks more of the motors; 0 removes the limit, so either way is possible.",
+        "uk": "Наскільки різко формується команда стіка: вище — чіткіше й більше навантаження на мотори; 0 знімає обмеження, тож можливо обидва напрями."
+      },
+      "sources": [
+        "ArduPilot 4.7.0 parameter documentation, ATC_ACC_R_MAX: 'Maximum acceleration in roll axis'"
+      ]
+    },
+    {
+      "group": "input shaping",
+      "params": [
+        "ATC_INPUT_TC",
+        "ATC_RATE_FF_ENAB"
+      ],
+      "metrics": [
+        {
+          "metric": "tune.tracking_error_roll",
+          "sign": 0,
+          "strength": "medium"
+        },
+        {
+          "metric": "tune.tracking_error_pitch",
+          "sign": 0,
+          "strength": "medium"
+        },
+        {
+          "metric": "tune.attitude_error_roll",
+          "sign": 0,
+          "strength": "weak"
+        },
+        {
+          "metric": "tune.attitude_error_pitch",
+          "sign": 0,
+          "strength": "weak"
+        },
+        {
+          "metric": "motors.saturation_flight",
+          "sign": 0,
+          "strength": "weak"
+        }
+      ],
+      "why": {
+        "en": "How the pilot's command becomes the target: softer or sharper, with or without feed-forward.",
+        "uk": "Як команда пілота стає заданим значенням: м'якше чи різкіше, з прямою подачею чи без."
+      },
+      "sources": [
+        "ArduPilot 4.7.0 parameter documentation, ATC_INPUT_TC: 'Low numbers lead to sharper response, higher numbers to softer response'",
+        "ArduPilot 4.7.0 parameter documentation, ATC_RATE_FF_ENAB: 'Controls whether body-frame rate feedforward is enabled or disabled'"
+      ]
+    },
+    {
+      "group": "throttle mix",
+      "params": [
+        "ATC_THR_MIX_(MIN|MAX|MAN)"
+      ],
+      "metrics": [
+        {
+          "metric": "motors.saturation_flight",
+          "sign": 0,
+          "strength": "medium"
+        },
+        {
+          "metric": "tune.attitude_error_roll",
+          "sign": 0,
+          "strength": "weak"
+        },
+        {
+          "metric": "tune.attitude_error_pitch",
+          "sign": 0,
+          "strength": "weak"
+        }
+      ],
+      "why": {
+        "en": "How attitude control and throttle share the motors' headroom.",
+        "uk": "Як керування кутом і газ ділять запас моторів."
+      },
+      "sources": [
+        "ArduPilot 4.7.0 parameter documentation, ATC_THR_MIX_MAX: 'Throttle vs attitude control prioritisation used during active flight (higher values mean we prioritise attitude control over throttle)'"
+      ]
+    },
+    {
+      "group": "gyro filter",
+      "params": [
+        "INS_GYRO_FILTER"
+      ],
+      "metrics": [
+        {
+          "metric": "tune.d_noise_roll",
+          "sign": 1,
+          "strength": "strong"
+        },
+        {
+          "metric": "tune.d_noise_pitch",
+          "sign": 1,
+          "strength": "strong"
+        },
+        {
+          "metric": "tune.d_noise_yaw",
+          "sign": 1,
+          "strength": "strong"
+        },
+        {
+          "metric": "esc.peak_temperature",
+          "sign": 1,
+          "strength": "weak"
+        },
+        {
+          "metric": "tune.sensitivity_peak_roll",
+          "sign": 0,
+          "strength": "weak"
+        },
+        {
+          "metric": "tune.sensitivity_peak_pitch",
+          "sign": 0,
+          "strength": "weak"
+        }
+      ],
+      "why": {
+        "en": "The gyro low-pass: a higher cutoff passes more noise to the controller, a lower one adds lag.",
+        "uk": "Фільтр нижніх частот гіроскопа: вища частота пропускає більше шуму, нижча додає запізнення."
+      },
+      "sources": [
+        "ArduPilot 4.7.0 parameter documentation, INS_GYRO_FILTER: 'Filter cutoff frequency for gyroscopes. This can be set to a lower value to try to cope with very high vibration levels in aircraft'",
+        "Astrom and Murray, Feedback Systems (2nd ed., 2021), ch. 11-12: more loop gain lowers the tracking error and raises the bandwidth, at the cost of a higher sensitivity peak; derivative action adds damping and passes more high-frequency noise; a lower filter cutoff passes less noise and adds phase lag."
+      ]
+    },
+    {
+      "group": "harmonic notches",
+      "params": [
+        "INS_HNTC(H|2|3|4)_(ENABLE|FREQ|BW|ATT|MODE|REF|FM_RAT)"
+      ],
+      "metrics": [
+        {
+          "metric": "tune.d_noise_roll",
+          "sign": 0,
+          "strength": "strong"
+        },
+        {
+          "metric": "tune.d_noise_pitch",
+          "sign": 0,
+          "strength": "strong"
+        },
+        {
+          "metric": "tune.d_noise_yaw",
+          "sign": 0,
+          "strength": "strong"
+        },
+        {
+          "metric": "esc.peak_temperature",
+          "sign": 0,
+          "strength": "medium"
+        },
+        {
+          "metric": "tune.hover_unsteady_roll",
+          "sign": 0,
+          "strength": "weak"
+        },
+        {
+          "metric": "tune.hover_unsteady_pitch",
+          "sign": 0,
+          "strength": "weak"
+        }
+      ],
+      "why": {
+        "en": "The harmonic notches remove the motors' noise before it reaches the controller: where they sit and how wide they are decides how much gets through.",
+        "uk": "Гармонічні режекторні фільтри прибирають шум моторів до регулятора: їхнє положення й ширина визначають, скільки проходить."
+      },
+      "sources": [
+        "ArduPilot 4.7.0 parameter documentation, INS_HNTCH_BW: 'The ratio of base frequency to bandwidth determines the notch quality factor and is fixed across harmonics'",
+        "knowledge/rules/filters.json and the filter analyzer (spec: Copter analyzers, filters): the notches' attenuation predicted from the pre-filter gyro."
+      ]
+    },
+    {
+      "group": "notch harmonics and sources",
+      "params": [
+        "INS_HNTC(H|2|3|4)_(HMNCS|OPTS)"
+      ],
+      "metrics": [
+        {
+          "metric": "tune.d_noise_roll",
+          "sign": 0,
+          "strength": "strong"
+        },
+        {
+          "metric": "tune.d_noise_pitch",
+          "sign": 0,
+          "strength": "strong"
+        },
+        {
+          "metric": "system.slow_loops",
+          "sign": 0,
+          "strength": "medium"
+        },
+        {
+          "metric": "system.max_loop_time",
+          "sign": 0,
+          "strength": "medium"
+        }
+      ],
+      "why": {
+        "en": "Which harmonics are notched and how (per motor, on every IMU, updated every loop): each notch filters noise and costs processor time.",
+        "uk": "Які гармоніки фільтруються і як (для кожного мотора, на кожному IMU, щоциклу): кожен фільтр прибирає шум і коштує часу процесора."
+      },
+      "sources": [
+        "ArduPilot 4.7.0 parameter documentation, INS_HNTCH_HMNCS: 'Bitmask of harmonic frequencies to apply Harmonic Notch Filter to'",
+        "knowledge/rules/cpu.json and the processor rule (spec: Configuration review): notch count and options cost processor time."
+      ]
+    },
+    {
+      "group": "loop and sampling rates",
+      "params": [
+        "SCHED_LOOP_RATE",
+        "INS_GYRO_RATE",
+        "FSTRATE_(ENABLE|DIV)",
+        "INS_FAST_SAMPLE",
+        "FFT_ENABLE",
+        "SCR_ENABLE"
+      ],
+      "metrics": [
+        {
+          "metric": "system.slow_loops",
+          "sign": 0,
+          "strength": "medium"
+        },
+        {
+          "metric": "system.max_loop_time",
+          "sign": 0,
+          "strength": "medium"
+        }
+      ],
+      "why": {
+        "en": "Work the processor does every loop: a faster loop, faster sampling, the fast-rate thread, in-flight FFT and scripting all cost time.",
+        "uk": "Робота процесора щоциклу: швидший цикл, швидша вибірка, швидкий потік, FFT у польоті й скрипти — усе коштує часу."
+      },
+      "sources": [
+        "ArduPilot 4.7.0 parameter documentation, SCHED_LOOP_RATE: 'This controls the rate of the main control loop in Hz'",
+        "ArduPilot 4.7.0 parameter documentation, FSTRATE_ENABLE: 'the fast rate divisor ... is dynamically scaled from FSTRATE_DIV to avoid overrun in the gyro sample buffer and main loop slow-downs'"
+      ]
+    },
+    {
+      "group": "logging load",
+      "params": [
+        "LOG_BITMASK",
+        "INS_RAW_LOG_OPT",
+        "INS_LOG_BAT_(MASK|OPT|CNT|LGCT|LGIN)",
+        "LOG_FILE_RATEMAX"
+      ],
+      "metrics": [
+        {
+          "metric": "logging.dropped_messages",
+          "sign": 0,
+          "strength": "strong"
+        },
+        {
+          "metric": "logging.imu_sample_loss",
+          "sign": 0,
+          "strength": "medium"
+        },
+        {
+          "metric": "system.slow_loops",
+          "sign": 0,
+          "strength": "weak"
+        }
+      ],
+      "why": {
+        "en": "What is logged and how fast: more messages fill the log buffer and can drop data.",
+        "uk": "Що й як часто записується: більше повідомлень заповнює буфер журналу і може губити дані."
+      },
+      "sources": [
+        "ArduPilot 4.7.0 parameter documentation, LOG_FILE_RATEMAX: 'This sets the maximum rate that streaming log messages will be logged to the file backend. A value of zero means that rate limiting is disabled'"
+      ]
+    },
+    {
+      "group": "log buffer",
+      "params": [
+        "LOG_FILE_BUFSIZE"
+      ],
+      "metrics": [
+        {
+          "metric": "logging.dropped_messages",
+          "sign": -1,
+          "strength": "strong"
+        }
+      ],
+      "why": {
+        "en": "A bigger log buffer rides out slow writes to the card.",
+        "uk": "Більший буфер журналу витримує повільний запис на картку."
+      },
+      "sources": [
+        "ArduPilot 4.7.0 parameter documentation, LOG_FILE_BUFSIZE: 'Raising this value may reduce \"gaps\" in your SD card logging but increases memory usage'"
+      ]
+    },
+    {
+      "group": "thrust curve and output range",
+      "params": [
+        "MOT_THST_EXPO",
+        "MOT_SPIN_(MIN|MAX|ARM)",
+        "MOT_PWM_(MIN|MAX)"
+      ],
+      "metrics": [
+        {
+          "metric": "payload.hover_thrust",
+          "sign": 0,
+          "strength": "strong"
+        },
+        {
+          "metric": "power.hover_throttle",
+          "sign": 0,
+          "strength": "medium"
+        },
+        {
+          "metric": "motors.saturation_hover",
+          "sign": 0,
+          "strength": "medium"
+        },
+        {
+          "metric": "motors.saturation_flight",
+          "sign": 0,
+          "strength": "medium"
+        },
+        {
+          "metric": "tune.attitude_error_roll",
+          "sign": 0,
+          "strength": "weak"
+        },
+        {
+          "metric": "tune.attitude_error_pitch",
+          "sign": 0,
+          "strength": "weak"
+        }
+      ],
+      "why": {
+        "en": "How outputs map to thrust: the app's hover-thrust estimate is computed through them, so a change moves it without the aircraft changing; the controller's gain across throttle moves too.",
+        "uk": "Як вихід перетворюється на тягу: оцінка тяги зависання обчислюється через них, тож зміна зсуває її без зміни апарата; змінюється й підсилення регулятора по газу."
+      },
+      "sources": [
+        "ArduPilot 4.7.0 parameter documentation, MOT_THST_EXPO: 'Motor thrust curve exponent (0.0 for linear to 1.0 for second order curve)'",
+        "ArduPilot 4.7.0 parameter documentation, MOT_SPIN_MAX: 'Point at which the thrust saturates expressed as a number from 0 to 1 in the entire output range'",
+        "spec: Copter analyzers, Payload: hover thrust is computed from RCOU through MOT_PWM_*, MOT_SPIN_* and MOT_THST_EXPO."
+      ]
+    },
+    {
+      "group": "battery voltage scaling",
+      "params": [
+        "MOT_BAT_(VOLT_MAX|VOLT_MIN|CURR_MAX|CURR_TC|IDX)"
+      ],
+      "metrics": [
+        {
+          "metric": "tune.attitude_error_roll",
+          "sign": 0,
+          "strength": "weak"
+        },
+        {
+          "metric": "tune.attitude_error_pitch",
+          "sign": 0,
+          "strength": "weak"
+        },
+        {
+          "metric": "motors.saturation_flight",
+          "sign": 0,
+          "strength": "weak"
+        }
+      ],
+      "why": {
+        "en": "Battery voltage compensation keeps the gains the same as the pack sags.",
+        "uk": "Компенсація напруги батареї зберігає коефіцієнти незмінними, коли батарея просідає."
+      },
+      "sources": [
+        "ArduPilot 4.7.0 parameter documentation, MOT_BAT_VOLT_MAX: 'Battery voltage compensation maximum voltage (voltage above this will have no additional scaling effect on thrust)'"
+      ]
+    },
+    {
+      "group": "ESC protocol and telemetry",
+      "params": [
+        "MOT_PWM_TYPE",
+        "SERVO_DSHOT_(RATE|ESC)",
+        "SERVO_BLH_(BDMASK|MASK|OTYPE|POLES|AUTO|TRATE|PORT)"
+      ],
+      "metrics": [
+        {
+          "metric": "esc.telemetry_error_rate",
+          "sign": 0,
+          "strength": "strong"
+        },
+        {
+          "metric": "esc.telemetry_dropouts",
+          "sign": 0,
+          "strength": "strong"
+        }
+      ],
+      "why": {
+        "en": "How the ESCs are driven and how their telemetry comes back.",
+        "uk": "Як керуються регулятори і як повертається їхня телеметрія."
+      },
+      "sources": [
+        "ArduPilot 4.7.0 parameter documentation, MOT_PWM_TYPE: 'This selects the output PWM type, allowing for normal PWM continuous output, OneShot, brushed or DShot motor output'",
+        "ArduPilot 4.7.0 parameter documentation, SERVO_DSHOT_RATE: 'DShot output rate for all outputs as a multiple of the loop rate'"
+      ]
+    },
+    {
+      "group": "current sensor scale",
+      "params": [
+        "BATT_AMP_(PERVLT|OFFSET)"
+      ],
+      "metrics": [
+        {
+          "metric": "power.peak_current",
+          "sign": 1,
+          "strength": "strong"
+        },
+        {
+          "metric": "power.hover_power",
+          "sign": 1,
+          "strength": "strong"
+        },
+        {
+          "metric": "power.energy_per_minute",
+          "sign": 1,
+          "strength": "strong"
+        },
+        {
+          "metric": "power.propulsion",
+          "sign": 1,
+          "strength": "strong"
+        }
+      ],
+      "why": {
+        "en": "The current sensor's calibration: every power figure scales with it, with nothing changed on the aircraft.",
+        "uk": "Калібрування датчика струму: кожна цифра потужності масштабується з ним без змін на апараті."
+      },
+      "sources": [
+        "ArduPilot 4.7.0 parameter documentation, BATT_AMP_PERVLT: 'Number of amps that a 1V reading on the current sensor corresponds to'"
+      ]
+    },
+    {
+      "group": "voltage sensor scale",
+      "params": [
+        "BATT_VOLT_MULT"
+      ],
+      "metrics": [
+        {
+          "metric": "power.hover_power",
+          "sign": 1,
+          "strength": "strong"
+        },
+        {
+          "metric": "power.energy_per_minute",
+          "sign": 1,
+          "strength": "strong"
+        },
+        {
+          "metric": "payload.hover_thrust",
+          "sign": 1,
+          "strength": "medium"
+        },
+        {
+          "metric": "power.battery_resistance",
+          "sign": 0,
+          "strength": "medium"
+        }
+      ],
+      "why": {
+        "en": "The voltage sensor's calibration: power, and the hover-thrust estimate made from the measured voltage, scale with it.",
+        "uk": "Калібрування датчика напруги: потужність і оцінка тяги зависання з виміряної напруги масштабуються з ним."
+      },
+      "sources": [
+        "ArduPilot 4.7.0 parameter documentation, BATT_VOLT_MULT: 'Used to convert the voltage of the voltage sensing pin (BATT_VOLT_PIN) to the actual battery's voltage (pin_voltage * VOLT_MULT)'"
+      ]
+    },
+    {
+      "group": "GPS update rate",
+      "params": [
+        "GPS1?_RATE_MS"
+      ],
+      "metrics": [
+        {
+          "metric": "bus.gps_gap",
+          "sign": 1,
+          "strength": "medium"
+        }
+      ],
+      "why": {
+        "en": "A longer GPS update interval leaves longer gaps between fixes.",
+        "uk": "Довший інтервал оновлення GPS залишає довші проміжки між даними."
+      },
+      "sources": [
+        "ArduPilot 4.7.0 parameter documentation, GPS_RATE_MS: 'Controls how often the GPS should provide a position update'"
+      ]
+    },
+    {
+      "group": "serial port speed",
+      "params": [
+        "SERIAL[0-9]_BAUD"
+      ],
+      "metrics": [
+        {
+          "metric": "bus.serial_dropped",
+          "sign": -1,
+          "strength": "medium"
+        }
+      ],
+      "why": {
+        "en": "A faster port has room for more traffic before it drops data.",
+        "uk": "Швидший порт вміщує більше трафіку, перш ніж губити дані."
+      },
+      "sources": [
+        "spec: Buses and interfaces: serial drops against the port's speed and stream rates."
+      ]
+    }
+  ],
+  "shifts": {
+    "about": "A shift is looked for in each metric series (per airframe, segment and payload group) at each boundary where changes first apply. Its windows are the flights since the last boundary that could move this metric (a linked parameter, a build or a firmware change) and until the next one, at most window of each. With min_before and min_after flights, the effect is the median after minus the median before, against the flights' spread before (1.4826 times their median absolute deviation, at least spread_floor of the median), with a seeded percentile bootstrap interval of the difference of medians. It is a shift when the effect is at least spread_factor times the spread and the interval leaves out 0; inconclusive when it is that large but the interval holds 0. With fewer flights, a metric measured with an interval on each flight (the tune check's) still compares the last flight before with the first after: a shift when their intervals are apart and the change is at least min_relative_pair of the value before.",
+    "window": 5,
+    "min_before": 3,
+    "min_after": 2,
+    "spread_factor": 2.0,
+    "spread_floor": 0.01,
+    "level": 0.95,
+    "resamples": 2000,
+    "seed": 7,
+    "min_relative_pair": 0.1
+  },
+  "in_flight": {
+    "about": "The in-flight A/B split (spec: Attribution method, 'Prefer in-flight A/B'). A parameter changed while armed (a ground station's write, which the log records as PARM, or a turn of the transmitter's tuning knob, PTUN, below) splits the flight there, when the map ties it to a metric that the analyzers able to measure part of a flight emit. Such changes within group_s of each other are one moment; any other change within group_s of it is listed with it but neither makes a moment nor stretches one. The side before runs from the last moment that moves the same metrics (or arming) to this one's first change; the side after from settle_s past its last change to the next such moment (or disarming). A side shorter than min_side_s is not compared. A metric measured with an interval on each side compares them as a pair, as two flights do (the shifts' min_relative_pair); any other is measured on blocks of block_s across each side and tested as flights are (the shifts' min_before, min_after, spread_factor and bootstrap).",
+    "group_s": 5,
+    "settle_s": 2,
+    "min_side_s": 20,
+    "block_s": 10,
+    "tuning_knob": {
+      "about": "The transmitter's tuning knob (TUNE, TUNE2; an RC channel with RCx_OPTION 219) in the in-flight A/B split. About three times a second the firmware sets what the knob's function names from its position, without saving it (ArduCopter/tuning.cpp, Copter::tuning), and logs PTUN: the function, the value set and the knob's range. A turn runs from the knob leaving a value it held for steady_s to reaching the next; values within steady_share of its range are the same value, so a receiver's jitter is no turn. functions names the parameters each function sets, canonical, with scale from the knob's units to the parameter's (WP Speed is set in cm/s; WP_SPD is in m/s). Functions that set no parameter (13 the helicopter's external gyro, 38 declination, 58 the system ID signal) and the helicopters' feed-forward (52 to 54, set only on a helicopter) are left out.",
+      "steady_share": 0.02,
+      "steady_s": 2,
+      "functions": {
+        "1": {"params": ["ATC_ANG_RLL_P", "ATC_ANG_PIT_P"]},
+        "3": {"params": ["ATC_ANG_YAW_P"]},
+        "4": {"params": ["ATC_RAT_RLL_P", "ATC_RAT_PIT_P"]},
+        "5": {"params": ["ATC_RAT_RLL_I", "ATC_RAT_PIT_I"]},
+        "6": {"params": ["ATC_RAT_YAW_P"]},
+        "7": {"params": ["PSC_D_VEL_P"]},
+        "10": {"params": ["WP_SPD"], "scale": 0.01},
+        "12": {"params": ["PSC_NE_POS_P"]},
+        "14": {"params": ["PSC_D_POS_P"]},
+        "21": {"params": ["ATC_RAT_RLL_D", "ATC_RAT_PIT_D"]},
+        "22": {"params": ["PSC_NE_VEL_P"]},
+        "25": {"params": ["ACRO_RP_RATE"]},
+        "26": {"params": ["ATC_RAT_YAW_D"]},
+        "28": {"params": ["PSC_NE_VEL_I"]},
+        "34": {"params": ["PSC_D_ACC_P"]},
+        "35": {"params": ["PSC_D_ACC_I"]},
+        "36": {"params": ["PSC_D_ACC_D"]},
+        "39": {"params": ["CIRCLE_RATE"]},
+        "40": {"params": ["ACRO_Y_RATE"]},
+        "45": {"params": ["ATC_INPUT_TC"]},
+        "46": {"params": ["ATC_RAT_PIT_P"]},
+        "47": {"params": ["ATC_RAT_PIT_I"]},
+        "48": {"params": ["ATC_RAT_PIT_D"]},
+        "49": {"params": ["ATC_RAT_RLL_P"]},
+        "50": {"params": ["ATC_RAT_RLL_I"]},
+        "51": {"params": ["ATC_RAT_RLL_D"]},
+        "55": {"params": ["MOT_YAW_HEADROOM"]},
+        "56": {"params": ["ATC_RAT_YAW_FLTE"]},
+        "59": {"params": ["PSC_ANGLE_MAX"]},
+        "60": {"params": ["LOIT_SPEED_MS"]}
+      },
+      "sources": [
+        "ArduCopter/tuning.cpp at Copter-4.7.0: Copter::tuning, each function's set_kP, set_kI, set_kD, set_input_tc, set_filt_E_hz, set_speed_NE_cms, set_rate, set_yaw_headroom, set_lean_angle_max_deg, set_speed_max_NE_ms; PTUN written before the value is set",
+        "ArduCopter/defines.h at Copter-4.7.0: tuning_func values",
+        "ArduCopter/Log.cpp at Copter-4.7.0: PTUN TimeUS, Param, TunVal, TunMin, TunMax, NIn"
+      ]
+    }
+  },
+  "revert_test": {
+    "about": "The test that settles a shift that made a metric worse (spec: 'When performance changes', steps 5 to 7). Each parameter candidate, most likely first, is one single-change test flight: a file that puts it back as it was, every other change left in place. A later flight in the shift's payload group with that candidate back and every other one still as after is its test. Within twice the spread before (the shifts' spread_factor) of the flights before and not of the flights after, it explains the shift; the other way round, it is not the cause; else unclear. A metric with an interval on each flight reads the test flight's interval against the last flight before and the first after. Once a step explains the shift the rest are not needed.",
+    "texts": {
+      "header": {
+        "en": "Revert test {step} of {steps}: load this file on its own. It puts {param} back from {after} to {before} and changes nothing else, to see whether that change made {metric} worse from flight {flight}.",
+        "uk": "Тест повернення {step} з {steps}: завантажте лише цей файл. Він повертає {param} з {after} до {before} і більше нічого не змінює, щоб перевірити, чи саме ця зміна погіршила «{metric}» з польоту {flight}."
+      },
+      "fly": {
+        "en": "Fly the same profile as before ({segment}), with the same payload and battery type.",
+        "uk": "Виконайте той самий профіль польоту, що й раніше ({segment}), з тим самим вантажем і типом батареї."
+      },
+      "verify": {
+        "en": "The next log should show {metric} back near {was} {unit} (it has been {is}). If it stays near {is}, this change was not the cause: load the undo file, then the next test.",
+        "uk": "Наступний журнал має показати «{metric}» знову близько {was} {unit} (зараз {is}). Якщо значення лишиться близько {is}, причина не в цій зміні: завантажте файл скасування, а потім наступний тест."
+      },
+      "undo_header": {
+        "en": "Undo file for revert test {step} of {steps}: puts {param} back to {after}, as it is now. Load it if the test shows this change was not the cause.",
+        "uk": "Файл скасування для тесту повернення {step} з {steps}: повертає {param} до {after}, як зараз. Завантажте його, якщо тест покаже, що причина не в цій зміні."
+      },
+      "comment": {
+        "en": "revert test: the only change",
+        "uk": "тест повернення: єдина зміна"
+      }
+    }
+  },
+  "credits": {
+    "about": "Credit for improvements (spec: step 7, 'Credit improvements the same way'). A shift that made a metric better, at medium or high confidence, credits its top-ranked parameter change when the map or the fleet ties it to the metric. The change is kept while every later flight still has its value after; the first later flight with any other value undoes it, and the credit says so."
+  },
+  "ranking": {
+    "about": "Each change bracketed by a shift (applied after the last flight before it, by the first flight after it) is scored: the map's strength for this metric, times how well its direction fits (match when the map's sign and the change's direction would move the metric the way it moved, the other way when they would move it opposite, either when the map's sign is 0 or the values are not numbers), times its size (its relative change over size_saturates, at most 1), times its timing (1 at the shift's own boundary, nearby for a boundary the windows spanned). A parameter the map does not tie to the metric scores unlinked; a build change scores build, a firmware change firmware. Learned values, counters, hardware IDs and ground-station settings are listed as context, unscored. Confidence is high when the top candidate is linked, scores at least dominates times the next and no build or firmware change sits with it; medium when it is linked; low otherwise. Uncalibrated: the fleet's confirmed results refine it.",
+    "match": 1.0,
+    "either": 0.6,
+    "opposite": 0.2,
+    "size_saturates": 0.25,
+    "nearby": 0.5,
+    "unlinked": 0.05,
+    "build": 0.5,
+    "firmware": 0.3,
+    "dominates": 2.0,
+    "candidate_classes": [
+      "tuning",
+      "calibration"
+    ]
+  },
+  "fleet": {
+    "about": "Fleet evidence (spec: 'Fleet evidence'). Each other airframe of the platform votes, once per parameter, the way it was changed and metric, with the way the metric moved: from a shift whose change is its top-ranked candidate, tied to the metric by the map, at medium or high confidence, or whose change was the only one at that boundary. At least min_airframes agreeing with at most max_against_share of the votes against confirms the change for that move: its score is multiplied by confirmed, or for a change the map does not tie to the metric it counts as a learned link scored learned. The other way round it is contradicted, and its score is multiplied by contradicted. Uncalibrated.",
+    "min_airframes": 3,
+    "max_against_share": 0.25,
+    "confirmed": 1.5,
+    "contradicted": 0.5,
+    "learned": 0.6
+  },
+  "weather": {
+    "about": "Weather as a confounder (spec: Attribution method, 'Name confounders'). For a shift in a metric the weather can move (one starting with a variable's metrics prefixes), the median of each variable over the flights before and over the flights after is taken from their weather records, using only records whose coverage (the share of the flight's samples the downloads covered) is at least min_coverage. Every variable both sides have is listed with the shift; one whose medians differ by at least its differ lowers the shift's confidence by one step (high to medium, medium to low), and in grading a shift with weather that differed is not taken as the change's regression on its own. With no records (no Open-Meteo key, or downloads not yet made), nothing changes. Thresholds uncalibrated: the fleet's confirmed results refine them.",
+    "uncalibrated": true,
+    "min_coverage": 0.5,
+    "variables": {
+      "wind_ms": {
+        "differ": 3.0,
+        "metrics": [
+          "tune.tracking_error_",
+          "tune.attitude_error_",
+          "tune.hover_unsteady_",
+          "tune.i_at_limit_",
+          "tune.slew_limited_",
+          "tune.bandwidth_",
+          "tune.rise_time_",
+          "tune.overshoot_",
+          "tune.settling_",
+          "tune.sensitivity_peak_",
+          "power.hover_power",
+          "power.energy_per_minute",
+          "power.propulsion",
+          "power.peak_current",
+          "power.hover_throttle",
+          "motors.saturation_",
+          "motors.output_spread"
+        ]
+      },
+      "gust_max_ms": {
+        "differ": 4.0,
+        "metrics": [
+          "tune.tracking_error_",
+          "tune.attitude_error_",
+          "tune.hover_unsteady_",
+          "tune.i_at_limit_",
+          "tune.slew_limited_",
+          "tune.bandwidth_",
+          "tune.rise_time_",
+          "tune.overshoot_",
+          "tune.settling_",
+          "tune.sensitivity_peak_",
+          "motors.saturation_",
+          "power.peak_current"
+        ]
+      },
+      "density_altitude_m": {
+        "differ": 300.0,
+        "metrics": [
+          "power.hover_power",
+          "power.energy_per_minute",
+          "power.propulsion",
+          "power.peak_current",
+          "power.hover_throttle",
+          "motors.saturation_",
+          "motor_out."
+        ]
+      },
+      "temperature_c": {
+        "differ": 8.0,
+        "metrics": [
+          "esc.peak_temperature",
+          "power.battery_resistance",
+          "power.battery_loss"
+        ]
+      }
+    },
+    "sources": [
+      "wind and gusts on the tune metrics: ArduPilot's AutoTune page asks for as little wind as possible, because gusts disturb the aircraft (https://ardupilot.org/copter/docs/autotune.html), and the app's tune-check card holds wind to 4 m/s and gusts to 6 m/s (knowledge/procedures/copter.json, tune.check). Wind is a disturbance the loops must reject, and the rate target each response is measured against carries the angle loop's corrections for it, so it moves every tracking and response measure; D-term noise, which the motors make far above gust frequencies, is left out",
+      "wind on power and motor outputs: holding against wind tilts the thrust and adds the drag the motors must overcome, and gusts take output to the limits (Leishman, Principles of Helicopter Aerodynamics, 2nd ed., 2006, ch. 2 and 5: hover and forward-flight power)",
+      "density_altitude_m: ideal hover power is T^1.5 / sqrt(2 rho A) (Leishman, 2006, ch. 2), and air density falls about 1% for every 100 m of density altitude near sea level (ICAO Doc 7488, Manual of the ICAO Standard Atmosphere), so 300 m moves hover power by about 1.5%, near the 2% that attribution's spread floor and factor let through; the motor-out margin rests on the same hover output",
+      "temperature_c: an ESC's temperature rises from the air's, so a warmer day starts it warmer; a lithium-ion cell's internal resistance rises steeply as it cools (Waag, Kabitz and Sauer, Experimental investigation of the lithium-ion battery impedance characteristic at various conditions and aging states, Applied Energy 102 (2013) 885-897)"
+    ]
+  }
+}

@@ -21,6 +21,7 @@ pub mod scrub;
 pub mod station;
 pub mod sync;
 pub mod watch;
+pub mod weather;
 
 use std::path::PathBuf;
 use std::sync::atomic::{AtomicBool, Ordering};
@@ -71,6 +72,8 @@ struct Shell {
     engine: Mutex<Option<Arc<Engine>>>,
     /// The sync worker's state, and what wakes it.
     sync: sync::app::Worker,
+    /// The weather downloader's state.
+    weather: weather::Worker,
     /// The signed-in shared drive, by its id.
     drive: Mutex<Option<(String, Arc<sync::google::GoogleDrive>)>>,
     /// The device registry as last read, for the sync panel.
@@ -460,9 +463,7 @@ async fn ai_key_set(app: AppHandle, key: String) -> Result<(), String> {
         // In a fleet, the key is entered once and reaches every laptop (spec: Security,
         // "Service keys").
         if fleet::in_fleet(&shell) {
-            shell
-                .sync
-                .share_claude_key(Some(zeroize::Zeroizing::new(key.trim().to_owned())));
+            shell.sync.share_keys();
         }
         Ok(())
     })
@@ -479,9 +480,69 @@ async fn ai_key_clear(app: AppHandle) -> Result<(), String> {
             .ok_or("the OS keychain is not available")?
             .delete(ai::KEY_NAME)?;
         if fleet::in_fleet(&shell) {
-            shell.sync.share_claude_key(None);
+            shell.sync.share_keys();
         }
         Ok(())
+    })
+    .await
+    .map_err(|e| e.to_string())?
+}
+
+/// Keeps the Open-Meteo key in the OS keychain. The interface can set or remove it,
+/// never read it back; in a fleet it goes to every laptop.
+#[tauri::command]
+async fn weather_key_set(app: AppHandle, key: String) -> Result<(), String> {
+    let key = zeroize::Zeroizing::new(key);
+    tauri::async_runtime::spawn_blocking(move || {
+        let shell = app.state::<Shell>();
+        let keychain = shell.keychain.lock().expect("keychain").clone();
+        let keychain = keychain.ok_or("the OS keychain is not available")?;
+        weather::set_key(keychain.as_ref(), &key)?;
+        if fleet::in_fleet(&shell) {
+            shell.sync.share_keys();
+        }
+        Ok(())
+    })
+    .await
+    .map_err(|e| e.to_string())?
+}
+
+#[tauri::command]
+async fn weather_key_clear(app: AppHandle) -> Result<(), String> {
+    tauri::async_runtime::spawn_blocking(move || {
+        let shell = app.state::<Shell>();
+        let keychain = shell.keychain.lock().expect("keychain").clone();
+        keychain
+            .ok_or("the OS keychain is not available")?
+            .delete(weather::KEY_NAME)?;
+        if fleet::in_fleet(&shell) {
+            shell.sync.share_keys();
+        }
+        Ok(())
+    })
+    .await
+    .map_err(|e| e.to_string())?
+}
+
+/// What the interface may know of weather: whether a key is set (never the key), the
+/// last download round's outcome and when the next one is (never a tile or a place).
+#[tauri::command]
+async fn weather_status(app: AppHandle) -> Result<Value, String> {
+    tauri::async_runtime::spawn_blocking(move || {
+        let shell = app.state::<Shell>();
+        let keychain = shell.keychain.lock().expect("keychain").clone();
+        let key_set = keychain
+            .map(|k| weather::key(k.as_ref()).map(|k| k.is_some()))
+            .transpose()?
+            .unwrap_or(false);
+        let schedule = weather::load_schedule(&shell.data_dir);
+        let mut state = shell.weather.state.lock().expect("weather state").clone();
+        if state.is_null() {
+            state = serde_json::json!({ "state": "waiting" });
+        }
+        state["key_set"] = serde_json::json!(key_set);
+        state["next_ms"] = serde_json::json!(schedule.next_instant(weather::now_ms()));
+        Ok(state)
     })
     .await
     .map_err(|e| e.to_string())?
@@ -595,6 +656,59 @@ async fn ai_chat_cancel(app: AppHandle, packet_id: String) -> Result<(), String>
     .map_err(|e| e.to_string())?
 }
 
+/// One slot's weather downloads, when a key is set and the engine is running.
+fn weather_round(
+    shell: &Shell,
+    schedule: &weather::plan::Schedule,
+    slot: i64,
+    fleet: Option<&fleet::WeatherFleet>,
+) {
+    let now = weather::now_ms();
+    let keychain = shell.keychain.lock().expect("keychain").clone();
+    let key = keychain.and_then(|k| weather::key(k.as_ref()).ok().flatten());
+    let Some(key) = key else {
+        return shell
+            .weather
+            .record(serde_json::json!({"state": "no key"}), schedule, now);
+    };
+    let Some(engine) = shell.current_engine() else {
+        return shell
+            .weather
+            .record(serde_json::json!({"state": "no engine"}), schedule, now);
+    };
+    let staging = weather::share::staging(&shell.data_dir);
+    let shared = fleet.map(|f| weather::share::Fleet {
+        drive: f.drive.as_ref(),
+        registry: &f.registry,
+        keyring: &f.keyring,
+        identity: f.identity.as_ref(),
+        staging: staging.clone(),
+    });
+    let outcome = net::client(Duration::from_secs(120))
+        .map_err(weather::fetch::Stop::Failed)
+        .and_then(|http| {
+            weather::fetch::round(
+                engine.as_ref(),
+                &http,
+                &weather::fetch::Hosts::default(),
+                &key,
+                schedule,
+                slot,
+                &staging,
+                &mut |_| {},
+                shared.as_ref().map(|s| s as &dyn weather::fetch::Share),
+            )
+        });
+    // Whatever the round kept, even one cut short, goes into the flights' records, so
+    // trends and attribution read current weather.
+    let _ = engine
+        .client
+        .call("weather.refresh", serde_json::json!({}), CALL_TIMEOUT);
+    shell
+        .weather
+        .record(weather::fetch::summary(&outcome), schedule, now);
+}
+
 fn start_up(app: &AppHandle) {
     let shell = app.state::<Shell>();
     let identifier = app.config().identifier.clone();
@@ -653,6 +767,42 @@ fn start_up(app: &AppHandle) {
                 syncer.state::<Shell>().sync.wait();
             }
         });
+    let weatherer = app.clone();
+    let _ = std::thread::Builder::new()
+        .name("weather".into())
+        .spawn(move || {
+            loop {
+                let shell = weatherer.state::<Shell>();
+                // in a fleet, the fleet's schedule, so its laptops take turns at one slot
+                let fleet = fleet::weather_fleet(&shell);
+                let schedule = match &fleet {
+                    Some(f) => weather::share::fleet_schedule(&f.keyring.object_keys()),
+                    None => weather::load_schedule(&shell.data_dir),
+                };
+                if let Some(slot) = shell.weather.take_slot(&schedule, weather::now_ms()) {
+                    if let Some(f) = &fleet {
+                        let members: Vec<String> = f
+                            .registry
+                            .members
+                            .iter()
+                            .filter(|(_, m)| m.revoked_after.is_none())
+                            .map(|(id, _)| id.clone())
+                            .collect();
+                        let wait = weather::share::turn_wait_ms(
+                            &f.keyring.object_keys(),
+                            slot,
+                            &f.identity.laptop_id_hex(),
+                            &members,
+                        );
+                        std::thread::sleep(Duration::from_millis(wait as u64));
+                    }
+                    weather_round(&shell, &schedule, slot, fleet.as_ref());
+                }
+                let now = weather::now_ms();
+                let wait = (schedule.next_instant(now) - now).clamp(1_000, weather::WAKE_MS);
+                std::thread::sleep(Duration::from_millis(wait as u64));
+            }
+        });
     let watcher = app.clone();
     let _ = std::thread::Builder::new()
         .name("folder-watch".into())
@@ -687,6 +837,7 @@ pub fn run() {
                 drive: Mutex::new(None),
                 registry: Mutex::new(None),
                 starting: Mutex::new(()),
+                weather: weather::Worker::default(),
                 exiting: AtomicBool::new(false),
                 status: Mutex::new(Status::default()),
                 command: Mutex::new(None),
@@ -711,6 +862,9 @@ pub fn run() {
             ai_chat_prepare,
             ai_chat_send,
             ai_chat_cancel,
+            weather_status,
+            weather_key_set,
+            weather_key_clear,
             fleet::sync_status,
             fleet::sync_now,
             fleet::sync_choose_drive,

@@ -27,8 +27,8 @@
       "uk": "Щойно наступний журнал підтвердить зміну, завантажте файл повернення: він поверне {params} до значень, що були до тестового польоту."
     },
     "undo": {
-      "en": "If the test goes wrong, land and load the undo file: it puts back every value this plan changed ({params}).",
-      "uk": "Якщо тест піде не так, сідайте й завантажте файл скасування: він поверне кожне значення, змінене цим планом ({params})."
+      "en": "If the test goes wrong, land and load the undo file: it puts back every value this plan changed, and what its work may change on its own, as this flight had them ({params}).",
+      "uk": "Якщо тест піде не так, сідайте й завантажте файл скасування: він поверне кожне значення, змінене цим планом, і те, що може змінити сама робота, як було в цьому польоті ({params})."
     },
     "card_header": {
       "en": "Test card. Do the steps in order. Nothing is written to the aircraft automatically: every value goes in through a file you review and load.",
@@ -1006,8 +1006,8 @@
         {
           "kind": "ground_check",
           "text": {
-            "en": "Put AltHold on one flight-mode switch position and AutoTune on a spare switch (RCn_OPTION 17), and leave that switch LOW. Choose the axes in AUTOTUNE_AXES (1 roll, 2 pitch, 4 yaw: one at a time if a battery cannot finish them all) and keep AUTOTUNE_AGGR at its default 0.1.",
-            "uk": "Призначте AltHold на одне положення перемикача режимів, а AutoTune — на вільний перемикач (RCn_OPTION 17) і залиште його в нижньому положенні. Оберіть осі в AUTOTUNE_AXES (1 крен, 2 тангаж, 4 рискання: по одній, якщо батареї не вистачає на всі) і залиште AUTOTUNE_AGGR стандартним 0.1."
+            "en": "Put AltHold on one flight-mode switch position and AutoTune on a spare switch (RCn_OPTION 17), and leave that switch LOW. Choose the axes in AUTOTUNE_AXES (1 roll, 2 pitch, 4 yaw: one at a time if a battery cannot finish them all) and keep AUTOTUNE_AGGR at its default (0.075 in 4.7).",
+            "uk": "Призначте AltHold на одне положення перемикача режимів, а AutoTune — на вільний перемикач (RCn_OPTION 17) і залиште його в нижньому положенні. Оберіть осі в AUTOTUNE_AXES (1 крен, 2 тангаж, 4 рискання: по одній, якщо батареї не вистачає на всі) і залиште AUTOTUNE_AGGR стандартним (0.075 у 4.7)."
           }
         },
         {
@@ -1169,6 +1169,242 @@
           "text": {
             "en": "The next log has at least 6 counted stick inputs on roll and pitch, so the app gives their tracking error with its 95% interval.",
             "uk": "Наступний журнал має щонайменше 6 врахованих рухів стіка за креном і тангажем, тож застосунок дає їхню похибку відстеження з 95% інтервалом."
+          }
+        }
+      ]
+    },
+    "tune.autotune_offer": {
+      "applied_when": {
+        "finding": "autotune.saved",
+        "axes": [
+          "roll",
+          "pitch"
+        ]
+      },
+      "graded_by": "checks",
+      "undo_also": [
+        "ATC_RAT_RLL_P",
+        "ATC_RAT_RLL_I",
+        "ATC_RAT_RLL_D",
+        "ATC_RAT_PIT_P",
+        "ATC_RAT_PIT_I",
+        "ATC_RAT_PIT_D",
+        "ATC_RAT_YAW_P",
+        "ATC_RAT_YAW_I",
+        "ATC_RAT_YAW_D",
+        "ATC_RAT_YAW_FLTE",
+        "ATC_ANG_RLL_P",
+        "ATC_ANG_PIT_P",
+        "ATC_ANG_YAW_P",
+        "ATC_ACC_R_MAX",
+        "ATC_ACC_P_MAX",
+        "ATC_ACC_Y_MAX",
+        "ATC_RATE_FF_ENAB"
+      ],
+      "steps": [
+        {
+          "kind": "hardware",
+          "text": {
+            "en": "Secure the payload and anything else that could wobble, and fly with the same propellers, battery type and mount as the tune check.",
+            "uk": "Закріпіть вантаж і все, що може хитатися, і літайте з тими самими гвинтами, типом батареї та кріпленням, що й під час перевірки налаштування."
+          }
+        },
+        {
+          "kind": "ground_check",
+          "text": {
+            "en": "Load the plan's file, then put AltHold on one flight-mode switch position and AutoTune on a spare switch (RCn_OPTION 17), and leave that switch LOW. With one axis per pack, AUTOTUNE_AXES is 1 (roll) for the first pack and 2 (pitch) for the next. Keep AUTOTUNE_AGGR at its default (0.075 in 4.7). On motors under 500 KV, AutoTune's twitches can make an ESC lose sync: have ESC telemetry on so the review can check.",
+            "uk": "Завантажте файл плану, потім призначте AltHold на одне положення перемикача режимів, а AutoTune — на вільний перемикач (RCn_OPTION 17) і залиште його внизу. По одній осі на батарею: AUTOTUNE_AXES 1 (крен) для першої батареї і 2 (тангаж) для наступної. Залиште AUTOTUNE_AGGR стандартним (0.075 у 4.7). На моторах до 500 KV ривки AutoTune можуть розсинхронізувати регулятор: увімкніть телеметрію регуляторів, щоб огляд це перевірив."
+          }
+        },
+        {
+          "kind": "fly",
+          "text": {
+            "en": "Light, in wind under 4 m/s, take off and hold AltHold at 10-15 m, nose into the wind. Switch AutoTune HIGH and let it run to 'AutoTune: Success' (several minutes an axis); reposition with the sticks when it drifts. Land and disarm with the switch still HIGH: the gains are saved. Then fly the tune check light, and loaded.",
+            "uk": "Без вантажу, за вітру до 4 м/с, злетіть і тримайте AltHold на 10-15 м носом проти вітру. Перемкніть AutoTune вгору й дочекайтеся 'AutoTune: Success' (кілька хвилин на вісь); повертайте апарат стіками, коли зноситься. Сідайте й роззброюйтеся з перемикачем угорі: коефіцієнти збережуться. Потім виконайте перевірку налаштування без вантажу і з вантажем."
+          }
+        },
+        {
+          "kind": "abort",
+          "text": {
+            "en": "If it oscillates, drifts hard in the wind, an ESC temperature warning shows or the battery reaches its caution level, switch AutoTune LOW: the original gains come back and nothing is saved. Land.",
+            "uk": "Якщо апарат розгойдується, його сильно зносить вітром, з'являється попередження про температуру регулятора або батарея досягає порогу попередження, перемкніть AutoTune вниз: повернуться початкові коефіцієнти, нічого не збережеться. Сідайте."
+          }
+        },
+        {
+          "kind": "verify",
+          "checks": [
+            {
+              "check": "metric_improves",
+              "metric": "tune.attitude_error_roll",
+              "by": 0.2,
+              "required": true
+            },
+            {
+              "check": "metric_improves",
+              "metric": "tune.attitude_error_pitch",
+              "by": 0.2,
+              "required": true
+            },
+            {
+              "check": "metric_not_worse",
+              "metric": "tune.tracking_error_roll",
+              "by": 0.2
+            },
+            {
+              "check": "metric_not_worse",
+              "metric": "tune.tracking_error_pitch",
+              "by": 0.2
+            },
+            {
+              "check": "no_shift_worse"
+            },
+            {
+              "check": "metric",
+              "metric": "tune.sensitivity_peak_roll",
+              "below": 2.0
+            },
+            {
+              "check": "metric",
+              "metric": "tune.sensitivity_peak_pitch",
+              "below": 2.0
+            },
+            {
+              "check": "metric_vs_lightest",
+              "metric": "tune.rise_time_roll",
+              "max_ratio": 1.5
+            },
+            {
+              "check": "metric_vs_lightest",
+              "metric": "tune.rise_time_pitch",
+              "max_ratio": 1.5
+            },
+            {
+              "check": "metric_vs_lightest",
+              "metric": "tune.sensitivity_peak_roll",
+              "max_above": 0.2
+            },
+            {
+              "check": "metric_vs_lightest",
+              "metric": "tune.sensitivity_peak_pitch",
+              "max_above": 0.2
+            }
+          ],
+          "text": {
+            "en": "The tune check after AutoTune, in each payload band flown before it, shows roll and pitch attitude tracking error at least 20% lower than before, with the 95% intervals apart, rate tracking error no worse, and nothing else shifted worse beyond the airframe's spread. Where they are measured: the sensitivity peak under 2, and loaded, the rate loop may be slower, not less stable: rise time within 1.5 times the light flight's and the sensitivity peak within 0.2 of it.",
+            "uk": "Перевірка налаштування після AutoTune в кожному діапазоні навантаження, у якому літали раніше, показує похибку відстеження кута крену й тангажу щонайменше на 20% меншу, ніж до того, з 95% інтервалами, що не перетинаються, похибку відстеження швидкості — не гіршу, і жоден інший показник не погіршився понад звичайний розкид апарата. Де їх виміряно: пік чутливості менше 2, а з вантажем контур швидкості може бути повільнішим, але не менш стійким: час наростання не більше 1,5 від польоту без вантажу, а пік чутливості — не більше ніж на 0,2 вищий."
+          }
+        }
+      ]
+    },
+    "no_gnss.source_not_fitted": {
+      "steps": [
+        {
+          "kind": "hardware",
+          "text": {
+            "en": "Fit each sensor the set needs and connect it as its setup page says: optical flow with a downward rangefinder, a visual odometry camera, or beacons.",
+            "uk": "Встановіть кожен датчик, потрібний набору, і під'єднайте його за сторінкою налаштування: оптичний потік із далекоміром, спрямованим униз, камеру візуальної одометрії або маяки."
+          }
+        },
+        {
+          "kind": "ground_check",
+          "text": {
+            "en": "After the reboot, check the ground station shows each sensor's data: flow quality above zero when the aircraft is moved over a textured surface, and a rangefinder distance that follows the aircraft as it is lifted.",
+            "uk": "Після перезавантаження перевірте, що наземна станція показує дані кожного датчика: якість потоку більша за нуль, коли апарат рухають над текстурованою поверхнею, і відстань далекоміра, що змінюється, коли апарат піднімають."
+          }
+        },
+        {
+          "kind": "ground_check",
+          "text": {
+            "en": "On the bench, change source sets with the switch or the ground station's command: the station shows a message for each change, the EKF stays healthy for 10 seconds after it, and position, altitude and heading stay sensible.",
+            "uk": "На стенді змінюйте набори джерел перемикачем або командою наземної станції: станція показує повідомлення для кожної зміни, EKF лишається справним 10 секунд після неї, а позиція, висота й курс лишаються правдоподібними."
+          }
+        }
+      ]
+    },
+    "no_gnss.no_source_switch": {
+      "steps": [
+        {
+          "kind": "ground_check",
+          "text": {
+            "en": "On the bench, change source sets with the switch or the ground station's command: the station shows a message for each change, the EKF stays healthy for 10 seconds after it, and position, altitude and heading stay sensible.",
+            "uk": "На стенді змінюйте набори джерел перемикачем або командою наземної станції: станція показує повідомлення для кожної зміни, EKF лишається справним 10 секунд після неї, а позиція, висота й курс лишаються правдоподібними."
+          }
+        },
+        {
+          "kind": "fly",
+          "text": {
+            "en": "At a safe height in Loiter with GNSS good, change to the set for flying without GNSS for 20 seconds and back, ready to take over in AltHold.",
+            "uk": "На безпечній висоті в Loiter за доброго GNSS перемкніться на набір для польоту без GNSS на 20 секунд і назад, будучи готовими перебрати керування в AltHold."
+          }
+        },
+        {
+          "kind": "abort",
+          "text": {
+            "en": "If the aircraft starts to drift or the EKF reports a problem, change back to source set 1, or take over in AltHold and land.",
+            "uk": "Якщо апарат почне дрейфувати або EKF повідомить про проблему, поверніться на набір джерел 1 або перейдіть в AltHold і сідайте."
+          }
+        }
+      ]
+    },
+    "no_gnss.heading_needs_gnss": {
+      "steps": [
+        {
+          "kind": "ground_check",
+          "text": {
+            "en": "Calibrate the compass and run CompassMot, then point the aircraft at a known direction and check the ground station's heading agrees within a few degrees, on every source set.",
+            "uk": "Відкалібруйте компас і виконайте CompassMot, потім спрямуйте апарат у відомому напрямку й перевірте, що курс на наземній станції збігається з точністю до кількох градусів на кожному наборі джерел."
+          }
+        }
+      ]
+    },
+    "no_gnss.drag_fusion_off": {
+      "steps": [
+        {
+          "kind": "ground_check",
+          "text": {
+            "en": "Weigh the aircraft with its battery and usual payload. Photograph it square-on from the front and from the side a few metres away, and measure each area in square metres, propellers left out. EK3_DRAG_BCOEF_X is the mass in kg over the frontal area, EK3_DRAG_BCOEF_Y over the side area.",
+            "uk": "Зважте апарат з акумулятором і звичайним вантажем. Сфотографуйте його рівно спереду й збоку з кількох метрів і виміряйте кожну площу в квадратних метрах без пропелерів. EK3_DRAG_BCOEF_X — маса в кг, поділена на фронтальну площу, EK3_DRAG_BCOEF_Y — на бічну."
+          }
+        },
+        {
+          "kind": "fly",
+          "text": {
+            "en": "In light wind over open ground: take off in Loiter, change to AltHold and let it drift to find the wind, then face into the wind and give full forward pitch until it stops accelerating, release and let it drift back. Repeat facing across the wind each way and tail into the wind. The flight's log gives EK3_DRAG_MCOEF, normally 0.1 to 1.0.",
+            "uk": "У слабкий вітер над відкритою місцевістю: злетіть у Loiter, перейдіть в AltHold і дайте апарату дрейфувати, щоб визначити вітер, потім розверніться проти вітру й дайте повний тангаж уперед, доки апарат не перестане прискорюватися, відпустіть і дайте йому повернутися за вітром. Повторіть боком до вітру в обидва боки та хвостом до вітру. Журнал цього польоту дає EK3_DRAG_MCOEF, зазвичай 0,1–1,0."
+          }
+        },
+        {
+          "kind": "abort",
+          "text": {
+            "en": "Stop the test if the gusts are strong or the aircraft nears the edge of the open area: release the sticks and change to Loiter.",
+            "uk": "Припиніть тест, якщо пориви сильні або апарат наближається до краю відкритої ділянки: відпустіть стіки й перейдіть у Loiter."
+          }
+        },
+        {
+          "kind": "verify",
+          "checks": [
+            {
+              "check": "finding_clears"
+            },
+            {
+              "check": "has_message",
+              "message": "XKF2"
+            }
+          ],
+          "text": {
+            "en": "The next log holds the estimator's wind (XKF2 VWN and VWE): steady and close to the wind felt, not running away in calm air.",
+            "uk": "Наступний журнал містить оцінку вітру (XKF2 VWN і VWE): стабільну, близьку до відчутного вітру, без розбігання в безвітря."
+          }
+        }
+      ]
+    },
+    "no_gnss.no_pilot_fallback": {
+      "steps": [
+        {
+          "kind": "ground_check",
+          "text": {
+            "en": "Move the mode switch through every position, and any aux mode switch, and check the ground station shows AltHold (or Stabilize) on one of them.",
+            "uk": "Переведіть перемикач режимів через усі положення, а також допоміжний перемикач режиму, і перевірте, що наземна станція показує AltHold (або Stabilize) в одному з них."
           }
         }
       ]

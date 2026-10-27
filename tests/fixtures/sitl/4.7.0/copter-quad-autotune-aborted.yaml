@@ -1,0 +1,20 @@
+source: sitl
+vehicle: copter
+frame: quad +
+firmware: 4.7.0
+ardupilot_commit: 1511f27194f1dcc3728270883047bdf022b3fd53
+scenario: copter-quad-autotune-aborted
+description: 'Roll AutoTune on the default quad, stopped after 25 s by switching back
+  to AltHold, then LAND: the firmware restores the original gains.'
+parameters_set:
+  LOG_DISARMED: 0
+  SIM_ESC_TELEM: 0
+  LOG_FILE_RATEMAX: 25
+  AUTOTUNE_AXES: 1
+faults: []
+expected:
+- EV AUTOTUNE_INITIALISED, then AUTOTUNE_OFF; no AUTOTUNE_SUCCESS or SAVEDGAINS
+- ATUN rows for roll only, the tune stopped part-way
+- the gains at the end of the log are the gains at its start
+- 'LOG_FILE_RATEMAX 25 for a small log: streamed messages at 25 Hz'
+- 'steady hover windows: 20 s in ALT_HOLD; 7 s in AUTOTUNE (between twitches)'

@@ -31,7 +31,7 @@ from typing import Any, Literal, cast
 from flight_insights.knowledge import Pack
 from flight_insights.store import _sqlcipher, synced
 from flight_insights.store.cache import ColumnCache
-from flight_insights.store.db import Store
+from flight_insights.store.db import Connection, Store
 from flight_insights.store.register import file_sha256
 from flight_insights.sync.codec import columns, decode, encode, references, row
 from flight_insights.sync.export import FORMAT, SOURCE_FORMAT
@@ -87,7 +87,7 @@ def _known(store: Store, object_key: str, laptop: str, sequence: int) -> Applied
     return None
 
 
-def _alias(conn: sqlite3.Connection, table: str, rid: Any) -> Any:
+def _alias(conn: Connection, table: str, rid: Any) -> Any:
     found = conn.execute(
         "SELECT new_id FROM sync_alias WHERE tbl = ? AND old_id = ?", (table, rid)
     ).fetchone()
@@ -95,7 +95,7 @@ def _alias(conn: sqlite3.Connection, table: str, rid: Any) -> Any:
 
 
 class _Apply:
-    def __init__(self, store: Store, conn: sqlite3.Connection, writer: str) -> None:
+    def __init__(self, store: Store, conn: Connection, writer: str) -> None:
         self.store, self.conn, self.writer = store, conn, writer
         self.refs = references(conn)
         # (table, column) -> the table it refers to, for remapping merged ids

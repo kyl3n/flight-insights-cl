@@ -1,0 +1,144 @@
+{
+  "about": "The wind the aircraft measured itself, and the drag it was measured with (analyzers/wind.py, rules/wind.json).",
+  "metrics": {
+    "wind.speed_ms": {
+      "name": {
+        "en": "Measured wind",
+        "uk": "Виміряний вітер"
+      },
+      "unit": "m/s",
+      "direction": "band",
+      "definition": {
+        "en": "The mean wind speed the aircraft itself measured over its steady flight, at the heights it flew: from how far it leaned into the air at each speed and heading.",
+        "uk": "Середня швидкість вітру, яку виміряв сам апарат за час усталеного польоту, на висотах, де він летів: з того, наскільки він нахилявся проти потоку на кожній швидкості й курсі."
+      },
+      "method": {
+        "en": "Steady 2 s windows of the primary estimator core (XKF1: attitude, velocity, height): the body-frame forward and sideways specific force, which is the drag, and the ground velocity in the body frame. Per body axis drag = -k1 v - k2 v|v| + b, v the airspeed, fitted with one wind for the flight (least squares, then Gauss-Newton; the quadratic term kept when it lowers the Bayesian information criterion); each window's wind from its own drag. Measured only on a flight that changes speed and heading; the interval from a seeded bootstrap over the windows.",
+        "uk": "Усталені 2-секундні вікна основного ядра оцінювача (XKF1: орієнтація, швидкість, висота): поздовжня й бічна питома сила в системі координат апарата, яка і є опором, та шляхова швидкість у тій самій системі. Для кожної осі опір = -k1 v - k2 v|v| + b, де v — повітряна швидкість; підбирається разом з одним вітром на весь політ (метод найменших квадратів, потім Гаусса — Ньютона; квадратичний член лишається, коли знижує байєсівський інформаційний критерій); вітер кожного вікна — з його власного опору. Вимірюється лише в польоті зі змінами швидкості й курсу; інтервал — із детермінованого бутстрепу за вікнами."
+      },
+      "messages": [
+        "XKF1"
+      ],
+      "source": {
+        "kind": "baseline",
+        "title": "No universal range: the wind is the day's, and the drag the airframe's own. Read against the aircraft's history and the modelled wind"
+      }
+    },
+    "wind.peak_ms": {
+      "name": {
+        "en": "Measured wind peak",
+        "uk": "Пік виміряного вітру"
+      },
+      "unit": "m/s",
+      "direction": "band",
+      "definition": {
+        "en": "The 95th percentile of the 2 s windows' wind speeds: the strong end of the wind the aircraft flew in, gusts over about two seconds included.",
+        "uk": "95-й процентиль швидкостей вітру у 2-секундних вікнах: сильніший край вітру, у якому летів апарат, разом із поривами тривалістю близько двох секунд."
+      },
+      "method": {
+        "en": "Steady 2 s windows of the primary estimator core (XKF1: attitude, velocity, height): the body-frame forward and sideways specific force, which is the drag, and the ground velocity in the body frame. Per body axis drag = -k1 v - k2 v|v| + b, v the airspeed, fitted with one wind for the flight (least squares, then Gauss-Newton; the quadratic term kept when it lowers the Bayesian information criterion); each window's wind from its own drag. Measured only on a flight that changes speed and heading; the interval from a seeded bootstrap over the windows.",
+        "uk": "Усталені 2-секундні вікна основного ядра оцінювача (XKF1: орієнтація, швидкість, висота): поздовжня й бічна питома сила в системі координат апарата, яка і є опором, та шляхова швидкість у тій самій системі. Для кожної осі опір = -k1 v - k2 v|v| + b, де v — повітряна швидкість; підбирається разом з одним вітром на весь політ (метод найменших квадратів, потім Гаусса — Ньютона; квадратичний член лишається, коли знижує байєсівський інформаційний критерій); вітер кожного вікна — з його власного опору. Вимірюється лише в польоті зі змінами швидкості й курсу; інтервал — із детермінованого бутстрепу за вікнами."
+      },
+      "messages": [
+        "XKF1"
+      ],
+      "source": {
+        "kind": "baseline",
+        "title": "No universal range: the wind is the day's, and the drag the airframe's own. Read against the aircraft's history and the modelled wind"
+      }
+    },
+    "wind.drag_linear": {
+      "name": {
+        "en": "Rotor drag coefficient",
+        "uk": "Коефіцієнт опору гвинтів"
+      },
+      "unit": "1/s",
+      "direction": "band",
+      "definition": {
+        "en": "How hard the air pushes the aircraft back per metre per second of airspeed, as an acceleration: the rotors' momentum drag (k1). It moves with the mass, so a loaded flight shows less than a light one.",
+        "uk": "Наскільки сильно повітря відштовхує апарат назад на кожен метр за секунду повітряної швидкості, як прискорення: імпульсний опір гвинтів (k1). Залежить від маси, тож у завантаженому польоті він менший, ніж у легкому."
+      },
+      "method": {
+        "en": "Steady 2 s windows of the primary estimator core (XKF1: attitude, velocity, height): the body-frame forward and sideways specific force, which is the drag, and the ground velocity in the body frame. Per body axis drag = -k1 v - k2 v|v| + b, v the airspeed, fitted with one wind for the flight (least squares, then Gauss-Newton; the quadratic term kept when it lowers the Bayesian information criterion); each window's wind from its own drag. Measured only on a flight that changes speed and heading; the interval from a seeded bootstrap over the windows.",
+        "uk": "Усталені 2-секундні вікна основного ядра оцінювача (XKF1: орієнтація, швидкість, висота): поздовжня й бічна питома сила в системі координат апарата, яка і є опором, та шляхова швидкість у тій самій системі. Для кожної осі опір = -k1 v - k2 v|v| + b, де v — повітряна швидкість; підбирається разом з одним вітром на весь політ (метод найменших квадратів, потім Гаусса — Ньютона; квадратичний член лишається, коли знижує байєсівський інформаційний критерій); вітер кожного вікна — з його власного опору. Вимірюється лише в польоті зі змінами швидкості й курсу; інтервал — із детермінованого бутстрепу за вікнами."
+      },
+      "messages": [
+        "XKF1"
+      ],
+      "source": {
+        "kind": "baseline",
+        "title": "No universal range: the wind is the day's, and the drag the airframe's own. Read against the aircraft's history and the modelled wind"
+      }
+    },
+    "wind.drag_quadratic": {
+      "name": {
+        "en": "Frame drag coefficient",
+        "uk": "Коефіцієнт опору рами"
+      },
+      "unit": "1/m",
+      "direction": "band",
+      "definition": {
+        "en": "The part of the drag that grows with the square of the airspeed, as an acceleration: the frame and payload's bluff-body drag (k2). Given only when the flight flew fast enough to show it.",
+        "uk": "Частина опору, що зростає з квадратом повітряної швидкості, як прискорення: опір рами й вантажу як тупого тіла (k2). Подається лише тоді, коли політ був досить швидким, щоб її показати."
+      },
+      "method": {
+        "en": "Steady 2 s windows of the primary estimator core (XKF1: attitude, velocity, height): the body-frame forward and sideways specific force, which is the drag, and the ground velocity in the body frame. Per body axis drag = -k1 v - k2 v|v| + b, v the airspeed, fitted with one wind for the flight (least squares, then Gauss-Newton; the quadratic term kept when it lowers the Bayesian information criterion); each window's wind from its own drag. Measured only on a flight that changes speed and heading; the interval from a seeded bootstrap over the windows.",
+        "uk": "Усталені 2-секундні вікна основного ядра оцінювача (XKF1: орієнтація, швидкість, висота): поздовжня й бічна питома сила в системі координат апарата, яка і є опором, та шляхова швидкість у тій самій системі. Для кожної осі опір = -k1 v - k2 v|v| + b, де v — повітряна швидкість; підбирається разом з одним вітром на весь політ (метод найменших квадратів, потім Гаусса — Ньютона; квадратичний член лишається, коли знижує байєсівський інформаційний критерій); вітер кожного вікна — з його власного опору. Вимірюється лише в польоті зі змінами швидкості й курсу; інтервал — із детермінованого бутстрепу за вікнами."
+      },
+      "messages": [
+        "XKF1"
+      ],
+      "source": {
+        "kind": "baseline",
+        "title": "No universal range: the wind is the day's, and the drag the airframe's own. Read against the aircraft's history and the modelled wind"
+      }
+    },
+    "wind.trim_deg": {
+      "name": {
+        "en": "Lean in still air",
+        "uk": "Нахил у спокійному повітрі"
+      },
+      "unit": "deg",
+      "direction": "lower",
+      "definition": {
+        "en": "How far the aircraft leans when the air is still, from the same fit: an offset centre of gravity or accelerometers not quite level. It biases the measured wind until it is fitted out, as here.",
+        "uk": "Наскільки апарат нахилений у спокійному повітрі, з того самого підбору: зміщений центр мас або не зовсім вирівняні акселерометри. Він спотворює виміряний вітер, доки його не враховано, як тут."
+      },
+      "method": {
+        "en": "Steady 2 s windows of the primary estimator core (XKF1: attitude, velocity, height): the body-frame forward and sideways specific force, which is the drag, and the ground velocity in the body frame. Per body axis drag = -k1 v - k2 v|v| + b, v the airspeed, fitted with one wind for the flight (least squares, then Gauss-Newton; the quadratic term kept when it lowers the Bayesian information criterion); each window's wind from its own drag. Measured only on a flight that changes speed and heading; the interval from a seeded bootstrap over the windows.",
+        "uk": "Усталені 2-секундні вікна основного ядра оцінювача (XKF1: орієнтація, швидкість, висота): поздовжня й бічна питома сила в системі координат апарата, яка і є опором, та шляхова швидкість у тій самій системі. Для кожної осі опір = -k1 v - k2 v|v| + b, де v — повітряна швидкість; підбирається разом з одним вітром на весь політ (метод найменших квадратів, потім Гаусса — Ньютона; квадратичний член лишається, коли знижує байєсівський інформаційний критерій); вітер кожного вікна — з його власного опору. Вимірюється лише в польоті зі змінами швидкості й курсу; інтервал — із детермінованого бутстрепу за вікнами."
+      },
+      "messages": [
+        "XKF1"
+      ],
+      "source": {
+        "kind": "baseline",
+        "title": "No universal range: a well-balanced airframe with levelled accelerometers leans well under a degree; read against the aircraft's own history"
+      }
+    },
+    "wind.ekf_speed_ms": {
+      "name": {
+        "en": "Estimator's wind",
+        "uk": "Вітер оцінювача"
+      },
+      "unit": "m/s",
+      "direction": "band",
+      "definition": {
+        "en": "The mean wind speed EKF3 estimated itself over the same windows, given only when drag fusion is on: without it the estimator keeps its wind at zero.",
+        "uk": "Середня швидкість вітру, яку сам EKF3 оцінив за ті самі вікна; подається лише з увімкненим злиттям опору: без нього оцінювач тримає свій вітер нульовим."
+      },
+      "method": {
+        "en": "XKF2 VWN and VWE of the primary core, the wind speed averaged over the steady windows the measured wind used. Drag fusion runs when EK3_DRAG_BCOEF_X or _Y is above 1 or EK3_DRAG_MCOEF above 0.001.",
+        "uk": "XKF2 VWN і VWE основного ядра; швидкість вітру усереднена за ті самі усталені вікна, що й для виміряного вітру. Злиття опору працює, коли EK3_DRAG_BCOEF_X чи _Y більше за 1 або EK3_DRAG_MCOEF більше за 0,001."
+      },
+      "messages": [
+        "XKF2"
+      ],
+      "source": {
+        "kind": "baseline",
+        "title": "No universal range: the wind is the day's, and the drag the airframe's own. Read against the aircraft's history and the modelled wind"
+      }
+    }
+  },
+  "findings": {}
+}

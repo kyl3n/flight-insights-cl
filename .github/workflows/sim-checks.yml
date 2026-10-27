@@ -1,0 +1,85 @@
+name: Simulator checks
+
+# The simulator checks (spec: Simulator checks): airframe models exported from the
+# committed SITL fixtures are flown with the bundle's own flight script in ArduPilot's
+# simulator, and what they flew is compared with the app's predictions (tools/sim/
+# check_sim.py): the model comes back from its own flights, and losing each motor at the
+# heaviest take-off matches the motor-out model of ArduPilot's mixer; and the recovery
+# card's link and GNSS sections say what the firmware does when the link, and GNSS, are
+# cut mid-flight (tools/sim/check_card.py).
+on:
+  workflow_dispatch:
+    inputs:
+      version:
+        description: ArduPilot release, e.g. 4.7.0
+        required: true
+        default: "4.7.0"
+  pull_request:
+    paths:
+      - engine/src/flight_insights/sim/**
+      - engine/src/flight_insights/motor_out.py
+      - engine/src/flight_insights/analyzers/payload.py
+      - engine/src/flight_insights/analyzers/wind.py
+      - engine/src/flight_insights/weather/measured.py
+      - knowledge/sim/**
+      - knowledge/rules/sim.json
+      - knowledge/frames/**
+      - knowledge/recovery/**
+      - knowledge/rules/failsafes.json
+      - engine/src/flight_insights/recovery.py
+      - engine/src/flight_insights/recovery_link.py
+      - engine/src/flight_insights/analyzers/failsafes.py
+      - tools/sim/**
+      - .github/workflows/sim-checks.yml
+
+permissions:
+  contents: read
+
+jobs:
+  checks:
+    name: Simulator checks (ArduPilot ${{ inputs.version || '4.7.0' }})
+    runs-on: ubuntu-24.04
+    timeout-minutes: 60
+    env:
+      VERSION: ${{ inputs.version || '4.7.0' }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@d0cc045d04ccac9d8b7881df0226f9e82c39688e # v6
+      - run: echo "ARDUPILOT=$RUNNER_TEMP/ardupilot" >> "$GITHUB_ENV"
+
+      # Copter-X.Y.Z and Plane-X.Y.Z tag the same commit for 4.7.x releases.
+      - name: Check out ArduPilot ${{ env.VERSION }}
+        run: |
+          git clone --depth 1 --branch "Copter-${VERSION}" https://github.com/ArduPilot/ardupilot.git "$ARDUPILOT"
+          git -C "$ARDUPILOT" submodule update --init --recursive --depth 1
+
+      # The same build the fixtures workflow caches.
+      - uses: actions/cache@v4
+        with:
+          path: ${{ runner.temp }}/ardupilot/build
+          key: ardupilot-sitl-${{ env.VERSION }}-${{ runner.os }}
+
+      - name: Build SITL (copter)
+        run: |
+          uv venv "$RUNNER_TEMP/apbuild" --python 3.12
+          uv pip install --python "$RUNNER_TEMP/apbuild" "empy==3.3.4" pexpect future dronecan "pymavlink==2.4.50" lxml setuptools
+          source "$RUNNER_TEMP/apbuild/bin/activate"
+          cd "$ARDUPILOT"
+          ./waf configure --board sitl
+          ./waf copter
+
+      - name: Fly the exported models and compare
+        working-directory: engine
+        run: uv run python ../tools/sim/check_sim.py --ardupilot "$ARDUPILOT" --keep "$RUNNER_TEMP/sim"
+
+      - name: Cut the link, and GNSS, against the recovery card
+        if: success() || failure()  # also when the models' checks failed
+        working-directory: engine
+        run: uv run python ../tools/sim/check_card.py --ardupilot "$ARDUPILOT" --keep "$RUNNER_TEMP/sim/card"
+
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: simulator-checks-${{ env.VERSION }}
+          path: ${{ runner.temp }}/sim
+          if-no-files-found: warn

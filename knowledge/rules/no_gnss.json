@@ -1,0 +1,70 @@
+{
+  "about": "How the no-GNSS analyzer measures each GNSS outage (spec: Flying without GNSS, Performance from the logs). An outage is a stretch with no receiver holding a 3D fix, or GNSS switched off with the GPS-disable switch (a drill). For each it reads the primary estimator core's own solution status (XKF4.SS): when it stopped using GNSS (detection), how long it kept an absolute position (hold), whether it kept a relative one (optical flow or vision), and when it took GNSS back; the failsafes, mode change and source-set switch around it; and, when GNSS returns to an estimator that still claims a position, how far that position had drifted from it, compared as local tracks from one origin. GNSS must come back trustworthy for that: holding its fix for drift.stable_s with an accuracy within drift.hacc_m, and implying no drift faster than drift.max_mps (a jammed receiver's first fix can be kilometres off). Once the estimator gives its position up, the position it logs is a stale value (in SITL it jumped 26 m and stayed), so no drift is read then. The thresholds are the app's starting points, marked uncalibrated.",
+  "calibrated": false,
+  "aux": {
+    "gps_disable": 65,
+    "source_set": 90
+  },
+  "min_outage_s": 3.0,
+  "join_s": 1.0,
+  "response_s": 2.0,
+  "resume_s": 30.0,
+  "drift": {
+    "min_outage_s": 10.0,
+    "stable_s": 3.0,
+    "hacc_m": 3.0,
+    "max_mps": 20.0
+  },
+  "landing_tolerance_m": 10.0,
+  "status_bits": {
+    "horiz_pos_rel": 3,
+    "horiz_pos_abs": 4,
+    "using_gps": 13,
+    "dead_reckoning": 18
+  },
+  "sources": [
+    "libraries/RC_Channel/RC_Channel.h at Copter-4.7.0: AUX_FUNC GPS_DISABLE = 65 (disable GPS for testing) and EKF_SOURCE_SET = 90 (low, middle and high select source sets 1, 2 and 3); every aux-function change is logged as AUXF (function, pos)",
+    "libraries/AP_NavEKF/AP_Nav_Common.h at Copter-4.7.0: nav_filter_status bits, logged as XKF4.SS: 3 horiz_pos_rel, 4 horiz_pos_abs, 13 using_gps, 18 dead_reckoning",
+    "ArduCopter/Parameters.cpp at Copter-4.7.0: FS_DR_ENABLE acts as dead reckoning starts, which happens only when the EKF loses its position and velocity sources and relies on wind estimates (multirotor drag fusion); FS_DR_TIMEOUT (default 30 s) is how long dead reckoning is allowed before the EKF failsafe",
+    "Local SITL flights at Copter-4.7.0, LOITER at 15 m: with GNSS switched off (aux 65) or the simulated receiver disabled, the estimator stopped using GNSS about 4 s later and gave up its absolute position about 7 s after the loss; the EKF failsafe then landed the aircraft, 26 m from its estimate in a 6 m/s wind. On optical flow and a rangefinder (source set 2) it kept a relative position through a 30 s drill, within 1.3 m of GNSS when it returned",
+    "https://discuss.ardupilot.org/t/dead-reckoning-stops-early-due-to-ekf-failsafe/130207: a multirotor with no absolute position source estimates its position for only about 30 s (spec: Dead-reckoning range)"
+  ],
+  "readiness": {
+    "about": "Readiness for flying without GNSS, from the parameters and the platform setup (spec: Flying without GNSS, 'Readiness, from the parameters and the build'). A source set copes without GNSS when one of its horizontal sources is not GNSS; each source names the sensor it needs, whose type parameter must be set. Optical flow navigates only with EK3_FLOW_USE 1 and a downward rangefinder.",
+    "sets": [1, 2, 3],
+    "sensors": {
+      "POSXY": {"4": "beacon", "6": "external_nav"},
+      "VELXY": {"4": "beacon", "5": "optical_flow", "6": "external_nav", "7": "wheel_encoder"},
+      "POSZ": {"2": "rangefinder", "4": "beacon", "6": "external_nav"},
+      "VELZ": {"4": "beacon", "6": "external_nav"},
+      "YAW": {"6": "external_nav"}
+    },
+    "sensor_types": {
+      "beacon": ["BCN_TYPE"],
+      "optical_flow": ["FLOW_TYPE"],
+      "external_nav": ["VISO_TYPE"],
+      "wheel_encoder": ["WENC_TYPE"],
+      "rangefinder": ["RNGFND1_TYPE", "RNGFND2_TYPE", "RNGFND3_TYPE", "RNGFND4_TYPE", "RNGFND5_TYPE",
+                      "RNGFND6_TYPE", "RNGFND7_TYPE", "RNGFND8_TYPE", "RNGFND9_TYPE", "RNGFNDA_TYPE"]
+    },
+    "rangefinder_down": 25,
+    "flow_use_navigation": 1,
+    "yaw": {"compass": [1, 3], "needs_gnss": [2, 8]},
+    "drag": {"bcoef_min": 1.0, "mcoef_min": 0.001},
+    "modes_without_position": [0, 1, 2, 13],
+    "flow_modes": [22],
+    "aux_modes_without_position": [52, 68, 70],
+    "aux_flow_modes": [71],
+    "helicopter_frames": [6, 11, 13],
+    "sources": [
+      "libraries/AP_NavEKF/AP_NavEKF_Source.cpp and the EK3_SRCn_* metadata at Copter-4.7.0: POSXY and VELXY 3 are GPS; 4 beacon, 5 optical flow (VELXY), 6 external navigation, 7 wheel encoder (VELXY); POSZ 2 rangefinder; YAW 1 compass, 2 GPS, 3 GPS with compass fallback, 6 external navigation, 8 the GSF yaw estimator (driven by GPS velocity)",
+      "libraries/AP_NavEKF3/AP_NavEKF3_OptFlowFusion.cpp at Copter-4.7.0: optical flow is fused for navigation only when EK3_FLOW_USE is 1 (navigation) and the set's VELXY is optical flow; it needs a downward rangefinder for its height above the ground (RNGFNDn_ORIENT 25)",
+      "libraries/AP_NavEKF3/AP_NavEKF3_Measurements.cpp at Copter-4.7.0, SampleDragData: drag fusion runs only when EK3_DRAG_BCOEF_X or _Y is above 1 or EK3_DRAG_MCOEF above 0.001, and only in builds for boards with more than 1 MB of flash (AP_NavEKF3_feature.h, EK3_FEATURE_DRAG_FUSION); AP_NavEKF3_Control.cpp: the estimator reports dead reckoning only while it navigates on the wind (drag or airspeed)",
+      "ArduCopter/events.cpp and Parameters.cpp at Copter-4.7.0: FS_DR_ENABLE acts as dead reckoning starts and FS_DR_TIMEOUT counts from then, so without drag fusion neither ever acts and the EKF failsafe (FS_EKF_ACTION, FS_EKF_THRESH) is what responds",
+      "ArduCopter/mode.h at Copter-4.7.0: Stabilize (0), Acro (1), AltHold (2), Sport (13) and FlowHold (22, on optical flow) need no position (requires_position false); aux functions 52, 68, 70 and 71 select Acro, Stabilize, AltHold and FlowHold",
+      "ArduCopter/GCS_MAVLink_Copter.cpp at Copter-4.7.0, handle_manual_control_axes: a joystick's MANUAL_CONTROL drives channels 1 to 4 only, so an aux switch on another channel needs a transmitter or an RC override; GCS_Common.cpp: MAV_CMD_SET_EKF_SOURCE_SET and MAV_CMD_DO_AUX_FUNCTION select a source set or run an aux function from a ground station",
+      "https://github.com/ArduPilot/ardupilot_wiki/blob/master/common/source/docs/common-non-gps-to-gps.rst (GPS / Non-GPS Transitions): source set 1 for GPS, a second set for the non-GPS sensor, a 3-position switch with aux function 90 to change sets, Lua scripts (ahrs-source-gps-optflow.lua) to switch on sensor quality, and the bench test",
+      "https://github.com/ArduPilot/ardupilot_wiki/blob/master/copter/source/docs/airspeed-estimation.rst (Windspeed Estimation and Baro Compensation): EK3_DRAG_BCOEF_X and _Y are the mass in kg over the frontal and side area in square metres; EK3_DRAG_MCOEF comes from a flight test (accelerating into and across the wind in AltHold, in light wind) and is normally 0.1 to 1.0; then barometer wind compensation (BAROn_WCF_*)"
+    ]
+  }
+}

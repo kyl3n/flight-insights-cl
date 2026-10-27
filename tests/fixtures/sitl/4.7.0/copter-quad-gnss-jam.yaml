@@ -1,0 +1,25 @@
+source: sitl
+vehicle: copter
+frame: quad +
+firmware: 4.7.0
+ardupilot_commit: 1511f27194f1dcc3728270883047bdf022b3fd53
+scenario: copter-quad-gnss-jam
+description: 'GUIDED take-off to 15 m, LOITER, then the simulated receiver jammed
+  for 25 s (SIM_GPS1_JAM 1): the fix flickers, satellites fall to 3 and the position
+  wanders by hundreds of metres; the EKF failsafe lands the aircraft.'
+parameters_set:
+  LOG_DISARMED: 0
+  SIM_ESC_TELEM: 0
+  LOG_FILE_RATEMAX: 10
+  RC_OVERRIDE_TIME: -1
+faults:
+- kind: gnss
+  description: receiver jammed
+  parameters:
+  - SIM_GPS1_JAM
+expected:
+- GPS.Status under 3 and GPS.NSats 3 in bursts, GPA.HAcc up to hundreds of m
+- XKF4 SP and SV past 100 (a test ratio past 1) while the estimator rejects GNSS
+- ERR GPS 2 (glitch), ERR FAILSAFE_EKFINAV, MODE LAND by EKF_FAILSAFE
+- 'the GNSS analyzer: one event, jamming (no u-blox status in SITL)'
+- 'steady hover windows: 21 s in LOITER'

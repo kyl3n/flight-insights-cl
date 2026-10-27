@@ -17,6 +17,7 @@ from __future__ import annotations
 
 import dataclasses
 import json
+import logging
 import secrets
 from collections import defaultdict
 from collections.abc import Callable, Iterator, Sequence
@@ -46,9 +47,14 @@ from flight_insights.store import _sqlcipher
 from flight_insights.store.cache import ColumnCache
 from flight_insights.store.db import Store, StoreError
 from flight_insights.store.register import register_source
+from flight_insights.tlog import read_tlog
+from flight_insights.tlog import sessions as tlog_sessions
 
 ChangeKind = Literal["failure", "upgrade", "test", "detected"]
 REASONS: tuple[ChangeKind, ...] = ("failure", "upgrade", "test", "detected")
+
+
+log = logging.getLogger(__name__)
 
 
 @dataclass(frozen=True)
@@ -68,6 +74,7 @@ class Decision:
     packs: list[str] = field(default_factory=list[str])
     payload: str | None = None
     station_version_id: str | None = None
+    takeoff_kg: float | None = None  # as weighed before the flight
 
 
 @dataclass
@@ -318,6 +325,17 @@ def _pair_stored_tlogs(store: Store, flight_id: str, boot_utc_us: int | None) ->
             _link(store, flight_id, sid, "tlog")
 
 
+def _align(store: Store, cache: ColumnCache, flight_ids: Sequence[str]) -> None:
+    """The tlog sessions of flights a file just gave a tlog or an onboard log. A failure
+    here leaves the import standing: the next analysis works them out again."""
+    for fid in flight_ids:
+        try:
+            if tlog_sessions.needs_refresh(store, fid):
+                tlog_sessions.refresh(store, cache, fid)
+        except Exception:
+            log.exception("tlog sessions of flight %s could not be worked out", fid)
+
+
 def _packs(store: Store, codes: Sequence[str]) -> list[str]:
     ids: list[str] = []
     for code in codes:
@@ -423,6 +441,7 @@ def _dataflash(
                     "hardware_json": json.dumps(to_json(item.hardware)),
                     "hold_json": hold,
                     "payload": (decision.payload or "").strip()[:200] or None,
+                    "takeoff_kg": decision.takeoff_kg,
                     "fingerprint_json": fingerprint_json,
                     "validation_json": _validation_json(check, f),
                 },
@@ -450,7 +469,19 @@ def _validation_json(check: Validation | None, f: ScannedFlight) -> str | None:
     return json.dumps({"issues": [asdict(i) for i in issues]})
 
 
-def _tlog(store: Store, item: Scanned, station: str | None) -> Result:
+def _tlog(store: Store, cache: ColumnCache, item: Scanned, station: str | None) -> Result:
+    result = _link_tlog(store, item, station)
+    # Its tables are kept once, under its own key: every flight of its boots reads them.
+    assert result.source_id is not None
+    if tlog_sessions.SOURCES not in cache.names(tlog_sessions.cache_key(result.source_id)):
+        try:
+            tlog_sessions.cache_tlog(cache, result.source_id, read_tlog(item.path))
+        except Exception:  # its sessions will say it cannot be read; the link stays
+            log.exception("tlog %s could not be cached", item.path.name)
+    return result
+
+
+def _link_tlog(store: Store, item: Scanned, station: str | None) -> Result:
     with store.transaction():
         source = _source(store, item, "tlog", station, {"boots": [asdict(b) for b in item.boots]})
         linked: list[str] = []
@@ -533,7 +564,7 @@ def commit(
                         _dataflash(store, pack, cache, item, proposal, decision, station, files)
                     )
                 case "tlog":
-                    results.append(_tlog(store, item, station))
+                    results.append(_tlog(store, cache, item, station))
                 case _:
                     chosen = decision.airframe_id or proposal.airframe_id
                     results.append(_param_file(store, pack, item, chosen, station))
@@ -541,5 +572,7 @@ def commit(
             results.append(Result(item.id, "error", message=str(e)))
         except (StoreError, OSError, _sqlcipher.DatabaseError) as e:  # this file only
             results.append(Result(item.id, "error", message=f"{type(e).__name__}: {e}"))
+            continue
+        _align(store, cache, results[-1].flights)
     progress(1.0, "imported")
     return sorted(results, key=lambda r: int(r.log[1:]))

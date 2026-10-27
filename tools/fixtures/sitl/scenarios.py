@@ -36,6 +36,9 @@ LOG_IMU_RAW_FAST_NOTCH = SetBits(
 # Copter's bits 0 and 12 log RATE and the rate PIDs every loop (ArduCopter/Copter.cpp
 # loop_rate_logging), for a tune check.
 LOG_RATE_LOOP = SetBits(1 << 0 | 1 << 12, "default with bits 0 (fast attitude) and 12 (PID) set")
+# Bit 0 alone logs RATE every loop without the four PID messages, which a measurement of
+# the motors' response does not need.
+LOG_RATE_ONLY = SetBits(1 << 0, "default with bit 0 (fast attitude) set")
 
 
 @dataclass(frozen=True)
@@ -145,10 +148,13 @@ def tune_check(
     each_way: float = 0.4,
     centred: float = 1.0,
     altitude: float = 5,
+    hands_off: float = 3,
+    bits: SetBits = LOG_RATE_LOOP,
 ) -> Callable[[Vehicle], None]:
     """The tune-check profile, shortened so the log stays small: take off, hold AltHold
-    hands-off, then doublets on each axis's stick (`deflection` µs from centre, 160 is 40%
-    of the throw), with the rate loop logged every loop during them only; then land."""
+    hands-off for `hands_off` s (10 s or more gives the hover thrust a payload band needs),
+    then doublets on each axis's stick (`deflection` µs from centre, 160 is 40% of the
+    throw), with the rate loop logged every loop (`bits`) during them only; then land."""
 
     def fly(v: Vehicle) -> None:
         v.mode("GUIDED")
@@ -158,9 +164,9 @@ def tune_check(
         centre = {"ch1": 1500, "ch2": 1500, "ch3": 1500, "ch4": 1500}
         v.rc(**centre)
         v.mode("ALT_HOLD")
-        sticks(v, 3, centre)
+        sticks(v, hands_off, centre)
         bitmask = v.get_param("LOG_BITMASK")
-        v.set_param("LOG_BITMASK", LOG_RATE_LOOP(bitmask))
+        v.set_param("LOG_BITMASK", bits(bitmask))
         for ch in axes:
             for _ in range(doublets):
                 sticks(v, each_way, centre | {ch: 1500 + deflection})
@@ -169,6 +175,114 @@ def tune_check(
         sticks(v, 2, centre)  # the last input settles with the rate loop still logged
         v.set_param("LOG_BITMASK", bitmask)
         land_and_disarm(v)
+
+    return fly
+
+
+def tune_ab(
+    doublets: int,
+    change: dict[str, float],
+    axes: tuple[str, ...] = ("ch1",),
+    deflection: int = 160,
+    each_way: float = 0.4,
+    centred: float = 1.0,
+    altitude: float = 5,
+    hands_off: float = 4,
+    settle: float = 1.2,
+    bits: SetBits = LOG_RATE_LOOP,
+    knob: tuple[str, int, int] | None = None,
+) -> Callable[[Vehicle], None]:
+    """The tune-check profile twice in one flight, with a ground station's change between:
+    `doublets` on each axis, then `change` written as a ground station writes it (the log
+    records each as PARM), `hands_off` s, and the same doublets again. The rate loop is
+    logged every loop during the doublets only, as the tune-check card does, and for
+    `settle` s after the last (an input's window runs 1 s past it).
+
+    With `knob` (channel, then, now), the transmitter's tuning knob on that channel is
+    held at `then` from before arming and turned to `now` between the doublets; the
+    scenario's RC_OVERRIDE_TIME -1 keeps it where it is put."""
+
+    def fly(v: Vehicle) -> None:
+        centre = {"ch1": 1500, "ch2": 1500, "ch3": 1500, "ch4": 1500}
+        if knob is not None:
+            centre[knob[0]] = knob[1]
+            v.rc(**{knob[0]: knob[1]})
+        v.mode("GUIDED")
+        v.arm()
+        v.command(ML.MAV_CMD_NAV_TAKEOFF, 0, 0, 0, 0, 0, 0, altitude)
+        v.wait_altitude(altitude - 0.5)
+        v.rc(**centre)
+        v.mode("ALT_HOLD")
+        sticks(v, hands_off, centre)
+        bitmask = v.get_param("LOG_BITMASK")
+
+        def inputs() -> None:
+            v.set_param("LOG_BITMASK", bits(bitmask))
+            for ch in axes:
+                for _ in range(doublets):
+                    sticks(v, each_way, centre | {ch: 1500 + deflection})
+                    sticks(v, each_way, centre | {ch: 1500 - deflection})
+                    sticks(v, centred, centre)
+            sticks(v, settle, centre)
+            v.set_param("LOG_BITMASK", bitmask)
+
+        inputs()
+        for name, value in change.items():
+            v.set_param(name, value)
+        if knob is not None:
+            centre[knob[0]] = knob[2]
+        sticks(v, hands_off, centre)
+        inputs()
+        land_and_disarm(v)
+
+    return fly
+
+
+def autotune(
+    finish: bool, altitude: float = 10, before_stop: float = 25
+) -> Callable[[Vehicle], None]:
+    """Roll AutoTune from AltHold (AUTOTUNE_AXES 1), sticks centred throughout. With
+    `finish`, the tune runs to its end ("AutoTune: Success") and the aircraft lands and
+    disarms still in AutoTune, so the firmware saves the tuned gains (AC_AutoTune::disarmed).
+    Otherwise the pilot switches back to AltHold after `before_stop` s, which stops the
+    tune and restores the original gains (AC_AutoTune::stop), then lands."""
+
+    def fly(v: Vehicle) -> None:
+        from run_scenario import ScenarioFailed
+
+        v.mode("GUIDED")
+        v.arm()
+        v.command(ML.MAV_CMD_NAV_TAKEOFF, 0, 0, 0, 0, 0, 0, altitude)
+        v.wait_altitude(altitude - 0.5)
+        centre = {"ch1": 1500, "ch2": 1500, "ch3": 1500, "ch4": 1500}
+        v.rc(**centre)
+        v.mode("ALT_HOLD")
+        sticks(v, 3, centre)
+        v.texts = []  # an earlier tune's "AutoTune: Success" is not this one's
+        v.mode("AUTOTUNE")
+        if not finish:
+            sticks(v, before_stop, centre)
+            v.mode("ALT_HOLD")
+            sticks(v, 3, centre)
+            land_and_disarm(v)
+            return
+        for _ in range(int(900 / 5)):  # up to 15 minutes of simulated time
+            sticks(v, 5, centre)
+            if any("AutoTune: Success" in t for t in v.texts):
+                break
+        else:
+            raise ScenarioFailed("AutoTune did not finish")
+        sticks(v, 2, centre)
+        # Land in AutoTune with the throttle low (it climbs and descends like AltHold),
+        # then disarm on the ground: the tune is complete, so the gains are saved.
+        low = centre | {"ch3": 1100}
+        while True:
+            sticks(v, 1, low)
+            m = v.conn.recv_match(type="GLOBAL_POSITION_INT", blocking=True, timeout=10)
+            if m is not None and m.relative_alt < 300:
+                break
+        sticks(v, 4, low)
+        v.disarm()
 
     return fly
 
@@ -223,6 +337,182 @@ def quadplane_hover(v: Vehicle) -> None:
     land_and_disarm(v, "QLAND")
 
 
+def failsafe_takeoff(v: Vehicle, altitude: float = 5) -> None:
+    v.mode("GUIDED")
+    v.arm()
+    v.command(ML.MAV_CMD_NAV_TAKEOFF, 0, 0, 0, 0, 0, 0, altitude)
+    v.wait_altitude(altitude - 0.5)
+    v.hold(3)
+
+
+def gcs_loss(v: Vehicle) -> None:
+    """Heartbeats from take-off, then none: the GCS failsafe's RTL lands the aircraft."""
+    v.heartbeats(True)
+    failsafe_takeoff(v)
+    v.heartbeats(False)
+    v.wait_disarmed(240)
+
+
+def battery_stages(v: Vehicle) -> None:
+    """The pack to 10.5 V (the low stage's RTL), then 8.5 V (the critical stage's LAND)."""
+    failsafe_takeoff(v, 10)
+    v.set_param("SIM_BATT_VOLTAGE", 10.5)
+    v.hold(5)
+    v.set_param("SIM_BATT_VOLTAGE", 8.5)
+    v.wait_disarmed(240)
+
+
+def radio_loss(v: Vehicle) -> None:
+    """The receiver's failsafe output (every channel neutral, throttle 950 µs): the radio
+    failsafe's RTL lands the aircraft."""
+    failsafe_takeoff(v)
+    v.set_param("SIM_RC_FAIL", 2)
+    v.wait_disarmed(240)
+
+
+def failsafes_off(v: Vehicle) -> None:
+    """The ground station lost, then the receiver, with both failsafes off: nothing
+    reacts, and the flight ends in LAND by command."""
+    v.heartbeats(True)
+    failsafe_takeoff(v)
+    v.heartbeats(False)
+    v.hold(8)
+    v.set_param("SIM_RC_FAIL", 2)
+    v.hold(3)
+    land_and_disarm(v)
+
+
+DEG_PER_M = 1 / 111_320.0  # SIM_GPS1_GLTCH_X is degrees of latitude
+
+
+def gnss_takeoff(v: Vehicle) -> None:
+    """GUIDED take-off to 15 m, then LOITER with the sticks centred, which holds position
+    and height on GNSS: the mode in which a GNSS fault moves the aircraft."""
+    v.mode("GUIDED")
+    v.arm()
+    v.command(ML.MAV_CMD_NAV_TAKEOFF, 0, 0, 0, 0, 0, 0, 15)
+    v.wait_altitude(14.5)
+    v.rc(ch1=1500, ch2=1500, ch3=1500, ch4=1500)
+    v.mode("LOITER")
+    v.hold(10)
+
+
+def gnss_jam(v: Vehicle) -> None:
+    """The simulated receiver jammed for 25 s, then clear for 20 s."""
+    gnss_takeoff(v)
+    v.set_param("SIM_GPS1_JAM", 1)
+    v.hold(25)
+    v.set_param("SIM_GPS1_JAM", 0)
+    v.hold(20)
+    land_and_disarm(v)
+
+
+def gnss_step(v: Vehicle) -> None:
+    """GNSS moved 60 m north at once for 20 s, with the signal healthy, then back."""
+    gnss_takeoff(v)
+    v.set_param("SIM_GPS1_GLTCH_X", 60 * DEG_PER_M)
+    v.hold(20)
+    v.set_param("SIM_GPS1_GLTCH_X", 0)
+    v.hold(15)
+    land_and_disarm(v)
+
+
+def gnss_ramp(v: Vehicle) -> None:
+    """GNSS dragged 80 m north over 60 s, held 10 s, then let go: the slow spoof the
+    estimator follows."""
+    gnss_takeoff(v)
+    for k in range(1, 61):
+        v.set_param("SIM_GPS1_GLTCH_X", 80 * DEG_PER_M * k / 60)
+        v.hold(1)
+    v.hold(10)
+    v.set_param("SIM_GPS1_GLTCH_X", 0)
+    v.hold(10)
+    land_and_disarm(v)
+
+
+def nognss_takeoff(v: Vehicle, altitude: float) -> None:
+    """GUIDED take-off, then LOITER with the sticks centred. SITL's channel 8 rests
+    mid-stick, which selects EKF source set 2, so the GPS-disable (7) and source-set (8)
+    switches go low before arming."""
+    v.rc(ch7=1000, ch8=1000)
+    v.hold(5)
+    v.mode("GUIDED")
+    v.arm()
+    v.command(ML.MAV_CMD_NAV_TAKEOFF, 0, 0, 0, 0, 0, 0, altitude)
+    v.wait_altitude(altitude - 0.5)
+    v.rc(ch1=1500, ch2=1500, ch3=1500, ch4=1500)
+    v.mode("LOITER")
+    v.hold(10)
+
+
+def nognss_drill(v: Vehicle) -> None:
+    """GNSS switched off with the GPS-disable switch for 20 s, then on again."""
+    nognss_takeoff(v, 15)
+    v.rc(ch7=2000)
+    v.hold(20)
+    v.rc(ch7=1000)
+    v.hold(15)
+    land_and_disarm(v)
+
+
+def nognss_flow(v: Vehicle) -> None:
+    """Source set 2 (optical flow) on its switch, GNSS off for 30 s, GNSS back, set 1."""
+    nognss_takeoff(v, 10)
+    v.rc(ch8=1500)
+    v.hold(5)
+    v.rc(ch7=2000)
+    v.hold(30)
+    v.rc(ch7=1000)
+    v.hold(5)
+    v.rc(ch8=1000)
+    v.hold(10)
+    land_and_disarm(v)
+
+
+# GUIDED velocity and yaw targets (SET_POSITION_TARGET_LOCAL_NED): use vx, vy, vz and yaw
+VELOCITY_YAW_MASK = 0b0000_1001_1100_0111
+
+
+def guided_velocity(v: Vehicle, north: float, east: float, yaw_deg: float, seconds: float) -> None:
+    """Hold a velocity and heading in GUIDED for `seconds` of simulated time, resent every
+    0.5 s (GUIDED drops a velocity target after 3 s)."""
+    for _ in range(round(seconds / 0.5)):
+        v.conn.mav.set_position_target_local_ned_send(
+            0, v.sys, v.comp, ML.MAV_FRAME_LOCAL_NED, VELOCITY_YAW_MASK,
+            0, 0, 0, north, east, 0, 0, 0, 0, math.radians(yaw_deg), 0,
+        )  # fmt: skip
+        v.hold(0.5)
+
+
+def wind_legs(v: Vehicle) -> None:
+    """Take off to 20 m, fly 6 s legs at 3, 6 and 9 m/s on eight courses, the nose turned
+    0, 30 or 60 degrees off the course, then hover facing eight ways, 5 s each, and land."""
+    v.mode("GUIDED")
+    v.arm()
+    v.command(ML.MAV_CMD_NAV_TAKEOFF, 0, 0, 0, 0, 0, 0, 20)
+    v.wait_altitude(19.5)
+    for speed in (3.0, 6.0, 9.0):
+        for k in range(8):
+            course = math.radians(45.0 * k)
+            yaw = (45.0 * k + 30.0 * (k % 3)) % 360.0
+            guided_velocity(v, speed * math.cos(course), speed * math.sin(course), yaw, 6)
+    for k in range(8):
+        guided_velocity(v, 0, 0, 45.0 * k, 5)
+    land_and_disarm(v)
+
+
+def wind_hover(v: Vehicle) -> None:
+    """Take off to 20 m and hover facing north, east, south and west, 15 s each, and land:
+    no change of speed, so the flight cannot measure its own drag."""
+    v.mode("GUIDED")
+    v.arm()
+    v.command(ML.MAV_CMD_NAV_TAKEOFF, 0, 0, 0, 0, 0, 0, 20)
+    v.wait_altitude(19.5)
+    for k in range(4):
+        guided_velocity(v, 0, 0, 90.0 * k, 15)
+    land_and_disarm(v)
+
+
 COPTER = dict(binary="arducopter", model="+", defaults=["default_params/copter.parm"])
 
 # Motor vibration and ESC telemetry as ArduPilot's DynamicRpmNotches autotest simulates
@@ -236,6 +526,10 @@ VIBRATING = {
     "LOG_DISARMED": 0,
     "LOG_FILE_BUFSIZE": 64,
 }
+# A roll AutoTune runs for minutes, and SITL logs its own state (SIM2) at loop rate,
+# streamed: capping streamed messages at 25 Hz keeps the log small. AutoTune's own
+# records (EV, ATUN, MODE, MSG) are not streamed, so all of them are kept.
+AUTOTUNE_LOGGING = {"LOG_DISARMED": 0, "SIM_ESC_TELEM": 0, "LOG_FILE_RATEMAX": 25}
 RAW_SPEEDUP = 2  # full-rate raw IMU logging drops data at the default speed-up
 
 # The default quad's roll and pitch rate gains (P, I and D: 0.135, 0.135 and 0.0036 in
@@ -276,6 +570,16 @@ THROTTLE_NOTCH = {
     "INS_HNTCH_HMNCS": 3,
     "INS_HNTCH_ATT": 40,
 }
+# For timing the motors: ESC RPM, which SITL reports only with SIM_VIB_MOT_MAX set
+# (SIM_Frame.cpp: the slewed command times SIM_VIB_MOT_MAX times 60), with the light
+# flight's vibration; and SITL's LOG_BITMASK (180222) without bit 12, so no PID messages.
+HEAVY_LIFT_TIMING = {
+    "LOG_DISARMED": 0,
+    "SIM_ESC_TELEM": 1,
+    "LOG_BITMASK": 176126,
+    "SIM_VIB_MOT_MAX": 350,
+    **X8_VIBRATION,
+}
 HEAVY_LIFT_FAULTS = [
     {
         "kind": "filter-setting",
@@ -288,6 +592,30 @@ HEAVY_LIFT_FAULTS = [
         "parameters": ["MOT_HOVER_LEARN"],
     },
 ]
+# Failsafe flights log at no more than 10 Hz (LOG_FILE_RATEMAX): what the failsafe
+# analyzers read is logged at 10 Hz or slower (BAT, RCIN, RCI2, CTUN) or as events.
+FAILSAFE_LOGGING = {"LOG_DISARMED": 0, "SIM_ESC_TELEM": 0, "LOG_FILE_RATEMAX": 10}
+
+# GPS-disable on switch 7 and the EKF source set on switch 8 (aux functions 65 and 90),
+# as a drill would be set up; they take effect at boot
+NO_GNSS_SWITCHES = FAILSAFE_LOGGING | {"RC7_OPTION": 65, "RC8_OPTION": 90}
+# Optical flow and a rangefinder as ArduPilot's autotest simulates them
+# (Tools/autotest/default_params/copter-optflow.parm), as source set 2
+OPTICAL_FLOW = {
+    "SIM_FLOW_ENABLE": 1, "FLOW_TYPE": 10, "RNGFND1_TYPE": 1, "RNGFND1_MIN": 0,
+    "RNGFND1_MAX": 40.0, "RNGFND1_PIN": 0, "RNGFND1_SCALING": 12.12,
+    "EK3_SRC2_POSXY": 0, "EK3_SRC2_VELXY": 5, "EK3_SRC2_POSZ": 1, "EK3_SRC2_VELZ": 0,
+    "EK3_SRC2_YAW": 1,
+}  # fmt: skip
+WIND = {"SIM_WIND_SPD": 6, "SIM_WIND_DIR": 90, "SIM_WIND_TURB": 1}
+# A wind of 5 m/s from the west at every height (SIM_WIND_T 1: no profile), gusting
+STEADY_WIND = {"SIM_WIND_SPD": 5, "SIM_WIND_DIR": 270, "SIM_WIND_T": 1, "SIM_WIND_TURB": 1}
+WIND_EXPECTED = [
+    "GUIDED take-off to 20 m; 6 s legs at 3, 6 and 9 m/s on eight courses, the nose 0, 30"
+    " or 60 degrees off the course; then a hover facing eight ways, 5 s each; LAND",
+    "streamed messages capped at 10 Hz (LOG_FILE_RATEMAX): XKF1 at 10 Hz a core",
+]
+
 HEAVY_LIFT_EXPECTED = [
     "one armed period with about 14 s of steady hover at 5 m",
     "raw IMU logged during the hover only",
@@ -423,6 +751,111 @@ SCENARIOS: dict[str, Scenario] = {
             **COPTER,  # type: ignore[arg-type]
         ),
         Scenario(
+            name="copter-quad-tune-ab",
+            vehicle="copter",
+            frame="quad +",
+            description=(
+                "An in-flight A/B test on the default quad: 6 roll doublets in AltHold at 5 m,"
+                " then the roll rate gains (P, I, D) written to 0.4 of their defaults as a"
+                " ground station writes them, and 6 roll doublets again, with RATE and the"
+                " rate PIDs logged every loop during the doublets."
+            ),
+            expected=[
+                "PARM records ATC_RAT_RLL_P, _I and _D changed while armed, within a second",
+                "LOG_BITMASK bits 0 and 12 during each set of doublets, also recorded as PARM",
+                "6 roll doublets on each side of the change, all counted",
+                "roll tracking error worse after the change, with the two sides' intervals"
+                " apart, and the roll rate gains ranked as its cause",
+                "about 47 s of steady hover in ALT_HOLD: the short doublets stay inside the"
+                " hover limits",
+            ],
+            fly=tune_ab(
+                6,
+                {f"ATC_RAT_RLL_{t}": SOFT_RATE_GAINS[f"ATC_RAT_RLL_{t}"] for t in ("P", "I", "D")},
+            ),
+            boot_params={"LOG_DISARMED": 0, "SIM_ESC_TELEM": 0},
+            speedup=RAW_SPEEDUP,
+            **COPTER,  # type: ignore[arg-type]
+        ),
+        Scenario(
+            name="copter-quad-tune-knob",
+            vehicle="copter",
+            frame="quad +",
+            description=(
+                "An in-flight A/B test with the transmitter's tuning knob: RC7 is the knob"
+                " (RCx_OPTION 219) for roll rate P (TUNE 49), from the soft 0.054 at its"
+                " bottom to the default 0.135 at its top. 6 roll doublets in AltHold at 5 m"
+                " with the knob at its top, then the knob turned to its bottom, and 6 roll"
+                " doublets again, with RATE and the rate PIDs logged every loop during the"
+                " doublets."
+            ),
+            expected=[
+                "PTUN for function 49 throughout, the value 0.135 until the turn and 0.054"
+                " after it; no PARM change of ATC_RAT_RLL_P",
+                "the log's ATC_RAT_RLL_P at arming is the knob's 0.135: PARM is written from"
+                " the value in use",
+                "6 roll doublets on each side of the turn, all counted",
+                "roll tracking error worse after the turn, with ATC_RAT_RLL_P from the"
+                " tuning knob ranked as its cause",
+                "about 47 s of steady hover in ALT_HOLD: the short doublets stay inside the"
+                " hover limits",
+            ],
+            fly=tune_ab(6, {}, knob=("ch7", 2000, 1000)),  # RC7_MAX and RC7_MIN in SITL
+            boot_params={
+                "LOG_DISARMED": 0,
+                "SIM_ESC_TELEM": 0,
+                "RC7_OPTION": 219,
+                "TUNE": 49,
+                "TUNE_MIN": SOFT_RATE_GAINS["ATC_RAT_RLL_P"],
+                "TUNE_MAX": 0.135,
+                "RC_OVERRIDE_TIME": -1,
+            },
+            speedup=RAW_SPEEDUP,
+            **COPTER,  # type: ignore[arg-type]
+        ),
+        Scenario(
+            name="copter-quad-autotune-saved",
+            vehicle="copter",
+            frame="quad +",
+            description=(
+                "Roll AutoTune on the quad with the soft rate gains of copter-quad-tune-low:"
+                " AltHold at 10 m, AUTOTUNE until 'AutoTune: Success', then landed and disarmed"
+                " still in AutoTune, so the firmware saves the tuned gains."
+            ),
+            expected=[
+                "EV AUTOTUNE_INITIALISED, then AUTOTUNE_SUCCESS and AUTOTUNE_SAVEDGAINS",
+                "ATUN rows for roll only (AUTOTUNE_AXES 1), from rate D up to angle P up",
+                "roll rate P about doubled from the soft 0.054 (to about 0.118); rate D lowered"
+                " to about 0.0004, under AUTOTUNE_MIN_D after the 25% back-off",
+                "no ESC telemetry (SIM_ESC_TELEM 0): the desync check has nothing to read",
+                "LOG_FILE_RATEMAX 25 for a small log: streamed messages at 25 Hz",
+                "steady hover windows: 5 s in ALT_HOLD; 8 s in AUTOTUNE; 8 s in AUTOTUNE"
+                " (between twitches)",
+            ],
+            fly=autotune(finish=True),
+            boot_params=AUTOTUNE_LOGGING | {"AUTOTUNE_AXES": 1} | SOFT_RATE_GAINS,
+            **COPTER,  # type: ignore[arg-type]
+        ),
+        Scenario(
+            name="copter-quad-autotune-aborted",
+            vehicle="copter",
+            frame="quad +",
+            description=(
+                "Roll AutoTune on the default quad, stopped after 25 s by switching back to"
+                " AltHold, then LAND: the firmware restores the original gains."
+            ),
+            expected=[
+                "EV AUTOTUNE_INITIALISED, then AUTOTUNE_OFF; no AUTOTUNE_SUCCESS or SAVEDGAINS",
+                "ATUN rows for roll only, the tune stopped part-way",
+                "the gains at the end of the log are the gains at its start",
+                "LOG_FILE_RATEMAX 25 for a small log: streamed messages at 25 Hz",
+                "steady hover windows: 20 s in ALT_HOLD; 7 s in AUTOTUNE (between twitches)",
+            ],
+            fly=autotune(finish=False),
+            boot_params=AUTOTUNE_LOGGING | {"AUTOTUNE_AXES": 1},
+            **COPTER,  # type: ignore[arg-type]
+        ),
+        Scenario(
             name="copter-heavylift-light",
             vehicle="copter",
             frame="octo coaxial X8",
@@ -446,6 +879,27 @@ SCENARIOS: dict[str, Scenario] = {
             boot_params=VIBRATING | THROTTLE_NOTCH | X8_VIBRATION,
             payload_kg=8.0,
             faults=HEAVY_LIFT_FAULTS,
+            **CALLISTO,  # type: ignore[arg-type]
+        ),
+        Scenario(
+            name="copter-heavylift-tune",
+            vehicle="copter",
+            frame="octo coaxial X8",
+            description=(
+                "The tune-check profile on the heavy-lift X8 without payload, shortened to keep"
+                " the log small: AltHold at 5 m, 3 doublets each on roll, pitch and yaw at 40%"
+                " stick, with RATE logged every loop and ESC RPM from all eight motors."
+            ),
+            expected=[
+                "LOG_BITMASK bit 0 during the doublets: RATE at 400 Hz (no PID messages)",
+                "ESC RPM from all eight motors, about 100 Hz each",
+                "each motor's RPM follows its command with no lag beyond the simulator's slew"
+                " limit and the log's timing: SITL models no motor or rotor dynamics",
+                "about 33 s of steady hover in ALT_HOLD: the short doublets stay inside the"
+                " hover limits",
+            ],
+            fly=tune_check(3, axes=("ch1", "ch2", "ch4"), bits=LOG_RATE_ONLY),
+            boot_params=HEAVY_LIFT_TIMING,
             **CALLISTO,  # type: ignore[arg-type]
         ),
         Scenario(
@@ -496,6 +950,298 @@ SCENARIOS: dict[str, Scenario] = {
             ],
             fly=quadplane_hover,
             params={"RC_OVERRIDE_TIME": -1},
+        ),
+        Scenario(
+            name="copter-quad-fs-gcs",
+            vehicle="copter",
+            frame="quad +",
+            description=(
+                "GUIDED take-off to 5 m with the ground station's heartbeats on, then none:"
+                " the GCS failsafe (FS_GCS_ENABLE 1) returns and lands."
+            ),
+            expected=[
+                "ERR FAILSAFE_GCS about 5 s after MAV.mgs stops advancing (FS_GCS_TIMEOUT 5)",
+                "MODE RTL with reason GCS_FAILSAFE in the same loop: as configured, on time",
+                "RTL lands and disarms",
+                "steady hover windows: 14 s in GUIDED",
+            ],
+            fly=gcs_loss,
+            params={"FS_GCS_ENABLE": 1},
+            boot_params=FAILSAFE_LOGGING,
+            faults=[{"kind": "other", "description": "ground-station link lost (heartbeats stop)"}],
+            **COPTER,  # type: ignore[arg-type]
+        ),
+        Scenario(
+            name="copter-quad-fs-battery",
+            vehicle="copter",
+            frame="quad +",
+            description=(
+                "GUIDED take-off to 10 m, then the simulated pack to 10.5 V and 8.5 V: the"
+                " low stage's RTL, then the critical stage's LAND."
+            ),
+            expected=[
+                "ERR FAILSAFE_BATT 2.1 s after BAT.Volt drops under BATT_LOW_VOLT 11"
+                " (BATT_LOW_TIMER 2, checked at 10 Hz): MODE RTL, reason BATTERY_FAILSAFE",
+                "a second ERR FAILSAFE_BATT 2.1 s after BAT.Volt drops under BATT_CRT_VOLT 9:"
+                " MODE LAND",
+                "LAND lands and disarms",
+                "steady hover windows: 8 s in GUIDED; 6 s in RTL",
+            ],
+            fly=battery_stages,
+            params={
+                "BATT_LOW_VOLT": 11,
+                "BATT_CRT_VOLT": 9,
+                "BATT_LOW_TIMER": 2,
+                "BATT_FS_LOW_ACT": 2,
+                "BATT_FS_CRT_ACT": 1,
+            },
+            boot_params=FAILSAFE_LOGGING,
+            faults=[
+                {
+                    "kind": "other",
+                    "description": "the pack run down to low, then critical",
+                    "parameters": ["SIM_BATT_VOLTAGE"],
+                }
+            ],
+            **COPTER,  # type: ignore[arg-type]
+        ),
+        Scenario(
+            name="copter-quad-fs-radio",
+            vehicle="copter",
+            frame="quad +",
+            description=(
+                "GUIDED take-off to 5 m, then the receiver's failsafe output (throttle 950 µs,"
+                " under FS_THR_VALUE 975) with FS_THR_ENABLE 4, SmartRTL or RTL, and SmartRTL"
+                " unavailable (SRTL_POINTS 0): the failsafe falls back to RTL."
+            ),
+            expected=[
+                "RCIN.C3 under FS_THR_VALUE, then ERR FAILSAFE_RADIO within three frames",
+                "MODE RTL with reason RADIO_FAILSAFE: a fallback, SmartRTL could not start",
+                "RTL lands and disarms",
+                "steady hover windows: 10 s in GUIDED",
+            ],
+            fly=radio_loss,
+            params={"FS_THR_ENABLE": 4},
+            boot_params=FAILSAFE_LOGGING | {"SRTL_POINTS": 0},
+            faults=[
+                {
+                    "kind": "other",
+                    "description": "RC link lost (receiver failsafe throttle)",
+                    "parameters": ["SIM_RC_FAIL"],
+                },
+                {
+                    "kind": "parameter-error",
+                    "description": "SmartRTL unavailable",
+                    "parameters": ["SRTL_POINTS"],
+                },
+            ],
+            **COPTER,  # type: ignore[arg-type]
+        ),
+        Scenario(
+            name="copter-quad-fs-off",
+            vehicle="copter",
+            frame="quad +",
+            description=(
+                "GUIDED take-off to 5 m with the ground station's heartbeats on, then none,"
+                " then the receiver's failsafe output, with both failsafes off"
+                " (FS_GCS_ENABLE 0, FS_THR_ENABLE 0): nothing reacts; LAND by command."
+            ),
+            expected=[
+                "MAV.mgs stops advancing and the throttle drops under FS_THR_VALUE while armed",
+                "no ERR FAILSAFE_GCS or FAILSAFE_RADIO",
+                "LAND by command (reason GCS_COMMAND), then disarm",
+                "steady hover windows: 14 s in GUIDED",
+            ],
+            fly=failsafes_off,
+            params={"FS_GCS_ENABLE": 0, "FS_THR_ENABLE": 0},
+            boot_params=FAILSAFE_LOGGING,
+            faults=[
+                {"kind": "other", "description": "ground-station link lost (heartbeats stop)"},
+                {
+                    "kind": "other",
+                    "description": "RC link lost (receiver failsafe throttle)",
+                    "parameters": ["SIM_RC_FAIL"],
+                },
+                {
+                    "kind": "parameter-error",
+                    "description": "GCS and radio failsafes off",
+                    "parameters": ["FS_GCS_ENABLE", "FS_THR_ENABLE"],
+                },
+            ],
+            **COPTER,  # type: ignore[arg-type]
+        ),
+        Scenario(
+            name="copter-quad-gnss-jam",
+            vehicle="copter",
+            frame="quad +",
+            description=(
+                "GUIDED take-off to 15 m, LOITER, then the simulated receiver jammed for 25 s"
+                " (SIM_GPS1_JAM 1): the fix flickers, satellites fall to 3 and the position"
+                " wanders by hundreds of metres; the EKF failsafe lands the aircraft."
+            ),
+            expected=[
+                "GPS.Status under 3 and GPS.NSats 3 in bursts, GPA.HAcc up to hundreds of m",
+                "XKF4 SP and SV past 100 (a test ratio past 1) while the estimator rejects GNSS",
+                "ERR GPS 2 (glitch), ERR FAILSAFE_EKFINAV, MODE LAND by EKF_FAILSAFE",
+                "the GNSS analyzer: one event, jamming (no u-blox status in SITL)",
+                "steady hover windows: 21 s in LOITER",
+            ],
+            fly=gnss_jam,
+            params={"RC_OVERRIDE_TIME": -1},
+            boot_params=FAILSAFE_LOGGING,
+            faults=[
+                {"kind": "gnss", "description": "receiver jammed", "parameters": ["SIM_GPS1_JAM"]}
+            ],
+            **COPTER,  # type: ignore[arg-type]
+        ),
+        Scenario(
+            name="copter-quad-gnss-step",
+            vehicle="copter",
+            frame="quad +",
+            description=(
+                "GUIDED take-off to 15 m, LOITER, then GNSS moved 60 m north at once for 20 s"
+                " with the signal healthy (SIM_GPS1_GLTCH_X), then back."
+            ),
+            expected=[
+                "XKF4 SP near 1600 (a test ratio of 16): the estimator rejects the jump",
+                "ERR GPS 2 (glitch); after about 10 s the estimator resets onto GNSS",
+                "the same again when GNSS jumps back",
+                "the GNSS analyzer: spoofing, the estimator rejecting GNSS",
+                "steady hover windows: 48 s in LOITER",
+            ],
+            fly=gnss_step,
+            params={"RC_OVERRIDE_TIME": -1},
+            boot_params=FAILSAFE_LOGGING,
+            faults=[
+                {
+                    "kind": "gnss",
+                    "description": "a 60 m GNSS position step",
+                    "parameters": ["SIM_GPS1_GLTCH_X"],
+                }
+            ],
+            **COPTER,  # type: ignore[arg-type]
+        ),
+        Scenario(
+            name="copter-quad-gnss-ramp",
+            vehicle="copter",
+            frame="quad +",
+            description=(
+                "GUIDED take-off to 15 m, LOITER, then GNSS dragged 80 m north over 60 s with"
+                " the signal healthy (SIM_GPS1_GLTCH_X), held for 10 s, then let go."
+            ),
+            expected=[
+                "XKF4 SP 30 to 60 (test ratios 0.3 to 0.6): the estimator follows the drift",
+                "XKF3 IVN one-sided near 0.4 m/s while it drifts",
+                "when GNSS is let go, an 80 m jump the estimator rejects, then a reset",
+                "the GNSS analyzer: spoofing the estimator followed, then a position jump",
+                "steady hover windows: 108 s in LOITER",
+            ],
+            fly=gnss_ramp,
+            params={"RC_OVERRIDE_TIME": -1},
+            boot_params=FAILSAFE_LOGGING,
+            faults=[
+                {
+                    "kind": "gnss",
+                    "description": "GNSS dragged 80 m over 60 s",
+                    "parameters": ["SIM_GPS1_GLTCH_X"],
+                }
+            ],
+            **COPTER,  # type: ignore[arg-type]
+        ),
+        Scenario(
+            name="copter-quad-nognss-drill",
+            vehicle="copter",
+            frame="quad +",
+            description=(
+                "GUIDED take-off to 15 m, LOITER in a 6 m/s wind, then GNSS switched off with"
+                " the GPS-disable switch (aux 65) for 20 s, with no other position source."
+            ),
+            expected=[
+                "AUXF 65 high, GPS.Status 1 while it is",
+                "XKF4.SS: using GPS clears about 4 s in, the absolute position about 7 s in",
+                "ERR FAILSAFE_EKFINAV and MODE LAND by EKF_FAILSAFE; the aircraft drifts downwind",
+                "the no-GNSS analyzer: a drill, the position given up; the GNSS analyzer: nothing",
+                "steady hover windows: 22 s in LOITER",
+            ],
+            fly=nognss_drill,
+            params={"RC_OVERRIDE_TIME": -1} | WIND,
+            boot_params=NO_GNSS_SWITCHES,
+            faults=[{"kind": "gnss", "description": "GNSS switched off for a drill"}],
+            **COPTER,  # type: ignore[arg-type]
+        ),
+        Scenario(
+            name="copter-quad-nognss-flow",
+            vehicle="copter",
+            frame="quad +",
+            description=(
+                "GUIDED take-off to 10 m, LOITER in a 6 m/s wind with optical flow and a"
+                " rangefinder as EKF source set 2: set 2 on its switch (aux 90), GNSS off"
+                " (aux 65) for 30 s, GNSS back, then set 1."
+            ),
+            expected=[
+                "Using EKF Source Set 2; EKF3 fusing optical flow",
+                "XKF4.SS keeps the relative position all through the drill; no failsafe",
+                "within about a metre of GNSS when it returns",
+                "the no-GNSS analyzer: a drill, the position kept",
+                "steady hover windows: 63 s in LOITER",
+            ],
+            fly=nognss_flow,
+            params={"RC_OVERRIDE_TIME": -1} | WIND,
+            boot_params=NO_GNSS_SWITCHES | OPTICAL_FLOW,
+            faults=[{"kind": "gnss", "description": "GNSS switched off for a drill"}],
+            **COPTER,  # type: ignore[arg-type]
+        ),
+        Scenario(
+            name="copter-quad-wind",
+            vehicle="copter",
+            frame="quad +",
+            description=(
+                "Legs at 3, 6 and 9 m/s on eight courses and a turning hover, at 20 m in a"
+                " gusting 5 m/s wind from the west at every height (SIM_WIND_T 1)."
+            ),
+            expected=[
+                *WIND_EXPECTED,
+                "the wind analyzer: about 5 m/s from 270 degrees, the drag fitted from the legs",
+                "steady hover windows: 7 s in GUIDED; 7 s in GUIDED; 7 s in GUIDED; 7 s in GUIDED",
+            ],
+            fly=wind_legs,
+            params=STEADY_WIND,
+            boot_params=FAILSAFE_LOGGING,
+            **COPTER,  # type: ignore[arg-type]
+        ),
+        Scenario(
+            name="copter-quad-wind-calm",
+            vehicle="copter",
+            frame="quad +",
+            description="The same legs and turning hover in still air (SIM_WIND_SPD 0).",
+            expected=[
+                *WIND_EXPECTED,
+                "the wind analyzer: under 0.5 m/s, with the drag of the windy flight",
+                "steady hover windows: 57 s in GUIDED",
+            ],
+            fly=wind_legs,
+            params={"SIM_WIND_SPD": 0},
+            boot_params=FAILSAFE_LOGGING,
+            **COPTER,  # type: ignore[arg-type]
+        ),
+        Scenario(
+            name="copter-quad-wind-hover",
+            vehicle="copter",
+            frame="quad +",
+            description=(
+                "A hover at 20 m facing north, east, south and west, 15 s each, in the same"
+                " gusting 5 m/s wind from the west: it cannot measure its own drag."
+            ),
+            expected=[
+                "GUIDED take-off to 20 m; a hover facing four ways, 15 s each; LAND",
+                "the wind analyzer measures nothing on its own; with the drag of"
+                " copter-quad-wind-calm it reads about 5 m/s from 270 degrees",
+                "no steady-hover window: it leans about 12 degrees into the wind",
+            ],
+            fly=wind_hover,
+            params=STEADY_WIND,
+            boot_params=FAILSAFE_LOGGING,
+            **COPTER,  # type: ignore[arg-type]
         ),
     ]
 }

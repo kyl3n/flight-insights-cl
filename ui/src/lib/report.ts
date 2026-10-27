@@ -196,7 +196,7 @@ const UNIT_TEXT: Record<Locale, Record<string, string>> = {
   en: { degC: "°C", mOhm: "mΩ", Ohm: "Ω", "W.h": "Wh", "A/krpm^2": "A/krpm²" },
   uk: {
     degC: "°C", mOhm: "мОм", "W.h": "Вт·год", "A/krpm^2": "А/(тис. об/хв)²", W: "Вт", V: "В",
-    A: "А", s: "с", Hz: "Гц", dB: "дБ", "B/s": "Б/с", "m/s/s": "м/с²", Ohm: "Ом", rpm: "об/хв",
+    A: "А", s: "с", ms: "мс", Hz: "Гц", dB: "дБ", "B/s": "Б/с", "m/s/s": "м/с²", Ohm: "Ом", rpm: "об/хв",
   },
 };
 

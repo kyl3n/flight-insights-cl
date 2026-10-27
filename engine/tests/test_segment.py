@@ -295,11 +295,28 @@ def test_every_fixture_is_one_flight_with_the_modes_its_scenario_flew(
         "copter-quad-fastnotch": ["GUIDED", "LAND"],
         "copter-quad-tune-default": ["GUIDED", "ALT_HOLD", "LAND"],
         "copter-quad-tune-low": ["GUIDED", "ALT_HOLD", "LAND"],
+        "copter-quad-tune-ab": ["GUIDED", "ALT_HOLD", "LAND"],
+        "copter-quad-tune-knob": ["GUIDED", "ALT_HOLD", "LAND"],
         "copter-heavylift-light": ["GUIDED", "LAND"],
         "copter-heavylift-loaded": ["GUIDED", "LAND"],
+        "copter-heavylift-tune": ["GUIDED", "ALT_HOLD", "LAND"],
         "heli-hover": ["GUIDED", "LAND"],
         "plane-circuit": ["AUTO", "RTL"],
         "quadplane-hover": ["QLOITER", "QLAND"],
+        "copter-quad-autotune-saved": ["GUIDED", "ALT_HOLD", "AUTOTUNE"],  # disarmed in it
+        "copter-quad-autotune-aborted": ["GUIDED", "ALT_HOLD", "AUTOTUNE", "ALT_HOLD", "LAND"],
+        "copter-quad-fs-gcs": ["GUIDED", "RTL"],
+        "copter-quad-fs-battery": ["GUIDED", "RTL", "LAND"],
+        "copter-quad-fs-radio": ["GUIDED", "RTL"],
+        "copter-quad-fs-off": ["GUIDED", "LAND"],
+        "copter-quad-gnss-jam": ["GUIDED", "LOITER", "LAND"],  # LAND by the EKF failsafe
+        "copter-quad-gnss-step": ["GUIDED", "LOITER", "LAND"],
+        "copter-quad-gnss-ramp": ["GUIDED", "LOITER", "LAND"],
+        "copter-quad-nognss-drill": ["GUIDED", "LOITER", "LAND"],  # LAND by the EKF failsafe
+        "copter-quad-nognss-flow": ["GUIDED", "LOITER", "LAND"],
+        "copter-quad-wind": ["GUIDED", "LAND"],
+        "copter-quad-wind-calm": ["GUIDED", "LAND"],
+        "copter-quad-wind-hover": ["GUIDED", "LAND"],
     }[log.stem]
     assert names == expected
     assert flight.end == "disarmed" and flight.duration_s > 20
@@ -375,12 +392,14 @@ def test_the_release_enums_name_modes_and_events(pack: Pack) -> None:
 # --- steady hover -------------------------------------------------------------------
 
 
-def label_hover(log: Path) -> tuple[float, str | None] | None:
-    """The hover a fixture's label promises: (seconds, mode), or None for no hover."""
-    m = re.search(
-        r"about (\d+) s of (?:steady )?hover(?: in (\w+))?", log.with_suffix(".yaml").read_text()
-    )
-    return (float(m[1]), m[2]) if m else None
+def label_hover(log: Path) -> list[tuple[float, str | None]] | None:
+    """The hover a fixture's label promises: [(seconds, mode)], or None for no hover. A
+    label lists several windows as "steady hover windows: 5 s in ALT_HOLD; 8 s in ..."."""
+    text = log.with_suffix(".yaml").read_text()
+    if many := re.search(r"steady hover windows: ([^'\n]+)", text):
+        return [(float(s), m) for s, m in re.findall(r"(\d+) s in (\w+)", many[1])]
+    m = re.search(r"about (\d+) s of (?:steady )?hover(?: in (\w+))?", text)
+    return [(float(m[1]), m[2])] if m else None
 
 
 @pytest.mark.parametrize("log", FIXTURE_LOGS, ids=lambda p: str(p.relative_to(FIXTURES)))
@@ -396,10 +415,10 @@ def test_each_fixture_hovers_as_its_label_says(pack: Pack, log: Path) -> None:
     if expected is None:
         assert windows == []
         return
-    seconds, mode = expected
-    [w] = windows
-    assert abs(w.duration_s - seconds) <= 1.5, w
-    assert w.flight == 1 and (mode is None or w.mode == mode)
+    assert len(windows) == len(expected), windows
+    for w, (seconds, mode) in zip(windows, expected, strict=True):
+        assert abs(w.duration_s - seconds) <= 1.5, w
+        assert w.flight == 1 and (mode is None or w.mode == mode)
 
 
 def test_hover_needs_every_condition_for_long_enough(tmp_path: Path, pack: Pack) -> None:

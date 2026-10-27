@@ -20,6 +20,9 @@ on:
       - knowledge/tools/build_param_gates.py
       - knowledge/tools/check_param_gates_sitl.py
       - knowledge/params/*/gates.json.gz
+      - knowledge/tools/build_motor_frames.py
+      - knowledge/tools/check_motor_frames_sitl.py
+      - knowledge/frames/**
       - .github/workflows/fixtures.yml
 
 permissions:
@@ -66,8 +69,21 @@ jobs:
           python3 knowledge/tools/build_param_gates.py "$ARDUPILOT" "$VERSION"
           git diff --exit-code -- "knowledge/params/$VERSION/gates.json.gz"
 
+      # Every frame's motor factors must be exactly what the generator reads from this
+      # release's mixer source.
+      - name: Regenerate the motor frames and compare
+        run: |
+          python3 knowledge/tools/build_motor_frames.py "$ARDUPILOT" "$VERSION"
+          git diff --exit-code -- "knowledge/frames/$VERSION.json" knowledge/manifest.json
+
       - name: Check the parameter gates in SITL
         run: uv run knowledge/tools/check_param_gates_sitl.py --ardupilot "$ARDUPILOT" --version "$VERSION"
+
+      # Each SITL multirotor frame, flown with System ID chirps on every mixer axis:
+      # each motor's output fitted to the mixer's inputs must match the table within
+      # 2% of each axis's range.
+      - name: Check the motor frames in SITL
+        run: uv run knowledge/tools/check_motor_frames_sitl.py --ardupilot "$ARDUPILOT" --version "$VERSION"
 
       - name: Fly, scrub and label
         run: tools/fixtures/sitl/make_fixtures.sh "$ARDUPILOT" "$VERSION" tests/fixtures $SCENARIOS
