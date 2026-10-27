@@ -97,6 +97,7 @@ describe("the downloader's state", () => {
       status: "out",
       label: "wx.state.refused",
     });
+    expect(roundLook(status({ state: "plan" }))).toEqual({ status: "out", label: "wx.state.plan" });
     expect(roundLook(status({ state: "something new" })).label).toBe("wx.state.failed");
   });
 

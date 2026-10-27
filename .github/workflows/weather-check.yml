@@ -1,0 +1,79 @@
+name: Weather live check
+
+# One request of each kind the weather downloader sends (the newest forecast window,
+# one day of ERA5 reanalysis and NOAA's K-index), made by the downloader's own code for
+# a fixture flight's tile, against the real Open-Meteo customer API and NOAA SWPC. Each
+# reply must cover every grid point and variable asked for, and the engine must keep it
+# (shell/src-tauri/src/engine.rs, live_weather_check). It prints sizes and counts only,
+# never the key, an address or the tile. It runs only when the repository has an
+# OPEN_METEO_API_KEY secret; without one it says so and passes. Weekly, to keep the
+# quota it uses small (about 470 points a run).
+
+on:
+  workflow_dispatch:
+  schedule:
+    - cron: "41 4 * * 1"
+  pull_request:
+    paths:
+      - shell/src-tauri/src/weather/**
+      - engine/src/flight_insights/weather/**
+      - knowledge/rules/weather.json
+      - .github/workflows/weather-check.yml
+
+permissions:
+  contents: read
+
+concurrency:
+  group: weather-check
+  cancel-in-progress: false
+
+jobs:
+  check:
+    name: Open-Meteo and NOAA SWPC, live
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    defaults:
+      run:
+        working-directory: shell/src-tauri
+    env:
+      HAS_KEY: ${{ secrets.OPEN_METEO_API_KEY != '' }}
+    steps:
+      - name: No key, nothing to check
+        if: env.HAS_KEY != 'true'
+        working-directory: .
+        run: echo "No OPEN_METEO_API_KEY secret is set; the live weather check is skipped."
+      - uses: actions/checkout@v4
+        if: env.HAS_KEY == 'true'
+      - name: Linux build dependencies
+        if: env.HAS_KEY == 'true'
+        timeout-minutes: 40
+        run: |
+          apt_opts="-o Acquire::Retries=5 -o Acquire::http::Timeout=60 -o DPkg::Lock::Timeout=300"
+          packages="libwebkit2gtk-4.1-dev libayatana-appindicator3-dev librsvg2-dev"
+          for attempt in 1 2 3; do
+            if sudo apt-get $apt_opts update && sudo apt-get $apt_opts install -y $packages; then
+              exit 0
+            fi
+            echo "apt attempt $attempt failed; retrying"
+            sleep 15
+          done
+          exit 1
+      - uses: dtolnay/rust-toolchain@b725eda525362e7cf34af9a7243cac1e3f01a7ec # stable
+        if: env.HAS_KEY == 'true'
+      - uses: Swatinem/rust-cache@d1527c8f67ef9af357290475d4af4b0fab8f12e0 # v2
+        if: env.HAS_KEY == 'true'
+        with:
+          workspaces: shell/src-tauri
+      - uses: astral-sh/setup-uv@d0cc045d04ccac9d8b7881df0226f9e82c39688e # v6
+        if: env.HAS_KEY == 'true'
+      - name: Engine
+        if: env.HAS_KEY == 'true'
+        working-directory: engine
+        run: uv sync --locked
+      - name: Live weather check
+        if: env.HAS_KEY == 'true'
+        env:
+          FI_ENGINE_CMD: '["uv", "run", "--project", "../../engine", "python", "-m", "flight_insights", "rpc"]'
+          FI_KNOWLEDGE_DIR: ../../knowledge
+          OPEN_METEO_API_KEY: ${{ secrets.OPEN_METEO_API_KEY }}
+        run: cargo test --locked live_weather_check -- --ignored --nocapture

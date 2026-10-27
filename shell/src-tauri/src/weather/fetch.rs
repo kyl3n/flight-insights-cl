@@ -39,6 +39,8 @@ pub enum Stop {
     Offline,
     /// Open-Meteo refused the key.
     KeyRefused,
+    /// The key is good, but its plan does not cover this endpoint: Open-Meteo's reason.
+    PlanLacks(String),
     /// The provider is busy or failing: tried again at the next slot.
     Busy(&'static str),
     /// Anything else, for the status line.
@@ -50,6 +52,7 @@ impl std::fmt::Display for Stop {
         match self {
             Stop::Offline => write!(f, "no connection"),
             Stop::KeyRefused => write!(f, "Open-Meteo refused the key"),
+            Stop::PlanLacks(why) => write!(f, "the Open-Meteo plan does not cover this: {why}"),
             Stop::Busy(who) => write!(f, "{who} is busy; tried again at the next download time"),
             Stop::Failed(why) => write!(f, "{why}"),
         }
@@ -75,7 +78,7 @@ pub trait Share {
     fn give(&self, engine: &dyn Engine, r: &Request) -> Result<(), String>;
 }
 
-fn tiles_and_grids(engine: &dyn Engine) -> Result<(Vec<Tile>, Grids), Stop> {
+pub(crate) fn tiles_and_grids(engine: &dyn Engine) -> Result<(Vec<Tile>, Grids), Stop> {
     let got = engine
         .call("weather.tiles", json!({}))
         .map_err(Stop::Failed)?;
@@ -118,7 +121,7 @@ fn held(engine: &dyn Engine, source: Source, since: &str) -> Result<Vec<(String,
 }
 
 /// The address a request goes to, with the key for Open-Meteo.
-fn address(hosts: &Hosts, r: &Request, key: &str) -> Result<Url, Stop> {
+pub(crate) fn address(hosts: &Hosts, r: &Request, key: &str) -> Result<Url, Stop> {
     let (base, path) = match r.source {
         Source::Forecast => (&hosts.forecast, "/v1/forecast"),
         Source::Reanalysis => (&hosts.archive, "/v1/archive"),
@@ -138,7 +141,11 @@ fn address(hosts: &Hosts, r: &Request, key: &str) -> Result<Url, Stop> {
 }
 
 /// One request: its reply, or why the round stops.
-fn fetch(http: &Client, url: Url, who: &'static str) -> Result<Vec<u8>, Stop> {
+pub(crate) fn fetch(http: &Client, url: Url, who: &'static str) -> Result<Vec<u8>, Stop> {
+    let key = url
+        .query_pairs()
+        .find(|(k, _)| k == "apikey")
+        .map(|(_, v)| v.into_owned());
     let reply = http.get(url).send().map_err(|e| {
         if e.is_connect() || e.is_timeout() {
             Stop::Offline
@@ -149,11 +156,25 @@ fn fetch(http: &Client, url: Url, who: &'static str) -> Result<Vec<u8>, Stop> {
     })?;
     let status = reply.status();
     if status == StatusCode::UNAUTHORIZED || status == StatusCode::FORBIDDEN {
-        return Err(if who == "Open-Meteo" {
-            Stop::KeyRefused
-        } else {
-            Stop::Failed(format!("{who} answered {status}"))
-        });
+        if who != "Open-Meteo" {
+            return Err(Stop::Failed(format!("{who} answered {status}")));
+        }
+        // A plan that does not cover an endpoint is a 403 whose reason says so; the
+        // key itself is good. The reason is Open-Meteo's text, with the key masked.
+        let reason = reply
+            .text()
+            .ok()
+            .and_then(|t| serde_json::from_str::<Value>(&t).ok())
+            .and_then(|v| v["reason"].as_str().map(str::to_owned))
+            .unwrap_or_default();
+        if status == StatusCode::FORBIDDEN && reason.to_lowercase().contains("plan") {
+            let mut why: String = reason.chars().take(200).collect();
+            if let Some(key) = key.filter(|k| !k.is_empty()) {
+                why = why.replace(key.as_str(), "***");
+            }
+            return Err(Stop::PlanLacks(why));
+        }
+        return Err(Stop::KeyRefused);
     }
     if status == StatusCode::TOO_MANY_REQUESTS || status.is_server_error() {
         return Err(Stop::Busy(who));
@@ -257,6 +278,7 @@ pub fn summary(result: &Result<Round, Stop>) -> Value {
         }),
         Err(Stop::Offline) => json!({"state": "offline"}),
         Err(Stop::KeyRefused) => json!({"state": "key refused"}),
+        Err(e @ Stop::PlanLacks(_)) => json!({"state": "plan", "why": e.to_string()}),
         Err(e @ Stop::Busy(_)) => json!({"state": "busy", "why": e.to_string()}),
         Err(e) => json!({"state": "failed", "why": e.to_string()}),
     }
@@ -304,12 +326,15 @@ pub(crate) mod tests {
                 }
                 let target = first.split(' ').nth(1).unwrap_or_default().to_owned();
                 log.lock().unwrap().push(target.clone());
+                let s = *code.lock().unwrap();
                 let body = if target.starts_with("/products/") {
                     r#"[["time_tag","Kp"],["2026-10-26 00:00:00.000","2.33"]]"#
+                } else if s == 403 && target.starts_with("/v1/archive") {
+                    // Open-Meteo's answer when the plan lacks the endpoint
+                    r#"{"error":true,"reason":"This API endpoint requires the API Professional or Enterprise plan"}"#
                 } else {
                     r#"{"latitude":50.0,"longitude":30.0,"hourly":{"time":[]}}"#
                 };
-                let s = *code.lock().unwrap();
                 let mut out = stream;
                 let _ = write!(
                     out,
@@ -583,6 +608,18 @@ pub(crate) mod tests {
             assert!(!got.to_string().contains(KEY));
             assert!(!summary(&Err(got)).to_string().contains(KEY));
         }
+        // a plan without the archive is not a refused key, and says what it lacks
+        *fake.status.lock().unwrap() = 403;
+        let archive = Url::parse(&format!("{}/v1/archive?apikey={KEY}", fake.url)).unwrap();
+        let got = fetch(&http, archive, "Open-Meteo").unwrap_err();
+        assert_eq!(
+            got,
+            Stop::PlanLacks(
+                "This API endpoint requires the API Professional or Enterprise plan".into()
+            )
+        );
+        assert_eq!(summary(&Err(got.clone()))["state"], "plan");
+        assert!(!summary(&Err(got)).to_string().contains(KEY));
         // nothing listens: no connection, and nothing about the request in the error
         let engine = FakeEngine {
             tiles: vec![("N50E030".into(), 0)],

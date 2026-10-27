@@ -1576,6 +1576,7 @@ const en = {
   "wx.state.offline": "Offline",
   "wx.state.busy": "Provider busy",
   "wx.state.refused": "Key refused",
+  "wx.state.plan": "Plan lacks this data",
   "wx.state.failed": "Failed",
 } as const;
 
@@ -3152,6 +3153,7 @@ const uk: Record<MessageKey, string> = {
   "wx.state.offline": "Немає з'єднання",
   "wx.state.busy": "Постачальник зайнятий",
   "wx.state.refused": "Ключ відхилено",
+  "wx.state.plan": "План не охоплює цих даних",
   "wx.state.failed": "Помилка",
 };
 
