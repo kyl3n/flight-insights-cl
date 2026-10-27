@@ -1389,6 +1389,8 @@ It holds these sections:
     - when it lands where it is or drifts, keep people clear of the ground under it and downwind.
   - **Settings the log did not hold** are taken at the firmware's defaults (`FS_THR_ENABLE` 1, `FS_THR_VALUE` 975, `RC_FS_TIMEOUT` 1 s, `FS_GCS_ENABLE` 0, `FS_GCS_TIMEOUT` 5 s, `FS_OPTIONS` 16). `FS_OPTIONS` defaults to "continue under pilot control on a GCS failsafe", though its own description says 0 (`Parameters.cpp`). The simulator checks found it.
 
+**The goal.** The card also says whether the airframe meets the goal of getting home with the pilot's control and GNSS both lost (`recovery_link.gets_home`). It is played as the link section plays them: from Loiter, AltHold, Guided and Auto, and whichever is lost first, every end it reaches must be RTL or SmartRTL with a position it can trust. A first source set that keeps a position leaves the link's failsafes to act as they would with GNSS. The card gives the verdict with the link section's own lines and is printed without it; the Navigation and GNSS view shows it as the fleet goal. With no failsafe rules to play, no verdict is given.
+
 **Alerts.** A section is marked as an alert when what it says leaves the aircraft dangerous: a link loss that ends, from any mode it may be flown in, with no one flying it (holding or drifting) or flying on with no position it can trust, GNSS lost too where the section says so; a loss of the radio, or of the one link a station-flown aircraft has, that no failsafe answered on its flights; GNSS lost with the EKF failsafe off; and a motor lost on a frame that could fly on the rest but cannot at the weight it last flew. A quad coming down on three motors is what any quad does, so it is no alert, and nor is a telemetry loss while the pilot's radio flies it. The simulator check confirms the case that prompted this: a station-flown aircraft with the radio failsafe off and `FS_OPTIONS` at its default does nothing when the link drops in Loiter or AltHold.
 
 **On screen** (mock-up RecoveryCard). Each airframe on the Fleet view links to its card. The card is a white page, the same on screen and on paper. Its header carries the title, the date it was printed and the parameter set it is valid for, then the home heading to fill in and the pilot's fallback mode. The sections come two to a row, with the link section and any long one across the row, and suspected spoofing last with a dashed edge. An alert section has a red edge and says "Needs attention", so colour is not the only cue. Beside the card are Print and the parameter set and the outages it rests on. Printing prints the card alone.
@@ -1756,8 +1758,8 @@ Rules that keep decisions easy:
 | Tune | Attitude tracking error (the tune's measure) and rate tracking error (its guard) per axis, each with its 95% interval, against a tune-check flight of the same payload band; step and frequency responses of one axis, both flights; the stick inputs counted and those left out, with why; whether the plan improved the tune | Pick the flight to compare with (same band), the payload band and the axis; open the tune-check card |
 | Propulsion and power | Per-motor output and RPM, temperatures, sag, battery resistance, thrust-model fit, motor-out margin by payload | Select motors and segments; see which motor loss is worst |
 | System and buses | CPU load, loop timing, latency budget, per-task CPU, bus and interface errors | Align with flight events; compare before and after a change |
-| Navigation and GNSS | Estimator innovations, GPS quality, jamming and spoofing events with their evidence, position-controller error statistics | Select segments |
-| Flying without GNSS | Readiness by area, measured drift and dead-reckoning range, outages and drills, the recovery card | Open an outage or drill; print the recovery card |
+| Navigation and GNSS | The fleet goal; jamming and spoofing events with their class, confidence and evidence; outages and drills; how the aircraft coped with each; the evidence each receiver gives; the Flying without GNSS view below; later, estimator innovations, GPS quality and position-controller error statistics | Pick an event, outage or drill; select segments (later) |
+| Flying without GNSS | On the Navigation and GNSS tab: readiness by area, measured drift and dead-reckoning range, outages and drills, what would get it home, the recovery card in short | Open an outage or drill; print the recovery card |
 | Links and ground station | Telemetry and RC loss, outages, fade margin, predicted against measured signal, latency, link quality against distance and heading, command results | Pick a ground station or link |
 | Parameter history | The History tab of Trends: change sets with origin, in-flight A/B splits, revert tests and credits, each with its measured effect; the changes ranked behind each shift | Filter by kind; open a shift's ranked changes; open its trend or flight. Diff any two flights and export a past snapshot come with their engine methods |
 | Plan | Staged recommendations with evidence and expected effects, each with its procedure, and the session's test card | Accept, reject, export `.param` or `.params` (each step, revert, undo), print the test card |
@@ -1807,6 +1809,34 @@ Rules that keep decisions easy:
   - open the trend (the Metrics tab, on that metric and payload band) or the flight report.
 - **Bounds.** Revert tests are read for the 20 newest worse shifts. In-flight changes are looked for on the 30 newest flights, one flight at a time after the rest has loaded; a flight the engine cannot split shows none.
 - **Not yet.** The mock-up's diff of two flights, export of a past snapshot, and saving a revert step's two files (`trend.revert_test` gives their text, but no method writes them to a file the person picks) wait for their engine methods.
+
+**The Navigation and GNSS view** (a tab of the flight report; `flight.navigation`, `engine/src/flight_insights/navigation_view.py`; `ui/src/components/NavigationView.svelte`, `ui/src/lib/navigation.ts`; mock-up `Navigation.dc.html`). What disturbed GNSS, how the aircraft coped, and what it would take to get home without it, laid out from the flight's latest analysis, the log's list of messages and the airframe's recovery card. Every status is a verdict the engine already makes; times are seconds after arming, distances whole relative metres from evidence, and the reply holds no position, no absolute time and no number the analysis did not store.
+
+- **The fleet goal,** from the recovery card (Flying without GNSS, "The goal"): ready or not, with the link section's lines for the pilot's control lost, then GNSS lost too.
+- **GNSS events,** each with its class, confidence, receivers and time; its finding's title; and its worst readings and largest gaps (to the estimator's position, between receivers, to the barometer's altitude) as the evidence holds them.
+- **Outages and drills,** each with its finding's title and the events it fell in.
+- **How the aircraft coped** with the event or outage picked (the first event, else the first outage), one row each, with a status only where the engine judges:
+  - the estimator: rejecting GNSS, how long, and its test ratio (a fact), or following a drift it never rejected (out, the dangerous form); for an outage, how soon it stopped using GNSS (the detection metric's zones) or that it was not using GNSS;
+  - another position source: a source set flown on (OK), else the readiness review's position area;
+  - the position kept: the shortest hold of the outages during it, by the hold metric's zones;
+  - the drift when GNSS returned, by the drift-rate metric's zones;
+  - the estimator's position resets (a fact);
+  - the failsafes, each with the failsafe analyzer's verdict on it (as configured, fell back, late or not as configured), and every failsafe and check the log names;
+  - the mode change and its reason (a fact);
+  - the heading: a reset from GNSS velocity during spoofing (out), else the readiness review's heading area, noting during spoofing that none was found;
+  - when GNSS was in use again (a fact).
+
+  Below them, the finding's own action.
+- **GNSS receivers and the evidence they give:** for each receiver, with its type parameter's value, whether the log holds its u-blox status, its fix and satellites, its accuracy and its GPS time; and whether the estimator's consistency, the barometer and a second receiver are there. Only presence is read, never a value.
+- **Flying without GNSS: readiness:** each area of the readiness review with its status and its sentence, then the goal's line from the recovery card.
+- **What would get it home:** the flight's navigation-stage setup findings (the readiness review's, and the parameter checks' on the GNSS fallback, the second receiver and the compass), in the analysis's order, each with its action and its procedure's own steps, and the readiness rules' sources. The plan adds the parameter files and checks.
+- **The recovery card in short:** what the aircraft will do when GNSS is lost, what was measured, what it does when the link is lost too, the operator's steps and suspected spoofing's, and Print, which opens the card.
+- **Not yet:**
+  - what the operator did, from the tlog, and per-satellite C/N0, the inertial prediction, the course against the compass and the station clock as evidence rows: the analyzer does not read them yet (GNSS jamming and spoofing, "Not yet");
+  - the receiver's make, band and connection, beyond its type parameter;
+  - a ranked catalogue of mitigations. It needs a knowledge file of mitigations for the goal (drag-fusion calibration and the dead-reckoning failsafe, optical flow with a rangefinder, visual odometry, external navigation, a hardened receiver), each with what it needs, its cost and its sources, and a measured benefit to rank by: the hold and drift of drills flown with and without it, across the fleet;
+  - planning a GNSS-off drill, which waits for a drill procedure;
+  - estimator innovation and GPS quality plots, position-controller error statistics and segment selection.
 
 ### Explanations for every metric and data point
 

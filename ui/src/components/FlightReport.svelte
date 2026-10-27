@@ -29,6 +29,7 @@
   import AiSummary from "./AiSummary.svelte";
   import StatusBadge from "./StatusBadge.svelte";
   import Value from "./Value.svelte";
+  import NavigationView from "./NavigationView.svelte";
   import PropulsionView from "./PropulsionView.svelte";
   import SystemView from "./SystemView.svelte";
   import TuneView from "./TuneView.svelte";
@@ -42,7 +43,7 @@
   let busy = $state(false);
   let error = $state("");
   let selected = $state<string | null>(null);
-  let tab = $state<"report" | "filters" | "tune" | "propulsion" | "system">("report");
+  let tab = $state<"report" | "filters" | "tune" | "propulsion" | "navigation" | "system">("report");
 
   async function load(force = false) {
     busy = true;
@@ -135,7 +136,7 @@
   </header>
 
   <div role="tablist" class="tabs" aria-label={t("report.findings")}>
-    {#each [["report", "report.tab.report"], ["filters", "report.tab.filters"], ["tune", "report.tab.tune"], ["propulsion", "report.tab.propulsion"], ["system", "report.tab.system"]] as const as [id, label] (id)}
+    {#each [["report", "report.tab.report"], ["filters", "report.tab.filters"], ["tune", "report.tab.tune"], ["propulsion", "report.tab.propulsion"], ["navigation", "report.tab.navigation"], ["system", "report.tab.system"]] as const as [id, label] (id)}
       <button type="button" role="tab" aria-selected={tab === id} onclick={() => (tab = id)}>{t(label)}</button>
     {/each}
   </div>
@@ -146,6 +147,8 @@
     <TuneView {flightId} />
   {:else if tab === "propulsion"}
     <PropulsionView {flightId} />
+  {:else if tab === "navigation"}
+    <NavigationView {flightId} run={analysis?.run ?? null} />
   {:else if tab === "system"}
     <SystemView {flightId} />
   {:else}
@@ -357,6 +360,7 @@
   }
   .tabs {
     display: flex;
+    flex-wrap: wrap;
     gap: 4px;
     border-bottom: 1px solid var(--border-soft);
   }

@@ -231,7 +231,7 @@ export function findingTitle(reg: Registry, f: Pick<FindingRow, "code" | "params
   return text ? fill(text.title[locale], f.params, locale) : f.code;
 }
 
-export function findingAction(reg: Registry, f: FindingRow, locale: Locale): string {
+export function findingAction(reg: Registry, f: Pick<FindingRow, "code" | "params">, locale: Locale): string {
   const text = reg.findings[f.code];
   return text ? fill(text.action[locale], f.params, locale) : "";
 }
