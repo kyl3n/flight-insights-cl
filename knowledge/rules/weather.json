@@ -21,5 +21,22 @@
     "lapse_k_per_m": 0.0065,
     "dew_lapse_k_per_m": 0.0018,
     "cloud_base_m_per_k": 125
+  },
+  "space_weather": {
+    "about": "Context for a flight's GNSS and compass findings: when the highest planetary K-index of the 3-hour intervals the flight overlaps (its weather record's kp_max) is kp_elevated or more, each finding whose code starts with one of codes carries it, with the note, so a disturbance is weighed against the sky before it is blamed on the aircraft. Context only: it changes no severity, confidence or recommendation.",
+    "kp_elevated": 4,
+    "codes": [
+      "gnss.",
+      "no_gnss.position_lost"
+    ],
+    "note": {
+      "en": "Geomagnetic activity was elevated during this flight (planetary K-index {kp}; NOAA issues warnings from 4). It can degrade satellite positioning and disturb compass readings, more so at high latitudes, so weigh it before blaming the aircraft.",
+      "uk": "Під час цього польоту геомагнітна активність була підвищеною (планетарний K-індекс {kp}; NOAA видає попередження від 4). Вона може погіршувати супутникове позиціонування та збурювати показання компаса, особливо у високих широтах, тож урахуйте це, перш ніж шукати причину в апараті."
+    },
+    "sources": [
+      "kp_elevated: NOAA SWPC issues warnings and alerts from a planetary K-index of 4 (https://swpc-drupal.woc.noaa.gov/products/planetary-k-index); docs/SPEC.md's environment table puts Kp 4 or above at caution",
+      "GNSS: NOAA SWPC, Space Weather and GPS Systems (https://www.swpc.noaa.gov/impacts/space-weather-and-gps-systems): geomagnetic storms disturb the ionosphere, which degrades GNSS accuracy and can cause loss of lock",
+      "compass: NOAA SWPC, Geomagnetic Storms (https://www.swpc.noaa.gov/phenomena/geomagnetic-storms): storms disturb the Earth's magnetic field, strongest at high latitudes, which affects magnetic heading"
+    ]
   }
 }

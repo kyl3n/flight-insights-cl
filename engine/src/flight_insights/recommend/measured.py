@@ -11,8 +11,10 @@ within each payload band, so a loaded flight is never read against a light one.
 - **no_shift_worse**: no metric shifted worse from the first flight with the change to
   the one being graded (history/attribution.py: per payload group, beyond the airframe's
   spread). One whose top-ranked cause is the change's own parameter, or a value its work
-  saves, marks the check worse; one caused by something else fails it. A metric with too
-  few flights to judge is no shift, so it passes until they are flown.
+  saves, marks the check worse; one caused by something else, or one the weather could
+  explain (the flights' weather differed beyond rules/attribution.json's thresholds),
+  fails it. A metric with too few flights to judge is no shift, so it passes until they
+  are flown.
 - **metric_vs_lightest**: with the change, the heaviest band's value against the
   lightest's: at most `max_ratio` times it, or at most `max_above` over it. ArduPilot
   tunes light and expects the same gains to fly heavier aircraft slower, not unstable.
@@ -209,8 +211,11 @@ def no_shift_worse(
     ]  # fmt: skip
     shifts = [
         {"metric": s.metric, "segment": s.segment, "group": s.group, "flight": s.flight,
-         "effect": s.effect, "cause": s.candidates[0].change.name if s.candidates else None}
+         "effect": s.effect, "cause": s.candidates[0].change.name if s.candidates else None,
+         "weather": list(s.weather["differs"]) if s.weather else []}
         for s in worse
     ]  # fmt: skip
-    caused = any(x["cause"] in own for x in shifts)
+    # A shift the weather could explain fails the check, but is not the change's
+    # regression on its own (rules/attribution.json, weather).
+    caused = any(x["cause"] in own and not x["weather"] for x in shifts)
     return not worse, {"shifts": shifts, "worse": caused}

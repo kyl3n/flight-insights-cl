@@ -8,6 +8,7 @@ flies.
 | weather.store | Keeps one download the shell received, as it came (or gzipped, as shared) |
 | weather.held | Which downloads of a source are kept, by tile and period |
 | weather.export | Writes one kept download, gzipped, to a file for the shell to share |
+| weather.refresh | Makes again every flight's record whose downloads changed, after a round |
 | flight.weather | A flight's weather record: values only, no place (made when missing or stale) |
 """
 
@@ -96,6 +97,13 @@ def add_weather_methods(server: Server, state: EngineState, guarded: Callable[[A
             raise RpcError(BAD_INPUT, "that download is not kept here")
         path.write_bytes(kept)
         return {"bytes": len(kept)}
+
+    @server.method("weather.refresh")
+    @guarded
+    def weather_refresh(ctx: Context, _params: dict[str, Any]) -> dict[str, Any]:
+        store, cache = state.require_store(), state.cache
+        assert cache is not None
+        return {"made": record.refresh(store, cache, state.pack, progress=ctx.progress)}
 
     @server.method("flight.weather")
     @guarded

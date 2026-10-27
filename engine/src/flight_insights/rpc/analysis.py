@@ -24,7 +24,9 @@
 | flight.tune | A flight's tune against one of its payload group's, and the plan's verdict |
 | review.file | A parameter file's configuration review and plan, with no flight |
 
-Analysing a flight also grades its airframe's earlier recommendations against it.
+Analysing a flight also makes its weather record, where the downloads cover it, and grades
+its airframe's earlier recommendations against it. A GNSS or compass finding of a flight
+flown while the planetary K-index was elevated carries it as context.
 
 Results hold metric values, findings with the evidence they rest on, and no
 positions: the analyzers read cached columns, where positions stay encrypted.
@@ -50,6 +52,8 @@ from flight_insights.rpc.server import (
     Server,
 )
 from flight_insights.tlog import sessions as tlog_sessions
+from flight_insights.weather import context as weather_context
+from flight_insights.weather import record as weather_record
 
 if TYPE_CHECKING:
     from flight_insights.rpc.methods import EngineState
@@ -77,6 +81,8 @@ def add_analysis_methods(server: Server, state: EngineState, guarded: Callable[[
             out = analyzers.run_analysis(store, cache, state.pack, flight, force=force)
         except analyzers.FlightError as e:
             raise RpcError(BAD_INPUT, str(e)) from None
+        # its weather record first: grading weighs a shift against the weather
+        weather_record.refresh(store, cache, state.pack, [flight])
         recommend.grade_flight(store, state.pack, flight, out)
         return out
 
@@ -84,7 +90,11 @@ def add_analysis_methods(server: Server, state: EngineState, guarded: Callable[[
     @guarded
     def analysis_get(_ctx: Context, params: dict[str, Any]) -> dict[str, Any] | None:
         reg = analyzers.Registry.load(state.pack)
-        return analyzers.analysis_results(state.require_store(), _flight(params), reg)
+        store = state.require_store()
+        result = analyzers.analysis_results(store, _flight(params), reg)
+        if result is not None:
+            weather_context.space_weather(store, state.pack, result)
+        return result
 
     @server.method("recommend.plan")
     @guarded

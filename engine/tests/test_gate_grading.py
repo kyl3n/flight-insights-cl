@@ -466,6 +466,33 @@ def test_another_metric_made_worse_by_something_else_stops_the_confirmation(
     assert check["shifts"][0]["cause"] == "INS_GYRO_FILTER" and not check["worse"]
 
 
+def test_a_shift_the_wind_could_explain_is_not_the_tunes_regression(gate: Gate) -> None:
+    """The same rise in I-term saturation as a regression by the tune, but flown in much
+    more wind than the flight before it: the check fails, the grade is not regressed."""
+    i_limit = "tune.i_at_limit_roll"
+    f1, a1 = gate.fly(LIGHT, BASE_LIGHT, extra={i_limit: (0.05, 0.04, 0.06)})
+    gate.plan(f1, a1)
+    gate.plan(*gate.fly(LOADED, BASE_LOADED))
+    for axis in ("roll", "pitch"):
+        f, a = gate.fly(LIGHT, saved=axis)
+        grade_flight(gate.store, gate.pack, f, a)
+    f5, a5 = gate.fly(LIGHT, AFTER_LIGHT, extra={i_limit: (0.12, 0.10, 0.14)})
+    saved_gains(gate, f5, ("ATC_RAT_RLL_D", 0.0036, 0.006))
+    for fid, wind in ((f1, 2.0), (f5, 9.0)):
+        gate.store.conn.execute(
+            "INSERT INTO flight_weather (flight_id, basis, record_json) VALUES (?, 'b', ?)",
+            (fid, json.dumps({"quality": "forecast", "coverage": 1.0, "wind_ms": wind})),
+        )
+    assert grade_flight(gate.store, gate.pack, f5, a5)[0]["status"] == "applied"  # pending
+    f6, a6 = gate.fly(LOADED, AFTER_LOADED)
+    assert grade_flight(gate.store, gate.pack, f6, a6)[0]["status"] == "no effect"
+    [check] = [c for c in gate.offer()["detail"]["grade"]["checks"]
+               if c["check"] == "no_shift_worse"]  # fmt: skip
+    [shift] = check["shifts"]
+    assert check["passed"] is False and not check["worse"]
+    assert shift["cause"] == "ATC_RAT_RLL_D" and shift["weather"] == ["wind_ms"]
+
+
 # --- the measurements on their own -----------------------------------------------------
 
 

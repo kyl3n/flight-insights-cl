@@ -9,6 +9,7 @@ import json
 import math
 from collections.abc import Callable
 from pathlib import Path
+from typing import Any
 
 import numpy as np
 import pytest
@@ -76,6 +77,15 @@ def v(la: float, lo: float, t: int) -> float:
 
 
 FIELDS: dict[str, Fn] = {"temperature_2m": temperature, **wind(u, v)}
+
+
+# What a record may hold: values only (spec: Weather and wind, "How the record is made now").
+RECORD_KEYS = {
+    "quality", "coverage", "height_band_m", "wind_ms", "wind_max_ms", "wind_from_deg",
+    "surface_wind_ms", "gust_max_ms", "precipitation_mm_h", "cloud_cover_pct",
+    "boundary_layer_m", "temperature_c", "pressure_hpa", "humidity_pct", "dew_point_c",
+    "density_altitude_m", "cloud_base_m", "density_altitude_top_m", "kp_max",
+}  # fmt: skip
 
 
 @pytest.fixture
@@ -217,13 +227,7 @@ def test_the_record_holds_no_position(flown: tuple[Store, ColumnCache, str]) -> 
             downloads.keep(store, "forecast", tile, period, reply(tile, 0.1, hours, FIELDS), 2)
     got = record.current(store, cache, PACK, flight)
     assert got is not None and got["coverage"] > 0
-    allowed = {
-        "quality", "coverage", "height_band_m", "wind_ms", "wind_max_ms", "wind_from_deg",
-        "surface_wind_ms", "gust_max_ms", "precipitation_mm_h", "cloud_cover_pct",
-        "boundary_layer_m", "temperature_c", "pressure_hpa", "humidity_pct", "dew_point_c",
-        "density_altitude_m", "cloud_base_m", "density_altitude_top_m", "kp_max",
-    }  # fmt: skip
-    assert set(got) <= allowed
+    assert set(got) <= RECORD_KEYS
     key = str(store.get("flight", flight)["flight_key"])  # type: ignore[index]
     pos = cache.read(key, "POS", ["Lat", "Lng"], positions=True)
     lat, lon = pos.column("Lat").to_numpy()[0] * 1e-7, pos.column("Lng").to_numpy()[0] * 1e-7
@@ -244,3 +248,84 @@ def test_the_record_method(tmp_path: Path) -> None:
     missing = call(server, out, 2, "flight.weather", flight_id="nope")
     assert missing["error"]["code"] == -32003 and missing["error"]["message"] == "no such flight"
     assert call(server, out, 3, "flight.weather", flight_id=7)["error"]["code"] == -32602
+
+
+def test_what_reads_the_record_names_its_own_keys() -> None:
+    """Attribution's confounders and the trend points read values the record holds."""
+    from flight_insights.trends import WEATHER_FIELDS
+
+    variables = PACK.json("rules/attribution.json")["weather"]["variables"]
+    assert set(variables) <= RECORD_KEYS and set(WEATHER_FIELDS) <= RECORD_KEYS
+
+
+def test_refresh_makes_again_only_what_changed(flown: tuple[Store, ColumnCache, str]) -> None:
+    store, cache, flight = flown
+    assert record.kept(store, [flight]) == {}
+    assert record.refresh(store, cache, PACK) == 1  # no download yet: a record of none
+    assert record.kept(store, ["nope", flight]) == {
+        flight: {"quality": "none", "coverage": 0.0, "kp_max": None}
+    }
+    assert record.refresh(store, cache, PACK) == 0  # nothing changed
+    window = record._window(store, flight)  # pyright: ignore[reportPrivateUsage]
+    assert window is not None
+    for tile in tiles.download_list(store, TILES):
+        for period in record.candidate_periods("forecast", *window):
+            start = int(np.datetime64(period, "ms").astype(np.int64))
+            hours = [start + h * HOUR_MS for h in range(6)]
+            downloads.keep(store, "forecast", tile, period, reply(tile, 0.1, hours, FIELDS), 2)
+    assert record.refresh(store, cache, PACK, ["another flight"]) == 0  # not this one
+    assert record.refresh(store, cache, PACK) == 1
+    assert record.kept(store, [flight])[flight]["quality"] == "forecast"
+
+
+def test_elevated_space_weather_is_context_on_gnss_findings(tmp_path: Path) -> None:
+    """End to end: a jammed receiver's flight, analysed once the K-index for its hours is
+    kept, shows the jamming with the K-index beside it; the other findings do not."""
+    from test_rpc import LAPTOP, Output, call, keys
+
+    from flight_insights.rpc import build_server
+
+    out = Output()
+    server = build_server(out, PACK)
+    n = iter(range(1, 100))
+
+    def rpc(method: str, **params: object) -> Any:
+        reply = call(server, out, next(n), method, **params)
+        assert "result" in reply, reply
+        return reply["result"]
+
+    def kp_reply(kp: str) -> str:
+        return str(rpc("weather.store", source="kp", tile="", period=label,
+                       path=str(write(kp))))  # fmt: skip
+
+    def write(kp: str) -> Path:
+        rows = [[iso(start + k * 3 * HOUR_MS).replace("T", " "), kp] for k in range(-1, 2)]
+        path.write_text(json.dumps([["time_tag", "Kp"], *rows]), encoding="utf-8")
+        return path
+
+    rpc("engine.unlock", laptop_id=LAPTOP, data_dir=str(tmp_path), keys=keys())
+    log = FIXTURE.parent / "copter-quad-gnss-jam.bin"
+    pl = rpc("platform.create", name="jam", vehicle="copter")
+    af = rpc("airframe.create", platform_id=pl["id"], name="jam")
+    batch = rpc("import.scan", paths=[str(log)])["batch"]
+    [done] = rpc("import.commit", batch=batch, decisions=[{"log": "f1", "airframe_id": af["id"]}])
+    flight = str(done["flights"][0])
+    [row] = [f for f in rpc("flight.list") if f["id"] == flight]
+    start = int(row["utc_us"]) // 1000
+    start -= start % (3 * HOUR_MS)  # the 3-hour interval it began in, and either side
+    label = record._hour_label(start)  # pyright: ignore[reportPrivateUsage]
+    path = tmp_path / "kp.json"
+    kp_reply("5.67")
+    rpc("analysis.run", flight_id=flight)  # makes the flight's record
+    findings: list[dict[str, Any]] = rpc("analysis.get", flight_id=flight)["findings"]
+    [jam] = [f for f in findings if f["code"] == "gnss.jamming"]
+    assert jam["context"]["kp_max"] == 5.67
+    assert set(jam["context"]["note"]) == {"en", "uk"} and "5.67" in jam["context"]["note"]["en"]
+    with_it = {str(f["code"]) for f in findings if "context" in f}
+    assert all(c.startswith(("gnss.", "no_gnss.position_lost")) for c in with_it)
+    assert any("context" not in f for f in findings)  # the rest: none
+    # quiet skies, kept after the analysis: the shell's refresh brings the record up to date
+    kp_reply("2.00")
+    assert rpc("weather.refresh") == {"made": 1}
+    calm = rpc("analysis.get", flight_id=flight)["findings"]
+    assert all("context" not in f for f in calm)
