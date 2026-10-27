@@ -20,6 +20,12 @@
     "the drag model: a rotor moving edgewise through the air is pushed back in proportion to the airspeed (rotor momentum drag, H-force), so a multirotor's forward and sideways specific force in steady flight is drag, which the accelerometers alone sense (Mahony, Kumar and Corke, Multirotor Aerial Vehicles: Modeling, Estimation, and Control of Quadrotor, IEEE Robotics and Automation Magazine 19(3), 2012, sections on rotor drag); the frame adds bluff-body drag in the square of the airspeed (Leishman, Principles of Helicopter Aerodynamics, 2nd ed., 2006, ch. 5)",
     "ArduPilot uses the same two terms: EKF3 drag fusion (EK3_DRAG_BCOEF_X/Y for the bluff body, EK3_DRAG_MCOEF for momentum drag; libraries/AP_NavEKF3 at Copter-4.7.0) and the simulator's frame model (libraries/SITL/SIM_Frame.cpp: areaCd from refSpd and refAngle, and mdrag_coef per motor in SIM_Motor.cpp)",
     "min_speed_span and the bootstrap: the drag and the wind are told apart only by flying at different airspeeds and headings; in ArduPilot's simulator a flight of legs at 3, 6 and 9 m/s on eight headings measured a set wind within a few percent, while a hover alone could not (tests/test_wind_fixture.py)",
-    "the estimator's own wind is read from XKF2 VWN and VWE only when drag fusion runs (rules/no_gnss.json, readiness drag: EK3_DRAG_BCOEF_X or _Y above 1, or EK3_DRAG_MCOEF above 0.001); otherwise EKF3 keeps its wind states at zero"
-  ]
+    "the estimator's own wind is read from XKF2 VWN and VWE only when drag fusion runs (rules/no_gnss.json, readiness drag: EK3_DRAG_BCOEF_X or _Y above 1, or EK3_DRAG_MCOEF above 0.001); otherwise EKF3 keeps its wind states at zero",
+    "calibration: the drag moves with the mass (it is an acceleration) and with the frame, so it is borrowed only within a payload band and a build; in ArduPilot's simulator a hover-only flight read the set 5 m/s from 270 degrees as 5.01 m/s from 271 with the drag of a calm flight of the same airframe (tests/test_wind_measured.py)"
+  ],
+  "calibration": {
+    "about": "A flight that cannot measure its own drag (a hover, one speed) borrows its airframe's: the median of the fitted drag and lean in still air of the latest flights (at most flights) in the same payload band and on the same build, with a measured wind of their own; it needs min_windows steady windows (weather/measured.py). The square term is used when most of those flights fitted it.",
+    "flights": 5,
+    "min_windows": 10
+  }
 }

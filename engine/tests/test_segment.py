@@ -314,6 +314,7 @@ def test_every_fixture_is_one_flight_with_the_modes_its_scenario_flew(
         "copter-quad-nognss-flow": ["GUIDED", "LOITER", "LAND"],
         "copter-quad-wind": ["GUIDED", "LAND"],
         "copter-quad-wind-calm": ["GUIDED", "LAND"],
+        "copter-quad-wind-hover": ["GUIDED", "LAND"],
     }[log.stem]
     assert names == expected
     assert flight.end == "disarmed" and flight.duration_s > 20

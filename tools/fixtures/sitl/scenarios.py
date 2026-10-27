@@ -442,6 +442,18 @@ def wind_legs(v: Vehicle) -> None:
     land_and_disarm(v)
 
 
+def wind_hover(v: Vehicle) -> None:
+    """Take off to 20 m and hover facing north, east, south and west, 15 s each, and land:
+    no change of speed, so the flight cannot measure its own drag."""
+    v.mode("GUIDED")
+    v.arm()
+    v.command(ML.MAV_CMD_NAV_TAKEOFF, 0, 0, 0, 0, 0, 0, 20)
+    v.wait_altitude(19.5)
+    for k in range(4):
+        guided_velocity(v, 0, 0, 90.0 * k, 15)
+    land_and_disarm(v)
+
+
 COPTER = dict(binary="arducopter", model="+", defaults=["default_params/copter.parm"])
 
 # Motor vibration and ESC telemetry as ArduPilot's DynamicRpmNotches autotest simulates
@@ -1087,6 +1099,25 @@ SCENARIOS: dict[str, Scenario] = {
             ],
             fly=wind_legs,
             params={"SIM_WIND_SPD": 0},
+            boot_params=FAILSAFE_LOGGING,
+            **COPTER,  # type: ignore[arg-type]
+        ),
+        Scenario(
+            name="copter-quad-wind-hover",
+            vehicle="copter",
+            frame="quad +",
+            description=(
+                "A hover at 20 m facing north, east, south and west, 15 s each, in the same"
+                " gusting 5 m/s wind from the west: it cannot measure its own drag."
+            ),
+            expected=[
+                "GUIDED take-off to 20 m; a hover facing four ways, 15 s each; LAND",
+                "the wind analyzer measures nothing on its own; with the drag of"
+                " copter-quad-wind-calm it reads about 5 m/s from 270 degrees",
+                "no steady-hover window: it leans about 12 degrees into the wind",
+            ],
+            fly=wind_hover,
+            params=STEADY_WIND,
             boot_params=FAILSAFE_LOGGING,
             **COPTER,  # type: ignore[arg-type]
         ),
