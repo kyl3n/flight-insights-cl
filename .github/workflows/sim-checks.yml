@@ -21,6 +21,7 @@ on:
       - engine/src/flight_insights/analyzers/payload.py
       - engine/src/flight_insights/analyzers/wind.py
       - engine/src/flight_insights/weather/measured.py
+      - knowledge/rules/wind.json
       - knowledge/sim/**
       - knowledge/rules/sim.json
       - knowledge/frames/**
@@ -76,6 +77,11 @@ jobs:
         if: success() || failure()  # also when the models' checks failed
         working-directory: engine
         run: uv run python ../tools/sim/check_card.py --ardupilot "$ARDUPILOT" --keep "$RUNNER_TEMP/sim/card"
+
+      - name: Hold position in a wind under and over the envelope
+        if: success() || failure()  # also when the checks before failed
+        working-directory: engine
+        run: uv run python ../tools/sim/check_envelope.py --ardupilot "$ARDUPILOT" --keep "$RUNNER_TEMP/sim/envelope"
 
       - uses: actions/upload-artifact@v4
         if: always()

@@ -61,7 +61,7 @@ def test_the_set_wind_is_measured(flown: dict[str, FlightData], reg: Registry) -
     speed, spread = m["wind.speed_ms"]
     assert speed == pytest.approx(5.0, rel=0.03)
     assert spread["low"] - 0.05 <= 5.0 <= spread["high"] + 0.05  # SITL's 5 m/s, gusting
-    [ev] = r.evidence
+    [ev] = [e for e in r.evidence if e.id == "wind:flight"]
     assert abs(ev.values["from_deg"] - 270) <= 3 and ev.values["model"] == "quadratic"
     assert ev.values["windows"] >= 100 and abs(ev.values["height_m"] - 20) < 1
     assert ev.values["k1"] == pytest.approx(m["wind.drag_linear"][0], rel=1e-3)

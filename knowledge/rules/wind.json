@@ -27,5 +27,21 @@
     "about": "A flight that cannot measure its own drag (a hover, one speed) borrows its airframe's: the median of the fitted drag and lean in still air of the latest flights (at most flights) in the same payload band and on the same build, with a measured wind of their own; it needs min_windows steady windows (weather/measured.py). The square term is used when most of those flights fitted it.",
     "flights": 5,
     "min_windows": 10
+  },
+  "envelope": {
+    "about": "The strongest steady wind the aircraft can hold position in (analyzers/wind.py, the wind envelope): the wind at which the lean it needs, from its measured drag, reaches the position controller's limit. The limit is the configured maximum (PSC_ANGLE_MAX when above 0, else ATC_ANGLE_MAX within angle_min_deg to angle_max_deg, angle_max_default_deg when the flight's parameters lack it) and the lean that keeps the throttle before the tilt boost (CTUN.ThI) within throttle_limit of full, never under angle_min_deg; that throttle is the highest mean over the flight's steady hovers and over its steady windows at or above the fast_percentile percentile of airspeed. When thrust limits the hold at more lean than the flight showed in steady flight (its flown_percentile percentile), the throttle there is unmeasured and the interval's low end comes down to the airspeed flown. lean_at_reference_deg is the lean needed at reference_ms. The envelope is extrapolated when it lies above the flown_percentile percentile of the airspeeds the drag was measured at. Per payload band, the airframe's envelope is the median of its latest `flights` flights that measured their own drag in that band (weather/envelope.py).",
+    "angle_max_default_deg": 30.0,
+    "angle_min_deg": 10.0,
+    "angle_max_deg": 80.0,
+    "throttle_limit": 0.8,
+    "reference_ms": 8.0,
+    "flights": 5,
+    "flown_percentile": 95,
+    "fast_percentile": 90,
+    "sources": [
+      "the configured limit: AC_PosControl::get_lean_angle_max_rad returns PSC_ANGLE_MAX when above 0, else the attitude controller's lean_angle_max_rad, ATC_ANGLE_MAX constrained to 10 to 80 degrees, default 30 (libraries/AC_AttitudeControl/AC_PosControl.cpp 1163-1172, AC_AttitudeControl.cpp 12-27, 164 and 1419-1422, at Copter-4.7.0); the horizontal controllers limit their acceleration to the lean MIN(get_althold_lean_angle_max_rad(), get_lean_angle_max_rad()) (AC_PosControl.cpp 571, 763 and 1570); Loiter's LOIT_ANG_MAX limits only what the pilot's sticks ask for (AC_Loiter.cpp 235-243 and 333)",
+      "the thrust limit: update_althold_lean_angle_max sets acos(throttle_in / (0.8 x throttle_thrust_max)), filtered with ATC_ANG_LIM_TC (AC_AttitudeControl_Multi.cpp 335-348; AC_ATTITUDE_CONTROL_ANGLE_LIMIT_THROTTLE_MAX 0.8 in AC_AttitudeControl.h 35), and get_althold_lean_angle_max_rad never returns less than 10 degrees (AC_AttitudeControl.cpp 17 and 1407-1410); throttle_in is the throttle before the tilt boost (set_throttle_out, 350-363), logged as CTUN.ThI (ArduCopter/Log.cpp 443); throttle_thrust_max is 1 unless MOT_BAT_CURR_MAX limits the current (AP_MotorsMulticopter.cpp 375-400 and 827)",
+      "the lean against the drag: in steady flight the body-frame specific force is the drag (rules/wind.json, sources), and holding position it is g sin(tilt); checked in ArduPilot's simulator, where the drag of copter-quad-wind-calm predicts 12.3 degrees of lean at 5 m/s and copter-quad-wind-hover leans about 12"
+    ]
   }
 }

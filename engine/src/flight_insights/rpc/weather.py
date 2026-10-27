@@ -10,7 +10,7 @@ holds values only, never a tile or a coordinate.
 | weather.held | Which downloads of a source are kept, by tile and period |
 | weather.export | Writes one kept download, gzipped, to a file for the shell to share |
 | weather.refresh | Makes again every flight's record whose downloads changed, after a round |
-| flight.weather | A flight's record (values only), its measured wind, the gap, NOAA's Kp level |
+| flight.weather | A flight's record (values only), measured wind, gap, Kp, its wind envelope |
 """
 
 from __future__ import annotations
@@ -20,8 +20,9 @@ from collections.abc import Callable
 from pathlib import Path
 from typing import TYPE_CHECKING, Any
 
+from flight_insights.analyzers.registry import Registry
 from flight_insights.rpc.server import BAD_INPUT, INVALID_PARAMS, Context, RpcError, Server
-from flight_insights.weather import downloads, measured, record, tiles
+from flight_insights.weather import downloads, envelope, measured, record, tiles
 
 if TYPE_CHECKING:
     from flight_insights.rpc.methods import EngineState
@@ -112,13 +113,18 @@ def add_weather_methods(server: Server, state: EngineState, guarded: Callable[[A
         flight = _text(params, "flight_id")
         store, cache = state.require_store(), state.cache
         assert cache is not None
-        if store.get("flight", flight) is None:
+        row = store.get("flight", flight)
+        if row is None:
             raise RpcError(BAD_INPUT, "no such flight")
         tiles.scan(store, cache, tiles.TileRules.load(state.pack))
         made = record.current(store, cache, state.pack, flight)
         own = measured.measured(store, cache, state.pack, flight)
         kp = float(state.pack.json("rules/weather.json")["space_weather"]["kp_elevated"])
+        airframe = row["airframe_id"]
+        held = None if airframe is None else envelope.envelope(
+            store, Registry.load(state.pack), str(airframe), flight
+        )  # fmt: skip
         return {
             "record": made, "measured": own, "difference": measured.difference(own, made),
-            "kp_elevated": kp,
+            "kp_elevated": kp, "envelope": held,
         }  # fmt: skip

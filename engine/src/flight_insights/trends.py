@@ -148,7 +148,7 @@ def group_of(flight: Flight, b: Bands) -> str:
     return f"band:{k}" if k is not None else f"label:{flight.payload or ''}"
 
 
-def _describe(group: str, b: Bands) -> dict[str, Any]:
+def describe_group(group: str, b: Bands) -> dict[str, Any]:
     kind, _, value = group.partition(":")
     if kind == "band" and b.lightest is not None:
         return b.describe(int(value))
@@ -259,7 +259,7 @@ def series(
         "metric": metric_id,
         "segment": segment,
         "group": None if any_payload or group is None else group,
-        "payload": None if any_payload or group is None else _describe(group, b),
+        "payload": None if any_payload or group is None else describe_group(group, b),
         "unit": metric.unit,
         "direction": metric.direction,
         "zones": {z: [list(i) for i in b] for z, b in metric.zones.items()},
@@ -320,7 +320,9 @@ def payloads(store: Store, reg: Registry, airframe_id: str) -> dict[str, Any]:
     groups: dict[str, dict[str, Any]] = {}
     for f in flights:
         g = group_of(f, b)
-        entry = groups.setdefault(g, {"group": g, **_describe(g, b), "flights": 0, "labels": []})
+        entry = groups.setdefault(
+            g, {"group": g, **describe_group(g, b), "flights": 0, "labels": []}
+        )
         entry["flights"] += 1
         if f.payload and f.payload not in entry["labels"]:
             entry["labels"].append(f.payload)

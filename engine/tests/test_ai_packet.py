@@ -308,3 +308,20 @@ def test_the_methods_check_their_input(engine: tuple[Any, Any, Path]) -> None:
     assert rpc(engine, "ai.prepare", flight_id="x", purpose="leak")["error"]["code"] == -32602
     assert rpc(engine, "ai.prepare", flight_id="no-such")["error"]["code"] == -32003
     assert rpc(engine, "ai.record", packet_id="no-such")["error"]["code"] == -32004
+
+
+def test_the_wind_envelope_reaches_the_packet_as_numbers_only(
+    engine: tuple[Any, Any, Path],
+) -> None:
+    """The strongest wind the aircraft can hold and the lean it needs at 8 m/s are wind
+    speeds and angles worked out from its drag and its lean settings: they carry no place,
+    and pass the check with the rest of the flight's metrics."""
+    flight = flown(engine, FIXTURES / "copter-quad-wind-calm.bin")
+    reply = rpc(engine, "ai.prepare", flight_id=flight)["result"]
+    assert reply["engine"] == {"ok": True, "reasons": []}, reply["engine"]
+    packet = json.loads(reply["packet_json"])
+    sent = {m["metric"]: m["value"] for m in packet["metrics"]}
+    assert 10.0 < sent["wind.envelope_ms"] < 11.0
+    assert 21.0 < sent["wind.lean_at_reference_deg"] < 23.0
+    for lat, lon in reply["tripwire"]:
+        assert f"{lat:.4f}" not in reply["packet_json"] and f"{lon:.4f}" not in reply["packet_json"]

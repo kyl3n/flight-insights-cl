@@ -6,6 +6,7 @@
 
 import { invoke } from "@tauri-apps/api/core";
 import type { MessageKey } from "./i18n";
+import type { GroupInfo } from "./trends";
 import { engineCall, inDesktopApp } from "./shell";
 import type { Status } from "./status";
 
@@ -54,11 +55,36 @@ export interface WindGap {
   from_deg?: number;
 }
 
+/** The airframe's wind envelope in one payload band (engine weather/envelope.py): the
+ * median of its latest flights that measured their drag, a typical flight's interval, and
+ * the lean limit most of them hit. */
+export type EnvelopeBand = GroupInfo & {
+  group: string;
+  flights: string[];
+  hold_ms: number;
+  low_ms: number | null;
+  high_ms: number | null;
+  lean_deg: number | null; // at the envelope's reference wind
+  limit_by: "lean" | "thrust";
+  limit_deg: number | null;
+  airspeed_flown_ms: number | null;
+  extrapolated: boolean;
+  thrust_unmeasured: boolean;
+  current_limited: boolean;
+};
+
+export interface WindEnvelope {
+  reference_ms: number;
+  bands: EnvelopeBand[];
+  group: string | null; // this flight's payload group
+}
+
 export interface FlightWeather {
   record: WeatherRecord | null; // null: no UTC time or no position in the log
   measured: MeasuredWind | null;
   difference: WindGap | null;
   kp_elevated: number; // NOAA's warning level, from the rule pack
+  envelope: WindEnvelope | null; // null: the flight has no airframe
 }
 
 export function flightWeather(flightId: string): Promise<FlightWeather> {
@@ -112,6 +138,21 @@ export function signed(value: number, digits: number, locale: string): string {
   const text = num(Math.abs(value), digits, locale);
   if (Number(Math.abs(value).toFixed(digits)) === 0) return text;
   return `${value < 0 ? "−" : "+"}${text}`;
+}
+
+/** What limits a band's envelope, with the lean it stops at. */
+export function envelopeLimit(b: EnvelopeBand): { key: MessageKey; deg: string } {
+  return {
+    key: b.limit_by === "thrust" ? "wx.env.limit.thrust" : "wx.env.limit.lean",
+    deg: b.limit_deg === null ? "–" : String(Math.round(b.limit_deg)),
+  };
+}
+
+/** The fastest airspeed any band's drag was measured at, where some band's envelope lies
+ * beyond what was flown; null when none does. */
+export function extrapolatedFrom(env: WindEnvelope): number | null {
+  const flown = env.bands.filter((b) => b.extrapolated && b.airspeed_flown_ms !== null).map((b) => b.airspeed_flown_ms as number);
+  return flown.length ? Math.min(...flown) : null;
 }
 
 /** The flight's height band above take-off, in whole metres. */

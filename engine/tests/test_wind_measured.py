@@ -148,6 +148,9 @@ def test_the_record_method_gives_the_measured_wind(tmp_path: Path) -> None:
     assert got["measured"]["source"] == "airframe" and got["measured"]["drag_from"] == [ids[0]]
     assert got["measured"]["speed_ms"] == pytest.approx(5.0, rel=0.05)
     assert got["difference"] is None  # no model to compare with
-    # the interface's reply: values only, and NOAA's warning level from the rule pack
-    assert set(got) == {"record", "measured", "difference", "kp_elevated"}
+    # the interface's reply: values only, NOAA's warning level from the rule pack, and the
+    # airframe's wind envelope from the calm flight's drag (the hover measured none)
+    assert set(got) == {"record", "measured", "difference", "kp_elevated", "envelope"}
+    [band] = got["envelope"]["bands"]
+    assert band["flights"] == [ids[0]] and 10.0 < band["hold_ms"] < 11.0
     assert got["kp_elevated"] == PACK.json("rules/weather.json")["space_weather"]["kp_elevated"]
