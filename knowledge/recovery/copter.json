@@ -449,13 +449,14 @@
     }
   },
   "link": {
-    "about": "The link sections (engine/src/flight_insights/recovery_link.py). defaults are ArduCopter 4.7.0's own (Parameters.cpp: FS_THR_ENABLE 1, FS_GCS_ENABLE 0, FS_GCS_TIMEOUT 5; config.h: FS_THR_VALUE 975; RC_Channels_VarInfo.h: RC_FS_TIMEOUT 1), for a parameter the log did not hold. mode_words name each mode as the ground station shows it; failsafe_names name the failsafe inside the step text.",
+    "about": "The link sections (engine/src/flight_insights/recovery_link.py). defaults are ArduCopter 4.7.0's own (Parameters.cpp: FS_THR_ENABLE 1, FS_GCS_ENABLE 0, FS_GCS_TIMEOUT 5, FS_OPTIONS 16, continue under pilot control on a GCS failsafe, though its own description says 0; config.h: FS_THR_VALUE 975; RC_Channels_VarInfo.h: RC_FS_TIMEOUT 1), for a parameter the log did not hold. mode_words name each mode as the ground station shows it; failsafe_names name the failsafe inside the step text.",
     "defaults": {
       "FS_THR_ENABLE": 1.0,
       "FS_THR_VALUE": 975.0,
       "RC_FS_TIMEOUT": 1.0,
       "FS_GCS_ENABLE": 0.0,
-      "FS_GCS_TIMEOUT": 5.0
+      "FS_GCS_TIMEOUT": 5.0,
+      "FS_OPTIONS": 16.0
     },
     "mode_words": {
       "LOITER": "Loiter",

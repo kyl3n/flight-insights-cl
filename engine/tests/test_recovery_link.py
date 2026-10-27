@@ -94,6 +94,24 @@ def test_continuing_under_pilot_control_with_no_one_flying_it(reg: Registry) -> 
     ]
 
 
+def test_fs_options_unset_is_the_firmwares_default_continue_under_pilot_control(
+    reg: Registry,
+) -> None:
+    """FS_OPTIONS defaults to 16 in 4.7.0, though its description says 0 (Parameters.cpp);
+    the simulator checks flew it: flown by joystick, a GCS failsafe leaves Loiter and
+    AltHold alone and returns from Guided and Auto."""
+    p = {k: v for k, v in STOCK.items() if k != "FS_OPTIONS"}
+    readiness = NO_GNSS_READINESS.run(hover_flight({}, p | STATION), reg)
+    c = build(readiness, SITL, NOTHING, p | STATION | {"FS_THR_ENABLE": 0.0, "FS_GCS_ENABLE": 1.0},
+              DOC, 10.0, "HL1", None, None, failsafes=reg.rules["failsafes"])  # fmt: skip
+    assert will(c, "link_lost")[1:3] == [
+        "hold where it is with no one flying it: its failsafe settings let it, flown in Loiter",
+        "hold its height with no one flying it, drifting with the wind: its failsafe settings "
+        "let it, flown in AltHold",
+    ]
+    assert will(c, "link_lost")[3].startswith("fly home and land (RTL) after 5 s")
+
+
 def test_with_the_radio_failsafe_in_force_the_ekf_failsafe_lands_instead(reg: Registry) -> None:
     rules = reg.rules["failsafes"]
     p = {**DOC["link"]["defaults"], **STATION, "FS_EKF_ACTION": 2.0, "FS_GCS_ENABLE": 1.0}
