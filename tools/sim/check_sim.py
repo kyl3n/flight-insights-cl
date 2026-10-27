@@ -178,7 +178,9 @@ def motor_losses(log: Path, ex: sx.Export) -> list[str]:
     ctun, att = data.table("CTUN"), data.table("ATT")
     alt = np.interp(t, _column(ctun, "TimeUS"), _column(ctun, "Alt"))
     ta = _column(att, "TimeUS")
-    yaw = np.unwrap(np.radians(np.interp(t, ta, _column(att, "Yaw"))))
+    # unwrapped at ATT's own samples, then put on RCOU's: unwrapping after interpolating
+    # turns a crossing of north (359 -> 1 deg) into a 358-degree sweep
+    yaw = np.interp(t, ta, np.unwrap(np.radians(_column(att, "Yaw"))))
     tilt = (np.cos(np.radians(np.interp(t, ta, _column(att, "Roll"))))
             * np.cos(np.radians(np.interp(t, ta, _column(att, "Pitch")))))  # fmt: skip
     expo = ex.model["propExpo"]
