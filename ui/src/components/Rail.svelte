@@ -23,7 +23,7 @@
     type="button"
     class:current={app.view === view}
     aria-current={app.view === view ? "page" : undefined}
-    onclick={() => (app.view = view)}
+    onclick={() => ((app.view = view), (app.recoveryCard = null))}
   >
     <svg aria-hidden="true" width="20" height="20" viewBox="0 0 24 24" fill="none"
       stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round">

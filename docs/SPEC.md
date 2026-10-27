@@ -1389,6 +1389,10 @@ It holds these sections:
     - when it lands where it is or drifts, keep people clear of the ground under it and downwind.
   - **Settings the log did not hold** are taken at the firmware's defaults (`FS_THR_ENABLE` 1, `FS_THR_VALUE` 975, `RC_FS_TIMEOUT` 1 s, `FS_GCS_ENABLE` 0, `FS_GCS_TIMEOUT` 5 s, `FS_OPTIONS` 16). `FS_OPTIONS` defaults to "continue under pilot control on a GCS failsafe", though its own description says 0 (`Parameters.cpp`). The simulator checks found it.
 
+**Alerts.** A section is marked as an alert when what it says leaves the aircraft dangerous: a link loss that ends, from any mode it may be flown in, with no one flying it (holding or drifting) or flying on with no position it can trust, GNSS lost too where the section says so; a loss of the radio, or of the one link a station-flown aircraft has, that no failsafe answered on its flights; GNSS lost with the EKF failsafe off; and a motor lost on a frame that could fly on the rest but cannot at the weight it last flew. A quad coming down on three motors is what any quad does, so it is no alert, and nor is a telemetry loss while the pilot's radio flies it. The simulator check confirms the case that prompted this: a station-flown aircraft with the radio failsafe off and `FS_OPTIONS` at its default does nothing when the link drops in Loiter or AltHold.
+
+**On screen** (mock-up RecoveryCard). Each airframe on the Fleet view links to its card. The card is a white page, the same on screen and on paper. Its header carries the title, the date it was printed and the parameter set it is valid for, then the home heading to fill in and the pilot's fallback mode. The sections come two to a row, with the link section and any long one across the row, and suspected spoofing last with a dashed edge. An alert section has a red edge and says "Needs attention", so colour is not the only cue. Beside the card are Print and the parameter set and the outages it rests on. Printing prints the card alone.
+
 The card carries times, modes, switches, weights and distances from the measured drift, never a position. It is printed on the laptop and never sent.
 
 ## Recommendation engine
