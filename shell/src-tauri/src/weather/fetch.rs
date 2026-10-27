@@ -75,7 +75,7 @@ pub trait Share {
     fn give(&self, engine: &dyn Engine, r: &Request) -> Result<(), String>;
 }
 
-fn tiles_and_grids(engine: &dyn Engine) -> Result<(Vec<Tile>, Grids), Stop> {
+pub(crate) fn tiles_and_grids(engine: &dyn Engine) -> Result<(Vec<Tile>, Grids), Stop> {
     let got = engine
         .call("weather.tiles", json!({}))
         .map_err(Stop::Failed)?;
@@ -118,7 +118,7 @@ fn held(engine: &dyn Engine, source: Source, since: &str) -> Result<Vec<(String,
 }
 
 /// The address a request goes to, with the key for Open-Meteo.
-fn address(hosts: &Hosts, r: &Request, key: &str) -> Result<Url, Stop> {
+pub(crate) fn address(hosts: &Hosts, r: &Request, key: &str) -> Result<Url, Stop> {
     let (base, path) = match r.source {
         Source::Forecast => (&hosts.forecast, "/v1/forecast"),
         Source::Reanalysis => (&hosts.archive, "/v1/archive"),
@@ -138,7 +138,7 @@ fn address(hosts: &Hosts, r: &Request, key: &str) -> Result<Url, Stop> {
 }
 
 /// One request: its reply, or why the round stops.
-fn fetch(http: &Client, url: Url, who: &'static str) -> Result<Vec<u8>, Stop> {
+pub(crate) fn fetch(http: &Client, url: Url, who: &'static str) -> Result<Vec<u8>, Stop> {
     let reply = http.get(url).send().map_err(|e| {
         if e.is_connect() || e.is_timeout() {
             Stop::Offline

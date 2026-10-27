@@ -1219,4 +1219,172 @@ mod tests {
         engine.stop();
         let _ = std::fs::remove_dir_all(data);
     }
+
+    /// Every grid point's series, and how many of their values are missing.
+    fn grid_reply(body: &[u8], hourly: &[&str]) -> (usize, usize, usize, usize) {
+        let v: Value = serde_json::from_slice(body).expect("the reply is JSON");
+        // one location comes as an object, several as a list
+        let points = match v {
+            Value::Array(a) => a,
+            one => vec![one],
+        };
+        let (mut hours, mut values, mut missing) = (0, 0, 0);
+        for p in &points {
+            let h = &p["hourly"];
+            let times = h["time"].as_array().expect("hourly times").len();
+            assert!(times > 0, "a point with no hours");
+            hours = hours.max(times);
+            for name in hourly {
+                let series = h[*name]
+                    .as_array()
+                    .unwrap_or_else(|| panic!("no {name} series"));
+                assert_eq!(series.len(), times, "{name} does not cover every hour");
+                values += series.len();
+                missing += series.iter().filter(|x| !x.is_number()).count();
+            }
+        }
+        (points.len(), hours, values, missing)
+    }
+
+    /// The live weather check (`.github/workflows/weather-check.yml`): one request of each
+    /// kind the downloader sends (the newest forecast window, one day of ERA5 and the
+    /// K-index), made by the downloader's own code for one tile of a fixture flight,
+    /// against the real Open-Meteo and NOAA SWPC with OPEN_METEO_API_KEY. Each reply must
+    /// hold every variable at every grid point the request named, and the engine must keep
+    /// it. Prints sizes and counts only: never the key, an address or the tile.
+    #[test]
+    #[ignore = "calls the real Open-Meteo and NOAA SWPC: run by the weather-check workflow"]
+    fn live_weather_check() {
+        use crate::weather::{fetch, plan};
+        let Some(cmd) = real_engine() else {
+            panic!("FI_ENGINE_CMD must name the engine");
+        };
+        let key = zeroize::Zeroizing::new(
+            std::env::var("OPEN_METEO_API_KEY").expect("OPEN_METEO_API_KEY must be set"),
+        );
+        assert!(
+            crate::weather::key_form_ok(&key),
+            "the key is not in the form Open-Meteo issues"
+        );
+        let knowledge = std::env::var_os("FI_KNOWLEDGE_DIR").map(PathBuf::from);
+        let (engine, _) = Engine::start(&cmd, knowledge.as_deref(), |_, _| {}).unwrap();
+        let data = std::env::temp_dir().join(format!("fi-shell-weather-{}", std::process::id()));
+        let (identity, _) = LaptopIdentity::load_or_create(&MemoryStore::default()).unwrap();
+        engine.unlock(&identity, &data, None).unwrap();
+        let call = |method: &str, params: Value| engine.client.call(method, params, CALL_TIMEOUT);
+        let platform = call(
+            "platform.create",
+            json!({ "name": "Weather", "vehicle": "copter" }),
+        )
+        .unwrap();
+        let airframe = call(
+            "airframe.create",
+            json!({ "platform_id": platform["id"], "name": "W1" }),
+        )
+        .unwrap();
+        let log = Path::new(env!("CARGO_MANIFEST_DIR"))
+            .join("../../tests/fixtures/sitl/4.7.0/copter-heavylift-loaded.bin");
+        let scanned = call("import.scan", json!({ "paths": [log.to_string_lossy()] })).unwrap();
+        call(
+            "import.commit",
+            json!({ "batch": scanned["batch"],
+                    "decisions": [{ "log": "f1", "airframe_id": airframe["id"] }] }),
+        )
+        .unwrap();
+
+        // The fixture's own tile, listed as if long ago, so its delay is past.
+        let (tiles, grids) = fetch::tiles_and_grids(&engine).unwrap();
+        let tile = plan::Tile {
+            name: tiles
+                .first()
+                .expect("the fixture names a tile")
+                .name
+                .clone(),
+            added_ms: 0,
+        };
+        let schedule = plan::Schedule {
+            offset_min: 0,
+            seed: [7; 32],
+        };
+        let slot = schedule.slot_at(crate::weather::now_ms());
+        let due = plan::due(slot, &schedule, &[tile], &plan::Held::new(), &grids);
+        let newest = |source: plan::Source| {
+            due.iter()
+                .filter(|r| r.source == source)
+                // the newest, and for reanalysis a single day rather than a month
+                .max_by_key(|r| (r.period.len(), r.period.clone()))
+                .cloned()
+                .unwrap_or_else(|| panic!("nothing due from {}", source.name()))
+        };
+        let http = crate::net::client(Duration::from_secs(120)).unwrap();
+        let hosts = fetch::Hosts::default();
+        let staging = data.join("weather-staging");
+        std::fs::create_dir_all(&staging).unwrap();
+        for (source, who, hourly) in [
+            (plan::Source::Forecast, "Open-Meteo", plan::FORECAST_HOURLY),
+            (
+                plan::Source::Reanalysis,
+                "Open-Meteo",
+                plan::REANALYSIS_HOURLY,
+            ),
+            (plan::Source::Kp, "NOAA SWPC", &[][..]),
+        ] {
+            let r = newest(source);
+            let started = Instant::now();
+            let body = fetch::fetch(&http, fetch::address(&hosts, &r, &key).unwrap(), who)
+                .unwrap_or_else(|stop| panic!("{}: {stop}", source.name()));
+            let seconds = started.elapsed().as_secs_f64();
+            if source == plan::Source::Kp {
+                let rows: Value = serde_json::from_slice(&body).expect("the K-index is JSON");
+                let n = rows.as_array().map_or(0, Vec::len);
+                assert!(n > 1, "no K-index rows");
+                println!(
+                    "{}: {} bytes in {seconds:.1} s, {n} rows",
+                    source.name(),
+                    body.len()
+                );
+            } else {
+                let asked = r
+                    .query
+                    .iter()
+                    .find(|(k, _)| k == "latitude")
+                    .map_or(0, |(_, v)| v.split(',').count());
+                let (points, hours, values, missing) = grid_reply(&body, hourly);
+                assert_eq!(points, asked, "a reply for every grid point asked");
+                println!(
+                    "{}: {} bytes in {seconds:.1} s, {points} points, {hours} hours, {} \
+                     variables, {missing} of {values} values missing",
+                    source.name(),
+                    body.len(),
+                    hourly.len()
+                );
+                assert!(
+                    missing * 20 <= values,
+                    "more than 5% of the values are missing"
+                );
+            }
+            let file = staging.join(format!("{}.json", source.name()));
+            std::fs::write(&file, &body).unwrap();
+            call(
+                "weather.store",
+                json!({ "source": source.name(), "tile": r.tile, "period": r.period,
+                        "path": file.to_string_lossy() }),
+            )
+            .unwrap_or_else(|e| panic!("{}: the engine did not keep it: {e}", source.name()));
+            let held = call(
+                "weather.held",
+                json!({ "source": source.name(), "since": "2000" }),
+            )
+            .unwrap();
+            assert!(
+                held["held"].as_array().is_some_and(|rows| rows
+                    .iter()
+                    .any(|row| row[0] == r.tile.as_str() && row[1] == r.period.as_str())),
+                "{}: not listed as held",
+                source.name()
+            );
+        }
+        engine.stop();
+        let _ = std::fs::remove_dir_all(data);
+    }
 }

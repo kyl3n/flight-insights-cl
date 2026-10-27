@@ -371,6 +371,41 @@ mod tests {
         }
     }
 
+    /// What the live weather check sends (engine.rs, live_weather_check): for a tile listed
+    /// long ago, at any slot of the year, a forecast window, an ERA5 period and the K-index
+    /// are due, with the forecast's points on the 0.1-degree grid.
+    #[test]
+    fn a_long_listed_tile_has_one_of_each_source_due() {
+        let tile = Tile {
+            name: "N16W014".into(),
+            added_ms: 0,
+        };
+        for day in (0..365).step_by(7) {
+            let slot = schedule().slot_at(at(2026, 1, 1, 0) + day * DAY_MS);
+            let due = due(
+                slot,
+                &schedule(),
+                std::slice::from_ref(&tile),
+                &Held::new(),
+                &GRIDS,
+            );
+            for source in [Source::Forecast, Source::Reanalysis, Source::Kp] {
+                assert!(
+                    due.iter().any(|r| r.source == source),
+                    "{} on day {day}",
+                    source.name()
+                );
+            }
+            let forecast = due.iter().find(|r| r.source == Source::Forecast).unwrap();
+            let lats = forecast
+                .query
+                .iter()
+                .find(|(k, _)| k == "latitude")
+                .unwrap();
+            assert_eq!(lats.1.split(',').count(), 400);
+        }
+    }
+
     #[test]
     fn dates_round_trip() {
         assert_eq!(days(1970, 1, 1), 0);
