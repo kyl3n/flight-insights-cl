@@ -16,6 +16,8 @@ export interface SetupField {
   detect?: string;
   unit?: string;
   choices?: string[];
+  /** Words for a choice whose stored value is a code; others show as they are. */
+  choice_labels?: Record<string, Text>;
 }
 
 export interface SetupStep {
@@ -114,3 +116,9 @@ export function display(answer: Answer | undefined): string {
 export function isDetected(answer: Answer | undefined): boolean {
   return answer?.source.startsWith("detected") ?? false;
 }
+
+/** How a choice reads in the reader's language. */
+export function choiceLabel(field: SetupField, choice: string, locale: Locale): string {
+  return field.choice_labels?.[choice]?.[locale] ?? choice;
+}
+

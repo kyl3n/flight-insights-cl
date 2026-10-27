@@ -5,6 +5,12 @@
     "names": ["ATC_RAT_RLL_P", "ATC_RAT_RLL_I", "ATC_RAT_RLL_D", "ATC_RAT_PIT_P", "ATC_RAT_PIT_I", "ATC_RAT_PIT_D"],
     "why": "Every one of them at its default means the rate loops were never tuned for this aircraft."
   },
+  "dr_timeout": {
+    "win_link_back_s": 1800,
+    "why": "The operator's priority (platform setup, Links: link_loss = win_link_back) is to keep flying the failsafe home on dead reckoning so the radio link can be regained: the fleet owner chose 1800 s (2026-10-27), longer than any flight, so the battery failsafe acts first. ArduCopter accepts it past the documented 0 to 120 (params/beyond_range.json).",
+    "source": "ArduCopter/events.cpp at Copter-4.7.0, failsafe_deadreckon_check: FS_DR_TIMEOUT counts from the start of dead reckoning, after which a relative position is no longer accepted (system.cpp, ekf_has_relative_position) and the EKF failsafe acts",
+    "url": "https://github.com/ArduPilot/ardupilot/blob/Copter-4.7.0/ArduCopter/events.cpp"
+  },
   "fs_thr": {
     "min_value": 910,
     "margin_below_rc_min": 10,

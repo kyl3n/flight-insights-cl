@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { display, isDetected, parseInput, stepSummary, text, type SetupField, type SetupStep } from "./setup";
+import { choiceLabel, display, isDetected, parseInput, stepSummary, text, type SetupField, type SetupStep } from "./setup";
 
 const field = (type: SetupField["type"], extra: Partial<SetupField> = {}): SetupField => ({
   id: "f",
@@ -52,5 +52,22 @@ describe("setup steps", () => {
   it("reads schema text in the chosen language", () => {
     expect(text(step.title, "uk")).toBe("Силова установка");
     expect(text(undefined, "en")).toBe("");
+  });
+});
+
+describe("choiceLabel", () => {
+  const linkLoss: SetupField = {
+    id: "link_loss",
+    label: { en: "When the radio link and GNSS are lost", uk: "Коли втрачено радіозв'язок і GNSS" },
+    type: "choice",
+    required: false,
+    choices: ["win_link_back", "land_when_unsure"],
+    choice_labels: { win_link_back: { en: "Win the link back", uk: "Відновити зв'язок" } },
+  };
+
+  it("reads a coded choice in the reader's language, and any other as it is", () => {
+    expect(choiceLabel(linkLoss, "win_link_back", "uk")).toBe("Відновити зв'язок");
+    expect(choiceLabel(linkLoss, "land_when_unsure", "en")).toBe("land_when_unsure");
+    expect(choiceLabel({ ...linkLoss, choice_labels: undefined }, "SiK", "en")).toBe("SiK");
   });
 });

@@ -28,6 +28,7 @@
     "codes": [
       "params.vibe_failsafe_off",
       "params.dead_reckoning_failsafe_off",
+      "params.dead_reckoning_timeout_short",
       "params.ekf_failsafe_off",
       "params.crash_check_off",
       "motor_out.short",
@@ -199,6 +200,10 @@
     "out_of_range": {
       "en": "{value} is outside {param}'s range, {low} to {high}.",
       "uk": "{value} поза межами {param}: від {low} до {high}."
+    },
+    "beyond_documented": {
+      "en": "{value} is past {param}'s documented range, {low} to {high}. The firmware accepts it, as its source sets no such limit, but a ground station may warn when the file is loaded.",
+      "uk": "{value} виходить за задокументовані межі {param}, від {low} до {high}. Прошивка це приймає, бо її код такої межі не ставить, але наземна станція може попередити під час завантаження файлу."
     },
     "not_a_value": {
       "en": "{value} is not one of {param}'s values.",

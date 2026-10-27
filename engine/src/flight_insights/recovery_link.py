@@ -44,7 +44,8 @@ RADIO, GCS, EKF, DEAD_RECKONING = (
     "FAILSAFE_RADIO", "FAILSAFE_GCS", "FAILSAFE_EKFINAV", "FAILSAFE_DEADRECKON",
 )  # fmt: skip
 IGNORE_RECEIVER = 1 << 0  # RC_OPTIONS: flown from the ground station
-STARTS = ("LOITER", "ALT_HOLD", "GUIDED", "AUTO")  # the modes it may be flown in as it drops
+# the modes it may be flown in as it drops
+STARTS = ("LOITER", "POSHOLD", "ALT_HOLD", "GUIDED", "AUTO")
 VERDICTS = ("as_configured", "fell_back", "unexpected")  # failsafe.<verdict> findings
 
 

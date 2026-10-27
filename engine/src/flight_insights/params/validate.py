@@ -24,7 +24,8 @@ def metadata_problem(
 
     - unknown_param: the firmware has no such parameter;
     - read_only: it cannot be set;
-    - out_of_range: outside the documented range;
+    - out_of_range: outside the documented range, unless the firmware is known to accept
+      it (`accepts`, from params/beyond_range.json: `beyond_documented` says so);
     - not_a_value: without a range, the listed values are the only ones; with a range
       they are only suggestions;
     - undefined_bits: a bitmask value sets bits the metadata does not define.
@@ -37,7 +38,7 @@ def metadata_problem(
     bounds = meta.get("range")
     if bounds is not None:
         low, high = float(bounds[0]), float(bounds[1])
-        if not low - TOLERANCE <= value <= high + TOLERANCE:
+        if not low - TOLERANCE <= value <= high + TOLERANCE and not _accepted(value, meta):
             return "out_of_range", {
                 "param": native, "value": text,
                 "low": format_value(low), "high": format_value(high),
@@ -52,3 +53,25 @@ def metadata_problem(
         if value < 0 or value != int(value) or int(value) & ~defined:
             return "undefined_bits", {"param": native, "value": text}
     return None
+
+
+def _accepted(value: float, meta: Mapping[str, Any]) -> bool:
+    accepts = meta.get("accepts")
+    return accepts is not None and (
+        float(accepts[0]) - TOLERANCE <= value <= float(accepts[1]) + TOLERANCE
+    )
+
+
+def beyond_documented(native: str, value: float, meta: Mapping[str, Any] | None) -> Problem | None:
+    """A value the firmware accepts although it is past the documented range: worth saying,
+    as a ground station may warn when the file is loaded. None otherwise."""
+    bounds = None if meta is None else meta.get("range")
+    if meta is None or bounds is None or not _accepted(value, meta):
+        return None
+    low, high = float(bounds[0]), float(bounds[1])
+    if low - TOLERANCE <= value <= high + TOLERANCE:
+        return None
+    return "beyond_documented", {
+        "param": native, "value": format_value(value),
+        "low": format_value(low), "high": format_value(high),
+    }  # fmt: skip

@@ -93,7 +93,9 @@ class Pack:
 
     def metadata(self, version: str, vehicle: Vehicle) -> dict[str, dict[str, Any]]:
         """Every parameter of a release: ArduPilot's generated metadata plus the curated
-        supplement (params/supplement.json) for parameters the generator leaves out."""
+        supplement (params/supplement.json) for parameters the generator leaves out, and
+        `accepts` where the firmware takes values past the documented range
+        (params/beyond_range.json)."""
         return _metadata(self.root, version, vehicle)
 
     def generated_metadata(self, version: str, vehicle: Vehicle) -> dict[str, dict[str, Any]]:
@@ -133,6 +135,16 @@ def _metadata(root: Path, version: str, vehicle: Vehicle) -> dict[str, dict[str,
         for p in json.loads(supplement.read_text(encoding="utf-8"))["params"]:
             if vehicle in p["vehicles"] and version_key(version) >= version_key(p["from_version"]):
                 merged.setdefault(p["name"], p["vehicles"][vehicle] | {"supplement": True})
+    beyond = root / "params" / "beyond_range.json"
+    if beyond.is_file():
+        for p in json.loads(beyond.read_text(encoding="utf-8"))["params"]:
+            name = p["name"]
+            if (
+                vehicle in p["vehicles"]
+                and version_key(version) >= version_key(p["from_version"])
+                and name in merged
+            ):
+                merged[name] = merged[name] | {"accepts": list(p["accepts"])}
     return merged
 
 

@@ -190,6 +190,7 @@
         "params.crash_check_off",
         "params.vibe_failsafe_off",
         "params.dead_reckoning_failsafe_off",
+        "params.dead_reckoning_timeout_short",
         "params.ekf_failsafe_off",
         "params.gcs_failsafe_off",
         "params.arming_checks_skipped"

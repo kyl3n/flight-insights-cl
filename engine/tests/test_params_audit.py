@@ -297,6 +297,27 @@ def test_the_dead_reckoning_failsafe_matters_only_with_drag_fusion(reg: Registry
         assert "params.dead_reckoning_failsafe_off" not in found
 
 
+def test_winning_the_link_back_keeps_dead_reckoning_going(reg: Registry) -> None:
+    """With the link's recovery first (platform setup), dead reckoning keeps flying the
+    failsafe home for 1800 s, the fleet owner's choice; and only where it can act."""
+    win = {"link_loss": "win_link_back"}
+    found, _ = audit(reg, DRAG | {"FS_DR_ENABLE": 2.0, "FS_DR_TIMEOUT": 30.0}, answers=win)
+    f = found["params.dead_reckoning_timeout_short"]
+    assert f.params == {"value": "30", "proposed": "1800"}
+    assert [(c.param, c.current, c.proposed) for c in f.changes] == [
+        ("FS_DR_TIMEOUT", 30.0, 1800.0)
+    ]
+    for params, answers in (
+        (DRAG | {"FS_DR_ENABLE": 2.0, "FS_DR_TIMEOUT": 30.0}, {}),  # not the priority
+        (DRAG | {"FS_DR_ENABLE": 2.0, "FS_DR_TIMEOUT": 30.0}, {"link_loss": "land_when_unsure"}),
+        (DRAG | {"FS_DR_ENABLE": 2.0, "FS_DR_TIMEOUT": 1800.0}, win),  # set already
+        (DRAG | {"FS_DR_ENABLE": 0.0, "FS_DR_TIMEOUT": 30.0}, win),  # dead reckoning does nothing
+        ({"FS_DR_ENABLE": 2.0, "FS_DR_TIMEOUT": 30.0}, win),  # no drag fusion in this build
+    ):
+        found, _ = audit(reg, params, answers=answers)
+        assert "params.dead_reckoning_timeout_short" not in found, (params, answers)
+
+
 def test_flown_from_the_ground_station_alone_needs_a_gcs_failsafe(reg: Registry) -> None:
     found, _ = audit(reg, {"RC_OPTIONS": 1.0, "FS_GCS_ENABLE": 0.0})
     assert found["params.gcs_failsafe_off"].severity == "safety"
