@@ -64,8 +64,16 @@
       "uk": "продовжить навігацію (джерела: {sensors}, набір {set})"
     },
     "will.dead_reckon": {
-      "en": "dead-reckon on its wind estimate: the dead-reckoning failsafe acts at once ({dr_action}), and after {dr_timeout} s the EKF failsafe acts",
-      "uk": "вестиме навігацію за рахунком на оцінці вітру: аварійний режим навігації за рахунком спрацює одразу ({dr_action}), а через {dr_timeout} с спрацює аварійний режим EKF"
+      "en": "dead-reckon: the dead-reckoning failsafe acts at once ({dr_action}), and after {dr_timeout} s the EKF failsafe acts; no flight has measured how far it flies from home, so whether it gets home first is not known",
+      "uk": "вестиме навігацію за рахунком: аварійний режим навігації за рахунком спрацює одразу ({dr_action}), а через {dr_timeout} с спрацює аварійний режим EKF; жоден політ не виміряв, як далеко апарат відлітає від дому, тож невідомо, чи встигне він повернутися"
+    },
+    "will.dead_reckon_home": {
+      "en": "dead-reckon: the dead-reckoning failsafe acts at once ({dr_action}) and it flies home on its estimate, about {trip_s} s from the farthest it has flown, within FS_DR_TIMEOUT ({dr_timeout} s); nothing corrects that estimate, so it drifts, faster the longer it flies",
+      "uk": "вестиме навігацію за рахунком: аварійний режим навігації за рахунком спрацює одразу ({dr_action}), і апарат полетить додому за своєю оцінкою, приблизно {trip_s} с від найдальшої точки, куди він літав, у межах FS_DR_TIMEOUT ({dr_timeout} с); ніщо цю оцінку не виправляє, тож вона зміщується, і що довше політ, то швидше"
+    },
+    "will.dead_reckon_short": {
+      "en": "dead-reckon: the dead-reckoning failsafe acts at once ({dr_action}), but after {dr_timeout} s, short of the about {trip_s} s it needs to fly home from the farthest it has flown, the EKF failsafe acts",
+      "uk": "вестиме навігацію за рахунком: аварійний режим навігації за рахунком спрацює одразу ({dr_action}), але через {dr_timeout} с, раніше ніж за приблизно {trip_s} с, потрібних, щоб долетіти додому від найдальшої точки, спрацює аварійний режим EKF"
     },
     "will.ekf": {
       "en": "hold its estimate for a short time, then the EKF failsafe will {ekf_action}",
@@ -335,6 +343,14 @@
       "en": "fly home and land (RTL)",
       "uk": "полетить додому й сяде (RTL)"
     },
+    "out.rtl_dead_reckoning": {
+      "en": "fly home on dead reckoning and land (RTL), its position drifting",
+      "uk": "полетить додому за рахунком і сяде (RTL), а його позиція зміщуватиметься"
+    },
+    "out.smart_rtl_dead_reckoning": {
+      "en": "fly back the way it came on dead reckoning and land (SmartRTL, or RTL with no path back), its position drifting",
+      "uk": "полетить назад тим самим шляхом за рахунком і сяде (SmartRTL або RTL, якщо шляху назад немає), а його позиція зміщуватиметься"
+    },
     "out.smart_rtl": {
       "en": "fly back the way it came and land (SmartRTL, or RTL with no path back)",
       "uk": "полетить назад тим самим шляхом і сяде (SmartRTL або RTL, якщо шляху назад немає)"
@@ -439,6 +455,10 @@
       "en": "No failsafe acts on this loss: set one before the next flight.",
       "uk": "Жоден аварійний режим не діє на цю втрату: налаштуйте його до наступного польоту."
     },
+    "step.dead_reckoned_home": {
+      "en": "After a return home on dead reckoning it may land up to hundreds of metres from home and stay armed on the ground, its controller still leaning it: once the link is back, be ready to take over in AltHold or disarm.",
+      "uk": "Після повернення додому за рахунком апарат може сісти за сотні метрів від дому й лишитися зведеним на землі, а регулятор і далі нахилятиме його: щойно зв'язок відновиться, будьте готові перейти в AltHold або вимкнути двигуни."
+    },
     "step.link_clear": {
       "en": "If it is landing where it is or drifting, keep people clear of the ground under it and downwind.",
       "uk": "Якщо апарат сідає на місці чи дрейфує, тримайте людей подалі від місця під ним і з підвітряного боку."
@@ -449,14 +469,18 @@
     }
   },
   "link": {
-    "about": "The link sections (engine/src/flight_insights/recovery_link.py). defaults are ArduCopter 4.7.0's own (Parameters.cpp: FS_THR_ENABLE 1, FS_GCS_ENABLE 0, FS_GCS_TIMEOUT 5, FS_OPTIONS 16, continue under pilot control on a GCS failsafe, though its own description says 0; config.h: FS_THR_VALUE 975; RC_Channels_VarInfo.h: RC_FS_TIMEOUT 1), for a parameter the log did not hold. mode_words name each mode as the ground station shows it; failsafe_names name the failsafe inside the step text.",
+    "about": "The link sections (engine/src/flight_insights/recovery_link.py). defaults are ArduCopter 4.7.0's own (Parameters.cpp: FS_THR_ENABLE 1, FS_GCS_ENABLE 0, FS_GCS_TIMEOUT 5, FS_OPTIONS 16, continue under pilot control on a GCS failsafe, though its own description says 0; config.h: FS_THR_VALUE 975; RC_Channels_VarInfo.h: RC_FS_TIMEOUT 1; the trip home on dead reckoning: mode_rtl.cpp RTL_SPEED_MS 0, so WP_SPD is used, config.h RTL_ALT_M_DEFAULT 15, AC_WPNav.cpp WP_SPD_DEFAULT 10 and WP_SPD_UP_DEFAULT 2.5), for a parameter the log did not hold. mode_words name each mode as the ground station shows it; failsafe_names name the failsafe inside the step text.",
     "defaults": {
       "FS_THR_ENABLE": 1.0,
       "FS_THR_VALUE": 975.0,
       "RC_FS_TIMEOUT": 1.0,
       "FS_GCS_ENABLE": 0.0,
       "FS_GCS_TIMEOUT": 5.0,
-      "FS_OPTIONS": 16.0
+      "FS_OPTIONS": 16.0,
+      "RTL_ALT_M": 15.0,
+      "RTL_SPEED_MS": 0.0,
+      "WP_SPD": 10.0,
+      "WP_SPD_UP": 2.5
     },
     "mode_words": {
       "LOITER": "Loiter",

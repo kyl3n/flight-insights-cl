@@ -16,8 +16,13 @@ status (XKF4.SS):
   only when GNSS comes back trustworthy (its fix held, its accuracy good, no drift
   faster than an aircraft could move).
 
-Drift is position-derived. It stays in evidence that cites the position fields, so the
-location policy withholds it from the AI path; the rest is times, flags and words.
+The flight's range is measured too, whatever its outages: the farthest it flew from
+where it armed, from the estimator's track (local_track), and how long it was armed, so
+the recovery card can judge whether a way home on dead reckoning fits FS_DR_TIMEOUT.
+
+Drift and range are position-derived. They stay in evidence that cites the position
+fields, so the location policy withholds them from the AI path; the rest is times, flags
+and words.
 """
 
 from __future__ import annotations
@@ -335,6 +340,21 @@ def _evidence(flight: FlightData, n: int, o: Outage, m: Measured, rules: Mapping
     return out
 
 
+def farthest_m(flight: FlightData) -> float | None:
+    """The farthest the aircraft flew from where it armed, horizontally, in metres; None
+    without a track over the armed time."""
+    track = flight.local_track()
+    if track is None:
+        return None
+    t = track.times_us
+    armed = (t >= flight.arm_us) & (t <= flight.disarm_us)
+    if not np.any(armed):
+        return None
+    e, n = track.east_north_m()
+    first = int(np.flatnonzero(armed)[0])
+    return float(np.max(np.hypot(e[armed] - e[first], n[armed] - n[first])))
+
+
 def _no_gnss(flight: FlightData, reg: Registry) -> Result:
     if not flight.logged:
         return Result(skipped="a parameter file has no flight to judge")
@@ -346,6 +366,23 @@ def _no_gnss(flight: FlightData, reg: Registry) -> Result:
     first = min(fixed, key=lambda r: r.instance)
     names = reg.names(flight.firmware)
     status = solution(flight)
+    out = _measure(flight, reg, rules, found, first, names, status)
+    if (far := farthest_m(flight)) is not None:  # last, after the outages
+        out.evidence.append(Evidence(
+            id="no_gnss:range", kind="fact",
+            summary=f"it flew up to {far:.0f} m from where it armed",
+            messages=("POS",), fields=("Lat", "Lng"), segment=flight.armed,
+            values={"farthest_m": round(far),
+                    "armed_s": round((flight.disarm_us - flight.arm_us) / 1e6)},
+        ))  # fmt: skip
+    return out
+
+
+def _measure(
+    flight: FlightData, reg: Registry, rules: Mapping[str, Any], found: Mapping[int, Receiver],
+    first: Receiver, names: Any, status: tuple[Array, Array] | None,
+) -> Result:  # fmt: skip
+    """Every outage in the flight, its findings and the flight's metrics."""
     out = Result()
     measured: list[tuple[Outage, Measured]] = []
     for n, o in enumerate(outages(flight, rules, found), 1):
@@ -396,7 +433,7 @@ def _no_gnss(flight: FlightData, reg: Registry) -> Result:
 
 NO_GNSS = Analyzer(
     name="no_gnss",
-    version=1,
+    version=2,
     run=_no_gnss,
     metrics=("no_gnss.hold_s", "no_gnss.detection_s", "no_gnss.drift_rate"),
     findings=("no_gnss.position_held", "no_gnss.position_lost"),

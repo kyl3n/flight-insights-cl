@@ -166,8 +166,33 @@ def test_a_position_source_in_set_1_makes_the_goal_reachable(
     assert reaching == ["optical_flow", "visual_odometry", "slam"]
     assert ids(r)[: len(reaching)] == reaching  # before everything that does not
     assert {m["rule"] for m in r["items"][: len(reaching)]} == {"goal"}
-    # dead reckoning buys time, but the EKF failsafe still lands it: not the goal
+    # dead reckoning buys time, but with no way home measured the EKF failsafe still lands
+    # it: not the goal
     assert item(r, "drag_fusion")["makes_goal"] is False
+
+
+def test_drag_fusion_reaches_the_goal_when_the_link_comes_first_and_the_way_is_known(
+    reg: Registry, doc: dict[str, Any]
+) -> None:
+    """With winning the link back first, the audit proposes FS_DR_TIMEOUT 1800 s; with
+    that, dead reckoning lasts the airframe's longest flight and the trip home, so drag
+    fusion makes the goal reachable. Not without the way home measured, nor at 30 s."""
+    flown = (500.0, 1200.0)
+    link_first = setup_of(reg, {"link_loss": "win_link_back"})
+
+    def reach(s: Setup, f: tuple[float | None, float | None]) -> bool:
+        goal = mitigations.goal_check(reg.rules["failsafes"], DEFAULTS, f)
+        r = mitigations.rank(doc, s, reg.rules["no_gnss"]["readiness"], goal, [], "A")
+        return bool(item(r, "drag_fusion")["makes_goal"])
+
+    assert reach(link_first, flown) is True
+    assert reach(link_first, (None, None)) is False  # how far it flies is not known
+    assert reach(setup_of(reg), flown) is False  # 30 s: it lands short of home
+    [effect] = [m["effect"] for m in doc["mitigations"] if m["id"] == "drag_fusion"]
+    assert (
+        effect["params_link_first"]["FS_DR_TIMEOUT"]
+        == (reg.rules["audit"]["dr_timeout"]["win_link_back_s"])
+    )  # one value: the audit proposes what the ranking assumes
 
 
 def test_nothing_makes_the_goal_while_the_link_failsafes_would_not_bring_it_home(

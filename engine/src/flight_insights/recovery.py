@@ -131,12 +131,16 @@ def build(
     motor: MotorLoss | None = None, hover: tuple[float, float] = (10.0, 3.0),
     link: recovery_link.LinkMeasured | None = None,
     failsafes: Mapping[str, Any] | None = None,
+    flown: tuple[float | None, float | None] = (None, None),
 ) -> dict[str, Any]:  # fmt: skip
     """The card from the readiness review's areas, the measured outages (on its own, and
     on another source set), the parameters, the motor-out margin and the link failsafes
     measured; the same inputs always give the same card. What was measured on one source
     set is never stated for the other. `hover` is the hover a motor-out measurement
-    needs: seconds and height. The link sections need `failsafes`, the failsafe rules."""
+    needs: seconds and height. The link sections need `failsafes`, the failsafe rules.
+    `flown`, the farthest the airframe has flown from where it armed and its longest
+    flight (recovery_link.flown), sets what a way home on dead reckoning needs of
+    FS_DR_TIMEOUT."""
     c = Card(doc)
     areas = _areas(readiness)
     position, switching = areas.get("position", {}), areas.get("switching", {})
@@ -161,9 +165,18 @@ def build(
         will.append(c.phrase("will.keeps_set", sensors=sensors, set=1))
     elif wind.get("drag_fusion") and params.get("FS_DR_ENABLE", 0):
         actions: Mapping[str, str] = doc["dead_reckoning_actions"]
+        dr_timeout = float(params.get("FS_DR_TIMEOUT", 30.0))
+        back = recovery_link.dead_reckoned_return(params, doc["link"]["defaults"], *flown)
+        home = failsafes is not None and recovery_link.act(
+            failsafes, params, recovery_link.State("LOITER", dead_reckoning=True),
+            recovery_link.DEAD_RECKONING,
+        ).mode in recovery_link.HOME  # fmt: skip
+        key = ("will.dead_reckon" if back is None or not home
+               else "will.dead_reckon_home" if dr_timeout >= back.trip_s
+               else "will.dead_reckon_short")  # fmt: skip
         will.append(c.phrase(
-            "will.dead_reckon", dr_action=actions.get(str(int(params["FS_DR_ENABLE"])), "?"),
-            dr_timeout=params.get("FS_DR_TIMEOUT", 30.0),
+            key, dr_action=actions.get(str(int(params["FS_DR_ENABLE"])), "?"),
+            dr_timeout=dr_timeout, trip_s=None if back is None else round(back.trip_s),
         ))  # fmt: skip
     elif ekf_on:
         will.append(c.phrase("will.ekf", ekf_action=c.phrase(f"ekf.{ekf_action}")["text"]))
@@ -210,6 +223,8 @@ def build(
         if not bad_heading:
             steps.append(c.phrase("step.fly_home"))
     steps.append(c.phrase("step.land"))
+    if any(p["key"] == "will.dead_reckon_home" for p in will):
+        steps.append(c.phrase("step.dead_reckoned_home"))
 
     # --- suspected spoofing: reject GNSS first ---------------------------------------------
     spoof: list[dict[str, Any]] = [
@@ -239,6 +254,7 @@ def build(
         sections += recovery_link.sections(
             c, failsafes, params, link or recovery_link.LinkMeasured(),
             keeps_position=usable and target == 1, dead_reckons=bool(wind.get("drag_fusion")),
+            flown=flown,
         )  # fmt: skip
         # the section that loses the pilot's control with GNSS says whether it gets home
         for s in sections:
@@ -449,6 +465,7 @@ def card(
         motor_loss(store, reg, flight, airframe_id),
         (float(hover["min_hover_s"]), float(hover["min_height_m"])),
         recovery_link.measured(store, airframe_id), reg.rules["failsafes"],
+        recovery_link.flown(store, airframe_id),
     )  # fmt: skip
     out["flight"] = flight.id
     out["text"] = {lang: card_text(out, lang) for lang in LANGUAGES}
