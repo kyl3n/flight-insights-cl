@@ -203,7 +203,7 @@ button{font-family:inherit}
 class Component extends DCLogic {
   renderVals() {
     const bw = (this.state && this.state.bw) || 40;
-    const tabNames = [['Overview', 'FlightReport.dc.html'], ['Timeline', 'FlightReport.dc.html'], ['Filters', 'Workbench.dc.html'], ['Tune', 'Tune.dc.html'], ['Propulsion', 'FlightReport.dc.html'], ['Navigation and GNSS', 'FlightReport.dc.html'], ['Links', 'FlightReport.dc.html'], ['System and buses', 'FlightReport.dc.html'], ['Weather', 'FlightReport.dc.html'], ['Parameters', 'Trends.dc.html']];
+    const tabNames = [['Overview', 'FlightReport.dc.html'], ['Timeline', 'Incidents.dc.html'], ['Filters', 'Workbench.dc.html'], ['Tune', 'Tune.dc.html'], ['Propulsion', 'Propulsion.dc.html'], ['Navigation and GNSS', 'Navigation.dc.html'], ['Links', 'Links.dc.html'], ['System and buses', 'FlightReport.dc.html'], ['Weather', 'Weather.dc.html'], ['Parameters', 'History.dc.html']];
     const tabs = tabNames.map((t, i) => ({ label: t[0], href: t[1], c: i === 2 ? '#E7EAEE' : '#A3ACB6', line: i === 2 ? '#5AB0E8' : 'transparent' }));
     const bwOpts = [20, 30, 40, 50].map((v) => ({
       v, on: v === bw,
