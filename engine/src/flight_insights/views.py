@@ -19,7 +19,7 @@ import pyarrow as pa
 from flight_insights.analyzers.flight import FlightData
 from flight_insights.analyzers.incident import Event, events, first_fault, words
 from flight_insights.analyzers.motors_health import motors
-from flight_insights.analyzers.registry import Registry
+from flight_insights.analyzers.registry import LANGUAGES, Registry
 from flight_insights.analyzers.system import error_name
 from flight_insights.dataflash import si
 from flight_insights.knowledge import Pack
@@ -288,8 +288,8 @@ def timeline(
     found = events(flight, reg)
 
     def event(e: Event) -> dict[str, Any]:
-        out: dict[str, Any] = {"at_s": _after(flight, e.t_us), "kind": e.kind,
-                               "words": words(rules, e)}  # fmt: skip
+        said = {lang: words(rules, e, lang) for lang in LANGUAGES}
+        out: dict[str, Any] = {"at_s": _after(flight, e.t_us), "kind": e.kind, "words": said}
         if e.end_us is not None:
             out["to_s"] = _after(flight, e.end_us)
         return out | dict(e.detail)
