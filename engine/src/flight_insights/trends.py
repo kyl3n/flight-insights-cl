@@ -340,7 +340,9 @@ def payloads(store: Store, reg: Registry, airframe_id: str) -> dict[str, Any]:
 
 def events(store: Store, airframe_id: str) -> list[dict[str, Any]]:
     """What changed on the airframe, placed at the flight each change first applies to:
-    parameter change sets, build changes, firmware updates and applied recommendations."""
+    parameter change sets (each change with its value before and after, in canonical
+    names and units, and its class), build changes, firmware updates and applied
+    recommendations."""
     flights = _flights(store, airframe_id)
     order = {f.id: i for i, f in enumerate(flights)}
     out: list[dict[str, Any]] = []
@@ -350,10 +352,14 @@ def events(store: Store, airframe_id: str) -> list[dict[str, Any]]:
         (airframe_id,),
     ):
         detail: dict[str, Any] = json.loads(details)
-        names = [str(c["name"]) for c in detail.get("changes", [])]
+        changes = [
+            {"name": str(c["name"]), "before": c.get("before"), "after": c.get("after"),
+             "class": c.get("class")}
+            for c in detail.get("changes", [])
+        ]  # fmt: skip
         out.append(
             {"kind": f"{kind} change", "id": cid, "flight": after, "origin": origin,
-             "params": names}
+             "params": [c["name"] for c in changes], "changes": changes}
         )  # fmt: skip
     for bid, number, reason, first in store.conn.execute(
         "SELECT id, number, reason, first_flight_id FROM build_version "

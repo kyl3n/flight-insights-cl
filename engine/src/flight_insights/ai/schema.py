@@ -30,6 +30,14 @@ KEYED = {  # finding parameters, evidence values: snake_case keys, scalar values
     "additionalProperties": False,
     "maxProperties": 64,
 }
+# Distances worked out from positions on this laptop (rules/scrubber.json
+# "position_derived"): in evidence, each is one whole number of metres, never a list or a
+# finer value. The shell's check holds the same list on its own (scrub.rs).
+POSITION_METRES = (
+    "drift_m", "drift_m_per_min", "largest_altitude_gap_m", "largest_receivers_gap_m",
+    "largest_reset_m", "largest_track_gap_m",
+)  # fmt: skip
+EVIDENCE_VALUES = KEYED | {"properties": {k: {"type": "integer"} for k in POSITION_METRES}}
 SEGMENT = {
     "type": "object",
     "properties": {"kind": NAME, "start_s": {"type": "number"}, "end_s": {"type": "number"}},
@@ -257,7 +265,8 @@ PACKET: dict[str, Any] = {
         },
         # The flight's modelled weather, values only (spec: Weather and wind): what
         # narrows down the place (temperature, humidity, pressure, density altitude, cloud
-        # base) stays on the laptop.
+        # base) stays on the laptop. Temperature and air density reach it only as whole
+        # differences from the airframe's usual flights.
         "weather": {
             "type": "object",
             "properties": {
@@ -270,6 +279,8 @@ PACKET: dict[str, Any] = {
                 "precipitation_mm_h": MAYBE_NUMBER,
                 "boundary_layer_m": MAYBE_NUMBER,
                 "kp_max": MAYBE_NUMBER,
+                "temperature_vs_usual_c": {"type": ["integer", "null"]},
+                "density_vs_usual_pct": {"type": ["integer", "null"]},
             },
             "required": ["quality", "coverage"],
             "additionalProperties": False,
@@ -326,7 +337,7 @@ PACKET: dict[str, Any] = {
                         "items": {"type": "string", "pattern": r"^[A-Za-z0-9_]{1,16}$"},
                     },
                     "segment": {"anyOf": [SEGMENT, {"type": "null"}]},
-                    "values": KEYED,
+                    "values": EVIDENCE_VALUES,
                 },
                 "required": ["ref", "kind", "summary"],
                 "additionalProperties": False,

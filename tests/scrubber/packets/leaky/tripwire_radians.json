@@ -45,7 +45,9 @@
    "gust_max_ms": 11.5,
    "precipitation_mm_h": 0,
    "boundary_layer_m": 900,
-   "kp_max": 5.33
+   "kp_max": 5.33,
+   "temperature_vs_usual_c": -6,
+   "density_vs_usual_pct": 3
   },
   "metrics": [
    {
@@ -142,6 +144,29 @@
     "values": {
      "rate_hz": 1000,
      "r": 0.2154726
+    }
+   },
+   {
+    "ref": "E3",
+    "kind": "fact",
+    "summary": "withheld: it read a field that can reveal where the aircraft flew",
+    "messages": [
+     "GPS",
+     "POS"
+    ],
+    "fields": [],
+    "segment": {
+     "kind": "gnss",
+     "start_s": 402.5,
+     "end_s": 431
+    },
+    "values": {
+     "largest_track_gap_m": 62,
+     "estimator_resets": 2,
+     "largest_reset_m": 9,
+     "drift_m": 14,
+     "drift_m_per_min": 3,
+     "minutes_to_tolerance": 3.3
     }
    }
   ],

@@ -43,7 +43,7 @@ BASE: dict[str, Any] = {
     "weather": {
         "quality": "reanalysis", "coverage": 0.95, "wind_ms": 6.5, "wind_max_ms": 9,
         "surface_wind_ms": 4.5, "gust_max_ms": 11.5, "precipitation_mm_h": 0, "boundary_layer_m":
-        900, "kp_max": 5.33,
+        900, "kp_max": 5.33, "temperature_vs_usual_c": -6, "density_vs_usual_pct": 3,
     },
     "metrics": [
         {"metric": "vibration.p95", "segment": "hover", "value": 14.21, "zone": "target"},
@@ -70,6 +70,14 @@ BASE: dict[str, Any] = {
          "summary": "1950 W at 90.1 A in hover over 312.5 s; 93.5° of lag at 20 Hz",
          "messages": ["BAT", "GYR"], "fields": ["Volt", "Curr", "GyrX"], "segment": None,
          "values": {"rate_hz": 1000}},
+        # evidence that read positions: withheld, but for the distances the policy lets
+        # through, each one number in whole metres
+        {"ref": "E3", "kind": "fact",
+         "summary": "withheld: it read a field that can reveal where the aircraft flew",
+         "messages": ["GPS", "POS"], "fields": [],
+         "segment": {"kind": "gnss", "start_s": 402.5, "end_s": 431},
+         "values": {"largest_track_gap_m": 62, "estimator_resets": 2, "largest_reset_m": 9,
+                    "drift_m": 14, "drift_m_per_min": 3, "minutes_to_tolerance": 3.3}},
     ],
     "parameters": {
         "ATC_RAT_PIT_P": 0.135, "INS_HNTCH_FREQ": 80, "INS_HNTCH_BW": 40,
@@ -171,6 +179,10 @@ LEAKY: dict[str, tuple[str, Change] | tuple[str, Change, dict[str, Any]]] = {
                        _set("evidence", 1, "summary", value="7JCM9RQ6+2X")),
     "weather_density_altitude": ("Density altitude, which gives away the field's elevation.",
                                  _set("weather", "density_altitude_m", value=1850)),
+    "weather_temperature": ("The take-off's temperature itself, which narrows down the place.",
+                            _set("weather", "temperature_c", value=18.4)),
+    "weather_relative_fine": ("A difference from the airframe's usual air finer than a whole "
+                              "percent.", _set("weather", "density_vs_usual_pct", value=3.27)),
     "weather_tripwire": ("A gust value that is the flight's latitude to four decimals.",
                          _set("weather", "gust_max_ms", value=round(LAT, 4))),
     "removed_parameter": ("A parameter the rules remove: the estimator origin.",
@@ -179,6 +191,11 @@ LEAKY: dict[str, tuple[str, Change] | tuple[str, Change, dict[str, Any]]] = {
                             _set("parameters", "COMPASS_DEC", value=0.04)),
     "field_elevation": ("The barometer's field elevation gives away the site's altitude.",
                         _set("parameters", "BARO_FIELD_ELV", value=1850)),
+    "position_metres_fine": ("A distance worked out from positions, to the centimetre.",
+                             _set("evidence", 2, "values", "largest_track_gap_m", value=61.84)),
+    "position_metres_series": ("Distances worked out from positions as a series, which traces "
+                               "the path.",
+                               _set("evidence", 2, "values", "drift_m", value=[3, 5, 8, 14])),
     "long_text": ("Text longer than the schema allows.",
                   _set("evidence", 0, "summary", value="x" * 300)),
     "bool_as_number": ("A boolean where a number belongs.",

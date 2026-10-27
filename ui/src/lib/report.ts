@@ -74,6 +74,9 @@ export interface FindingRow {
   evidence: string[];
   changes: Change[];
   stage: string | null;
+  /** Context the finding is read against, such as elevated space weather during the
+   * flight (engine weather/context.py): a note only, nothing about it changes. */
+  context?: { kp_max: number; note: Text };
 }
 
 export interface EvidenceRow {
@@ -197,6 +200,7 @@ const UNIT_TEXT: Record<Locale, Record<string, string>> = {
   uk: {
     degC: "°C", mOhm: "мОм", "W.h": "Вт·год", "A/krpm^2": "А/(тис. об/хв)²", W: "Вт", V: "В",
     A: "А", s: "с", ms: "мс", Hz: "Гц", dB: "дБ", "B/s": "Б/с", "m/s/s": "м/с²", Ohm: "Ом", rpm: "об/хв",
+    m: "м", "m/s": "м/с", hPa: "гПа",
   },
 };
 
@@ -231,7 +235,7 @@ export function findingTitle(reg: Registry, f: Pick<FindingRow, "code" | "params
   return text ? fill(text.title[locale], f.params, locale) : f.code;
 }
 
-export function findingAction(reg: Registry, f: FindingRow, locale: Locale): string {
+export function findingAction(reg: Registry, f: Pick<FindingRow, "code" | "params">, locale: Locale): string {
   const text = reg.findings[f.code];
   return text ? fill(text.action[locale], f.params, locale) : "";
 }

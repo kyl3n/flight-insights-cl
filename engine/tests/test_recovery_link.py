@@ -192,12 +192,11 @@ def test_what_its_flights_measured(reg: Registry) -> None:
     )  # fmt: skip
     c = card(reg, measured, **STATION, FS_GCS_ENABLE=1.0)
     assert text(c, "link_lost", "facts") == [
-        "Its flights logged 2 radio failsafes: 2 as configured, 0 on a fallback mode, 0 not as "
-        "configured.",
+        "Logged radio failsafes: 2 (2 as configured, 0 on a fallback mode, 0 not as configured).",
         "The slowest radio failsafe acted 1.2 s after the loss began (its wait: 1 s).",
-        "1 losses of the radio link went unanswered by its failsafe.",
-        "Its flights logged 2 ground-station failsafes: 1 as configured, 1 on a fallback mode, "
-        "0 not as configured.",
+        "Losses of the radio link no failsafe answered: 1.",
+        "Logged ground-station failsafes: 2 (1 as configured, 1 on a fallback mode, "
+        "0 not as configured).",
         "The slowest ground-station failsafe acted 5.3 s after the loss began (its wait: 5 s).",
         "On one flight the ground station went unheard for 3.8 s, short of its 5 s failsafe wait.",
     ]
@@ -246,3 +245,54 @@ def test_the_link_sections_from_its_own_failsafe_flights(tmp_path: Path) -> None
     assert radio["params"]["n"] == 1 and radio["params"]["fell_back"] == 1
     assert keys(c, "telemetry_lost", "facts")[0] == "fact.link_failsafes"
     call(server, out, 9, "engine.shutdown")
+
+
+def alerts(c: dict[str, Any]) -> dict[str, bool]:
+    return {s["id"]: s["alert"] for s in c["sections"]}
+
+
+def test_a_link_that_leaves_it_with_no_one_flying_it_is_an_alert(reg: Registry) -> None:
+    """Checked in SITL (tools/sim/check_card.py): flown from the ground station with the
+    radio failsafe off and FS_OPTIONS at its default, losing the link in Loiter or
+    AltHold changes nothing. The printed card marks that section."""
+    safe = card(reg, **STATION, FS_THR_ENABLE=1.0, FS_GCS_ENABLE=1.0)
+    assert alerts(safe) == {"gnss_lost": False, "spoofing": False, "link_lost": False}
+    left = card(reg, **STATION, FS_THR_ENABLE=0.0, FS_GCS_ENABLE=1.0)
+    assert alerts(left)["link_lost"] is True
+    assert any("with no one flying it" in w for w in will(left, "link_lost"))
+
+
+def test_a_pilots_radio_carries_on_when_only_the_telemetry_goes(reg: Registry) -> None:
+    c = card(reg, FS_THR_ENABLE=1.0, FS_GCS_ENABLE=0.0)
+    assert alerts(c)["telemetry_lost"] is False  # the pilot still flies it
+    assert alerts(c)["radio_lost"] is False  # RTL, and landing in place if GNSS goes too
+
+
+def test_a_loss_no_failsafe_answered_is_an_alert_whatever_the_settings(reg: Registry) -> None:
+    unanswered = LinkMeasured(gcs=Kind({"as_configured": 0}, 1, None, 5.0))
+    c = card(reg, unanswered, **STATION, FS_THR_ENABLE=1.0, FS_GCS_ENABLE=1.0)
+    assert alerts(c)["link_lost"] is True
+
+
+def test_gnss_lost_with_the_ekf_failsafe_off_is_an_alert(reg: Registry) -> None:
+    c = card(reg, **STATION, FS_THR_ENABLE=1.0, FS_GCS_ENABLE=1.0, FS_EKF_ACTION=0.0)
+    assert alerts(c)["gnss_lost"] is True
+
+
+def test_the_goal_is_met_only_when_it_flies_home_with_both_lost(reg: Registry) -> None:
+    """Getting home with the pilot's control and GNSS both lost, from every mode and
+    whichever goes first: what the Navigation view shows as the fleet goal."""
+    stock = card(reg, FS_THR_ENABLE=1.0)
+    assert stock["goal"]["section"] == "radio_lost"
+    assert stock["goal"]["met"] is False  # RTL needs a position: it lands where it is
+    assert [p["key"] for p in stock["goal"]["will"]] == ["link.any_mode", "link.gnss_too"]
+    assert all("goal" not in s for s in stock["sections"])
+    flow_first = {k: v for k, v in FLOW.items() if not k.startswith("EK3_SRC2")}
+    first = {**flow_first, "EK3_SRC1_POSXY": 0.0, "EK3_SRC1_VELXY": 5.0}
+    home = card(reg, **first, FS_THR_ENABLE=1.0)
+    assert home["goal"]["met"] is True
+    assert home["goal"]["will"][-1]["key"] == "link.gnss_keeps"
+    assert card(reg, **first, FS_THR_ENABLE=0.0)["goal"]["met"] is False  # nothing acts
+    assert card(reg, **first, FS_THR_ENABLE=3.0)["goal"]["met"] is False  # it lands
+    station = card(reg, **STATION, FS_THR_ENABLE=1.0)
+    assert station["goal"]["section"] == "link_lost" and station["goal"]["met"] is False

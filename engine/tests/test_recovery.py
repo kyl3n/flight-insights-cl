@@ -363,3 +363,9 @@ def test_the_heavy_lift_x8_card_from_its_own_flights(tmp_path: Path) -> None:
     # the same ceiling the light flight gives (its ratio 1.265 times 32.5 kg), within 3%
     assert fact["params"]["kg"] == pytest.approx(32.5 * 1.265, rel=0.03)
     call(server, out, 9, "engine.shutdown")
+
+
+def test_without_the_failsafe_rules_no_goal_is_judged(reg: Registry) -> None:
+    """The goal plays the link's failsafes: with no rules to play them by, the card says
+    nothing about it rather than guess."""
+    assert make(reg)["goal"] is None

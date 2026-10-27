@@ -18,8 +18,10 @@ It is built on this laptop from:
   import, or estimated from the airframe's weighed flights (payload bands);
 - the wording in knowledge/recovery/copter.json, in English and Ukrainian.
 
-The card holds times, modes, switches, weights and how far the estimate drifts; never a
-position. It is printed, never sent.
+The card also says whether the airframe meets the goal, getting home with the pilot's
+control and GNSS both lost (recovery_link.gets_home), for the Navigation view; it is not
+printed. The card holds times, modes, switches, weights and how far the estimate drifts;
+never a position. It is printed, never sent.
 """
 
 from __future__ import annotations
@@ -101,6 +103,20 @@ class Card:
                 )
             out[lang] = render(texts[key][lang], local)
         return {"key": key, "params": dict(params), "text": out}
+
+
+# What the card marks as an alert, so it stands out in print: GNSS lost with the EKF
+# failsafe off (it drifts with no one flying it), and a motor lost on a frame that could
+# fly on the rest but cannot at the weight it last flew. A quad coming down is what any
+# quad does, so it is no alert. The link sections mark theirs (recovery_link.alone).
+ALERTS: Mapping[str, tuple[str, ...]] = {
+    "gnss_lost": ("will.ekf_off",),
+    "motor_lost": ("will.motor_no_balance", "will.motor_sink"),
+}
+
+
+def _alert(will: Sequence[Mapping[str, Any]], keys: Sequence[str]) -> bool:
+    return any(p["key"] in keys for p in will)
 
 
 def _areas(readiness: Result) -> dict[str, Mapping[str, Any]]:
@@ -214,15 +230,21 @@ def build(
     numbers = {"alone": asdict(alone), "on_set": asdict(on_set), "tolerance_m": tolerance_m}
     sections = [
         {"id": "gnss_lost", "title": c.phrase("gnss_lost")["text"], "will": will,
-         "facts": facts, "steps": steps},
+         "facts": facts, "steps": steps, "alert": _alert(will, ALERTS["gnss_lost"])},
         {"id": "spoofing", "title": c.phrase("spoofing")["text"], "will": [], "facts": [],
-         "steps": spoof},
+         "steps": spoof, "alert": False},
     ]  # fmt: skip
+    goal: dict[str, Any] | None = None
     if failsafes is not None:
         sections += recovery_link.sections(
             c, failsafes, params, link or recovery_link.LinkMeasured(),
             keeps_position=usable and target == 1, dead_reckons=bool(wind.get("drag_fusion")),
         )  # fmt: skip
+        # the section that loses the pilot's control with GNSS says whether it gets home
+        for s in sections:
+            if "goal" in s:
+                found = cast(Mapping[str, Any], s.pop("goal"))
+                goal = {"section": s["id"], **found}
     if motor is not None:
         sections.append(_motor_section(c, motor, params, hover))
     return {
@@ -236,6 +258,7 @@ def build(
         "measured": numbers,
         "sections": sections,
         "gaps": [f.code for f in readiness.findings],
+        "goal": goal,
         "footer": c.phrase("card_footer")["text"],
     }
 
@@ -291,7 +314,8 @@ def _motor_section(
             steps.append(c.phrase("step.motor_yaw"))
         steps += [c.phrase("step.motor_descend"), c.phrase("step.motor_land")]
     return {"id": "motor_lost", "title": c.phrase("motor_lost")["text"], "will": will,
-            "facts": facts, "steps": steps}  # fmt: skip
+            "facts": facts, "steps": steps,
+            "alert": _alert(will, ALERTS["motor_lost"])}  # fmt: skip
 
 
 def card_text(card: Mapping[str, Any], lang: str = "en") -> str:

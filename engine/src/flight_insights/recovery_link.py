@@ -208,6 +208,35 @@ def outcome(c: Card, rules: Mapping[str, Any], s: State, start: str | None = Non
     return c.phrase(key) if m == start else c.phrase(f"{key}_in", mode=_words(c, m))
 
 
+ALONE = ("out.lost", "out.hold_alone", "out.drift_alone")  # no one flies it, or it is lost
+HOME = ("RTL", "SMART_RTL")  # back to take-off: RTL, or SmartRTL back the way it came
+
+
+def alone(c: Card, rules: Mapping[str, Any], s: State) -> bool:
+    """Whether the vehicle in state `s` is left with no one flying it, or flies on with no
+    position it can trust: what the card marks as an alert."""
+    return str(outcome(c, rules, s)["key"]).removesuffix("_in") in ALONE
+
+
+def gets_home(
+    rules: Mapping[str, Any], params: Mapping[str, float], control: bool, telemetry: bool,
+    keeps_position: bool, dead_reckons: bool, ekf_on: bool,
+) -> bool:  # fmt: skip
+    """The goal (spec: Flying without GNSS, "Recommendations and recovery"): with the link
+    and GNSS both lost, whichever goes first and from every mode it may be flown in, it
+    flies back to take-off with a position it can trust. A first source set that keeps a
+    position leaves the link's failsafes to act as they would with GNSS."""
+    for m in STARTS:
+        if keeps_position:
+            played = play(rules, params, State(m), control, telemetry)
+            ends = [played[-1].state if played else State(m)]
+        else:
+            ends = both_lost(rules, params, State(m), control, telemetry, dead_reckons, ekf_on)
+        if not all(e.mode in HOME and e.position for e in ends):
+            return False
+    return True
+
+
 def _joined(c: Card, items: Sequence[Mapping[str, str]]) -> dict[str, str]:
     """Texts in the reader's language as "a, b or c"."""
     word: Mapping[str, str] = c.doc["texts"]["word.or"]
@@ -309,6 +338,19 @@ def sections(
                 return True
         return False
 
+    def left_alone(control: bool, telemetry: bool, pilot: bool, gnss_too: bool) -> bool:
+        """Whether, flown in some mode, it ends with no one flying it or lost; with GNSS
+        lost too, in either order, where the section says what happens then."""
+        for m in STARTS:
+            start = State(m, pilot=pilot)
+            played = play(rules, p, start, control, telemetry)
+            ends = [played[-1].state if played else start]
+            if gnss_too and not keeps_position:
+                ends += both_lost(rules, p, State(m), control, telemetry, dead_reckons, ekf_on)
+            if any(alone(c, rules, e) for e in ends):
+                return True
+        return False
+
     def steps(control: bool, telemetry: bool, *first: str) -> list[dict[str, Any]]:
         out = [c.phrase(k) for k in first]
         if not _link_events(p, control, telemetry):
@@ -318,9 +360,19 @@ def sections(
         return out
 
     def section(key: str, will: list[dict[str, Any]], facts: list[dict[str, Any]],
-                steps: list[dict[str, Any]]) -> dict[str, Any]:  # fmt: skip
+                steps: list[dict[str, Any]], alert: bool) -> dict[str, Any]:  # fmt: skip
         return {"id": key, "title": c.phrase(key)["text"], "will": will,
-                "facts": facts or [c.phrase("fact.link_unmeasured")], "steps": steps}  # fmt: skip
+                "facts": facts or [c.phrase("fact.link_unmeasured")], "steps": steps,
+                "alert": alert}  # fmt: skip
+
+    def goal(control: bool, telemetry: bool) -> dict[str, Any]:
+        """Whether it gets home with this link and GNSS both lost, and the lines that say
+        what it does: the link's failsafes from each mode, then with GNSS lost too."""
+        met = gets_home(rules, p, control, telemetry, keeps_position, dead_reckons, ekf_on)
+        return {
+            "met": met,
+            "will": [*lines(control, telemetry, False), gnss_too(control, telemetry)],
+        }
 
     radio_facts = _facts(c, measured.radio, names[RADIO])
     gcs_facts = [*_facts(c, measured.gcs, names[GCS]), *_silence(c, measured)]
@@ -330,7 +382,9 @@ def sections(
             [c.phrase("will.link_station"), *lines(True, True, False), gnss_too(True, True)],
             [*radio_facts, *gcs_facts],
             steps(True, True, "step.link_antennas", "step.link_back_station"),
-        )]  # fmt: skip
+            left_alone(True, True, False, gnss_too=True)
+            or bool(measured.radio.unanswered or measured.gcs.unanswered),
+        ) | {"goal": goal(True, True)}]  # fmt: skip
     receiver = (  # what sets the radio failsafe off, and what never does
         [c.phrase("will.radio_throttle", value=float(p["FS_THR_VALUE"])),
          c.phrase("will.radio_hold")]
@@ -338,9 +392,12 @@ def sections(
     )  # fmt: skip
     return [
         section("radio_lost", [*lines(True, False, False), *receiver, gnss_too(True, False)],
-                radio_facts, steps(True, False, "step.radio_antennas", "step.link_back_switch")),
+                radio_facts, steps(True, False, "step.radio_antennas", "step.link_back_switch"),
+                left_alone(True, False, False, gnss_too=True) or measured.radio.unanswered > 0)
+        | {"goal": goal(True, False)},
         section("telemetry_lost", lines(False, True, True), gcs_facts,
-                [c.phrase("step.telemetry_fly")]),
+                # the pilot still flies it: a telemetry loss no failsafe answered is no alert
+                [c.phrase("step.telemetry_fly")], left_alone(False, True, True, gnss_too=False)),
     ]  # fmt: skip
 
 

@@ -112,7 +112,9 @@
         "en": "Rate tuning and AutoTune",
         "uk": "Налаштування швидкості та AutoTune"
       },
-      "options": [],
+      "options": [
+        "input_tc_47"
+      ],
       "also": [
         "params.never_tuned",
         "params.tuning_starting_values",

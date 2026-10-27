@@ -68,7 +68,7 @@ def test_the_corpus_files_are_the_self_tests_own_cases() -> None:
 
 def test_the_self_test_passes(engine: tuple[Any, Any, Path]) -> None:
     result = rpc(engine, "ai.selftest")["result"]
-    assert result == {"ok": True, "cases": 34, "failed": []}
+    assert result == {"ok": True, "cases": 38, "failed": []}
 
 
 def test_numbers_are_rounded_to_what_reasoning_needs() -> None:
@@ -165,6 +165,61 @@ def test_evidence_that_read_a_location_field_is_withheld_with_its_metrics() -> N
     assert by_id["week"]["fields"] == ["TimeUS"]  # the allowed field is still named
     assert by_id["vibe"]["values"] == {"reading": 512.25}
     assert {m["metric"] for m in metrics} == {"m.vibe", "m.logging"}
+
+
+def test_distances_from_positions_pass_alone_in_whole_metres() -> None:
+    # The user's decision (2026-10-27): the AI may see how far GNSS and the estimator
+    # parted, and how far the estimate drifted without GNSS, as one value per event, in
+    # whole metres; never the summary, a finer value, a series or a direction.
+    policy = Policy.load(load_pack(), "4.7.0")
+    gap = _ev("gap", "fact", ("GPS", "POS"), ("Lat", "Lng")) | {"values": {
+        "largest_track_gap_m": 61.84, "estimator_resets": 2, "largest_reset_m": 8.6,
+        "east_m": 40.2, "bearing_deg": 212.0, "drift_m": [3.0, 5.0]}}  # fmt: skip
+    drift = _ev("drift", "fact", ("GPS", "POS"), ("Lat", "Lng")) | {"values": {
+        "drift_m": 14.3, "drift_m_per_min": 2.6, "minutes_to_tolerance": 3.846}}  # fmt: skip
+    analysis: dict[str, Any] = {
+        "evidence": [gap, drift], "metrics": [],
+        "findings": [{"key": "k", "code": "gnss.spoofing", "severity": "warning",
+                      "confidence": "high", "params": {}, "evidence": ["gap", "drift"]}],
+    }  # fmt: skip
+    keys: dict[str, str] = {}
+    _, _, packed = _analysis(analysis, 0, policy, keys)
+    by_id = {keys[e["ref"]]: e for e in packed}
+    for e in packed:
+        assert e["summary"] == WITHHELD and e["fields"] == []
+    assert by_id["gap"]["values"] == {
+        "largest_track_gap_m": 62, "estimator_resets": 2, "largest_reset_m": 9,
+    }  # fmt: skip
+    assert by_id["drift"]["values"] == {
+        "drift_m": 14, "drift_m_per_min": 3, "minutes_to_tolerance": 3.8,
+    }  # fmt: skip
+    packet = selftest.cases()["clean"]["analysis"][1] | {"evidence": packed, "findings": []}
+    assert validate(packet) == []
+    # the schema holds the line on its own: a finer distance or a series does not fit
+    finer = json.loads(json.dumps(packet))
+    finer["evidence"][0]["values"]["largest_track_gap_m"] = 61.84
+    series = json.loads(json.dumps(packet))
+    series["evidence"][1]["values"]["drift_m"] = [3, 5, 8, 14]
+    assert validate(finer) and validate(series)
+
+
+@pytest.mark.parametrize(
+    ("log", "key"),
+    [("copter-quad-gnss-step.bin", "largest_track_gap_m"),
+     ("copter-quad-nognss-flow.bin", "drift_m")],  # optical flow: under 3 m
+)  # fmt: skip
+def test_a_gnss_flight_sends_its_distances_rounded(
+    engine: tuple[Any, Any, Path], log: str, key: str
+) -> None:
+    flight = flown(engine, FIXTURES / log)
+    reply = rpc(engine, "ai.prepare", flight_id=flight)["result"]
+    assert reply["engine"] == {"ok": True, "reasons": []}, reply["engine"]
+    packet = json.loads(reply["packet_json"])
+    held = [e for e in packet["evidence"] if e["summary"] == WITHHELD]
+    sent = [e["values"][key] for e in held if key in e["values"]]
+    assert sent and all(isinstance(v, int) and v >= 0 for v in sent), sent
+    allowed = set(load_pack().json("rules/scrubber.json")["position_derived"])
+    assert all(set(e["values"]) <= allowed for e in held)
 
 
 def test_when_something_happened_reaches_the_packet_as_seconds_after_arming() -> None:

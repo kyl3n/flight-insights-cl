@@ -1,0 +1,188 @@
+{
+ "why": "Distances worked out from positions as a series, which traces the path.",
+ "packet": {
+  "schema": "fi.ai.packet/1",
+  "purpose": "analysis",
+  "aircraft": {
+   "vehicle": "copter",
+   "firmware": "4.7.0",
+   "vehicle_class": "multirotor",
+   "frame_class": "Octa",
+   "frame_type": "X",
+   "board_family": "H7",
+   "motor_protocol": "DShot600",
+   "bidirectional_dshot": true,
+   "notch_mode": "ESC Telemetry",
+   "imu_count": 3,
+   "cells": 12,
+   "simulated": false
+  },
+  "answers": {
+   "payload": "variable",
+   "esc_firmware": "bluejay",
+   "priority": "endurance"
+  },
+  "flight": {
+   "duration_s": 1084.2,
+   "hover_s": 312.5,
+   "modes": [
+    {
+     "mode": "LOITER",
+     "s": 900.1
+    },
+    {
+     "mode": "LAND",
+     "s": 42
+    }
+   ]
+  },
+  "weather": {
+   "quality": "reanalysis",
+   "coverage": 0.95,
+   "wind_ms": 6.5,
+   "wind_max_ms": 9,
+   "surface_wind_ms": 4.5,
+   "gust_max_ms": 11.5,
+   "precipitation_mm_h": 0,
+   "boundary_layer_m": 900,
+   "kp_max": 5.33,
+   "temperature_vs_usual_c": -6,
+   "density_vs_usual_pct": 3
+  },
+  "metrics": [
+   {
+    "metric": "vibration.p95",
+    "segment": "hover",
+    "value": 14.21,
+    "zone": "target"
+   },
+   {
+    "metric": "power.hover_power",
+    "segment": "hover",
+    "value": 1950.4,
+    "zone": null
+   },
+   {
+    "metric": "power.battery_resistance",
+    "segment": "flight",
+    "value": 0.0061,
+    "zone": "target"
+   },
+   {
+    "metric": "esc.peak_temperature",
+    "segment": "flight",
+    "value": 66,
+    "zone": null
+   }
+  ],
+  "findings": [
+   {
+    "ref": "F1",
+    "code": "esc.hot",
+    "severity": "caution",
+    "confidence": "medium",
+    "params": {
+     "motor": 3,
+     "temperature": 66,
+     "siblings": 53
+    },
+    "evidence": [
+     "E1"
+    ]
+   },
+   {
+    "ref": "F2",
+    "code": "filter.better_settings",
+    "severity": "info",
+    "confidence": "high",
+    "params": {
+     "lag_new": 61.2,
+     "lag_now": 93.5,
+     "lag_hz": 20,
+     "noise_db": -31.1
+    },
+    "evidence": [
+     "E2"
+    ]
+   }
+  ],
+  "evidence": [
+   {
+    "ref": "E1",
+    "kind": "metric",
+    "summary": "ESC peak temperatures 52, 53, 66, 54, 53, 52, 55, 54 °C",
+    "messages": [
+     "ESC"
+    ],
+    "fields": [
+     "Temp"
+    ],
+    "segment": {
+     "kind": "flight",
+     "start_s": 0,
+     "end_s": 1084.2
+    },
+    "values": {
+     "motor3": 66,
+     "motor1": 52
+    }
+   },
+   {
+    "ref": "E2",
+    "kind": "series",
+    "summary": "1950 W at 90.1 A in hover over 312.5 s; 93.5° of lag at 20 Hz",
+    "messages": [
+     "BAT",
+     "GYR"
+    ],
+    "fields": [
+     "Volt",
+     "Curr",
+     "GyrX"
+    ],
+    "segment": null,
+    "values": {
+     "rate_hz": 1000
+    }
+   },
+   {
+    "ref": "E3",
+    "kind": "fact",
+    "summary": "withheld: it read a field that can reveal where the aircraft flew",
+    "messages": [
+     "GPS",
+     "POS"
+    ],
+    "fields": [],
+    "segment": {
+     "kind": "gnss",
+     "start_s": 402.5,
+     "end_s": 431
+    },
+    "values": {
+     "largest_track_gap_m": 62,
+     "estimator_resets": 2,
+     "largest_reset_m": 9,
+     "drift_m": [
+      3,
+      5,
+      8,
+      14
+     ],
+     "drift_m_per_min": 3,
+     "minutes_to_tolerance": 3.3
+    }
+   }
+  ],
+  "parameters": {
+   "ATC_RAT_PIT_P": 0.135,
+   "INS_HNTCH_FREQ": 80,
+   "INS_HNTCH_BW": 40,
+   "MOT_SPIN_MAX": 0.95,
+   "BATT_CAPACITY": 22000,
+   "ARM_FENCE": 1,
+   "SERIAL2_BAUD": 57,
+   "LOG_BITMASK": 655358
+  }
+ }
+}

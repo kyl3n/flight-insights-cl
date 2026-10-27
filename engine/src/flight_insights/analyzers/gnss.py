@@ -42,7 +42,8 @@ trips are left out, and the no-GNSS analyzer measures it.
 Positions, absolute altitudes, GPS time and status text are read on this laptop only.
 Findings carry times, durations, counts, test ratios and the class; evidence that read a
 position, an altitude, GPS time or text says so, and the location policy withholds its
-values from the AI path.
+values from the AI path. Only the largest gaps and resets of each event reach it, each in
+whole metres (rules/scrubber.json "position_derived").
 """
 
 from __future__ import annotations
