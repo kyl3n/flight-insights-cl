@@ -1,7 +1,8 @@
 """The recovery card per airframe (spec: Flying without GNSS, "Recommendations and
 recovery"; Propulsion, "Motor-out margin"): what the aircraft will do when GNSS is lost
 or spoofed with its current settings, how long it holds and how far it can go, and the
-operator's steps; and the same when it loses a motor.
+operator's steps; and the same when it loses its control link (recovery_link.py) or a
+motor.
 
 It is built on this laptop from:
 - the airframe's latest parameters and setup answers, through the readiness review
@@ -10,14 +11,15 @@ It is built on this laptop from:
   the longest detection and the worst drift a minute), kept apart by the source set they
   were flown on, so a hold measured on optical flow is never claimed for the aircraft on
   its own;
+- its link failsafes and losses over the same analyses, and its failsafe settings played
+  through ArduCopter's own failsafes (recovery_link.py);
 - the motor-out margin of its latest flight that measured it on its current frame
   (analyzers/motor_out.py), turned into kilograms by that flight's weight: weighed at
   import, or estimated from the airframe's weighed flights (payload bands);
 - the wording in knowledge/recovery/copter.json, in English and Ukrainian.
 
 The card holds times, modes, switches, weights and how far the estimate drifts; never a
-position. It is printed, never sent. Losing the radio link gets its own section once its
-measurements exist.
+position. It is printed, never sent.
 """
 
 from __future__ import annotations
@@ -27,6 +29,7 @@ from collections.abc import Mapping, Sequence
 from dataclasses import asdict, dataclass, replace
 from typing import Any, cast
 
+from flight_insights import recovery_link
 from flight_insights.analyzers.flight import FlightData, FlightError
 from flight_insights.analyzers.model import Result
 from flight_insights.analyzers.motor_out import motor_frame
@@ -77,7 +80,9 @@ class MotorLoss:
 
 
 @dataclass
-class _Card:
+class Card:
+    """The card's wording, and each phrase filled in both languages."""
+
     doc: Mapping[str, Any]
 
     def phrase(self, key: str, **params: Any) -> dict[str, Any]:
@@ -108,12 +113,15 @@ def build(
     readiness: Result, alone: Measured, on_set: Measured, params: Mapping[str, float],
     doc: Mapping[str, Any], tolerance_m: float, airframe: str, param_set: str | None,
     motor: MotorLoss | None = None, hover: tuple[float, float] = (10.0, 3.0),
+    link: recovery_link.LinkMeasured | None = None,
+    failsafes: Mapping[str, Any] | None = None,
 ) -> dict[str, Any]:  # fmt: skip
     """The card from the readiness review's areas, the measured outages (on its own, and
-    on another source set), the parameters and the motor-out margin; the same inputs
-    always give the same card. What was measured on one source set is never stated for
-    the other. `hover` is the hover a motor-out measurement needs: seconds and height."""
-    c = _Card(doc)
+    on another source set), the parameters, the motor-out margin and the link failsafes
+    measured; the same inputs always give the same card. What was measured on one source
+    set is never stated for the other. `hover` is the hover a motor-out measurement
+    needs: seconds and height. The link sections need `failsafes`, the failsafe rules."""
+    c = Card(doc)
     areas = _areas(readiness)
     position, switching = areas.get("position", {}), areas.get("switching", {})
     heading, fallback = areas.get("heading", {}), areas.get("pilot_fallback", {})
@@ -210,6 +218,11 @@ def build(
         {"id": "spoofing", "title": c.phrase("spoofing")["text"], "will": [], "facts": [],
          "steps": spoof},
     ]  # fmt: skip
+    if failsafes is not None:
+        sections += recovery_link.sections(
+            c, failsafes, params, link or recovery_link.LinkMeasured(),
+            keeps_position=usable and target == 1, dead_reckons=bool(wind.get("drag_fusion")),
+        )  # fmt: skip
     if motor is not None:
         sections.append(_motor_section(c, motor, params, hover))
     return {
@@ -228,7 +241,7 @@ def build(
 
 
 def _motor_section(
-    c: _Card, m: MotorLoss, params: Mapping[str, float], hover: tuple[float, float]
+    c: Card, m: MotorLoss, params: Mapping[str, float], hover: tuple[float, float]
 ) -> dict[str, Any]:
     """Losing a motor: what the firmware does (Copter crash_check.cpp, 4.7.0) and what the
     measured margin says the aircraft can do at the weight it last flew."""
@@ -411,6 +424,7 @@ def card(
         str(snapshot[0]).split("-", 1)[-1][:8] if snapshot else None,  # "ps1-<hash>"
         motor_loss(store, reg, flight, airframe_id),
         (float(hover["min_hover_s"]), float(hover["min_height_m"])),
+        recovery_link.measured(store, airframe_id), reg.rules["failsafes"],
     )  # fmt: skip
     out["flight"] = flight.id
     out["text"] = {lang: card_text(out, lang) for lang in LANGUAGES}

@@ -27,7 +27,7 @@
 | trend.credits | The changes an airframe's improvements credit, each kept or since undone |
 | trend.fleet | A platform's confirmed links: one change, one move, on enough airframes |
 | review.file | A parameter file's configuration review and plan, with no flight |
-| airframe.recovery_card | The airframe's recovery card: GNSS loss, spoofing and losing a motor |
+| airframe.recovery_card | The airframe's recovery card: GNSS, spoofing, the link and a motor lost |
 | airframe.sim_export | The airframe's model for ArduPilot's simulator, its parameters, as files |
 
 Analysing a flight also makes its weather record, where the downloads cover it, and grades

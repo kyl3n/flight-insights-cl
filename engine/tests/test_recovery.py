@@ -312,7 +312,9 @@ def test_the_card_over_rpc(tmp_path: Path) -> None:
         flights.append(done["flights"][0])
     c = call(server, out, 8, "airframe.recovery_card", airframe_id=af["id"])["result"]
     assert c["airframe"] == "Q-1" and c["flight"] == flights[1]  # the latest parameters
-    assert [s["id"] for s in c["sections"]] == ["gnss_lost", "spoofing", "motor_lost"]
+    assert [s["id"] for s in c["sections"]] == [
+        "gnss_lost", "spoofing", "radio_lost", "telemetry_lost", "motor_lost",
+    ]  # fmt: skip
     assert keys(c, "motor_lost", "will") == ["will.motor_quad"]
     assert c["text"]["en"].startswith("Q-1: recovery card")
     # the drill with no other source on its own; the flow drill on source set 2
