@@ -349,8 +349,18 @@ mod tests {
         run(&engine(), &fake.url, &schedule, &share(&t, &t.a));
         let entries = t.drive.list("weather/").unwrap();
         assert!(!entries.is_empty());
+        // keyed hashes and the laptop's own sequence number, and nothing else: a substring
+        // search alone would find "2026" inside a hash now and then
+        let shape =
+            regex::Regex::new(r"^weather/[0-9a-f]{32}/[0-9a-f]{32}/[0-9]{12}-[0-9a-f]{64}\.fio$")
+                .unwrap();
         for e in &entries {
-            for word in ["N50E030", "2026", "forecast", "reanalysis", "kp"] {
+            assert!(
+                shape.is_match(&e.path),
+                "{} is not hashes and a sequence",
+                e.path
+            );
+            for word in ["N50E030", "forecast", "reanalysis", "kp"] {
                 assert!(!e.path.contains(word), "{} names {word}", e.path);
             }
             let bytes = fs::read(t.root.join(&e.path)).unwrap();
