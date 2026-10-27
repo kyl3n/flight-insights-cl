@@ -62,7 +62,7 @@ class Measured:
     outages: int = 0  # outages and drills
     hold_s: float | None = None  # the shortest time it kept a position it could fly on
     detection_s: float | None = None  # the longest time to stop using GNSS
-    drift_m_per_min: float | None = None  # the worst
+    minutes_to_tolerance: float | None = None  # the soonest the estimate was that far off
 
 
 @dataclass(frozen=True)
@@ -190,18 +190,15 @@ def build(
         facts.append(c.phrase("fact.hold", hold_s=alone.hold_s, outages=alone.outages))
     else:
         facts.append(c.phrase("fact.hold_unmeasured"))
-    if alone.drift_m_per_min:
-        facts.append(c.phrase("fact.range", minutes=round(tolerance_m / alone.drift_m_per_min, 1),
-                              tolerance_m=tolerance_m, rate=alone.drift_m_per_min))  # fmt: skip
+    if alone.minutes_to_tolerance is not None:
+        facts.append(c.phrase("fact.range", minutes=alone.minutes_to_tolerance,
+                              tolerance_m=tolerance_m))  # fmt: skip
     if usable and target != 1 and on_set.hold_s is not None:
         facts.append(c.phrase("fact.hold_set", set=target, hold_s=on_set.hold_s,
                               outages=on_set.outages))  # fmt: skip
-        if on_set.drift_m_per_min:
-            facts.append(c.phrase(
-                "fact.range_set", set=target, tolerance_m=tolerance_m,
-                minutes=round(tolerance_m / on_set.drift_m_per_min, 1),
-                rate=on_set.drift_m_per_min,
-            ))  # fmt: skip
+        if on_set.minutes_to_tolerance is not None:
+            facts.append(c.phrase("fact.range_set", set=target, tolerance_m=tolerance_m,
+                                  minutes=on_set.minutes_to_tolerance))  # fmt: skip
     if not sets:
         facts.append(c.phrase("fact.no_fallback_set"))
 
@@ -356,12 +353,12 @@ def card_text(card: Mapping[str, Any], lang: str = "en") -> str:
 def _group(outages: Sequence[Mapping[str, Any]]) -> Measured:
     kept = [float(o["kept_s"]) for o in outages if o.get("kept_s") is not None]
     detection = [float(o["detection_s"]) for o in outages if o.get("detection_s") is not None]
-    drift = [float(o["drift"]) for o in outages if o.get("drift") is not None]
+    minutes = [float(o["minutes"]) for o in outages if o.get("minutes") is not None]
     return Measured(
         outages=len(outages),
         hold_s=min(kept) if kept else None,
         detection_s=max(detection) if detection else None,
-        drift_m_per_min=max(drift) if drift else None,
+        minutes_to_tolerance=min(minutes) if minutes else None,
     )
 
 
@@ -384,7 +381,8 @@ def measured(store: Store, airframe_id: str) -> tuple[Measured, Measured]:
         for eid, v in evidence.items():
             if not eid.startswith(OUTAGE) or eid.endswith(":drift"):
                 continue
-            o = dict(v) | {"drift": evidence.get(f"{eid}:drift", {}).get("drift_m_per_min")}
+            drift = evidence.get(f"{eid}:drift", {})
+            o = dict(v) | {"minutes": drift.get("minutes_to_tolerance")}
             other = v.get("source_set") not in (None, 1) or v.get("using_gnss_at_start") is False
             (on_set if other else alone).append(o)
     return _group(alone), _group(on_set)

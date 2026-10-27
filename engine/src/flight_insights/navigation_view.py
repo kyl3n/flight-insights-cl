@@ -144,16 +144,30 @@ def _source(area: Values, used: int | None) -> dict[str, Any]:
 
 def _hold(reg: Registry, o: Values) -> dict[str, Any]:
     kept = o.get("kept_s")
-    verdict = "held" if o.get("held") else "relative" if o.get("kept_relative") else "lost"
+    reckoned = o.get("dead_reckoning_s")
+    verdict = ("held" if o.get("held")
+               else "dead_reckoning" if o.get("kept_relative") and reckoned is not None
+               else "relative" if o.get("kept_relative") else "lost")  # fmt: skip
     return _row("hold", _zone(reg, "no_gnss.hold_s", kept), verdict, kept_s=kept,
-                absolute_s=o.get("absolute_s"), duration_s=o.get("duration_s"))  # fmt: skip
+                absolute_s=o.get("absolute_s"), duration_s=o.get("duration_s"),
+                dead_reckoning_s=reckoned)  # fmt: skip
 
 
 def _drift(reg: Registry, d: Values) -> dict[str, Any]:
-    rate = d.get("drift_m_per_min")
-    return _row("drift", _zone(reg, "no_gnss.drift_rate", rate), "measured",
-                drift_m=d.get("drift_m"), rate=rate,
-                minutes=d.get("minutes_to_tolerance"))  # fmt: skip
+    minutes = d.get("minutes_to_tolerance")
+    return _row("drift", _zone(reg, "no_gnss.minutes_to_tolerance", minutes), "measured",
+                drift_m=d.get("drift_m"), rate=d.get("drift_m_per_min"), minutes=minutes,
+                dead_reckoning=bool(d.get("dead_reckoning")))  # fmt: skip
+
+
+def _soonest(drifts: Sequence[Values]) -> Values | None:
+    """The drift that reached the landing tolerance soonest, else the largest."""
+    if not drifts:
+        return None
+    timed = [d for d in drifts if d.get("minutes_to_tolerance") is not None]
+    if timed:
+        return min(timed, key=lambda d: float(d["minutes_to_tolerance"]))
+    return max(drifts, key=lambda d: float(d.get("drift_m") or 0))
 
 
 def _failsafes(judged: list[dict[str, Any]], names: Sequence[str]) -> dict[str, Any]:
@@ -202,7 +216,8 @@ def _event_rows(
     rows.append(_source(areas.get("position", {}), used))
     if outages:  # the shortest it kept a position for, while GNSS was gone
         rows.append(_hold(reg, min(outages, key=lambda o: float(o.get("kept_s") or 0))))
-        rows += [_drift(reg, o["drift"]) for o in outages if o.get("drift")][:1]
+        if (drift := _soonest([o["drift"] for o in outages if o.get("drift")])) is not None:
+            rows.append(_drift(reg, drift))
     position = a.evidence.get(f"{EVENT}{n}:position")
     if position and position.get("estimator_resets"):
         rows.append(_row("resets", "info", "reset", count=position["estimator_resets"],
@@ -250,7 +265,8 @@ def _outages(a: _Analysis, reg: Registry) -> list[dict[str, Any]]:
         eid = f"{OUTAGE}{n}"
         finding = a.citing(eid, lambda c: c.startswith("no_gnss.position_"))
         keys = ("start_s", "end_s", "duration_s", "drill", "using_gnss_at_start", "detection_s",
-                "absolute_s", "kept_s", "held", "kept_relative", "resumed_s", "source_set",
+                "absolute_s", "kept_s", "held", "kept_relative", "dead_reckoning_s",
+                "resumed_s", "source_set",
                 "failsafes", "mode", "mode_reason")  # fmt: skip
         o: dict[str, Any] = {"n": n, **{k: v.get(k) for k in keys}}
         o["drift"] = a.evidence.get(f"{eid}:drift")

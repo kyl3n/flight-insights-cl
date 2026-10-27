@@ -11,7 +11,7 @@ const section = (id: string, alert = false, lines = 1): CardSection => ({
   steps: [phrase("step.land")],
   alert,
 });
-const none = { outages: 0, hold_s: null, detection_s: null, drift_m_per_min: null };
+const none = { outages: 0, hold_s: null, detection_s: null, minutes_to_tolerance: null };
 const card = (sections: CardSection[]): RecoveryCard => ({
   airframe: "HL1",
   param_set: "a3f9c2d1e5",

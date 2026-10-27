@@ -75,12 +75,15 @@ export interface Outage {
   kept_s: number;
   held: boolean;
   kept_relative: boolean;
+  dead_reckoning_s: number | null; // when it began dead reckoning on the wind alone
   resumed_s: number | null;
   source_set: number | null;
   failsafes: string[];
   mode: string | null;
   mode_reason: string | null;
-  drift: { drift_m: number; drift_m_per_min?: number; minutes_to_tolerance?: number } | null;
+  // drift_m_per_min only where flow or vision corrected the velocity: on dead reckoning
+  // the drift grows with the cube of the time, so the engine gives the minutes alone
+  drift: { drift_m: number; dead_reckoning: boolean; drift_m_per_min?: number; minutes_to_tolerance?: number } | null;
   finding: FindingRef | null;
   events: number[];
   coping: CopingRow[];
@@ -129,7 +132,7 @@ export interface Side {
   outages: number;
   hold_s: number; // the shortest time it kept a position it could fly on
   throughout: boolean; // every one kept a position all through: the hold is a lower bound
-  drift_m_per_min: number | null; // the worst
+  minutes_to_tolerance: number | null; // the soonest the estimate was the landing tolerance off
   scope: "airframe" | "platform" | null;
 }
 
@@ -309,6 +312,10 @@ export function copingText(row: CopingRow, locale: Locale): string {
   }
   if (row.id === "drift" && typeof v.rate === "number") {
     text += translate(locale, "nav.cope.drift.rate", { rate: num(v.rate, locale), minutes: num(v.minutes, locale) });
+  } else if (row.id === "drift" && typeof v.minutes === "number") {
+    text += translate(locale, v.dead_reckoning === true ? "nav.cope.drift.cube" : "nav.cope.drift.minutes", {
+      minutes: num(v.minutes, locale),
+    });
   }
   if (row.id === "heading" && v.no_reset === true) {
     text = `${translate(locale, "nav.cope.heading.noReset")}; ${text}`;
@@ -391,8 +398,8 @@ export function statusText(m: Mitigation, v: NavigationView, locale: Locale): st
 function sideText(s: Side, locale: Locale): string {
   const vars = { hold: formatNumber(s.hold_s, locale), count: s.outages };
   let text = translate(locale, s.throughout ? "nav.mit.side.throughout" : "nav.mit.side.hold", vars);
-  if (s.drift_m_per_min !== null) {
-    text += translate(locale, "nav.mit.side.drift", { rate: formatNumber(s.drift_m_per_min, locale) });
+  if (s.minutes_to_tolerance !== null) {
+    text += translate(locale, "nav.mit.side.minutes", { minutes: formatNumber(s.minutes_to_tolerance, locale) });
   }
   return text;
 }

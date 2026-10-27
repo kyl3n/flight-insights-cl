@@ -9,8 +9,8 @@
       "unit": "s",
       "direction": "higher",
       "definition": {
-        "en": "The shortest time the estimator kept a position the aircraft could fly on after GNSS went, over the flight's outages and drills: absolute, or relative from optical flow or vision. An outage it came through still holding one counts its whole length, so the true hold is at least that.",
-        "uk": "Найкоротший час, протягом якого оцінювач зберігав положення, придатне для польоту, після зникнення GNSS, серед втрат і тренувань польоту: абсолютне або відносне від оптичного потоку чи візуальної навігації. Втрата, яку він пережив, зберігши таке положення, рахується всією тривалістю, тож справжнє утримання не менше за неї."
+        "en": "The shortest time the estimator kept a position the aircraft could fly on after GNSS went, over the flight's outages and drills: absolute, or relative from optical flow, vision or dead reckoning. An outage it came through still holding one counts its whole length, so the true hold is at least that.",
+        "uk": "Найкоротший час, протягом якого оцінювач зберігав положення, придатне для польоту, після зникнення GNSS, серед втрат і тренувань польоту: абсолютне або відносне від оптичного потоку, візуальної навігації чи навігації за рахунком. Втрата, яку він пережив, зберігши таке положення, рахується всією тривалістю, тож справжнє утримання не менше за неї."
       },
       "method": {
         "en": "From the primary core's solution status (XKF4.SS, where C is PI): the time from the outage's start until its horizontal absolute position flag (bit 4) clears, or the whole outage when that or the relative position flag (bit 3) stayed set throughout.",
@@ -53,30 +53,30 @@
         "title": "The app's bands: ArduPilot's estimator stops using GNSS about 4 s after it goes (local SITL, rules/no_gnss.json); much longer means it kept fusing a position that was no longer there"
       }
     },
-    "no_gnss.drift_rate": {
+    "no_gnss.minutes_to_tolerance": {
       "name": {
-        "en": "Drift without GNSS",
-        "uk": "Дрейф без GNSS"
+        "en": "Time to the landing tolerance without GNSS",
+        "uk": "Час до допуску посадки без GNSS"
       },
-      "unit": "m/min",
-      "direction": "lower",
+      "unit": "min",
+      "direction": "higher",
       "definition": {
-        "en": "How far the position estimate had drifted from GNSS when it returned, per minute of outage: the worst over the flight's outages of 10 s or more. A landing tolerance divided by it is how long the aircraft can fly without GNSS.",
-        "uk": "Наскільки оцінка положення відійшла від GNSS на момент його повернення, у розрахунку на хвилину втрати: найгірша серед втрат польоту тривалістю від 10 с. Допуск посадки, поділений на неї, — це скільки апарат може летіти без GNSS."
+        "en": "How long after GNSS goes the position estimate is a landing tolerance (10 m) off, worked out from the drift found when GNSS returned: the soonest over the flight's outages of 10 s or more. It is how long the aircraft can fly without GNSS and still land where it means to.",
+        "uk": "Через скільки після зникнення GNSS оцінка положення відійде на допуск посадки (10 м), за дрейфом, знайденим на момент повернення GNSS: найменше значення серед втрат польоту тривалістю від 10 с. Це скільки апарат може летіти без GNSS і все ще сісти там, де треба."
       },
       "method": {
-        "en": "At the first sample with a 3D fix after the outage, the horizontal distance between the receiver's position and the estimator's, as local tracks from one origin on this laptop, divided by the outage's length in minutes.",
-        "uk": "У першому зразку з 3D-фіксацією після втрати — горизонтальна відстань між положенням приймача й оцінювача, як локальні траєкторії від одного початку на цьому ноутбуці, поділена на тривалість втрати у хвилинах."
+        "en": "At the first sample with a 3D fix after the outage, the horizontal distance between the receiver's position and the estimator's, as local tracks from one origin on this laptop. The drift grows with the time when optical flow or vision corrected the velocity, and with the cube of the time on dead reckoning (XKF4.SS bit 18), where nothing corrects the position or the tilt: the time is the outage's length times (tolerance / drift) to the power 1 or 1/3.",
+        "uk": "У першому зразку з 3D-фіксацією після втрати — горизонтальна відстань між положенням приймача й оцінювача, як локальні траєкторії від одного початку на цьому ноутбуці. Дрейф зростає пропорційно часу, коли оптичний потік чи візуальна навігація виправляли швидкість, і пропорційно кубу часу при навігації за рахунком (XKF4.SS, біт 18), коли ніщо не виправляє ні положення, ні нахил: час — це тривалість втрати, помножена на (допуск / дрейф) у степені 1 або 1/3."
       },
-      "messages": ["GPS", "POS"],
+      "messages": ["GPS", "POS", "XKF4"],
       "zones": {
-        "target": [null, 5],
-        "caution": [5, 30],
-        "out": [30, null]
+        "target": [2, null],
+        "caution": [0.33, 2],
+        "out": [null, 0.33]
       },
       "source": {
         "kind": "app",
-        "title": "The app's bands against a 10 m landing tolerance: under 5 m a minute gives two minutes or more to get home; past 30 m a minute, under 20 s"
+        "title": "The app's bands against a 10 m landing tolerance: two minutes or more to get home is the target; under 20 s there is little time to act. The growth with the cube of the time on dead reckoning is from the 4.7.0 source and a SITL study (rules/no_gnss.json, drift.growth)"
       }
     }
   },

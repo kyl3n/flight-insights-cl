@@ -133,7 +133,8 @@ def test_drills_with_and_without_another_position_source(
     assert row(o["coping"], "source")["values"] == {"set": 2}
     assert got["source"] == ("ok", "used")
     assert got["hold"] == ("ok", "relative")  # 30.2 s on optical flow
-    assert row(o["coping"], "drift")["values"] == {"drift_m": 0.1, "rate": 0.2, "minutes": 50.0}
+    assert row(o["coping"], "drift")["values"] == {"drift_m": 0.1, "rate": 0.2, "minutes": 43.0,
+                                                   "dead_reckoning": False}  # fmt: skip
     assert got["drift"] == ("ok", "measured")
     assert got["failsafe"] == ("info", "none")
 
@@ -227,3 +228,30 @@ def test_the_goal_and_the_rpc_refusals(fleet: tuple[Any, Any, Views, dict[str, A
     assert "no such flight" in missing["error"]["message"]
     bad = call(server, out, 61, "flight.navigation")
     assert bad["error"]["code"] == -32602
+
+
+def test_a_dead_reckoned_outage_and_the_soonest_drift() -> None:
+    """In 4.7.0 the relative-position flag stays set while the estimator dead-reckons, so
+    the hold says dead reckoning only from its own flag; of several drifts the one that
+    reached the landing tolerance soonest is shown, however small its metres."""
+    from flight_insights.analyzers.registry import Registry
+    from flight_insights.knowledge import load_pack
+    from flight_insights.navigation_view import _drift, _hold, _soonest  # pyright: ignore[reportPrivateUsage]
+
+    reg = Registry.load(load_pack())
+    outage = {"kept_s": 30.0, "absolute_s": 10.0, "duration_s": 30.0, "held": False,
+              "kept_relative": True, "dead_reckoning_s": 10.0}  # fmt: skip
+    hold = _hold(reg, outage)
+    assert (hold["verdict"], hold["values"]["dead_reckoning_s"]) == ("dead_reckoning", 10.0)
+    assert _hold(reg, outage | {"dead_reckoning_s": None})["verdict"] == "relative"
+    flow = {"drift_m": 3.0, "drift_m_per_min": 6.0, "minutes_to_tolerance": 1.7,
+            "dead_reckoning": False}  # fmt: skip
+    reckoned = {"drift_m": 2.5, "minutes_to_tolerance": 0.8, "dead_reckoning": True}
+    soonest = _soonest([flow, reckoned])
+    assert soonest is reckoned
+    row = _drift(reg, reckoned)
+    assert (row["status"], row["values"]["rate"], row["values"]["dead_reckoning"]) == (
+        "caution", None, True,
+    )  # fmt: skip
+    assert _soonest([{"drift_m": 0.4}, {"drift_m": 1.2}]) == {"drift_m": 1.2}
+    assert _soonest([]) is None

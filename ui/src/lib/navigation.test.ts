@@ -47,7 +47,7 @@ const event = (over: Partial<NavEvent> = {}): NavEvent => ({
 const outage = (over: Partial<Outage> = {}): Outage => ({
   n: 1, drill: true, start_s: 24, end_s: 44.4, duration_s: 20.4, using_gnss_at_start: true,
   detection_s: 3.9, absolute_s: 6.9, kept_s: 6.9, held: false, kept_relative: false,
-  resumed_s: 0.1, source_set: null, failsafes: [], mode: "LAND", mode_reason: "EKF_FAILSAFE",
+  dead_reckoning_s: null, resumed_s: 0.1, source_set: null, failsafes: [], mode: "LAND", mode_reason: "EKF_FAILSAFE",
   drift: null, finding: null, events: [], coping: [], evidence: [], ...over,
 });
 const view = (over: Partial<NavigationView> = {}): NavigationView => ({
@@ -85,6 +85,15 @@ describe("what How the aircraft coped shows", () => {
     expect(copingText(onFlow, "en")).toBe("was not using GNSS when it went (source set 2)");
     const drift = row({ id: "drift", status: "ok", verdict: "measured", values: { drift_m: 0.1, rate: 0.2, minutes: 50 } });
     expect(copingText(drift, "en")).toBe("0.1 m from GNSS when it returned; 0.2 m a minute, off by the landing tolerance after 50 min");
+    // on dead reckoning the engine gives no drift a minute: the drift grows with the cube of the time
+    const reckoned = row({ id: "drift", status: "caution", verdict: "measured", values: { drift_m: 2.5, rate: null, minutes: 0.8, dead_reckoning: true } });
+    expect(copingText(reckoned, "en")).toBe(
+      "2.5 m from GNSS when it returned; on dead reckoning it grows with the cube of the time flown, off by the landing tolerance after 0.8 min",
+    );
+    expect(copingText(reckoned, "uk")).toContain("пропорційно кубу часу польоту");
+    const hold = row({ id: "hold", status: "ok", verdict: "dead_reckoning", values: { duration_s: 30, dead_reckoning_s: 10, absolute_s: 10, kept_s: 30 } });
+    expect(copingText(hold, "en")).toBe("kept a position throughout the 30 s, on dead reckoning from 10 s (absolute for 10 s)");
+    expect(verdictWord(hold, "en")).toBe("Kept, dead reckoning");
     const heading = row({ id: "heading", status: "ok", verdict: "ready", values: { compasses: 3, no_reset: true } });
     expect(copingText(heading, "en")).toBe(
       "no heading reset from GNSS velocity; the heading does not depend on GNSS (compasses in use: 3)",
@@ -172,8 +181,8 @@ const mitigation = (over: Partial<Mitigation> = {}): Mitigation => ({
   makes_goal: true, rule: "goal", basis: "measured",
   measured: {
     scope: "platform",
-    with: { outages: 1, hold_s: 30.2, throughout: true, drift_m_per_min: 0.2, scope: "platform" },
-    without: { outages: 3, hold_s: 5.5, throughout: false, drift_m_per_min: null, scope: "platform" },
+    with: { outages: 1, hold_s: 30.2, throughout: true, minutes_to_tolerance: 50, scope: "platform" },
+    without: { outages: 3, hold_s: 5.5, throughout: false, minutes_to_tolerance: null, scope: "platform" },
   },
   expected: { level: "keeps_position", text: { en: "Modes work as with a GPS.", uk: "Режими працюють як із GPS." }, sources: [] },
   bounds: ["relative_position"], needs: [], limits: [], closes: { areas: [], findings: [] }, steps: [],
@@ -189,7 +198,7 @@ describe("the ranked mitigations", () => {
     const b = benefitText(mitigation(), "en");
     expect(b.label).toBe("Measured on this platform's airframes");
     expect(b.lines).toEqual([
-      "With it: kept a position all through, at least 30.2 s (1 measured); drift up to 0.2 m a minute",
+      "With it: kept a position all through, at least 30.2 s (1 measured); off by the landing tolerance after 50 min at the soonest",
       "Without it: kept a position 5.5 s at the shortest (3 measured)",
     ]);
     expect(benefitText(mitigation(), "uk").lines[1]).toBe("Без нього: утримував позицію щонайменше 5,5 с (виміряно: 3)");
@@ -198,7 +207,7 @@ describe("the ranked mitigations", () => {
   it("labels an expected benefit so, with any one side the fleet measured", () => {
     const vio = mitigation({
       id: "visual_odometry", basis: "expected", rule: "goal",
-      measured: { scope: null, with: null, without: { outages: 2, hold_s: 5.5, throughout: false, drift_m_per_min: null, scope: "airframe" } },
+      measured: { scope: null, with: null, without: { outages: 2, hold_s: 5.5, throughout: false, minutes_to_tolerance: null, scope: "airframe" } },
     });
     const b = benefitText(vio, "en");
     expect(b.label).toBe("Expected, not yet measured on this fleet");

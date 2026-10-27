@@ -21,7 +21,7 @@ from flight_insights.knowledge import load_pack
 ARM, DISARM = 1_000_000, 59_000_000
 LAT, LON = 10.0, 20.0  # a synthetic origin
 M = 1 / 111_320  # degrees of latitude per metre, near enough for a test
-REL, ABS, USING = 1 << 3, 1 << 4, 1 << 13
+REL, ABS, USING, DR = 1 << 3, 1 << 4, 1 << 13, 1 << 18
 GOOD = REL | ABS | USING | 0b111  # attitude, velocities
 Columns = dict[str, np.ndarray[Any, Any]]
 
@@ -138,9 +138,83 @@ def test_a_drill_on_optical_flow_keeps_a_relative_position(reg: Registry) -> Non
     drift = next(e for e in out.evidence if e.id == "no_gnss:outage:1:drift")
     assert drift.values["drift_m"] == pytest.approx(3.0, abs=0.1)
     assert drift.values["drift_m_per_min"] == pytest.approx(6.0, abs=0.2)
+    assert drift.values["minutes_to_tolerance"] == pytest.approx(10 / 6, abs=0.06)
+    assert drift.values["dead_reckoning"] is False
     metrics = {m.metric: m.value for m in out.metrics}
     assert metrics["no_gnss.hold_s"] == 30.0  # kept a position it could fly on throughout
     assert "no_gnss.detection_s" not in metrics  # it was not using GNSS to begin with
+    assert metrics["no_gnss.minutes_to_tolerance"] == drift.values["minutes_to_tolerance"]
+
+
+def dead_reckoned(drift_m: float) -> dict[str, Columns]:
+    """GNSS lost for 30 s in a hover with drag fusion: the estimator stops using it after
+    4 s and dead-reckons on the wind from 10 s (XKF4.SS: relative position and bit 18, no
+    absolute position), as the SITL study logged it; the estimate is `drift_m` off when
+    GNSS returns."""
+    cols = hover()
+    lost_gnss(cols, 20, 50)
+    set_(cols, "XKF4", "SS", 24, 30, REL | ABS | 0b111)
+    set_(cols, "XKF4", "SS", 30, 50.4, REL | DR | 0b111)
+    set_(cols, "POS", "Lat", 20, 50, LAT + drift_m * M)
+    return cols
+
+
+def test_dead_reckoning_drift_grows_with_the_cube_of_the_time(reg: Registry) -> None:
+    """Nothing corrects the position or the tilt on dead reckoning, so the error grows
+    with the cube of the time: 2.5 m after 30 s is 10 m after 30 * 4^(1/3) = 47.6 s, not
+    the 120 s a drift per minute would say."""
+    out = run(dead_reckoned(2.5), reg)
+    [f] = out.findings
+    assert f.code == "no_gnss.position_held"
+    assert f.params["response"].startswith(
+        "the estimator stopped using GNSS after 4 s; "
+        "it kept a position on dead reckoning from 10 s (absolute for 10 s)"
+    )
+    [outage] = [e for e in out.evidence if e.id == "no_gnss:outage:1"]
+    assert outage.values["dead_reckoning_s"] == 10.0
+    drift = next(e for e in out.evidence if e.id == "no_gnss:outage:1:drift")
+    assert drift.values["drift_m"] == pytest.approx(2.5, abs=0.1)
+    assert drift.values["dead_reckoning"] is True
+    assert "drift_m_per_min" not in drift.values  # it would understate a longer flight
+    expected = 0.5 * (10 / drift.values["drift_m"]) ** (1 / 3)
+    assert drift.values["minutes_to_tolerance"] == pytest.approx(expected, abs=0.05)
+    assert "growing with the cube of the time flown" in drift.summary
+    metrics = {m.metric: (m.value, m.zone) for m in out.metrics}
+    assert metrics["no_gnss.minutes_to_tolerance"] == (drift.values["minutes_to_tolerance"],
+                                                       "caution")  # fmt: skip
+
+
+def test_a_dead_reckoned_outage_past_the_tolerance_comes_sooner_by_the_cube(
+    reg: Registry,
+) -> None:
+    """Already 80 m off after 30 s: the tolerance came at 30 / 8^(1/3) = 15 s, which the
+    simulator's curves bear out; a straight line would put it at 3.75 s."""
+    drift = next(e for e in run(dead_reckoned(80), reg).evidence
+                 if e.id == "no_gnss:outage:1:drift")  # fmt: skip
+    assert drift.values["minutes_to_tolerance"] == pytest.approx(0.25, abs=0.05)
+
+
+def test_what_of_a_dead_reckoned_outage_may_reach_the_ai(reg: Registry) -> None:
+    """The outage's evidence reads no position, so when dead reckoning began (a time)
+    goes with it; the drift's evidence is withheld but for its allowlisted numbers, so the
+    drift in whole metres and the time to the tolerance pass, and its flag does not."""
+    out = run(dead_reckoned(2.5), reg)
+    policy = Policy.load(load_pack(), "4.7.0")
+    [outage] = [e for e in out.evidence if e.id == "no_gnss:outage:1"]
+    assert policy.evidence_clear(outage.kind, outage.messages, outage.fields)
+    assert outage.values["dead_reckoning_s"] == 10.0
+    [drift] = [e for e in out.evidence if e.id == "no_gnss:outage:1:drift"]
+    assert not policy.evidence_clear(drift.kind, drift.messages, drift.fields)
+    assert policy.derived(drift.values) == {
+        "drift_m": round(drift.values["drift_m"]),
+        "minutes_to_tolerance": drift.values["minutes_to_tolerance"],
+    }
+
+
+def test_no_time_to_the_tolerance_from_a_drift_too_small_to_read(reg: Registry) -> None:
+    drift = next(e for e in run(dead_reckoned(0.0), reg).evidence
+                 if e.id == "no_gnss:outage:1:drift")  # fmt: skip
+    assert "minutes_to_tolerance" not in drift.values
 
 
 def test_no_drift_from_a_return_that_cannot_be_trusted(reg: Registry) -> None:

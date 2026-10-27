@@ -74,8 +74,14 @@ def test_a_drill_on_optical_flow_keeps_a_position(
     assert ev["kept_relative"] is True and ev["failsafes"] == [] and ev["mode"] is None
     drift = next(e for e in r.evidence if e.id == "no_gnss:outage:1:drift")
     assert drift.values["drift_m"] < 3  # optical flow held it in a 6 m/s wind
+    # flow corrected the velocity, so the drift grows in step with the time
+    assert ev["dead_reckoning_s"] is None and drift.values["dead_reckoning"] is False
+    d, minutes = drift.values["drift_m"], ev["duration_s"] / 60 * 10  # d is rounded
+    assert minutes / (d + 0.05) <= drift.values["minutes_to_tolerance"] <= minutes / (d - 0.05)
     metrics = {m.metric: (m.value, m.zone) for m in r.metrics}
     assert metrics["no_gnss.hold_s"][0] >= 30 and metrics["no_gnss.hold_s"][1] == "target"
+    assert metrics["no_gnss.minutes_to_tolerance"] == (drift.values["minutes_to_tolerance"],
+                                                       "target")  # fmt: skip
     assert gnss.findings == []
 
 

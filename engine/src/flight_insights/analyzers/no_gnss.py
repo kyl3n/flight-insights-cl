@@ -7,14 +7,17 @@ turned GNSS off at its start. For each, from the primary estimator core's own so
 status (XKF4.SS):
 - detection: how long after the loss the estimator stopped using GNSS;
 - hold: how long it kept an absolute position, or that it kept one all along;
-- whether it kept a relative position (optical flow or vision) throughout;
+- whether it kept a relative position throughout (optical flow, vision or body velocity,
+  or dead reckoning on the wind alone), and when it began dead reckoning;
 - how long after GNSS returned it used it again;
 - the source set in use (aux function 90), the failsafes that triggered, and the first mode
   change within `response_s`, with its reason;
 - drift: when GNSS returns, how far the estimate is from it, compared as local tracks
-  from one origin, and per minute of outage for outages of `drift.min_outage_s` or more;
-  only when GNSS comes back trustworthy (its fix held, its accuracy good, no drift
-  faster than an aircraft could move).
+  from one origin; only when GNSS comes back trustworthy (its fix held, its accuracy
+  good, no drift faster than an aircraft could move). For outages of
+  `drift.min_outage_s` or more, how long until the estimate is `landing_tolerance_m` off,
+  with the drift growing with the time when flow or vision corrected the velocity, and
+  with its cube on dead reckoning (`drift.growth`); a drift per minute only for the first.
 
 The flight's range is measured too, whatever its outages: the farthest it flew from
 where it armed, from the estimator's track (local_track), and how long it was armed, so
@@ -114,19 +117,21 @@ class Measured:
     duration_s: float
     hold_s: float  # how long it kept an absolute position (the whole outage if it kept it)
     held: bool  # kept an absolute position all along
-    kept_relative: bool  # kept a relative position all along (flow or vision)
+    kept_relative: bool  # kept a relative position all along (flow, vision or the wind)
+    dead_reckoning_s: float | None  # when it began dead reckoning on the wind alone
     resumed_s: float | None  # after GNSS returned, until it was used again
     source_set: int | None
     failsafes: tuple[str, ...]
     mode: str | None
     reason: str | None
     drift_m: float | None  # the estimate against GNSS when it returned
-    rate_m_min: float | None
+    rate_m_min: float | None  # with flow or vision only: dead reckoning grows faster
+    minutes_to_tolerance: float | None  # until the estimate is the landing tolerance off
 
     @property
     def kept_s(self) -> float:
         """How long it kept a position it could fly on: absolute, or relative from optical
-        flow or vision; the whole outage when it kept one throughout."""
+        flow, vision or dead reckoning; the whole outage when it kept one throughout."""
         return self.duration_s if self.held or self.kept_relative else self.hold_s
 
     def words(self) -> str:
@@ -138,6 +143,9 @@ class Measured:
             out.append(f"the estimator stopped using GNSS after {self.detection_s:g} s")
         if self.held:
             out.append("it kept its position throughout")
+        elif self.kept_relative and self.dead_reckoning_s is not None:
+            out.append(f"it kept a position on dead reckoning from {self.dead_reckoning_s:g} s "
+                       f"(absolute for {self.hold_s:g} s)")  # fmt: skip
         elif self.kept_relative:
             out.append(f"it kept a relative position throughout (absolute for {self.hold_s:g} s)")
         else:
@@ -253,6 +261,7 @@ def measure(
     using, held, relative, hold = True, True, False, duration
     detection: float | None = None
     resumed: float | None = None
+    reckoned: float | None = None
     if status is not None and len(status[0]):
         st, ss = status
 
@@ -272,6 +281,9 @@ def measure(
             if len(lost):
                 hold = float(st[lost[0]] - o.start_us) / 1e6
             relative = bool(np.all(on("horiz_pos_rel", window)))
+            dead = window[on("dead_reckoning", window)]
+            if len(dead):
+                reckoned = round(float(st[dead[0]] - o.start_us) / 1e6, 1)
         after = np.flatnonzero((st > o.end_us) & (st <= o.end_us + float(rules["resume_s"]) * 1e6))
         again = after[on("using_gps", after)] if len(after) else after
         if len(again) and (detection is not None or not using):  # it had stopped using GNSS
@@ -282,16 +294,24 @@ def measure(
     # drift means something only while the estimator still claimed a position when GNSS
     # came back: once it gives one up, the position it logs is a stale value
     drift = _drift(flight, o, first, rules) if held or relative else None
-    long = duration >= float(rules["drift"]["min_outage_s"])
-    rate = drift / (duration / 60) if drift is not None and long else None
+    d = rules["drift"]
+    long = duration >= float(d["min_outage_s"])
+    growth = float(d["growth"]["dead_reckoning" if reckoned is not None else "aided"])
+    rate = minutes = None
+    if drift is not None and long and drift >= float(d["min_m"]):
+        tolerance = float(rules["landing_tolerance_m"])
+        minutes = duration / 60 * (tolerance / drift) ** (1 / growth)
+        if reckoned is None:
+            rate = drift / (duration / 60)
     return Measured(
         using_at_start=using, detection_s=detection, duration_s=round(duration, 1),
         hold_s=round(hold, 1), held=held,
-        kept_relative=relative, resumed_s=resumed,
+        kept_relative=relative, dead_reckoning_s=reckoned, resumed_s=resumed,
         source_set=source_set_at(flight, int(rules["aux"]["source_set"]), o.start_us),
         failsafes=failsafes, mode=mode, reason=reason,
         drift_m=None if drift is None else round(drift, 1),
         rate_m_min=None if rate is None else round(rate, 1),
+        minutes_to_tolerance=None if minutes is None else round(minutes, 1),
     )  # fmt: skip
 
 
@@ -321,19 +341,23 @@ def _evidence(flight: FlightData, n: int, o: Outage, m: Measured, rules: Mapping
                 "duration_s": round((o.end_us - o.start_us) / 1e6, 1), "drill": o.drill,
                 "using_gnss_at_start": m.using_at_start, "detection_s": m.detection_s,
                 "absolute_s": m.hold_s, "kept_s": m.kept_s, "held": m.held,
-                "kept_relative": m.kept_relative,
+                "kept_relative": m.kept_relative, "dead_reckoning_s": m.dead_reckoning_s,
                 "resumed_s": m.resumed_s, "source_set": m.source_set,
                 "failsafes": list(m.failsafes), "mode": m.mode, "mode_reason": m.reason},
     )]  # fmt: skip
     if m.drift_m is not None:
-        values: dict[str, Any] = {"drift_m": m.drift_m}
+        reckoned = m.dead_reckoning_s is not None
+        values: dict[str, Any] = {"drift_m": m.drift_m, "dead_reckoning": reckoned}
         words = f"when GNSS returned, the estimate was {m.drift_m:g} m from it"
-        if m.rate_m_min:
-            tolerance = float(rules["landing_tolerance_m"])
-            values |= {"drift_m_per_min": m.rate_m_min,
-                       "minutes_to_tolerance": round(tolerance / m.rate_m_min, 1)}  # fmt: skip
-            words += (f" ({m.rate_m_min:g} m per minute: {tolerance:g} m off after "
-                      f"{tolerance / m.rate_m_min:.1f} min)")  # fmt: skip
+        tolerance = float(rules["landing_tolerance_m"])
+        if m.rate_m_min is not None:
+            values["drift_m_per_min"] = m.rate_m_min
+            words += f" ({m.rate_m_min:g} m per minute"
+        elif m.minutes_to_tolerance is not None:
+            words += " (on dead reckoning, growing with the cube of the time flown"
+        if m.minutes_to_tolerance is not None:
+            values["minutes_to_tolerance"] = m.minutes_to_tolerance
+            words += f": {tolerance:g} m off after {m.minutes_to_tolerance:g} min)"
         out.append(Evidence(id=f"no_gnss:outage:{n}:drift", kind="fact", summary=words,
                             messages=("GPS", "POS"), fields=("Lat", "Lng"), segment=seg,
                             values=values))  # fmt: skip
@@ -421,20 +445,23 @@ def _measure(
     metric("no_gnss.hold_s", min(m.kept_s for _, m in measured), ev)
     if detections := [m.detection_s for _, m in measured if m.detection_s is not None]:
         metric("no_gnss.detection_s", max(detections), ev)
-    if rates := [m.rate_m_min for _, m in measured if m.rate_m_min is not None]:
+    if times := [m.minutes_to_tolerance for _, m in measured
+                 if m.minutes_to_tolerance is not None]:  # fmt: skip
+        tolerance = float(rules["landing_tolerance_m"])
         dev = Evidence(id="no_gnss:flight:drift", kind="fact",
-                       summary=f"without GNSS the estimate drifted up to {max(rates):g} m a minute",
+                       summary=f"without GNSS the estimate was {tolerance:g} m off after "
+                       f"{min(times):g} min at the soonest",
                        messages=("GPS", "POS"), fields=("Lat", "Lng"), segment=flight.armed,
-                       values={"drift_m_per_min": max(rates)})  # fmt: skip
+                       values={"minutes_to_tolerance": min(times)})  # fmt: skip
         out.evidence.append(dev)
-        metric("no_gnss.drift_rate", max(rates), dev)
+        metric("no_gnss.minutes_to_tolerance", min(times), dev)
     return out
 
 
 NO_GNSS = Analyzer(
     name="no_gnss",
-    version=2,
+    version=3,
     run=_no_gnss,
-    metrics=("no_gnss.hold_s", "no_gnss.detection_s", "no_gnss.drift_rate"),
+    metrics=("no_gnss.hold_s", "no_gnss.detection_s", "no_gnss.minutes_to_tolerance"),
     findings=("no_gnss.position_held", "no_gnss.position_lost"),
 )
