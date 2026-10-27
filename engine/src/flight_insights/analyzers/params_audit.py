@@ -316,6 +316,21 @@ def _failsafes(
             continue
         if p.get(name) == 0:
             add(code, "caution", [name], {}, back_to_default(name))
+    # Winning the radio link back comes first (platform setup): dead reckoning keeps
+    # flying the failsafe home until the battery says otherwise, not for FS_DR_TIMEOUT's
+    # usual half minute.
+    want = float(rules["dr_timeout"]["win_link_back_s"])
+    if (
+        flight.answers.get("link_loss") == "win_link_back"
+        and drag_fusion(p, readiness)
+        and p.get("FS_DR_ENABLE", 0) != 0
+        and p.get("FS_DR_TIMEOUT", want) < want
+    ):
+        add(
+            "params.dead_reckoning_timeout_short", "caution", ["FS_DR_TIMEOUT", "FS_DR_ENABLE"],
+            {"value": format_value(p["FS_DR_TIMEOUT"]), "proposed": format_value(want)},
+            (CandidateChange("FS_DR_TIMEOUT", p["FS_DR_TIMEOUT"], want, "operations"),),
+        )  # fmt: skip
     # Flown from the ground station alone (RC_OPTIONS bit 0 ignores the receiver), the
     # GCS link is the only one, and losing it must do something.
     if int(p.get("RC_OPTIONS", 0)) & 1 and p.get("FS_GCS_ENABLE") == 0:
@@ -650,7 +665,7 @@ def _never_tuned(flight: FlightData, rules: Mapping[str, Any], out: Result) -> N
 
 PARAMS_AUDIT = Analyzer(
     name="params",
-    version=6,
+    version=7,
     run=_audit,
     metrics=(),
     findings=(
@@ -663,8 +678,8 @@ PARAMS_AUDIT = Analyzer(
         "params.other_battery_warn_only", "params.battery_capacity",
         "params.battery_arm_unchecked", "params.power_module_uncalibrated",
         "params.battery_no_low", "params.vibe_failsafe_off",
-        "params.dead_reckoning_failsafe_off", "params.ekf_failsafe_off",
-        "params.gcs_failsafe_off", "params.arming_checks_skipped",
+        "params.dead_reckoning_failsafe_off", "params.dead_reckoning_timeout_short",
+        "params.ekf_failsafe_off", "params.gcs_failsafe_off", "params.arming_checks_skipped",
         "params.tuning_starting_values", "params.second_gnss_unset",
         "params.compassmot_not_done", "params.no_gnss_fallback", "params.fence_off",
         "params.undefined_bits",

@@ -85,7 +85,8 @@ def test_continuing_under_pilot_control_with_no_one_flying_it(reg: Registry) -> 
     c = card(reg, **STATION, FS_THR_ENABLE=0.0, FS_GCS_ENABLE=1.0, FS_OPTIONS=16.0,
              FS_EKF_ACTION=2.0)  # fmt: skip
     assert will(c, "link_lost")[1:] == [
-        "hold where it is with no one flying it: its failsafe settings let it, flown in Loiter",
+        "hold where it is with no one flying it: its failsafe settings let it, flown in Loiter "
+        "or PosHold",
         "hold its height with no one flying it, drifting with the wind: its failsafe settings "
         "let it, flown in AltHold",
         "fly home and land (RTL) after 5 s (ground-station failsafe), flown in Guided or Auto",
@@ -105,7 +106,8 @@ def test_fs_options_unset_is_the_firmwares_default_continue_under_pilot_control(
     c = build(readiness, SITL, NOTHING, p | STATION | {"FS_THR_ENABLE": 0.0, "FS_GCS_ENABLE": 1.0},
               DOC, 10.0, "HL1", None, None, failsafes=reg.rules["failsafes"])  # fmt: skip
     assert will(c, "link_lost")[1:3] == [
-        "hold where it is with no one flying it: its failsafe settings let it, flown in Loiter",
+        "hold where it is with no one flying it: its failsafe settings let it, flown in Loiter "
+        "or PosHold",
         "hold its height with no one flying it, drifting with the wind: its failsafe settings "
         "let it, flown in AltHold",
     ]
@@ -124,7 +126,9 @@ def test_with_the_radio_failsafe_in_force_the_ekf_failsafe_lands_instead(reg: Re
 def test_no_failsafe_on_says_so_and_what_it_does(reg: Registry) -> None:
     c = card(reg, **STATION, FS_THR_ENABLE=0.0, FS_GCS_ENABLE=0.0)
     lines = will(c, "link_lost")
-    assert lines[1] == "hold where it is with no one flying it: no failsafe acts, flown in Loiter"
+    assert lines[1] == (
+        "hold where it is with no one flying it: no failsafe acts, flown in Loiter or PosHold"
+    )
     assert lines[3] == "carry on with its last command (Guided): no failsafe acts, flown in Guided"
     assert lines[-1].endswith("if GNSS is lost too, by its mode and which is lost first")
     assert "step.link_no_failsafe" in keys(c, "link_lost")
@@ -134,7 +138,8 @@ def test_a_pilots_radio_and_the_telemetry_are_lost_apart(reg: Registry) -> None:
     c = card(reg, FS_THR_ENABLE=1.0, FS_THR_VALUE=950.0, FS_GCS_ENABLE=1.0, FS_OPTIONS=1.0)
     assert [s["id"] for s in c["sections"]][2:] == ["radio_lost", "telemetry_lost"]
     assert will(c, "radio_lost") == [
-        "fly home and land (RTL) after 1 s (radio failsafe), flown in Loiter, AltHold or Guided",
+        "fly home and land (RTL) after 1 s (radio failsafe), flown in Loiter, PosHold, AltHold "
+        "or Guided",
         "carry on with the mission (Auto): its failsafe settings let it, flown in Auto",
         "act at once instead if the receiver sends a failsafe throttle under 950 (FS_THR_VALUE)",
         "not notice the loss at all if the receiver holds its last values instead: set it to stop "
@@ -148,7 +153,7 @@ def test_a_pilots_radio_and_the_telemetry_are_lost_apart(reg: Registry) -> None:
     ]
     quiet = card(reg, FS_THR_ENABLE=1.0, FS_GCS_ENABLE=0.0)
     assert will(quiet, "telemetry_lost")[0] == (
-        "carry on under the pilot's control: no failsafe acts, flown in Loiter or AltHold"
+        "carry on under the pilot's control: no failsafe acts, flown in Loiter, PosHold or AltHold"
     )
 
 

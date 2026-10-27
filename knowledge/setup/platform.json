@@ -820,6 +820,33 @@
      ]
     },
     {
+     "id": "link_loss",
+     "label": {
+      "en": "When the radio link and GNSS are lost",
+      "uk": "Коли втрачено радіозв'язок і GNSS"
+     },
+     "type": "choice",
+     "required": false,
+     "why": {
+      "en": "How long the aircraft keeps flying its failsafe home on dead reckoning (FS_DR_TIMEOUT)",
+      "uk": "Як довго апарат летить додому в аварійному режимі за рахунком (FS_DR_TIMEOUT)"
+     },
+     "choices": [
+      "win_link_back",
+      "land_when_unsure"
+     ],
+     "choice_labels": {
+      "win_link_back": {
+       "en": "Win the link back: keep flying home on dead reckoning",
+       "uk": "Відновити зв'язок: летіти додому за рахунком і далі"
+      },
+      "land_when_unsure": {
+       "en": "Land once dead reckoning has run as long as drills held a position",
+       "uk": "Сісти, коли навігація за рахунком триватиме стільки, скільки тренування тримали позицію"
+      }
+     }
+    },
+    {
      "id": "video_link",
      "label": {
       "en": "Video link",

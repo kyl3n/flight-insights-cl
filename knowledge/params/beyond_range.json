@@ -1,0 +1,15 @@
+{
+  "about": "Parameters whose firmware accepts values past the range its documentation gives (@Range is advice to ground stations; the firmware applies only what its code does). Each entry is read from the firmware source at every release it names, cited in 'evidence'. A value inside 'accepts' is not out of range; a plan that proposes one past the documented range says so, with the documented range. The engine's tests flag an entry once the documented range covers it, so it can be removed.",
+  "params": [
+    {
+      "name": "FS_DR_TIMEOUT",
+      "from_version": "4.7.0",
+      "vehicles": ["copter"],
+      "accepts": [0, 32767],
+      "evidence": [
+        "ArduCopter/Parameters.h at Copter-4.7.0, Copter-4.7.1 and Copter-4.7.2, line 660: AP_Int16 failsafe_dr_timeout, a signed 16-bit store, so at most 32767 s",
+        "ArduCopter/events.cpp at Copter-4.7.0, Copter-4.7.1 and Copter-4.7.2, line 352 (failsafe_deadreckon_check): the timeout is constrain_float(failsafe_dr_timeout * 1000, 0, UINT32_MAX) ms, so no upper limit is applied; the documented @Range 0 120 (Parameters.cpp line 900) is not enforced"
+      ]
+    }
+  ]
+}

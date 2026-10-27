@@ -11,6 +11,7 @@ from flight_insights.dataflash import read_dataflash
 from flight_insights.dataflash.formats import text
 from flight_insights.knowledge import Pack, load_pack
 from flight_insights.params.dialect import Dialect
+from flight_insights.params.validate import beyond_documented, metadata_problem
 
 FIXTURES = Path(__file__).resolve().parents[2] / "tests" / "fixtures"
 FIXTURE_LOGS = sorted(FIXTURES.rglob("*.bin"))
@@ -132,6 +133,35 @@ def test_supplement_entries_cite_their_source_and_are_still_needed(pack: Pack) -
                 generated = pack.generated_metadata(version, vehicle)
                 assert p["name"] not in generated, f"{p['name']} is now generated: remove it"
                 assert pack.metadata(version, vehicle)[p["name"]]["supplement"] is True
+
+
+def test_beyond_range_entries_cite_their_source_and_are_still_needed(pack: Pack) -> None:
+    """A documented range the firmware does not enforce: each entry cites the source, and
+    the documented range still stops short of what the firmware accepts."""
+    for p in pack.json("params/beyond_range.json")["params"]:
+        assert p["evidence"], p
+        low, high = p["accepts"]
+        for vehicle in p["vehicles"]:
+            for version in pack.versions:
+                meta = pack.metadata(version, vehicle)[p["name"]]
+                assert meta["accepts"] == [low, high]
+                documented = meta["range"]
+                assert float(documented[1]) < high, f"{p['name']} is now documented: remove it"
+
+
+def test_fs_dr_timeout_takes_what_the_firmware_takes(pack: Pack) -> None:
+    for version in pack.versions:
+        meta = pack.metadata(version, "copter")["FS_DR_TIMEOUT"]
+        assert metadata_problem("FS_DR_TIMEOUT", 1800.0, meta, version) is None
+        assert beyond_documented("FS_DR_TIMEOUT", 1800.0, meta) == (
+            "beyond_documented",
+            {"param": "FS_DR_TIMEOUT", "value": "1800", "low": "0", "high": "120"},
+        )
+        assert beyond_documented("FS_DR_TIMEOUT", 60.0, meta) is None  # documented
+        problem = metadata_problem("FS_DR_TIMEOUT", 40000.0, meta, version)
+        assert problem is not None and problem[0] == "out_of_range"  # past the 16-bit store
+    other = pack.metadata(pack.versions[0], "copter")["FS_GCS_TIMEOUT"]
+    assert "accepts" not in other
 
 
 def test_class_rules_are_well_formed(pack: Pack) -> None:

@@ -1,6 +1,7 @@
 <script lang="ts">
   import { app, t } from "../lib/app.svelte";
   import {
+    choiceLabel,
     display,
     isDetected,
     parseInput,
@@ -189,7 +190,7 @@
                   disabled={f.id === "vehicle"}
                 >
                   <option value="">—</option>
-                  {#each f.choices ?? [] as c (c)}<option value={c}>{c}</option>{/each}
+                  {#each f.choices ?? [] as c (c)}<option value={c}>{choiceLabel(f, c, app.locale)}</option>{/each}
                 </select>
               {:else}
                 <span class="input">

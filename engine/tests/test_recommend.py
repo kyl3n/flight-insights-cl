@@ -816,6 +816,25 @@ def test_the_undo_file_keeps_the_gains_autotune_may_save(reg: Registry) -> None:
     assert set(step.params) == set(undo) and "ATC_ANG_RLL_P" in step.text["en"]
 
 
+def test_a_value_past_the_documented_range_that_the_firmware_takes_says_so(
+    reg: Registry,
+) -> None:
+    """FS_DR_TIMEOUT 1800 for a link's recovery: proposed, not blocked, with a note naming
+    the documented range for the ground station's warning."""
+    p = plan(
+        reg, finding("params.dead_reckoning_timeout_short", ("FS_DR_TIMEOUT", 1800.0)),
+        FS_DR_TIMEOUT=30.0,
+    )  # fmt: skip
+    rec = one(p, "FS_DR_TIMEOUT")
+    assert rec.status == "next" and rec.proposed == 1800.0
+    assert [(n.reason, dict(n.params)) for n in rec.notes] == [
+        ("beyond_documented",
+         {"param": "FS_DR_TIMEOUT", "value": "1800", "low": "0", "high": "120"})
+    ]  # fmt: skip
+    text = to_json(p, reg)["recommendations"][0]["notes"][0]["text"]["en"]
+    assert text.startswith("1800 is past FS_DR_TIMEOUT's documented range, 0 to 120.")
+
+
 def test_an_action_alone_still_has_an_undo_file(reg: Registry) -> None:
     """Small propellers, a fixed payload: nothing to load first, and the undo file holds
     only the gains the flight had."""

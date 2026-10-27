@@ -42,7 +42,7 @@ from typing import Any, Literal, cast
 from flight_insights.analyzers.registry import LANGUAGES, STAGES, Registry
 from flight_insights.params.dialect import Dialect
 from flight_insights.params.files import format_value
-from flight_insights.params.validate import metadata_problem
+from flight_insights.params.validate import beyond_documented, metadata_problem
 
 Kind = Literal["safety", "stability", "performance"]
 Status = Literal["next", "waiting", "blocked", "disputed"]
@@ -509,6 +509,18 @@ def _build_plan(
                 "split", {"step": 1, "steps": steps, "target": format_value(target), "param": param}
             )
         )
+
+    # A value the firmware accepts past its documented range is proposed, and says so: a
+    # ground station may warn when the file is loaded.
+    for param, rec in by_param.items():
+        if rec.status != "next" or rec.proposed is None:
+            continue
+        name, nvalue = native(param, rec.proposed)
+        past = beyond_documented(
+            name, rec.proposed if nvalue is None else nvalue, dialect.meta.get(name)
+        )
+        if past is not None:
+            rec.notes.append(Note(*past))
 
     # The parameter that switches a feature on comes first; parameters the feature hides
     # until then come a step later. A gate added here may sit behind a gate of its own.

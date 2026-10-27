@@ -159,8 +159,8 @@ def test_with_the_radio_failsafe_off_a_pilot_flown_mode_is_left_with_no_one_flyi
     assert got["FS_GCS_TIMEOUT"]["verdict"] == "unmeasured"
     assert got["RC_OVERRIDE_TIME"]["verdict"] == "value"  # the log holds no default
     [loss] = view["losses"]
-    assert loss["status"] == "out" and loss["alone"] == ["LOITER", "ALT_HOLD"]
-    assert loss["alone_names"] == ["Loiter", "AltHold"]
+    assert loss["status"] == "out" and loss["alone"] == ["LOITER", "POSHOLD", "ALT_HOLD"]
+    assert loss["alone_names"] == ["Loiter", "PosHold", "AltHold"]
 
 
 @pytest.mark.parametrize(
@@ -287,7 +287,8 @@ def test_the_view_agrees_with_the_analysis(
     assert [m["mode"] for m in view["modes"]] == ["GUIDED", "RTL"]
     off, _ = replies["copter-quad-fs-off"]
     radio_lost = off["failsafes"]["losses"][0]
-    assert radio_lost["id"] == "radio_lost" and radio_lost["alone"] == ["LOITER", "ALT_HOLD"]
+    assert radio_lost["id"] == "radio_lost"
+    assert radio_lost["alone"] == ["LOITER", "POSHOLD", "ALT_HOLD"]
     hover, _ = replies["copter-quad-hover"]
     assert hover["tlogs"] == 0 and hover["downlink"] is None and hover["uplink"] is not None
     assert np.isfinite(hover["armed_s"])

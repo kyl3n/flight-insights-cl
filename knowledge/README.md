@@ -7,6 +7,7 @@ Versioned data the engine reads, updatable without an app release (spec: System 
 | `manifest.json` | Which releases the pack covers, and the ArduPilot commit each came from | `tools/build_param_metadata.py` |
 | `params/<version>/copter.json.gz`, `plane.json.gz` | Every parameter of a release: name, display name, description, units, range, values, bitmask, user level and flags (reboot required, read-only, volatile, calibration). Copter includes helicopters, Plane includes QuadPlanes. | `tools/build_param_metadata.py`, which runs ArduPilot's `param_parse.py` |
 | `params/renames.json` | Parameters renamed between releases, each with its proof | `tools/find_renames.py` |
+| `params/beyond_range.json` | Parameters whose firmware accepts values past the documented range (`FS_DR_TIMEOUT`: documented 0 to 120, stored in 16 bits with no upper limit), each with the source lines at every release it names | Curated from the firmware source |
 | `params/classes.json` | How parameters are classed: tuning, calibration, learned, counter, hardware, ground station | Curated |
 | `boards/<version>.json` | Every ChibiOS board's logged short name with its MCU, MCU family (F4, F7, H7...) and bootloader board ID | `tools/build_boards.py`, from the release's `hwdef` files and `board_types.txt` |
 | `setup/platform.json` | The guided platform setup: its ten steps and every field, in English and Ukrainian, each saying why it is asked and, if required, what a gap prevents | Curated |
