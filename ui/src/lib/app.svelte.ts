@@ -36,6 +36,7 @@ export const app = $state({
   pending: [] as PendingFile[], // new files found in watched folders
   trendCard: null as string | null, // the metric@segment the Trends view opens on
   recoveryCard: null as string | null, // the airframe whose recovery card is open
+  settingsSection: null as string | null, // the Settings section to bring into view
   ai: null as AiStatus | null, // the AI layer's status; null outside the desktop app
   sync: null as WorkerState | null, // the sync worker's last round; null outside the desktop app
 });

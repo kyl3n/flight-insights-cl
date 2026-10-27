@@ -32,6 +32,7 @@
   import PropulsionView from "./PropulsionView.svelte";
   import SystemView from "./SystemView.svelte";
   import TuneView from "./TuneView.svelte";
+  import WeatherView from "./WeatherView.svelte";
   import Workbench from "./Workbench.svelte";
 
   let { flightId }: { flightId: string } = $props();
@@ -42,7 +43,7 @@
   let busy = $state(false);
   let error = $state("");
   let selected = $state<string | null>(null);
-  let tab = $state<"report" | "filters" | "tune" | "propulsion" | "system">("report");
+  let tab = $state<"report" | "filters" | "tune" | "propulsion" | "system" | "weather">("report");
 
   async function load(force = false) {
     busy = true;
@@ -135,7 +136,7 @@
   </header>
 
   <div role="tablist" class="tabs" aria-label={t("report.findings")}>
-    {#each [["report", "report.tab.report"], ["filters", "report.tab.filters"], ["tune", "report.tab.tune"], ["propulsion", "report.tab.propulsion"], ["system", "report.tab.system"]] as const as [id, label] (id)}
+    {#each [["report", "report.tab.report"], ["filters", "report.tab.filters"], ["tune", "report.tab.tune"], ["propulsion", "report.tab.propulsion"], ["system", "report.tab.system"], ["weather", "report.tab.weather"]] as const as [id, label] (id)}
       <button type="button" role="tab" aria-selected={tab === id} onclick={() => (tab = id)}>{t(label)}</button>
     {/each}
   </div>
@@ -148,6 +149,8 @@
     <PropulsionView {flightId} />
   {:else if tab === "system"}
     <SystemView {flightId} />
+  {:else if tab === "weather"}
+    <WeatherView {flightId} />
   {:else}
   {#if error}<p class="error">{t("report.error", { error })}</p>{/if}
   {#if analysis && !analysis.current}<p class="notice">{t("report.stale")}</p>{/if}
@@ -238,6 +241,12 @@
     <h4>{t("inspect.before")}</h4>
     <p>{findingAction(registry, f, app.locale)}</p>
   </section>
+  {#if f.context}
+    <section>
+      <h4>{t("inspect.context")}</h4>
+      <p class="context">{f.context.note[app.locale]}</p>
+    </section>
+  {/if}
   {#if f.changes.length}
     <section>
       <h4>{t("inspect.changes")}</h4>
@@ -357,10 +366,12 @@
   }
   .tabs {
     display: flex;
+    flex-wrap: wrap; /* every tab in view on a narrow window, none cut off */
     gap: 4px;
     border-bottom: 1px solid var(--border-soft);
   }
   .tabs button {
+    white-space: nowrap;
     background: none;
     border: none;
     border-bottom: 2px solid transparent;
@@ -441,6 +452,11 @@
     padding: 2px 10px 2px 0;
     text-align: left;
     font-weight: normal;
+  }
+  .context {
+    padding: 6px 10px;
+    border-left: 3px solid var(--caution);
+    font-size: 13px;
   }
   .evidence {
     margin: 0;
