@@ -190,9 +190,10 @@ def _clear(e: Mapping[str, Any], policy: Policy) -> bool:
 
 def _evidence(e: Mapping[str, Any], ref: str, arm_us: int, policy: Policy) -> dict[str, Any]:
     """One piece of evidence. When it read a field the location policy does not allow
-    whole (a magnetic field, a GPS week, an absolute altitude, a rounded pressure), its
-    summary and values are withheld: they may carry that field's value. The reference
-    stays, so the finding still says what it rests on."""
+    whole (a position, a magnetic field, a GPS week, an absolute altitude, a rounded
+    pressure), its summary and values are withheld: they may carry that field's value.
+    Only the distances the policy lets through stay, each one number in whole metres. The
+    reference stays, so the finding still says what it rests on."""
     messages = [m for m in e["messages"] if re.fullmatch(r"[A-Z0-9]{2,4}", m)]
     fields = [x for x in e["fields"] if re.fullmatch(r"[A-Za-z0-9_]{1,16}", x)]
     clear = _clear(e, policy)
@@ -205,7 +206,11 @@ def _evidence(e: Mapping[str, Any], ref: str, arm_us: int, policy: Policy) -> di
         "messages": messages[:16],
         "fields": fields[:32],
         "segment": _segment(e.get("segment"), arm_us),
-        "values": _keyed(e.get("values") or {}, policy) if clear else {},
+        "values": (
+            _keyed(e.get("values") or {}, policy)
+            if clear
+            else policy.derived(e.get("values") or {})
+        ),
     }
 
 

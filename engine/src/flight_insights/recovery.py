@@ -103,6 +103,20 @@ class Card:
         return {"key": key, "params": dict(params), "text": out}
 
 
+# What the card marks as an alert, so it stands out in print: GNSS lost with the EKF
+# failsafe off (it drifts with no one flying it), and a motor lost on a frame that could
+# fly on the rest but cannot at the weight it last flew. A quad coming down is what any
+# quad does, so it is no alert. The link sections mark theirs (recovery_link.alone).
+ALERTS: Mapping[str, tuple[str, ...]] = {
+    "gnss_lost": ("will.ekf_off",),
+    "motor_lost": ("will.motor_no_balance", "will.motor_sink"),
+}
+
+
+def _alert(will: Sequence[Mapping[str, Any]], keys: Sequence[str]) -> bool:
+    return any(p["key"] in keys for p in will)
+
+
 def _areas(readiness: Result) -> dict[str, Mapping[str, Any]]:
     return {
         e.id[len(READINESS) :]: e.values for e in readiness.evidence if e.id.startswith(READINESS)
@@ -214,9 +228,9 @@ def build(
     numbers = {"alone": asdict(alone), "on_set": asdict(on_set), "tolerance_m": tolerance_m}
     sections = [
         {"id": "gnss_lost", "title": c.phrase("gnss_lost")["text"], "will": will,
-         "facts": facts, "steps": steps},
+         "facts": facts, "steps": steps, "alert": _alert(will, ALERTS["gnss_lost"])},
         {"id": "spoofing", "title": c.phrase("spoofing")["text"], "will": [], "facts": [],
-         "steps": spoof},
+         "steps": spoof, "alert": False},
     ]  # fmt: skip
     if failsafes is not None:
         sections += recovery_link.sections(
@@ -291,7 +305,8 @@ def _motor_section(
             steps.append(c.phrase("step.motor_yaw"))
         steps += [c.phrase("step.motor_descend"), c.phrase("step.motor_land")]
     return {"id": "motor_lost", "title": c.phrase("motor_lost")["text"], "will": will,
-            "facts": facts, "steps": steps}  # fmt: skip
+            "facts": facts, "steps": steps,
+            "alert": _alert(will, ALERTS["motor_lost"])}  # fmt: skip
 
 
 def card_text(card: Mapping[str, Any], lang: str = "en") -> str:

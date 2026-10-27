@@ -7,6 +7,7 @@
   import ImportDialog from "./components/ImportDialog.svelte";
   import Header from "./components/Header.svelte";
   import PlanView from "./components/PlanView.svelte";
+  import RecoveryCardView from "./components/RecoveryCardView.svelte";
   import Rail from "./components/Rail.svelte";
   import AskView from "./components/AskView.svelte";
   import SettingsView from "./components/SettingsView.svelte";
@@ -118,7 +119,9 @@
   <Rail />
   <div class="column">
     <Header onTheme={toggleTheme} />
-    {#if app.view === "fleet" && setup}
+    {#if app.recoveryCard}
+      <RecoveryCardView airframeId={app.recoveryCard} />
+    {:else if app.view === "fleet" && setup}
       <SetupView schema={setup.schema} platform={setup.platform} />
     {:else if app.view === "fleet"}
       <FleetView />

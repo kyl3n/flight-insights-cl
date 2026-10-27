@@ -20,17 +20,25 @@ from flight_insights.analyzers.facts import Fact, facts
 from flight_insights.analyzers.flight import FlightData
 from flight_insights.analyzers.model import Analyzer, CandidateChange, Evidence, Finding, Result
 from flight_insights.analyzers.motors import picture
-from flight_insights.analyzers.registry import OPTION_COSTS, Option, Registry
+from flight_insights.analyzers.registry import OPTION_COSTS, OPTION_STAGES, Option, Registry
 
 HIGH_BENEFIT = 3  # a benefit score this high for the aircraft's priority is a caution
-STAGE = {"filters": "filters", "logging": "evidence"}
+TOLERANCE = 1e-6
+
+
+def _same(value: float, wanted: Any) -> bool:
+    """Equal as the log stores it: parameters are 32-bit floats (0.15 is 0.15000000596)."""
+    return abs(float(value) - float(wanted)) <= TOLERANCE * max(1.0, abs(float(wanted)))
 
 
 def _condition(
-    c: Mapping[str, Any], params: Mapping[str, float], known: Mapping[str, Fact]
+    c: Mapping[str, Any],
+    params: Mapping[str, float],
+    known: Mapping[str, Fact],
+    defaults: Mapping[str, float] | None = None,
 ) -> bool | None:
     """True, False, or None when it cannot be judged (an unknown fact, a missing
-    parameter)."""
+    parameter, a default the log does not record)."""
     if "fact" in c:
         value = known.get(c["fact"])
         if value is None:
@@ -42,13 +50,20 @@ def _condition(
         if "eq" in c:
             return float(value) == float(c["eq"])
         raise ValueError(f"unknown fact condition {c}")
+    if "default" in c:  # the firmware's own default, as the log records it
+        default = (defaults or {}).get(c["default"])
+        if default is None:
+            return None
+        if "eq" in c:
+            return _same(default, c["eq"])
+        raise ValueError(f"unknown default condition {c}")
     value = params.get(c["param"])
     if value is None:
         return None
     if "eq" in c:
-        return float(value) == float(c["eq"])
+        return _same(value, c["eq"])
     if "in" in c:
-        return float(value) in [float(v) for v in c["in"]]
+        return any(_same(value, v) for v in c["in"])
     if "bit_clear" in c:
         return not (int(value) >> int(c["bit_clear"]) & 1)
     if "bit_set" in c:
@@ -64,7 +79,7 @@ def _changes(
     o: Option, outcome: Mapping[str, Any], params: Mapping[str, float], known: Mapping[str, Fact]
 ) -> tuple[CandidateChange, ...] | None:
     """The parameter changes of an available outcome; None if a value it needs is unknown."""
-    stage = STAGE.get(o.area, "setup")
+    stage = OPTION_STAGES[o.area]
     out: list[CandidateChange] = []
     for ch in outcome.get("changes", []):
         name = str(ch["param"])
@@ -93,7 +108,7 @@ def _options(flight: FlightData, reg: Registry) -> Result:
     if not reg.options:
         return Result(skipped="the knowledge pack has no Better options catalog")
     known = facts(flight, picture(flight))
-    params = flight.params
+    params, defaults = flight.params, flight.defaults
     priority = flight.answers.get("priority")
     ev = Evidence(
         id="options:facts",
@@ -105,14 +120,14 @@ def _options(flight: FlightData, reg: Registry) -> Result:
     out = Result(evidence=[ev])
     asked: dict[str, list[str]] = {}
     for oid, o in reg.options.items():
-        if not all(_condition(c, params, known) is True for c in o.applies):
+        if not all(_condition(c, params, known, defaults) is True for c in o.applies):
             continue
-        if not all(_condition(c, params, known) is True for c in o.when):
+        if not all(_condition(c, params, known, defaults) is True for c in o.when):
             continue
         decided: Mapping[str, Any] | None = None
         unknown: str | None = None
         for outcome in o.outcomes:
-            results = [(c, _condition(c, params, known)) for c in outcome["requires"]]
+            results = [(c, _condition(c, params, known, defaults)) for c in outcome["requires"]]
             if all(r is True for _, r in results):
                 decided = outcome
                 break
