@@ -56,7 +56,7 @@
   },
   "findings": {
     "motor_out.short": {
-      "stage": "setup",
+      "stage": "operations",
       "title": {
         "en": "Losing motor {motor} at this weight would need {needed}% output from motor {busiest}, above the {target}% target",
         "uk": "Відмова мотора {motor} за цієї ваги вимагала б {needed}% виходу від мотора {busiest}, понад ціль {target}%"
@@ -67,7 +67,7 @@
       }
     },
     "motor_out.no_balance": {
-      "stage": "setup",
+      "stage": "operations",
       "title": {
         "en": "Losing motor {motor}, the other motors cannot balance the aircraft",
         "uk": "У разі відмови мотора {motor} інші мотори не врівноважать апарат"
