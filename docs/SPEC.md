@@ -834,6 +834,10 @@ The defaults are starting points that the team can change for each platform.
   - **The pairing:** with fast and medium attitude logging both on, System ID logs RATE every loop, so each 10 Hz RCOU row pairs exactly with its own loop's mixer inputs.
   - **The fit:** a least-squares fit per motor gives its four factors, scaled by the largest throttle factor. Each must match the table within 2% of its axis's range.
   - **Result on 4.7.0:** all 20 match, the worst factor 1.04% off (octa-quad CW X). This includes the co-rotating X8's 0.9 top layer.
+- **The simulator's model of each frame** (`sitl`, for the simulator export below). The generator also reads the simulator's frame models from the release's `libraries/SITL/SIM_Frame.cpp` and names, for each frame, the model whose motors point the same way: each simulated motor's arm angle gives its factors as the mixer would, and only the direction of each motor's roll, pitch and yaw factors is compared, so the co-rotating X8 matches its model. The match is by geometry, never by ArduPilot's default parameter files, which can disagree with their own models. In 4.7.0, 19 of the table's Copter frames have a model. The match found three faults in ArduPilot's own simulator, and the frames they touch have no model:
+  - octa-quad plus: the simulator's "octa-quad" is an X, though its default parameters leave `FRAME_TYPE` at plus;
+  - octa-quad CW X: its "octa-quad-cwx" spins motors 3, 4, 7 and 8 the other way from the mixer;
+  - deca X: the simulator's name lookup finds "deca" (plus) before "deca-cwx", so that model can never be chosen.
 
 **Measured now:** `analyzers/motor_out.py`, with the solver in `motor_out.py` and `simplex.py`. Rules are in `knowledge/rules/motor_out.json`; the targets are the table's defaults, marked uncalibrated.
 
@@ -2346,15 +2350,41 @@ The AI layer can propose links the map lacks; those are shown as hypotheses unti
 
 Snapshot capture starts in Phase 0, so attribution has real history to work with when it arrives in Phase 2.
 
-## Simulator checks (proposed)
+## Simulator checks
 
-ArduPilot's simulator (SITL) runs the real flight code against a physics model, so settings can be rehearsed before they are flown. The app can pair with it in three ways:
+ArduPilot's simulator (SITL) runs the real flight code against a physics model, so settings can be rehearsed before they are flown. Adopted on 2026-10-26, in Phase 2. The app pairs with it in three ways:
 
 1. **Rehearse GNSS-denied recovery.** Fly the airframe's model, cut GNSS mid-mission, and check that the failsafe settings bring it home and how far it drifts, before trying it in the field.
 2. **Confirm motor-out margin.** On hexa and octo frames, fail each motor in turn at maximum payload (SITL's `SIM_ENGINE_FAIL`) to check the predicted margin and see how yaw behaves.
 3. **Catch configuration mistakes.** Load a proposed parameter file and run a scripted mission to check that arming checks, mode changes and failsafes behave as intended.
 
-**How the app connects.** It builds the airframe's simulator model from its logs and setup: mass, hover throttle, thrust curve, battery resistance, disc area and drag. These are the fields of ArduPilot's own frame models, such as Callisto, an 8-motor, 32.5 kg heavy-lift ([Callisto model](https://github.com/ArduPilot/ardupilot/blob/master/Tools/autotest/models/Callisto.json), [custom SITL models](https://discuss.ardupilot.org/t/customizing-sitl-multicopter-simulations-tailoring-realism-to-your-drone/105549)). It exports the model, the parameters and a test script, then imports the simulator's logs and compares them with real flights.
+The app itself never runs a simulator or connects to an aircraft. It exports the files, and people and CI run them.
+
+**The model** (`engine/src/flight_insights/sim/export.py`; rules in `knowledge/rules/sim.json`; engine method `airframe.sim_export`). The app writes the fields of ArduPilot's own frame model (`Frame::Model` in `libraries/SITL/SIM_Frame.cpp`), such as Callisto's ([Callisto model](https://github.com/ArduPilot/ardupilot/blob/master/Tools/autotest/models/Callisto.json), [custom SITL models](https://discuss.ardupilot.org/t/customizing-sitl-multicopter-simulations-tailoring-realism-to-your-drone/105549)), from one of the airframe's flights (its latest with a steady hover, or one a person picks), its setup and its parameters. Each value comes with where it came from.
+
+- **The simulator's frame:** from the frame table's `sitl` (above, Motor-out margin). An airframe whose frame the simulator cannot model gets no export.
+- **The weight:** the take-off weight a person asks for, else the flight's: weighed at import, else estimated through the payload bands, else the setup's typical take-off weight (named as such).
+- **Hover** (`hoverThrOut`). The simulator's motor makes its share of the weight times ((1 − e) c + e c²) / hoverThrOut, times the air's density over the reference altitude's, times the square of the battery voltage over `maxVoltage`. So the flight's steady hover is read through that same law: each sample's motor outputs through the thrust curve, times the square of its voltage over the full pack's, times the tilt, at standard air. A heavier take-off scales it in proportion, as the simulator itself scales a payload.
+- **The air the hover is read in.** The barometer's pressure, at the weather record's air temperature, or at the barometer's own temperature when the flight has no record. The barometer reads the board's temperature, a little above the air's, so the hover then reads light. In the simulator, its own standard atmosphere at that pressure. The simulator's barometer reports a board temperature around 25 °C, so reading its density from that temperature put the hover 6% low.
+- **Power** (`refVoltage` × `refCurrent`). The flight's measured hover power, at the take-off weight as an ideal rotor's (in the 1.5 power of the thrust). The simulator draws the same power per newton whatever the air, so it is not scaled for density. With no battery current in the log, it is an ideal rotor's power from momentum theory, the least a real one draws, and the note says so: the simulator sizes its rotors from this power, so it is never left out.
+- **Drag** (`mdrag_coef`; `refSpd` and `refAngle`). The measured drag (Weather and wind, "The aircraft"): the flight's own, or its airframe's from flights in the same payload band and on the same build when it only hovered. The simulator's momentum drag is `mdrag_coef` √(ρ A T) per motor, so `mdrag_coef` = k1 √(m / (g ρ A)). Its bluff-body drag takes areaCd only through a reference test flown at `refSpd` and tilted `refAngle`, so the angle is solved, at 10 m/s, for areaCd = 2 m k2 / ρ. With no drag measured, the simulator's defaults stay and say so.
+- **From the setup:** `diagonal_size` from the wheelbase, and `disc_area` from the propeller diameter and the number of arms (a coaxial pair shares a disc, as the simulator counts it). Both are required: with the simulator's 0.35 m default, Callisto's tuned gains could not hold the model in a hover.
+- **From the parameters and the pack:** `propExpo`, `pwmMin`, `pwmMax`, `spin_min` and `spin_max` from the thrust curve and output range. `maxVoltage` is `MOT_BAT_VOLT_MAX`, or the cell count times the chemistry's full cell (LiPo and Li-ion 4.2 V, LiHV 4.35 V, LiFePO4 3.65 V). `battCapacityAh` comes from the setup's pack, or `BATT_CAPACITY`. `refBatRes` is the firmware's own estimate the flight ended with (`BAT.Res`), as ArduPilot's models take it. It settles slowly, so a short flight reads low: Callisto's 15 s hover read 15 mΩ against the model's 24 mΩ.
+- **Left to the simulator:** the moment of inertia (its estimate from mass and size), `refRotRate` and `slew_max`.
+- **Nothing about the site.** `refAlt` is 0 and `refTempC` 15: the model is at standard sea-level air, and the simulator flies it in the air of whatever home it is given.
+- **The boot parameters.** The flight's set, as its firmware names them, with these left out, each counted with why:
+  - calibration, learned values (among them the barometer's ground pressure and the field's elevation), counters, hardware IDs and ground-station rates;
+  - everything the location policy removes;
+  - the real hardware's ports, buses, GNSS receivers, sensor mounting, battery-monitor wiring, devices and output wiring.
+
+  The motors move to the simulator's channels (motor n on output n), which is the only wiring its frame reads, and `MOT_PWM_MIN`/`MAX` are written out.
+- **The files:** the model as JSON, the parameters as a `.param` file to load after the simulator's `copter.parm`, and a note with the command line and the source of every value. A bundle made from an HL1 or HL2 flight stays on the team's machines: only bundles from the simulator's own flights are committed.
+- **Checked against ArduPilot's own models.** From the simulator's flights of its default quad and of Callisto, the export gives back:
+  - the hover within 0.1% (Callisto 0.35904 against 0.35910 at sea level);
+  - the hover power within 0.5%;
+  - the momentum drag within 2%, and the bluff-body drag within 5%;
+  - Callisto loaded, from the light flight at 40.5 kg, within 1% of the loaded flight's own.
+  - **Flown again.** Locally, the exported Callisto and quad were flown in the 4.7.0 simulator on the fixtures' profiles, and exporting from those flights gave the same model again: hover within 0.01%, the same power, and drag within 3% (`tests/test_sim_export.py` for the arithmetic). CI flies them in the simulator-checks workflow, next.
 
 **Limits.** The simulator does not reproduce real motor noise and vibration, so it is for behaviour, failsafes and margins, never for filter tuning.
 
@@ -2507,7 +2537,7 @@ The largest risk is a confident wrong recommendation on a heavy aircraft; most o
 - [ ] Licensing of ArduPilot WebTools, if any code reuse is wanted.
 - [ ] Legal review of shipping parameter metadata generated from the documentation comments in ArduPilot's GPLv3 source, as ground stations do, in the knowledge pack.
 - [ ] Legal review of shipping pymavlink (LGPL-3.0) in the frozen engine: it is bundled unmodified for tlog decoding, and must stay replaceable by the user.
-- [ ] Whether to adopt the simulator checks, and in which phase.
+- [x] Whether to adopt the simulator checks, and in which phase: adopted on 2026-10-26, in Phase 2 (see Simulator checks).
 
 ## Sources
 

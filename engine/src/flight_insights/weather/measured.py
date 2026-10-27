@@ -111,6 +111,15 @@ def borrowed(store: Store, reg: Registry, flight_id: str) -> tuple[Fit, tuple[st
     return Fit(k1, k2, np.zeros(2), bias, quadratic, 0.0), tuple(o.flight for o in same)
 
 
+def drag(store: Store, reg: Registry, flight_id: str) -> tuple[Fit, tuple[str, ...]] | None:
+    """The drag the flight measured itself, else the drag its airframe measured in the
+    same payload band and on the same build, with the flights it came from."""
+    own = _own(store, flight_id)
+    if own is not None:
+        return own.fit, (flight_id,)
+    return borrowed(store, reg, flight_id)
+
+
 def measured(store: Store, cache: ColumnCache, pack: Pack, flight_id: str
              ) -> dict[str, Any] | None:  # fmt: skip
     """The flight's measured wind: its own when it measured one, else from its airframe's

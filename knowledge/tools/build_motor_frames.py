@@ -23,6 +23,18 @@ Anything the generator does not recognise stops it: a construct a later release 
 read by a person, never guessed. Cases that only Plane builds compile (QuadPlane frames)
 are marked so.
 
+Each frame also names ArduPilot's simulator model with the same motors (`sitl`), for
+the simulator export (spec: Simulator checks). The simulator's frames are the motor
+tables in libraries/SITL/SIM_Frame.cpp: each motor's output, the angle of its arm and
+its spin. They are matched to a frame by geometry, never by the default parameter files,
+which can disagree (the simulator's "octa-quad" is an X, while its default parameters
+leave FRAME_TYPE at plus): each simulated motor's arm angle gives its roll and pitch
+factors as `add_motor()` does, the three axes are normalised as the mixer does, and
+every motor must point the same way as the frame's motor of the same number. Only the
+direction is compared, so a co-rotating X8, whose mixer scales its lower motors down,
+still matches its model. Simulated frames with tilting motors are left out, and a frame
+the simulator has no model for has none.
+
 Usage (from the repository root):
   python3 knowledge/tools/build_motor_frames.py ARDUPILOT_CHECKOUT VERSION
 """
@@ -37,6 +49,7 @@ import operator
 import re
 import subprocess
 import sys
+from collections.abc import Mapping
 from pathlib import Path
 from typing import Any
 
@@ -45,6 +58,11 @@ CLASS_H = "libraries/AP_Motors/AP_Motors_Class.h"
 MATRIX_H = "libraries/AP_Motors/AP_MotorsMatrix.h"
 MATRIX_CPP = "libraries/AP_Motors/AP_MotorsMatrix.cpp"
 CONFIG_H = "libraries/AP_Motors/AP_Motors_config.h"
+SIM_FRAME_CPP = "libraries/SITL/SIM_Frame.cpp"
+SIM_MOTORS = re.compile(r"static\s+Motor\s+(\w+)\s*\[\]\s*=\s*\{(.*?)\}\s*;", re.S)
+SIM_TEMPLATES = re.compile(r"supported_frame_templates\s*\[\]\s*=\s*\{(.*?)\}\s*;", re.S)
+SIM_TEMPLATE = re.compile(r'\{\s*"([^"]+)"\s*,\s*(\d+)\s*,\s*(\w+)\s*\}')
+SAME_DIRECTION = 1e-6  # 1 - cosine between a simulated motor's factors and the frame's
 PLANE_ONLY = re.compile(r"APM_BUILD_TYPE\(APM_BUILD_ArduPlane\)")
 PLACES = 6
 NAME = re.compile(r'_frame_type_string\s*=\s*"([^"]+)"\s*;')
@@ -277,6 +295,64 @@ def normalise(motors: dict[int, list[float]]) -> list[dict[str, Any]]:
     return out
 
 
+def sim_models(code: str, names: dict[str, float]) -> list[tuple[str, list[dict[str, Any]]]]:
+    """The simulator's multirotor frames in the order its name lookup tries them, each
+    with its motors' factors as the mixer would set them from the same arms."""
+    arrays: dict[str, dict[int, list[float]] | None] = {}
+    for name, body in SIM_MOTORS.findall(code):
+        motors: dict[int, list[float]] | None = {}
+        for row in re.findall(r"\bMotor\s*\(([^()]*)\)", body):
+            args = [a.strip() for a in row.split(",")]
+            if len(args) != 4:  # a tilting or vectored motor: not a matrix frame
+                motors = None
+                break
+            servo, angle, yaw = (number(a, names) for a in args[:3])
+            assert motors is not None
+            motors[int(servo)] = [math.cos(math.radians(angle + 90)),
+                                  math.cos(math.radians(angle)), yaw, 1.0, 0.0]  # fmt: skip
+        arrays[name] = motors
+    table = SIM_TEMPLATES.search(code)
+    if table is None:
+        raise FrameError("no supported_frame_templates in SIM_Frame.cpp")
+    out: list[tuple[str, list[dict[str, Any]]]] = []
+    for name, count, array in SIM_TEMPLATE.findall(table.group(1)):
+        if array not in arrays:
+            raise FrameError(f"the simulator frame {name!r} uses an unknown table {array}")
+        motors = arrays[array]
+        if motors is None:
+            continue
+        if len(motors) != int(count):
+            raise FrameError(f"the simulator frame {name!r} has {len(motors)} motors, not {count}")
+        out.append((name, normalise(motors)))
+    return out
+
+
+def _direction(m: Mapping[str, Any]) -> tuple[float, float, float]:
+    v = (float(m["roll"]), float(m["pitch"]), float(m["yaw"]))
+    size = math.sqrt(sum(x * x for x in v))
+    return (v[0] / size, v[1] / size, v[2] / size) if size > 0 else v
+
+
+def sim_model(motors: list[dict[str, Any]], models: list[tuple[str, list[dict[str, Any]]]]
+              ) -> str | None:  # fmt: skip
+    """The first simulator frame whose every motor points as the frame's motor of the same
+    number does, and that the simulator's name lookup finds by that name: it takes the
+    first frame whose name begins the name it is given."""
+    for name, sim in models:
+        if len(sim) != len(motors):
+            continue
+        same = all(
+            a["motor"] == b["motor"]
+            and 1.0 - sum(x * y for x, y in zip(_direction(a), _direction(b), strict=True))
+            < SAME_DIRECTION
+            for a, b in zip(motors, sim, strict=True)
+        )
+        found = next(n for n, _ in models if name.lower().startswith(n.lower()))
+        if same and found == name:
+            return name
+    return None
+
+
 def _type_order(item: tuple[str, Any]) -> tuple[bool, int]:
     return item[0] == "default", int(item[0]) if item[0].isdigit() else 0
 
@@ -287,6 +363,8 @@ def build(root: Path) -> dict[str, Any]:
     code = strip_comments(matrix)
     names = defines(class_h) | defines((root / MATRIX_H).read_text(encoding="utf-8"))
     names |= defines((root / CONFIG_H).read_text(encoding="utf-8"))
+    models = sim_models(strip_comments((root / SIM_FRAME_CPP).read_text(encoding="utf-8")),
+                        names)  # fmt: skip
     frame_classes = enum_values(class_h, "motor_frame_class")
     frame_types = enum_values(class_h, "motor_frame_type")
     dispatch = re.search(r"void\s+AP_MotorsMatrix::setup_motors\s*\(.*?\)\s*\{(.*?)\n\}", code,
@@ -308,6 +386,9 @@ def build(root: Path) -> dict[str, Any]:
                 entry: dict[str, Any] = {"name": type_name or label, "motors": motors}
                 if plane:
                     entry["vehicles"] = ["plane"]
+                sitl = sim_model(motors, models)
+                if sitl is not None:
+                    entry["sitl"] = sitl
                 types[key] = entry
         out[str(frame_classes[cls])] = {
             "name": cname.group(1) if cname else cls,
@@ -337,10 +418,11 @@ def main() -> int:
         "by FRAME_CLASS then FRAME_TYPE ('default': any type the class does not name). Each "
         "motor's roll, pitch and yaw factors are normalised to a largest magnitude of 0.5 "
         "and its throttle factor to a largest of 1, as AP_MotorsMatrix::"
-        "normalise_rpy_factors() leaves them. Generated by knowledge/tools/"
+        "normalise_rpy_factors() leaves them. 'sitl' names ArduPilot's simulator model "
+        "with the same motors, where it has one. Generated by knowledge/tools/"
         "build_motor_frames.py; do not edit.",
         "ardupilot_commit": commit,
-        "sources": [CLASS_H, MATRIX_H, MATRIX_CPP, CONFIG_H],
+        "sources": [CLASS_H, MATRIX_H, MATRIX_CPP, CONFIG_H, SIM_FRAME_CPP],
         "classes": frames,
     }
     (PACK / "frames").mkdir(exist_ok=True)
