@@ -1028,7 +1028,7 @@ All sources merge into one timeline per flight: onboard log, every tlog, paramet
   - the receiver's own failsafe flag, and its failsafe throttle under `FS_THR_VALUE`;
   - the battery failsafe's voltage under `BATT_LOW_VOLT`;
   - GNSS fix lost (below 3D after having it);
-  - parameters changed in flight;
+  - parameters changed in flight, by name (not the statistics the autopilot counts up on its own, `STAT_*`, which no one sets);
   - commands refused;
   - errors (ERR), until resolved;
   - the mode changes failsafes and checks make.
@@ -1049,7 +1049,7 @@ All sources merge into one timeline per flight: onboard log, every tlog, paramet
   - warnings;
   - the first fault's chain, and what it explains.
 
-  The ground station's warning text is shown, since it stays on this laptop. The screen itself waits for its mock-up's approval.
+  Each event comes worded in English and Ukrainian, from the rule pack. The ground station's warning text is shown, since it stays on this laptop. The screen is the flight report's Timeline tab (User interface, "The incident timeline view").
 - **Not yet:**
   - the radios' own logs;
   - distance and the station's bearing in the event detail (they need the local position accessor);
@@ -1817,6 +1817,33 @@ Rules that keep decisions easy:
   - open the trend (the Metrics tab, on that metric and payload band) or the flight report.
 - **Bounds.** Revert tests are read for the 20 newest worse shifts. In-flight changes are looked for on the 30 newest flights, one flight at a time after the rest has loaded; a flight the engine cannot split shows none.
 - **Not yet.** The mock-up's diff of two flights, export of a past snapshot, and saving a revert step's two files (`trend.revert_test` gives their text, but no method writes them to a file the person picks) wait for their engine methods.
+
+**The incident timeline view** (`flight.timeline` with the flight's analysis; mock-up `Incidents.dc.html`), the flight report's Timeline tab:
+
+- **The first fault** comes first: the incident finding, with the events it names in the interface's language, then its chain and what it explains, each opening its event.
+- **One time axis,** in seconds after arming:
+  - It runs from the earliest event logged before arming to the latest after disarming. The unarmed stretches are shaded, and the first fault is marked across every lane.
+  - **Lanes:** the link (ground side); the receiver; pilot input over MAVLink; failsafes and errors; the mode, where the aircraft's own changes are marked and a person's are not; commands, with their results; warnings shown; GNSS fix; battery; parameters changed.
+  - Its sources are named: the onboard log, and each tlog with its clock's status.
+  - Selecting a mark opens, in the inspector, what was read for it and its place in the first fault.
+  - On a narrow screen the lanes scroll in their own box, opening on the first fault.
+- **Did each failsafe work?** For each failsafe the analysis judged:
+  - its verdict: as configured, fell back, or unexpected;
+  - the trigger: its wait, against when the loss began and when it fired (on time, late, or not measurable);
+  - the action, against its settings and `FS_OPTIONS`, with every response they allow;
+  - the other failsafes in force then;
+  - what the log left open, with the finding's confidence;
+  - whether it was logged resolved;
+  - its lead time: each precursor the log holds, with how long before the failsafe it first warned.
+
+  Then the losses no failsafe answered.
+- **Near misses:** the link analyzer's for the ground station and the receiver, and the battery's.
+- **Not yet:**
+  - the outcome: where it turned for home and how far out (this needs the local position accessor);
+  - the radios' own logs, and the distance and bearing to the station;
+  - the fleet's ranking of which precursors warn earliest;
+  - the EKF's near misses;
+  - jumping from an event to its data in another view.
 
 ### Explanations for every metric and data point
 

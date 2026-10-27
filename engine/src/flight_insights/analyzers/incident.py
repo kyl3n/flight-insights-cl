@@ -18,7 +18,7 @@ never read.
 
 from __future__ import annotations
 
-from collections.abc import Mapping, Sequence
+from collections.abc import Callable, Mapping, Sequence
 from dataclasses import dataclass, field
 from typing import Any
 
@@ -34,6 +34,9 @@ from flight_insights.analyzers.failsafe_onset import (
 from flight_insights.analyzers.flight import FlightData
 from flight_insights.analyzers.model import Analyzer, Evidence, Finding, Result
 from flight_insights.analyzers.registry import Registry
+from flight_insights.dataflash.formats import text
+from flight_insights.knowledge import KnowledgeError
+from flight_insights.params.dialect import Dialect
 
 Array = np.ndarray[Any, Any]
 REFUSED = (1, 2, 4, 9)  # MAV_RESULT: temporarily rejected, denied, failed, frame
@@ -163,21 +166,37 @@ def gps_lost(flight: FlightData) -> list[Event]:
             for a, b in _runs(t, had & (status < 3))]  # fmt: skip
 
 
-def params_changed(flight: FlightData) -> list[Event]:
-    """Parameters set while armed: the firmware logs PARM again when one changes."""
+def _counter(flight: FlightData, reg: Registry) -> Callable[[str], bool]:
+    """Whether a parameter is one of the statistics the autopilot counts up on its own
+    (STAT_*): it changes in flight with no one setting it, so it is no event."""
+    try:
+        dialect = Dialect(reg.pack, flight.vehicle, flight.firmware or "0")  # type: ignore[arg-type]
+    except (KnowledgeError, KeyError):
+        return lambda _name: False
+    return lambda name: dialect.param_class(name) == "counter"
+
+
+def params_changed(flight: FlightData, reg: Registry) -> list[Event]:
+    """Parameters set while armed: the firmware logs PARM again when one changes. The
+    autopilot's own counters are left out."""
     parm = flight.table("PARM")
     if parm is None or parm.num_rows == 0 or "Name" not in parm.column_names:
         return []
     t = _ints(parm, "TimeUS")
-    names = parm.column("Name").to_pylist()
+    raw: list[Any] = parm.column("Name").to_pylist()
+    names: list[str] = [text(n) if isinstance(n, bytes) else str(n) for n in raw]
     values = _floats(parm, "Value")
+    counter = _counter(flight, reg)
     last: dict[str, float] = {}
     out: list[Event] = []
     for k in np.argsort(t, kind="stable"):
-        name, value = str(names[k]), float(values[k])
+        name, value = names[int(k)], float(values[k])
         before = last.get(name)
         last[name] = value
-        if flight.arm_us <= t[k] <= flight.disarm_us and before is not None and before != value:
+        if (
+            flight.arm_us <= t[k] <= flight.disarm_us and before is not None and before != value
+            and not counter(name)
+        ):  # fmt: skip
             change = {"name": name, "from": before, "to": value}
             out.append(Event(int(t[k]), "param_changed", None, change, ("PARM",), ()))
     return out
@@ -246,7 +265,7 @@ def events(flight: FlightData, reg: Registry) -> list[Event]:
     found = (
         link_outages(flight, float(rules["outage_s"]))
         + gcs_unheard(flight, float(rules["silence_share"]))
-        + _receiver(flight) + battery_low(flight) + gps_lost(flight) + params_changed(flight)
+        + _receiver(flight) + battery_low(flight) + gps_lost(flight) + params_changed(flight, reg)
         + errors(flight, names) + failsafe_modes(flight, names) + commands_refused(flight)
     )  # fmt: skip
     since = flight.arm_us - round(float(rules["lookback_s"]) * 1e6)
@@ -300,13 +319,17 @@ def first_fault(
     return Incident(main, tuple(chain), tuple(explained))
 
 
-def words(rules: Mapping[str, Any], e: Event) -> str:
-    words: Mapping[str, str] = rules["words"]
-    if e.kind in words:
-        return words[e.kind]
+def words(rules: Mapping[str, Any], e: Event, lang: str = "en") -> str:
+    """The event in words, in `lang` (the rule pack words each in English and Ukrainian);
+    a mode change a failsafe made is its mode and reason, and an error with no words of
+    its own is its subsystem's name."""
+    known: Mapping[str, Mapping[str, str]] = rules["words"]
+    if e.kind in known:
+        return known[e.kind][lang]
     if e.kind.startswith("mode:"):
         why = e.kind.removeprefix("mode:").lower().replace("_", " ")
-        return f"{e.detail.get('mode', 'a mode')} by {why}"
+        template: str = rules["mode_words"][lang]
+        return template.format(mode=e.detail.get("mode", "?"), reason=why)
     return f"ERR {e.kind.removeprefix('error:')}" if e.kind.startswith("error:") else e.kind
 
 
