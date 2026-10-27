@@ -282,12 +282,17 @@ def wind_at(
     return uv[levels[-1]]
 
 
+def air_density(pressure_hpa: float, temperature_c: float, dew_point_c: float) -> float:
+    """Moist air's density, kg/m3, from its virtual temperature."""
+    e = 6.1078 * 10 ** (7.5 * dew_point_c / (237.3 + dew_point_c))  # vapour pressure, hPa
+    tv = (temperature_c + 273.15) / (1 - 0.379 * e / pressure_hpa)
+    return pressure_hpa * 100 / (R_DRY * tv)
+
+
 def density_altitude_m(pressure_hpa: float, temperature_c: float, dew_point_c: float) -> float:
     """Density altitude from pressure, temperature and humidity (virtual temperature;
     the US National Weather Service's fit to the standard atmosphere)."""
-    e = 6.1078 * 10 ** (7.5 * dew_point_c / (237.3 + dew_point_c))  # vapour pressure, hPa
-    tv = (temperature_c + 273.15) / (1 - 0.379 * e / pressure_hpa)
-    rho = pressure_hpa * 100 / (R_DRY * tv)
+    rho = air_density(pressure_hpa, temperature_c, dew_point_c)
     return 1000.0 * (44.3308 - 42.2665 * rho**0.234969)
 
 

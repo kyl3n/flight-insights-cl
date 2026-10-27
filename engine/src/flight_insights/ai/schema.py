@@ -265,7 +265,8 @@ PACKET: dict[str, Any] = {
         },
         # The flight's modelled weather, values only (spec: Weather and wind): what
         # narrows down the place (temperature, humidity, pressure, density altitude, cloud
-        # base) stays on the laptop.
+        # base) stays on the laptop. Temperature and air density reach it only as whole
+        # differences from the airframe's usual flights.
         "weather": {
             "type": "object",
             "properties": {
@@ -278,6 +279,8 @@ PACKET: dict[str, Any] = {
                 "precipitation_mm_h": MAYBE_NUMBER,
                 "boundary_layer_m": MAYBE_NUMBER,
                 "kp_max": MAYBE_NUMBER,
+                "temperature_vs_usual_c": {"type": ["integer", "null"]},
+                "density_vs_usual_pct": {"type": ["integer", "null"]},
             },
             "required": ["quality", "coverage"],
             "additionalProperties": False,
