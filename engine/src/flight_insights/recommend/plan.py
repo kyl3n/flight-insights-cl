@@ -577,17 +577,24 @@ def _build_plan(
     # any finding with steps of its own (new ESC firmware for a better option). Work a
     # later log shows done (`applied_when`: AutoTune, saved) is an action even when its
     # finding also has changes to load first: they prepare the work, they are not it.
+    # One action a code: findings with the same code on one flight (a failsafe of two
+    # subsystems) ask for the same work, and are kept as one recommendation citing each.
     answered = {s.finding for r in recs if r.status in ("next", "disputed") for s in r.sources}
+    actions: dict[str, Recommendation] = {}
     for source, f in sources:
         needs_person = source.severity in ACTION_SEVERITIES or source.code in procedures
         shown_done = bool(procedures.get(source.code, {}).get("applied_when"))
         if needs_person and (source.finding not in answered or shown_done):
+            if (same := actions.get(source.code)) is not None:
+                same.sources.append(source)
+                continue
             stage = str(f.get("stage") or "mechanical")
             action = Recommendation(None, None, None, None, stage, [source])
             for name in procedures.get(source.code, {}).get("undo_also", ()):
                 if params.get(name) is not None:
                     nname, nvalue = native(name, params[name])
                     action.undo[nname] = float(params[name] if nvalue is None else nvalue)
+            actions[source.code] = action
             recs.append(action)
 
     # The earliest stage with a problem left is on offer, with safety at any stage, and

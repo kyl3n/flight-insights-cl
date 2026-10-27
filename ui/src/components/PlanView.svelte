@@ -284,6 +284,9 @@
     </header>
     <h3>{r.why[app.locale]}</h3>
     {#if r.param === null}
+      {#each r.sources.filter((s) => s.finding !== r.finding) as s (s.finding)}
+        <p>{s.why[app.locale]}</p>
+      {/each}
       <p class="faint">{t("plan.action")}</p>
       {#if r.status === "next" && r.id}
         <div class="actions">

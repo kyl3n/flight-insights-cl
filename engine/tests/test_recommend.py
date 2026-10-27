@@ -816,6 +816,22 @@ def test_the_undo_file_keeps_the_gains_autotune_may_save(reg: Registry) -> None:
     assert set(step.params) == set(undo) and "ATC_ANG_RLL_P" in step.text["en"]
 
 
+def test_findings_with_one_code_are_one_action_citing_each(reg: Registry) -> None:
+    """Failsafes of two subsystems on one flight ask for the same work: one action (one
+    stored record, which is how every laptop knows it), with each finding's own wording."""
+    radio, gcs = (finding("system.failsafe", severity="out") for _ in range(2))
+    radio["params"] = {"subsystem": "radio", "count": 1, "first_s": 12.0}
+    gcs["params"] = {"subsystem": "GCS", "count": 2, "first_s": 40.0}
+    [action] = [r for r in plan(reg, radio, gcs).recommendations if r.param is None]
+    assert {s.finding for s in action.sources} == {radio["id"], gcs["id"]}
+    out = to_json(plan(reg, radio, gcs), reg)
+    [rec] = [r for r in out["recommendations"] if r["canonical"] is None]
+    assert [s["why"]["en"] for s in rec["sources"]] == [
+        "Failsafe in flight: radio (1 times)",
+        "Failsafe in flight: GCS (2 times)",
+    ]
+
+
 def test_an_action_alone_still_has_an_undo_file(reg: Registry) -> None:
     """Small propellers, a fixed payload: nothing to load first, and the undo file holds
     only the gains the flight had."""
