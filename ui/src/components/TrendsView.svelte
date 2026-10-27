@@ -23,8 +23,10 @@
   import {
     cardKey,
     changeTone,
+    conditionsText,
     groupOption,
     placeEvents,
+    pointWeatherText,
     sparkPath,
     worstCheck,
     type PayloadGroups,
@@ -47,6 +49,8 @@
   let names = $state<Record<string, string>>({});
   let key = $state<string | null>(null); // the card shown: metric@segment
   let payloadGroup = $state<string | null>(null); // 'band:<n>' or 'label:<text>'; "*": every payload
+  let windMax = $state<number | null>(null); // flights up to this wind, from their weather records
+  let likeDensity = $state(false); // flights at the latest flight's air density
   let compare = $state(false);
   let picked = $state<number | null>(null);
   let pickedEvent = $state<number | null>(null); // the flight index whose changes are open
@@ -96,9 +100,10 @@
     }
     const params = { airframe_id: id, metric: c.metric, segment: c.segment };
     const which = payloadGroup === "*" ? { any_payload: true } : { group: payloadGroup };
+    const weather = { wind_max_ms: windMax, like_density: likeDensity };
     picked = null;
     pickedEvent = null;
-    engineCall<Series>("trend.series", { ...params, ...which })
+    engineCall<Series>("trend.series", { ...params, ...which, ...weather })
       .then((s) => (series = s))
       .catch((e: unknown) => (error = String(e)));
   });
@@ -255,6 +260,19 @@
             {#if payloadGroups && worstCheck(payloadGroups.check) !== null}
               <span class="faint">{t("trends.payload.check", { error: formatNumber(worstCheck(payloadGroups.check) ?? 0, app.locale), count: payloadGroups.check.length })}</span>
             {/if}
+            <label>
+              {t("trends.weather.wind")}
+              <select bind:value={windMax}>
+                <option value={null}>{t("trends.weather.anyWind")}</option>
+                {#each series?.conditions?.wind_choices ?? [3, 6, 9] as w (w)}
+                  <option value={w}>{t("trends.weather.upTo", { wind: formatNumber(w, app.locale) })}</option>
+                {/each}
+              </select>
+            </label>
+            <label class="check"><input type="checkbox" bind:checked={likeDensity} /> {t("trends.weather.likeDensity")}</label>
+            {#if conditionsText(series?.conditions, app.locale)}
+              <span class="faint">{conditionsText(series?.conditions, app.locale)}</span>
+            {/if}
             {#if airframe}
               <label class="check"><input type="checkbox" bind:checked={compare} /> {t("trends.compare")}</label>
             {/if}
@@ -333,6 +351,9 @@
               {#if point.takeoff_kg !== null}· {t("trends.point.weighed", { kg: formatNumber(point.takeoff_kg, app.locale) })}
               {:else if point.kg !== null}· {t("trends.point.kg", { kg: formatNumber(point.kg, app.locale) })}{/if}
             </p>
+            {#if pointWeatherText(point.weather, app.locale)}
+              <p class="faint">{pointWeatherText(point.weather, app.locale)}</p>
+            {/if}
             {#if delta !== null}
               <p class:better={tone === "better"} class:worse={tone === "worse"}>
                 {t("trends.sincePrevious", { delta: `${delta > 0 ? "+" : ""}${value(delta, series.unit)}` })}

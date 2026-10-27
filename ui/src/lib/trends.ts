@@ -56,6 +56,29 @@ export interface TrendPoint {
   kg: number | null; // estimated from hover thrust, once a flight was weighed
   takeoff_kg: number | null; // as weighed
   good: boolean;
+  weather?: PointWeather | null; // from the flight's weather record, when it has one
+}
+
+/** What a trend point carries of its flight's weather record. */
+export interface PointWeather {
+  quality: string | null;
+  coverage: number | null;
+  wind_ms: number | null;
+  gust_max_ms: number | null;
+  density_altitude_m: number | null;
+  temperature_c: number | null;
+}
+
+/** The weather a series was narrowed to, and how many of its flights matched. */
+export interface SeriesConditions {
+  wind_max_ms: number | null;
+  like_density: boolean;
+  density_altitude_m: [number, number] | null; // the band matched, around the reference flight
+  reference: string | null; // the flight whose density was matched
+  total: number;
+  matched: number;
+  no_record: number; // flights with no usable weather record
+  wind_choices: number[];
 }
 
 export interface Series {
@@ -71,6 +94,7 @@ export interface Series {
   points: TrendPoint[];
   baseline: Baseline | null;
   drift: { flights: string[]; since: string } | null;
+  conditions?: SeriesConditions;
   apart?: boolean; // in the platform view: away from its siblings
 }
 
@@ -207,4 +231,27 @@ export function worstCheck(check: WeightCheck[]): number | null {
 export function changeTone(delta: number | null, direction: "lower" | "higher" | "band"): "better" | "worse" | "same" {
   if (delta === null || delta === 0 || direction === "band") return "same";
   return (delta > 0) === (direction === "lower") ? "worse" : "better";
+}
+
+/** "16 of 21 flights match", with how many had no weather record, for a narrowed series. */
+export function conditionsText(c: SeriesConditions | undefined, locale: Locale): string | null {
+  if (!c || (c.wind_max_ms === null && !c.like_density)) return null;
+  let text = translate(locale, "trends.weather.matched", { matched: c.matched, total: c.total });
+  if (c.density_altitude_m) {
+    const [low, high] = c.density_altitude_m;
+    text += translate(locale, "trends.weather.band", { low: formatNumber(low, locale), high: formatNumber(high, locale) });
+  }
+  if (c.no_record > 0) text += translate(locale, "trends.weather.noRecord", { count: c.no_record });
+  return text;
+}
+
+/** A point's weather in a line: wind, gusts and density altitude. */
+export function pointWeatherText(w: PointWeather | null | undefined, locale: Locale): string | null {
+  if (!w || w.wind_ms === null) return null;
+  const vars = {
+    wind: formatNumber(Math.round(w.wind_ms * 10) / 10, locale),
+    gust: w.gust_max_ms === null ? "–" : formatNumber(Math.round(w.gust_max_ms * 10) / 10, locale),
+    da: w.density_altitude_m === null ? "–" : formatNumber(Math.round(w.density_altitude_m), locale),
+  };
+  return translate(locale, "trends.weather.point", vars);
 }
