@@ -400,7 +400,7 @@
       "uk": "летітиме далі в {mode} без надійної позиції: може дрейфувати чи відлетіти"
     },
     "fact.link_failsafes": {
-      "en": "Its flights logged {n} {failsafe} failsafes: {as_configured} as configured, {fell_back} on a fallback mode, {unexpected} not as configured.",
+      "en": "Logged {failsafe} failsafes: {n} ({as_configured} as configured, {fell_back} on a fallback mode, {unexpected} not as configured).",
       "uk": "У його польотах записано спрацювань аварійного режиму {failsafe}: {n}; як налаштовано — {as_configured}, у запасному режимі — {fell_back}, не як налаштовано — {unexpected}."
     },
     "fact.link_slowest": {
@@ -408,7 +408,7 @@
       "uk": "Найповільніший аварійний режим {failsafe} спрацював через {waited_s} с після початку втрати (його очікування: {wait_s} с)."
     },
     "fact.link_unanswered": {
-      "en": "{n} losses of the {failsafe} link went unanswered by its failsafe.",
+      "en": "Losses of the {failsafe} link no failsafe answered: {n}.",
       "uk": "Втрат зв'язку ({failsafe}) без відповіді аварійного режиму: {n}."
     },
     "fact.link_near_miss": {

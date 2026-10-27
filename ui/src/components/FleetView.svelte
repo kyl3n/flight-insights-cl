@@ -233,7 +233,10 @@
                     </span>
                   </div>
                   {#if h.current === false}<span class="faint">{t("fleet.stale")}</span>{/if}
-                  <button type="button" class="link" onclick={() => openTrends(a.id)}>{t("fleet.trends")}</button>
+                  <span class="links">
+                    <button type="button" class="link" onclick={() => openTrends(a.id)}>{t("fleet.trends")}</button>
+                    <button type="button" class="link" onclick={() => (app.recoveryCard = a.id)}>{t("fleet.recovery")}</button>
+                  </span>
                 {/if}
               </article>
             {/each}
@@ -511,6 +514,11 @@
     flex-direction: column;
     gap: 5px;
     font-size: 13px;
+  }
+  .links {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 4px 14px;
   }
   .add button,
   .link {
