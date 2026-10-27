@@ -351,12 +351,13 @@ def test_the_heavy_lift_x8_card_from_its_own_flights(tmp_path: Path) -> None:
                       decisions=[decision])["result"]  # fmt: skip
         call(server, out, 30 + i, "analysis.run", flight_id=done["flights"][0])
     c = call(server, out, 8, "airframe.recovery_card", airframe_id=af["id"])["result"]
-    assert keys(c, "motor_lost", "will") == ["will.motor_hold", "will.motor_message"]
+    # at 40.5 kg ArduPilot's mixer needs 85.7% of the busiest motor: short of the target
+    assert keys(c, "motor_lost", "will") == ["will.motor_short", "will.motor_message"]
     [s] = [s for s in c["sections"] if s["id"] == "motor_lost"]
     [fact] = s["facts"]
     # the loaded flight flew last; its weight from the light one's kilograms per thrust
     assert fact["key"] == "fact.motor_kg_estimated"
     assert fact["params"]["flight_kg"] == pytest.approx(40.5, rel=0.03)
-    # the same ceiling the light flight gives (its ratio 1.42 times 32.5 kg), within 3%
-    assert fact["params"]["kg"] == pytest.approx(32.5 * 1.423, rel=0.03)
+    # the same ceiling the light flight gives (its ratio 1.265 times 32.5 kg), within 3%
+    assert fact["params"]["kg"] == pytest.approx(32.5 * 1.265, rel=0.03)
     call(server, out, 9, "engine.shutdown")

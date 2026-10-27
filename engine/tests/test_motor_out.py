@@ -10,7 +10,7 @@ import numpy as np
 import pytest
 
 from flight_insights.knowledge import load_pack
-from flight_insights.motor_out import output_for, solve, thrust_at, worst
+from flight_insights.motor_out import arms, mixer, output_for, solve, thrust_at, worst
 from flight_insights.simplex import linprog
 
 Array = np.ndarray[Any, Any]
@@ -103,9 +103,73 @@ def test_a_coaxial_x8_holds_its_heading_with_the_partner_working_harder() -> Non
     out = worst(x8, weight, hold_yaw=True)
     assert all(m.peak is not None for m in out)
     # the co-rotating X8 (top layer scaled 0.9 by the mixer) has the same geometry
-    cor = worst(motors(4, 20), weight, hold_yaw=False)
-    plain = worst(x8, weight, hold_yaw=False)
+    cor = worst(motors(4, 20), weight, hold_yaw=False, best=True)
+    plain = worst(x8, weight, hold_yaw=False, best=True)
     assert cor[0].peak == pytest.approx(plain[0].peak, rel=1e-6)
+
+
+# --- what ArduPilot's mixer does -------------------------------------------------------------
+
+
+@pytest.mark.parametrize(
+    ("cls", "kind", "mixed", "best"),
+    [
+        (4, 1, 1.5, 4 / 3),  # X8: the mixer leans on the partner more than it must
+        (3, 1, 1.5, 2**0.5),  # octa X
+        (12, 1, 1.375, 1.2),  # dodeca-hexa
+        (14, 1, 1.4361, 1.25),  # deca
+        (2, 1, 1.5, 1.5),  # hexa X: no other way to balance
+        (5, 10, 2.0, 2.0),  # Y6B
+    ],
+)
+def test_the_mixer_against_the_best_split(cls: int, kind: int, mixed: float, best: float) -> None:
+    """Each motor lost, as ArduPilot's mixer flies on and at the best split, in times its
+    hover thrust: the mixer can only reach the thrusts its four demands span."""
+    frame = motors(cls, kind)
+    n = len(frame)
+    fw = worst(frame, float(n))[0].peak
+    lp = worst(frame, float(n), best=True)[0].peak
+    assert fw is not None and lp is not None
+    assert fw == pytest.approx(mixed, abs=1e-3) and lp == pytest.approx(best, abs=1e-3)
+    assert fw >= lp - 1e-9  # no mixer beats the best split
+
+
+def test_the_mixers_balance_lies_in_what_its_demands_reach() -> None:
+    x8 = motors(4, 1)
+    lost = mixer(x8, 1, 8.0)
+    thrusts = np.array(lost.thrusts)
+    assert thrusts[0] == 0.0 and thrusts.sum() == pytest.approx(8.0)
+    assert np.allclose(arms(x8).T @ thrusts, 0.0, atol=1e-9)  # no roll, pitch or yaw left
+    factors = np.array([[m["throttle"], m["roll"], m["pitch"], m["yaw"]] for m in x8])[1:]
+    demands, *_ = np.linalg.lstsq(factors, thrusts[1:], rcond=None)
+    assert np.allclose(factors @ demands, thrusts[1:], atol=1e-9)
+    assert lost.peak == pytest.approx(1.5) and thrusts[5] == pytest.approx(1.5)  # its partner
+
+
+def test_the_co_rotating_x8_is_as_good_as_it_can_be() -> None:
+    """A co-rotating X8 can hold its heading only by stopping the lost motor's partner's
+    yaw: its mixer and the best split both leave 2 hover thrusts on the busiest motor,
+    the top layer's 0.9 scaling (control, not geometry) notwithstanding."""
+    cor = motors(4, 20)
+    assert worst(cor, 8.0)[0].peak == pytest.approx(2.0, abs=1e-6)
+    assert worst(cor, 8.0, best=True)[0].peak == pytest.approx(2.0, abs=1e-6)
+
+
+def test_a_quad_has_no_balance_on_the_mixer_either() -> None:
+    assert all(m.peak is None for m in worst(motors(1, 1), 4.0))
+
+
+def test_every_frame_that_can_lose_a_motor_balances_on_its_mixer() -> None:
+    """In 4.7.0, every Copter frame of six or more motors settles with every motor at zero
+    thrust or above, whichever is lost: a later release that breaks this shows here."""
+    for cls, entry in FRAMES.items():
+        for kind, frame in entry["types"].items():
+            ms = frame["motors"]
+            if len(ms) < 6 or "plane" in frame.get("vehicles", ["copter"]):
+                continue
+            for m in worst(ms, float(len(ms))):
+                assert m.peak is not None, (cls, kind, m.failed)
+                assert min(m.thrusts) >= 0.0
 
 
 def test_the_peak_scales_with_the_weight() -> None:
