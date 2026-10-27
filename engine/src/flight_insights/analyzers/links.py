@@ -79,10 +79,15 @@ def _flag(out: Result, m: MetricValue, code: str, ev: Evidence, params: dict[str
 # --- the downlink, as the ground station heard it ---------------------------------------
 
 
-def _downlink(flight: FlightData, reg: Registry, rules: Mapping[str, Any], out: Result) -> bool:
-    """The worst station's view: the share of the vehicle's packets it never received,
-    and the longest time it heard nothing from the vehicle, while armed."""
-    views: list[dict[str, Any]] = []
+Station = tuple[dict[str, Any], Array, Mapping[str, Any]]
+
+
+def downlink_views(flight: FlightData, outage_s: float) -> list[Station]:
+    """Each station's view of the vehicle's packets while armed: what it received, lost
+    and got out of order, its longest silence and how many silences passed `outage_s`;
+    with the times it heard them (µs, the flight's clock), in order, and its tlog
+    session. Stations that heard fewer than two are left out."""
+    views: list[Station] = []
     for n, (session, packets) in enumerate(flight.tlog_packets(), 1):
         mapped = np.asarray(packets.column("TimeUS").to_numpy(zero_copy_only=False), np.float64)
         mine = (
@@ -99,7 +104,7 @@ def _downlink(flight: FlightData, reg: Registry, rules: Mapping[str, Any], out: 
         gaps = np.diff(times) / 1e6
         k = int(np.argmax(gaps))
         received = int(np.count_nonzero(mine))
-        views.append({
+        views.append(({
             "station": n,
             "received": received,
             "lost": counter.lost,
@@ -107,8 +112,15 @@ def _downlink(flight: FlightData, reg: Registry, rules: Mapping[str, Any], out: 
             "loss_pct": round(100.0 * counter.lost / (received + counter.lost), 2),
             "longest_s": round(float(gaps[k]), 2),
             "longest_at_s": round((float(times[k]) - flight.arm_us) / 1e6, 1),
-            "outages": int(np.count_nonzero(gaps > float(rules["outage_s"]))),
-        })  # fmt: skip
+            "outages": int(np.count_nonzero(gaps > outage_s)),
+        }, times, session))  # fmt: skip
+    return views
+
+
+def _downlink(flight: FlightData, reg: Registry, rules: Mapping[str, Any], out: Result) -> bool:
+    """The worst station's view: the share of the vehicle's packets it never received,
+    and the longest time it heard nothing from the vehicle, while armed."""
+    views = [v for v, _, _ in downlink_views(flight, float(rules["outage_s"]))]
     if not views:
         return False
     worst = max(views, key=lambda v: (v["loss_pct"], v["longest_s"]))
@@ -149,26 +161,51 @@ def _delta(counts: Array) -> int:
     return int(np.sum(np.diff(counts) % COUNTER)) if len(counts) > 1 else 0
 
 
-def _uplink(flight: FlightData, reg: Registry, out: Result) -> bool:
+def mav_rows(flight: FlightData) -> tuple[Array, Array, Array, Array, Array | None] | None:
+    """MAV in time order: TimeUS, the link, packets received and missed (cumulative
+    16-bit counts), and when the GCS was last heard (ms) where the log has it."""
     mav = flight.table("MAV")
     if mav is None or mav.num_rows == 0 or "rxdp" not in mav.column_names:
-        return False
+        return None
     times = _ints(mav, "TimeUS")
     order = np.argsort(times, kind="stable")
-    times, chan = times[order], _ints(mav, "chan")[order]
-    rxp, rxdp = _ints(mav, "rxp")[order], _ints(mav, "rxdp")[order]
-    has_mgs = "mgs" in mav.column_names
-    mgs = _ints(mav, "mgs")[order] if has_mgs else np.zeros(len(times), np.int64)
+    mgs = _ints(mav, "mgs")[order] if "mgs" in mav.column_names else None
+    return times[order], _ints(mav, "chan")[order], _ints(mav, "rxp")[order], \
+        _ints(mav, "rxdp")[order], mgs  # fmt: skip
+
+
+def uplink_links(
+    flight: FlightData, times: Array, chan: Array, rxp: Array, rxdp: Array, mgs: Array | None
+) -> list[dict[str, Any]]:
+    """Each link that heard the GCS while armed, with enough packets to judge: what the
+    autopilot received and knows it missed."""
     armed = _armed(flight, times)
     links: list[dict[str, Any]] = []
     for c in np.unique(chan[armed]):
         rows = armed & (chan == c)
         got, missed = _delta(rxp[rows]), _delta(rxdp[rows])
-        heard_gcs = bool(np.any(np.diff(mgs[rows]) > 0)) if has_mgs else got > 0
+        heard_gcs = bool(np.any(np.diff(mgs[rows]) > 0)) if mgs is not None else got > 0
         if not heard_gcs or got + missed < MIN_PACKETS:
             continue
         links.append({"chan": int(c), "received": got, "missed": missed,
                       "loss_pct": round(100.0 * missed / (got + missed), 2)})  # fmt: skip
+    return links
+
+
+def unheard(times: Array, chan: Array, mgs: Array) -> tuple[Array, Array]:
+    """How long the GCS had gone unheard as each MAV row was logged (s), and which rows
+    come after it was first heard."""
+    seen = last_seen(times, chan, mgs)
+    return (times - seen) / 1e6, seen > 0
+
+
+def _uplink(flight: FlightData, reg: Registry, out: Result) -> bool:
+    rows = mav_rows(flight)
+    if rows is None:
+        return False
+    times, chan, rxp, rxdp, mgs = rows
+    has_mgs = mgs is not None
+    links = uplink_links(flight, times, chan, rxp, rxdp, mgs)
     found = False
     if links:
         worst = max(links, key=lambda v: v["loss_pct"])
@@ -195,7 +232,7 @@ def _uplink(flight: FlightData, reg: Registry, out: Result) -> bool:
         m = _metric(reg, out, "link.uplink_loss", worst["loss_pct"], ev)
         _flag(out, m, "link.uplink_loss", ev, {"loss": worst["loss_pct"], "link": worst["chan"]})
         found = True
-    if has_mgs:
+    if mgs is not None:
         found |= _gcs_silence(flight, reg, times, chan, mgs, out)
     return found
 
@@ -205,11 +242,11 @@ def _gcs_silence(
 ) -> bool:
     """The longest the GCS went unheard while armed, against the wait of its failsafe. At
     the wait or past it the failsafe analyzer judges the loss; short of it, a near miss."""
-    seen = last_seen(times, chan, mgs)
-    armed = _armed(flight, times) & (seen > 0)
+    silent, heard = unheard(times, chan, mgs)
+    armed = _armed(flight, times) & heard
     if not np.any(armed):
         return False
-    silence = (times - seen)[armed] / 1e6
+    silence = silent[armed]
     k = int(np.argmax(silence))
     timeout = _param(flight, "FS_GCS_TIMEOUT", 5.0)
     longest = round(float(silence[k]), 2)
@@ -250,7 +287,15 @@ def radio_table(flight: FlightData) -> tuple[pa.Table, str] | None:
     return None
 
 
-def _is_sik(flight: FlightData, rules: Mapping[str, Any]) -> bool:
+RADIO_FIELDS = {  # RSSI, remote RSSI, TX buffer, noise, remote noise, by who reported
+    "aircraft": ("RSSI", "RemRSSI", "TxBuf", "Noise", "RemNoise"),  # RAD
+    "ground": ("rssi", "remrssi", "txbuf", "noise", "remnoise"),  # the tlog's RADIO_STATUS
+}
+
+
+def is_sik(flight: FlightData, rules: Mapping[str, Any]) -> bool:
+    """A SiK firmware radio: the platform's setup names SiK or RFD, or the tlog holds
+    RADIO_STATUS from SiK's own system and component IDs."""
     sik: Mapping[str, Any] = rules["sik"]
     if flight.answers.get("telemetry_radio") in sik["answers"]:
         return True
@@ -267,10 +312,7 @@ def _radio_status(flight: FlightData, reg: Registry, rules: Mapping[str, Any], o
         return False
     table, end = found
     onboard = end == "aircraft"
-    names = (
-        ("RSSI", "RemRSSI", "TxBuf", "Noise", "RemNoise") if onboard
-        else ("rssi", "remrssi", "txbuf", "noise", "remnoise")
-    )  # fmt: skip
+    names = RADIO_FIELDS[end]
     if any(n not in table.column_names for n in names):
         return False
     times = _ints(table, "TimeUS")
@@ -301,9 +343,22 @@ def _radio_status(flight: FlightData, reg: Registry, rules: Mapping[str, Any], o
     out.evidence.append(ev)
     m = _metric(reg, out, "link.txbuf_low", low_share, ev)
     _flag(out, m, "link.txbuf_low", ev, {"share": low_share, "below": f"{slows:g}"})
-    if _is_sik(flight, rules):
+    if is_sik(flight, rules):
         _sik_margins(flight, reg, rules, end, (rssi, rem, noise, remnoise), names, message, out)
     return True
+
+
+def fade_margins(
+    end: str, rssi: Array, rem: Array, noise: Array, remnoise: Array, per_db: float
+) -> dict[str, tuple[Array, Array]]:
+    """Each end's fade margin in dB (its RSSI over its noise) at every sample, with the
+    samples that count: all of the reporting end's, and the far end's once it heard
+    anything (a remote RSSI of 0 means it heard nothing yet)."""
+    here, there = ("aircraft", "ground") if end == "aircraft" else ("ground", "aircraft")
+    return {
+        here: (np.ones(len(rssi), bool), (rssi - noise) / per_db),
+        there: (rem > 0, (rem - remnoise) / per_db),
+    }
 
 
 def _sik_margins(
@@ -318,7 +373,8 @@ def _sik_margins(
     rssi, rem, noise, remnoise = values
     here, there = ("aircraft", "ground") if end == "aircraft" else ("ground", "aircraft")
     heard = rem > 0
-    margins = {here: (rssi - noise) / per_db, there: ((rem - remnoise) / per_db)[heard]}
+    found = fade_margins(end, rssi, rem, noise, remnoise, per_db)
+    margins = {side: v[counted] for side, (counted, v) in found.items()}
     p5 = {side: round(float(np.percentile(v, 5)), 1) for side, v in margins.items() if len(v)}
     if not p5:
         return
@@ -408,27 +464,32 @@ def _rc_signal(flight: FlightData, reg: Registry, out: Result) -> bool:
     return found
 
 
-def _rci2(flight: FlightData) -> tuple[Array, Array, Array] | None:
-    rci2 = flight.table("RCI2")
-    if rci2 is None or rci2.num_rows == 0 or "Flags" not in rci2.column_names:
+def rci2(flight: FlightData) -> tuple[Array, Array, Array] | None:
+    """RCI2's time, flags and MAVLink override mask (zeros where the log has none)."""
+    table = flight.table("RCI2")
+    if table is None or table.num_rows == 0 or "Flags" not in table.column_names:
         return None
     omask = (
-        _ints(rci2, "OMask") if "OMask" in rci2.column_names else np.zeros(rci2.num_rows, np.int64)
-    )
-    return _ints(rci2, "TimeUS"), _ints(rci2, "Flags"), omask
+        _ints(table, "OMask") if "OMask" in table.column_names
+        else np.zeros(table.num_rows, np.int64)
+    )  # fmt: skip
+    return _ints(table, "TimeUS"), _ints(table, "Flags"), omask
+
+
+def runs_of(flagged: Array) -> list[tuple[int, int]]:
+    """The first and last index of each run of set samples."""
+    edges = np.flatnonzero(np.diff(np.concatenate(([0], flagged.astype(np.int8), [0]))))
+    return [(int(a), int(b)) for a, b in zip(edges[::2], edges[1::2] - 1, strict=True)]
 
 
 def _rc_failsafes(flight: FlightData, reg: Registry, out: Result) -> bool:
     """Each time the receiver itself flagged failsafe while armed (RCI2.Flags bit 2):
     the transmitter lost, however briefly."""
-    rci2 = _rci2(flight)
-    if rci2 is None:
+    found = rci2(flight)
+    if found is None:
         return False
-    times, flags, _ = rci2
-    armed = _armed(flight, times)
-    flagged = armed & ((flags & PROTOCOL_FAILSAFE) > 0)
-    edges = np.flatnonzero(np.diff(np.concatenate(([0], flagged.astype(np.int8), [0]))))
-    runs = list(zip(edges[::2], edges[1::2] - 1, strict=True))
+    times, flags, _ = found
+    runs = runs_of(_armed(flight, times) & ((flags & PROTOCOL_FAILSAFE) > 0))
     longest = max(((int(times[b]) - int(times[a])) / 1e6 for a, b in runs), default=0.0)
     ev = Evidence(
         id="link:rc_failsafes",
@@ -464,13 +525,13 @@ def _fs_thr_margin(
     failsafe and not overridden over MAVLink, anywhere in the log: the stick's lowest."""
     if _param(flight, "FS_THR_ENABLE") == 0:
         return False
-    rci2 = _rci2(flight)
+    received = rci2(flight)
     channel = int(_param(flight, "RCMAP_THROTTLE", 3))
     rcin = flight.table("RCIN")
     column = f"C{channel}"
-    if rci2 is None or rcin is None or rcin.num_rows == 0 or column not in rcin.column_names:
+    if received is None or rcin is None or rcin.num_rows == 0 or column not in rcin.column_names:
         return False
-    times, flags, omask = rci2
+    times, flags, omask = received
     rc_times, pwm = _ints(rcin, "TimeUS"), _ints(rcin, column)
     k = np.clip(np.searchsorted(times, rc_times, side="right") - 1, 0, None)
     good = (
