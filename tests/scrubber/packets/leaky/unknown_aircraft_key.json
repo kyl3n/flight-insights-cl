@@ -46,7 +46,9 @@
    "gust_max_ms": 11.5,
    "precipitation_mm_h": 0,
    "boundary_layer_m": 900,
-   "kp_max": 5.33
+   "kp_max": 5.33,
+   "temperature_vs_usual_c": -6,
+   "density_vs_usual_pct": 3
   },
   "metrics": [
    {

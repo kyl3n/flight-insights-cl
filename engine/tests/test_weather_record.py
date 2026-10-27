@@ -360,6 +360,51 @@ def test_the_ai_packet_carries_only_weather_that_cannot_place_the_flight(
         "quality": "reanalysis", "coverage": 0.97, "wind_ms": 6.5, "wind_max_ms": 9,
         "surface_wind_ms": 4.5, "gust_max_ms": 11.5, "precipitation_mm_h": 0,
         "boundary_layer_m": 900, "kp_max": 5.33,
+        # no other flights of the airframe to compare with yet
+        "temperature_vs_usual_c": None, "density_vs_usual_pct": None,
     }  # fmt: skip
+    key = str(store.get("flight", flight)["flight_key"])  # type: ignore[index]
+    assert check(packet, flight_points(cache, key), Policy.load(PACK, "4.7.0")) == []
+
+
+def test_temperature_and_density_reach_the_ai_only_against_the_airframes_usual(
+    flown: tuple[Store, ColumnCache, str],
+) -> None:
+    """The user's decision (2026-10-27): the take-off's temperature and air density as
+    whole differences from the median of the airframe's other flights, once it has three
+    with a record; never the values themselves."""
+    from flight_insights.ai.packet import build_packet
+    from flight_insights.ai.policy import Policy
+    from flight_insights.ai.scrubber import check
+    from flight_insights.ai.tripwire import flight_points
+
+    store, cache, flight = flown
+    airframe_id = str(store.get("flight", flight)["airframe_id"])  # type: ignore[index]
+
+    def keep(fid: str, temperature: float, pressure: float) -> None:
+        rec = {"quality": "forecast", "coverage": 1.0, "temperature_c": temperature,
+               "pressure_hpa": pressure, "dew_point_c": 2.0, "kp_max": 1.0}  # fmt: skip
+        store.conn.execute(
+            "INSERT INTO flight_weather (flight_id, basis, record_json) VALUES (?, 'b', ?)",
+            (fid, json.dumps(rec)),
+        )
+
+    keep(flight, 31.2, 990.0)  # a hot day
+    usual = [(12.0, 1000.0), (14.0, 1005.0), (13.0, 995.0)]
+    others = [store.insert("flight", {"airframe_id": airframe_id, "firmware": "4.7.0"})
+              for _ in usual[:2]]  # fmt: skip
+    for fid, (t, p) in zip(others, usual, strict=False):
+        keep(fid, t, p)
+    w = build_packet(store, cache, PACK, flight)["weather"]
+    assert w["temperature_vs_usual_c"] is None  # two others: not enough to say what is usual
+    third = store.insert("flight", {"airframe_id": airframe_id, "firmware": "4.7.0"})
+    keep(third, *usual[2])
+    packet = build_packet(store, cache, PACK, flight)
+    w = packet["weather"]
+    rho = record.air_density(990.0, 31.2, 2.0) / record.air_density(1000.0, 13.0, 2.0)
+    assert w["temperature_vs_usual_c"] == 18 and w["density_vs_usual_pct"] == round(100 * (rho - 1))
+    assert w["density_vs_usual_pct"] == -7
+    assert {"temperature_c", "pressure_hpa", "density_altitude_m"}.isdisjoint(w)
+    assert "31.2" not in json.dumps(packet) and "990" not in json.dumps(w)
     key = str(store.get("flight", flight)["flight_key"])  # type: ignore[index]
     assert check(packet, flight_points(cache, key), Policy.load(PACK, "4.7.0")) == []
