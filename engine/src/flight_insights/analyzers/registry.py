@@ -181,6 +181,7 @@ class Registry:
         }
         options, questions, coverage = _options(pack, findings)
         procedures, procedure_texts = _procedures(pack, findings, metrics)
+        _attribution_weather(rules, metrics)
         return Registry(
             metrics, findings, knowledge_version(pack), rules, pack, options, questions,
             coverage, procedures, procedure_texts, _attribution(rules, metrics),
@@ -226,6 +227,26 @@ def _attribution(
             )
         )  # fmt: skip
     return tuple(out)
+
+
+def _attribution_weather(rules: Mapping[str, Any], metrics: Mapping[str, Metric]) -> None:
+    """The weather confounder's rules, checked: each variable's threshold, and metric
+    prefixes that each name some metric the registry knows."""
+    doc: Mapping[str, Any] | None = rules.get("attribution", {}).get("weather")
+    if doc is None:
+        return
+    where = "attribution.json: weather"
+    if not 0.0 <= float(doc["min_coverage"]) <= 1.0:
+        raise KnowledgeError(f"{where}: min_coverage must be a share")
+    for name, v in cast(Mapping[str, Mapping[str, Any]], doc["variables"]).items():
+        if not float(v["differ"]) > 0.0:
+            raise KnowledgeError(f"{where}: {name} needs a threshold above 0")
+        for prefix in cast(list[str], v["metrics"]):
+            if not any(m.startswith(prefix) for m in metrics):
+                raise KnowledgeError(f"{where}: {name}: no metric starts with {prefix}")
+    sources = doc.get("sources")
+    if not (isinstance(sources, list) and sources):
+        raise KnowledgeError(f"{where}: needs its sources")
 
 
 def knowledge_version(pack: Pack) -> str:

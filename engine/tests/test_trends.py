@@ -112,6 +112,27 @@ def test_a_series_reads_against_zones_and_its_own_baseline(store: Store, reg: Re
     assert s["source"]["kind"] == "ardupilot"
 
 
+def test_each_point_carries_its_flights_weather(store: Store, reg: Registry) -> None:
+    """From the record kept for the flight, so the chart can be read at like wind and
+    density; none for a flight with no record, or one the downloads did not cover."""
+    af = airframe(store)
+    ids = [fly(store, af, n, hover(v)) for n, v in enumerate([12, 13, 12.5])]
+    kept = {"quality": "reanalysis", "coverage": 0.9, "wind_ms": 4.2, "gust_max_ms": 7.0,
+            "density_altitude_m": 640.0, "temperature_c": 21.5, "pressure_hpa": 950.0,
+            "kp_max": 3.0}  # fmt: skip
+    for fid, rec in ((ids[0], kept), (ids[1], {"quality": "none", "coverage": 0.0})):
+        store.conn.execute(
+            "INSERT INTO flight_weather (flight_id, basis, record_json) VALUES (?, 'b', ?)",
+            (fid, json.dumps(rec)),
+        )
+    points = series(store, reg, af, VIBE, "hover")["points"]
+    assert points[0]["weather"] == {
+        "quality": "reanalysis", "coverage": 0.9, "wind_ms": 4.2, "gust_max_ms": 7.0,
+        "density_altitude_m": 640.0, "temperature_c": 21.5,
+    }  # fmt: skip
+    assert points[1]["weather"] is None and points[2]["weather"] is None
+
+
 def test_drift_is_flagged_inside_the_target_zone(store: Store, reg: Registry) -> None:
     af = airframe(store)
     for n, v in enumerate([12, 13, 12.5, 14, 13, 12, 22, 24]):  # the last two still target

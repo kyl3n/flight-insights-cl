@@ -17,6 +17,8 @@ baseline, with every change marked on the same time axis.
   inside every fixed zone.
 - **Events.** Parameter change sets, build changes, firmware updates and applied
   recommendations, each placed at the flight it first applies to.
+- **Weather.** Each point carries its flight's wind, gusts, density altitude and
+  temperature from the weather record kept for it, when there is one.
 
 Nothing here leaves the laptop or reads positions: only metric values, findings and
 the records the store already holds.
@@ -38,6 +40,7 @@ from flight_insights.knowledge import Pack
 from flight_insights.payload_bands import Bands, Flown, bands
 from flight_insights.recommend import flight_plan
 from flight_insights.store.db import Store
+from flight_insights.weather import record as weather
 
 BAD_SEVERITIES = ("out", "safety")
 THRUST = ("payload.hover_thrust", "hover")  # what payload bands are made from
@@ -185,6 +188,19 @@ def baseline(values: Sequence[float], rules: Mapping[str, Any]) -> dict[str, Any
     }
 
 
+# What a trend point carries of its flight's weather record, so the chart can be read,
+# and filtered, at like wind and density.
+WEATHER_FIELDS = ("wind_ms", "gust_max_ms", "density_altitude_m", "temperature_c")
+
+
+def _weather(rec: Mapping[str, Any] | None) -> dict[str, Any] | None:
+    if rec is None or not rec.get("coverage"):
+        return None
+    return {"quality": rec.get("quality"), "coverage": rec.get("coverage")} | {
+        k: rec.get(k) for k in WEATHER_FIELDS
+    }
+
+
 def series(
     store: Store,
     reg: Registry,
@@ -222,6 +238,9 @@ def series(
              "kg": None if kg is None else round(kg, 1), "takeoff_kg": f.takeoff_kg,
              "good": f.good}
         )  # fmt: skip
+    records = weather.kept(store, [p["flight"] for p in points])
+    for p in points:
+        p["weather"] = _weather(records.get(p["flight"]))
     drift_n = int(rules["drift_flights"])
     tail = points[-drift_n:] if len(points) > drift_n else []
     earlier = points[: len(points) - len(tail)]

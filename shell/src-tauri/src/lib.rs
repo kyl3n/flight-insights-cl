@@ -699,6 +699,11 @@ fn weather_round(
                 shared.as_ref().map(|s| s as &dyn weather::fetch::Share),
             )
         });
+    // Whatever the round kept, even one cut short, goes into the flights' records, so
+    // trends and attribution read current weather.
+    let _ = engine
+        .client
+        .call("weather.refresh", serde_json::json!({}), CALL_TIMEOUT);
     shell
         .weather
         .record(weather::fetch::summary(&outcome), schedule, now);

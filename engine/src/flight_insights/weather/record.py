@@ -21,7 +21,7 @@ import gzip
 import itertools
 import json
 import math
-from collections.abc import Iterable, Mapping
+from collections.abc import Callable, Iterable, Mapping
 from dataclasses import dataclass, field
 from typing import Any, cast
 
@@ -490,11 +490,11 @@ def current(store: Store, cache: ColumnCache, pack: Pack, flight_id: str) -> dic
     """A flight's weather record, made again only when what it depends on changed; None
     when the flight has no UTC time or no position."""
     b = basis(store, pack, flight_id)
-    kept = store.conn.execute(
+    stored = store.conn.execute(
         "SELECT basis, record_json FROM flight_weather WHERE flight_id = ?", (flight_id,)
     ).fetchone()
-    if kept is not None and b is not None and kept[0] == b:
-        return cast(dict[str, Any], json.loads(kept[1]))
+    if stored is not None and b is not None and stored[0] == b:
+        return cast(dict[str, Any], json.loads(stored[1]))
     made = flight_record(store, cache, pack, flight_id)
     if made is None:
         return None
@@ -508,3 +508,46 @@ def current(store: Store, cache: ColumnCache, pack: Pack, flight_id: str) -> dic
                 (flight_id, b, json.dumps(record, sort_keys=True)),
             )
     return record
+
+
+def refresh(
+    store: Store, cache: ColumnCache, pack: Pack, flight_ids: Iterable[str] | None = None,
+    progress: Callable[[float, str], None] | None = None,
+) -> int:  # fmt: skip
+    """Makes again the record of every flight (or of these) whose downloads changed since
+    it was made, so trends and attribution read current values; returns how many it
+    made. A flight with no position has no record and is passed over."""
+    tiling.scan(store, cache, tiling.TileRules.load(pack))
+    rows: list[Any] = store.conn.execute(
+        "SELECT f.id, w.basis FROM flight f JOIN flight_tiles t ON t.flight_id = f.id "
+        "LEFT JOIN flight_weather w ON w.flight_id = f.id "
+        "WHERE t.tiles != '[]' AND f.boot_utc_us IS NOT NULL AND f.arm_us IS NOT NULL "
+        "ORDER BY f.id"
+    ).fetchall()
+    wanted = None if flight_ids is None else set(flight_ids)
+    todo = [(str(f), b) for f, b in rows if wanted is None or f in wanted]
+    made = 0
+    for i, (flight_id, was) in enumerate(todo):
+        if progress is not None:
+            progress(i / len(todo), "making weather records")
+        if was is not None and was == basis(store, pack, flight_id):
+            continue
+        if current(store, cache, pack, flight_id) is not None:
+            made += 1
+    return made
+
+
+def kept(store: Store, flight_ids: Iterable[str]) -> dict[str, dict[str, Any]]:
+    """The records kept for these flights, as last made (`refresh` keeps them current);
+    nothing is worked out here. A flight with none is left out."""
+    ids = list(dict.fromkeys(flight_ids))
+    out: dict[str, dict[str, Any]] = {}
+    for i in range(0, len(ids), 500):
+        chunk = ids[i : i + 500]
+        rows: Iterable[Any] = store.conn.execute(
+            f"SELECT flight_id, record_json FROM flight_weather "
+            f"WHERE flight_id IN ({','.join('?' * len(chunk))})",
+            chunk,
+        ).fetchall()
+        out.update({str(f): cast(dict[str, Any], json.loads(r)) for f, r in rows})
+    return out

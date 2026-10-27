@@ -861,5 +861,77 @@
       "tuning",
       "calibration"
     ]
+  },
+  "weather": {
+    "about": "Weather as a confounder (spec: Attribution method, 'Name confounders'). For a shift in a metric the weather can move (one starting with a variable's metrics prefixes), the median of each variable over the flights before and over the flights after is taken from their weather records, using only records whose coverage (the share of the flight's samples the downloads covered) is at least min_coverage. Every variable both sides have is listed with the shift; one whose medians differ by at least its differ lowers the shift's confidence by one step (high to medium, medium to low), and in grading a shift with weather that differed is not taken as the change's regression on its own. With no records (no Open-Meteo key, or downloads not yet made), nothing changes. Thresholds uncalibrated: the fleet's confirmed results refine them.",
+    "uncalibrated": true,
+    "min_coverage": 0.5,
+    "variables": {
+      "wind_ms": {
+        "differ": 3.0,
+        "metrics": [
+          "tune.tracking_error_",
+          "tune.attitude_error_",
+          "tune.hover_unsteady_",
+          "tune.i_at_limit_",
+          "tune.slew_limited_",
+          "tune.bandwidth_",
+          "tune.rise_time_",
+          "tune.overshoot_",
+          "tune.settling_",
+          "tune.sensitivity_peak_",
+          "power.hover_power",
+          "power.energy_per_minute",
+          "power.propulsion",
+          "power.peak_current",
+          "power.hover_throttle",
+          "motors.saturation_",
+          "motors.output_spread"
+        ]
+      },
+      "gust_max_ms": {
+        "differ": 4.0,
+        "metrics": [
+          "tune.tracking_error_",
+          "tune.attitude_error_",
+          "tune.hover_unsteady_",
+          "tune.i_at_limit_",
+          "tune.slew_limited_",
+          "tune.bandwidth_",
+          "tune.rise_time_",
+          "tune.overshoot_",
+          "tune.settling_",
+          "tune.sensitivity_peak_",
+          "motors.saturation_",
+          "power.peak_current"
+        ]
+      },
+      "density_altitude_m": {
+        "differ": 300.0,
+        "metrics": [
+          "power.hover_power",
+          "power.energy_per_minute",
+          "power.propulsion",
+          "power.peak_current",
+          "power.hover_throttle",
+          "motors.saturation_",
+          "motor_out."
+        ]
+      },
+      "temperature_c": {
+        "differ": 8.0,
+        "metrics": [
+          "esc.peak_temperature",
+          "power.battery_resistance",
+          "power.battery_loss"
+        ]
+      }
+    },
+    "sources": [
+      "wind and gusts on the tune metrics: ArduPilot's AutoTune page asks for as little wind as possible, because gusts disturb the aircraft (https://ardupilot.org/copter/docs/autotune.html), and the app's tune-check card holds wind to 4 m/s and gusts to 6 m/s (knowledge/procedures/copter.json, tune.check). Wind is a disturbance the loops must reject, and the rate target each response is measured against carries the angle loop's corrections for it, so it moves every tracking and response measure; D-term noise, which the motors make far above gust frequencies, is left out",
+      "wind on power and motor outputs: holding against wind tilts the thrust and adds the drag the motors must overcome, and gusts take output to the limits (Leishman, Principles of Helicopter Aerodynamics, 2nd ed., 2006, ch. 2 and 5: hover and forward-flight power)",
+      "density_altitude_m: ideal hover power is T^1.5 / sqrt(2 rho A) (Leishman, 2006, ch. 2), and air density falls about 1% for every 100 m of density altitude near sea level (ICAO Doc 7488, Manual of the ICAO Standard Atmosphere), so 300 m moves hover power by about 1.5%, near the 2% that attribution's spread floor and factor let through; the motor-out margin rests on the same hover output",
+      "temperature_c: an ESC's temperature rises from the air's, so a warmer day starts it warmer; a lithium-ion cell's internal resistance rises steeply as it cools (Waag, Kabitz and Sauer, Experimental investigation of the lithium-ion battery impedance characteristic at various conditions and aging states, Applied Energy 102 (2013) 885-897)"
+    ]
   }
 }

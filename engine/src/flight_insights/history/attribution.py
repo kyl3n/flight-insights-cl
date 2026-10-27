@@ -11,7 +11,9 @@ against a light one, at each boundary where changes first apply. Its windows run
 the boundaries that could move that metric, so an unrelated change does not cut every
 series short. Every change the shift brackets is ranked by the map's strength, how well
 its direction fits, how large it was and how close in time; confounders (a build or a
-firmware change with it) lower the confidence. Numbers are in rules/attribution.json.
+firmware change with it, or weather that differed between the flights before and after
+for a metric the weather can move) lower the confidence. Numbers are in
+rules/attribution.json.
 """
 
 from __future__ import annotations
@@ -21,12 +23,13 @@ import math
 import zlib
 from collections.abc import Iterator, Mapping, Sequence
 from dataclasses import dataclass
-from typing import TYPE_CHECKING, Any
+from typing import TYPE_CHECKING, Any, cast
 
 import numpy as np
 
 from flight_insights.analyzers.registry import AttributionLink, Registry
 from flight_insights.store.db import Store
+from flight_insights.weather import record as weather
 
 if TYPE_CHECKING:
     from flight_insights.trends import Flight
@@ -106,6 +109,9 @@ class Shift:
     candidates: tuple[Candidate, ...]  # ranked, highest first
     context: tuple[Change, ...]  # changes that are no cause: learned values, counters
     confidence: str  # "high", "medium" or "low"
+    # the weather before and after, for a metric it can move: {"values": {variable:
+    # [median before, median after]}, "differs": [variables beyond their threshold]}
+    weather: Mapping[str, Any] | None = None
 
 
 @dataclass(frozen=True)
@@ -274,6 +280,41 @@ def _confidence(candidates: Sequence[Candidate], rules: Mapping[str, Any]) -> st
     return "medium"
 
 
+_LOWER = {"high": "medium", "medium": "low", "low": "low"}
+
+
+def _weather(
+    records: Mapping[str, Mapping[str, Any]], rules: Mapping[str, Any] | None, metric: str,
+    before: Sequence[str], after: Sequence[str],
+) -> dict[str, Any] | None:  # fmt: skip
+    """The weather of the flights before and after a shift, for a metric it can move:
+    each variable's medians, and the ones that differ beyond their threshold. None when
+    the metric is one the weather does not move, or no records cover both sides."""
+    if rules is None:
+        return None
+    least = float(rules["min_coverage"])
+    values: dict[str, list[float]] = {}
+    differs: list[str] = []
+    for name, v in cast(Mapping[str, Mapping[str, Any]], rules["variables"]).items():
+        if not metric.startswith(tuple(cast(list[str], v["metrics"]))):
+            continue
+        sides: list[list[float]] = []
+        for flights in (before, after):
+            got = [
+                records[f].get(name)
+                for f in flights
+                if f in records and float(records[f].get("coverage") or 0.0) >= least
+            ]
+            sides.append([float(x) for x in got if isinstance(x, int | float)])
+        if not (sides[0] and sides[1]):
+            continue
+        b, a = float(np.median(sides[0])), float(np.median(sides[1]))
+        values[name] = [round(b, 2), round(a, 2)]
+        if abs(a - b) >= float(v["differ"]):
+            differs.append(name)
+    return {"values": values, "differs": differs} if values else None
+
+
 def attribute(
     store: Store, reg: Registry, airframe_id: str, metric: str | None = None
 ) -> list[Shift]:
@@ -282,6 +323,7 @@ def attribute(
     from flight_insights.trends import grouped_flights  # trends imports recommend
 
     rules: Mapping[str, Any] = reg.rules["attribution"]
+    weather_rules: Mapping[str, Any] | None = rules.get("weather")
     shift_rules: Mapping[str, Any] = rules["shifts"]
     classes = set(rules["ranking"]["candidate_classes"])
     window = int(shift_rules["window"])
@@ -293,6 +335,7 @@ def attribute(
     # A boundary of changes that are all context (learned values, counters) is none.
     bounds = sorted(i for i, cs in at.items() if any(c.kind != "parameter" or c.cls in classes
                                                      for c in cs))  # fmt: skip
+    records = weather.kept(store, order) if weather_rules is not None else {}
     out: list[Shift] = []
     for (m, seg, group), points in sorted(_series(store, flights, metric).items()):
         if m not in reg.metrics:
@@ -322,10 +365,15 @@ def attribute(
             verdict = "inconclusive" if kind == "inconclusive" else _verdict(
                 reg.metrics[m].direction, effect
             )  # fmt: skip
+            confidence = _confidence(cands, rules["ranking"])
+            w = _weather(records, weather_rules, m, [p.flight for p in before],
+                         [p.flight for p in after])  # fmt: skip
+            if w is not None and w["differs"]:
+                confidence = _LOWER[confidence]
             shift = Shift(
                 m, seg, group, after[0].flight, tuple(p.flight for p in before),
                 tuple(p.flight for p in after), effect, low, high, spread, verdict,
-                tuple(cands), context, _confidence(cands, rules["ranking"]),
+                tuple(cands), context, confidence, w,
             )  # fmt: skip
             z = abs(effect) / spread if spread else abs(effect) / max(high - low, 1e-12)
             found.append((b in relevant, z, shift))
@@ -379,4 +427,5 @@ def shift_json(s: Shift, reg: Registry) -> dict[str, Any]:
             for c in s.candidates
         ],
         "context": [change(c) for c in s.context],
+        "weather": None if s.weather is None else dict(s.weather),
     }

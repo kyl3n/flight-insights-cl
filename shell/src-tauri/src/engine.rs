@@ -325,6 +325,7 @@ pub const WEATHER_SHELL_ONLY: &[&str] = &[
     "weather.store",
     "weather.held",
     "weather.export",
+    "weather.refresh",
 ];
 
 #[cfg(test)]

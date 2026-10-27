@@ -109,6 +109,15 @@ BROKEN: dict[str, tuple[Callable[[dict[str, Any]], object], str]] = {
     ),
     "no Ukrainian": (lambda d: _first_link(d)["why"].pop("uk"), "why needs text"),
     "no sources": (lambda d: _first_link(d).update(sources=[]), "sources"),
+    "weather on a metric nobody measures": (
+        lambda d: d["weather"]["variables"]["wind_ms"]["metrics"].append("tune.feel_"),
+        "no metric starts with tune.feel_",
+    ),
+    "a weather threshold of 0": (
+        lambda d: d["weather"]["variables"]["wind_ms"].update(differ=0),
+        "wind_ms needs a threshold",
+    ),
+    "weather without sources": (lambda d: d["weather"].update(sources=[]), "weather: needs"),
 }
 
 
@@ -303,3 +312,81 @@ def test_a_change_that_would_push_the_other_way_ranks_below(store: Store, reg: R
     names = [c.change.name for c in s.candidates]
     assert names == ["ATC_RAT_RLL_D", "INS_GYRO_FILTER"]
     assert s.candidates[1].factors["direction"] == 0.2
+
+
+# --- weather as a confounder ---------------------------------------------------------------
+
+ATTITUDE = ("tune.attitude_error_roll", "inputs")
+
+
+def weathered(store: Store, flight: str, coverage: float = 1.0, **values: float) -> None:
+    """A weather record kept for the flight, as `weather.refresh` would leave it."""
+    rec = {"quality": "forecast", "coverage": coverage, "kp_max": None} | values
+    store.conn.execute(
+        "INSERT INTO flight_weather (flight_id, basis, record_json) VALUES (?, 'b', ?)",
+        (flight, json.dumps(rec)),
+    )
+
+
+def attitude_shift(store: Store, wind: Sequence[float], coverage: float = 1.0) -> list[str]:
+    """Attitude error rose when rate P was halved, on flights with this wind each."""
+    af = airframe(store)
+    ids = flights(store, af, [{ATTITUDE: v} for v in [4.0, 4.1, 3.9, 4.05, 6.0, 6.1, 5.9]])
+    change(store, af, ids[4], ("ATC_RAT_RLL_P", 0.15, 0.075, "tuning"))
+    for fid, w in zip(ids, wind, strict=True):
+        weathered(store, fid, coverage, wind_ms=w, gust_max_ms=w * 1.5, temperature_c=15.0)
+    return ids
+
+
+def test_a_windier_after_is_named_and_lowers_the_confidence(store: Store, reg: Registry) -> None:
+    attitude_shift(store, [2.0, 2.5, 1.5, 2.0, 9.0, 8.0, 10.0])
+    [s] = attribute(store, reg, af_of(store), "tune.attitude_error_roll")
+    assert s.candidates[0].change.name == "ATC_RAT_RLL_P"
+    assert s.weather == {
+        "values": {"wind_ms": [2.0, 9.0], "gust_max_ms": [3.0, 13.5]},
+        "differs": ["wind_ms", "gust_max_ms"],
+    }  # temperature does not move attitude error: not listed
+    assert s.confidence == "medium"  # high from the map alone, one step down
+    assert shift_json(s, reg)["weather"] == s.weather
+
+
+def test_matched_weather_is_shown_and_changes_nothing(store: Store, reg: Registry) -> None:
+    attitude_shift(store, [2.0, 2.5, 1.5, 2.0, 3.0, 2.0, 2.5])
+    [s] = attribute(store, reg, af_of(store), "tune.attitude_error_roll")
+    assert s.weather is not None and s.weather["differs"] == []
+    assert s.weather["values"]["wind_ms"] == [2.0, 2.5] and s.confidence == "high"
+
+
+def test_records_that_barely_cover_their_flights_are_left_out(store: Store, reg: Registry) -> None:
+    attitude_shift(store, [2.0, 2.5, 1.5, 2.0, 9.0, 8.0, 10.0], coverage=0.2)
+    [s] = attribute(store, reg, af_of(store), "tune.attitude_error_roll")
+    assert s.weather is None and s.confidence == "high"
+
+
+def test_a_metric_the_weather_does_not_move_gets_no_weather(store: Store, reg: Registry) -> None:
+    """Motor noise in the D term: a windy day is no cause."""
+    af = airframe(store)
+    ids = flights(store, af, noise([10.0, 10.4, 9.8, 10.2, 20.1, 19.8, 20.4]))
+    change(store, af, ids[4], ("ATC_RAT_RLL_D", 0.003, 0.006, "tuning"))
+    for fid, w in zip(ids, [2.0] * 4 + [9.0] * 3, strict=True):
+        weathered(store, fid, wind_ms=w)
+    [s] = attribute(store, reg, af, "tune.d_noise_roll")
+    assert s.weather is None and s.confidence == "high"
+
+
+def test_hover_power_is_weighed_against_density_altitude(store: Store, reg: Registry) -> None:
+    af = airframe(store)
+    power = ("power.hover_power", "hover")
+    ids = flights(
+        store, af, [{power: v} for v in [800.0, 805.0, 798.0, 802.0, 850.0, 848.0, 853.0]]
+    )
+    change(store, af, ids[4], ("MOT_THST_EXPO", 0.65, 0.4, "tuning"))
+    for fid, da in zip(ids, [100.0] * 4 + [900.0] * 3, strict=True):
+        weathered(store, fid, density_altitude_m=da, wind_ms=2.0)
+    [s] = attribute(store, reg, af, "power.hover_power")
+    assert s.weather is not None and s.weather["differs"] == ["density_altitude_m"]
+    assert s.weather["values"]["density_altitude_m"] == [100.0, 900.0]
+
+
+def af_of(store: Store) -> str:
+    return str(store.conn.execute("SELECT id FROM airframe").fetchone()[0])
