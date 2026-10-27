@@ -75,7 +75,15 @@ export interface Series {
 }
 
 export type TrendEvent =
-  | { kind: "parameter change" | "build change" | "ground station change"; id: string; flight: string | null; origin: string; params: string[] }
+  | {
+      kind: "parameter change" | "build change" | "ground station change";
+      id: string;
+      flight: string | null;
+      origin: string;
+      params: string[];
+      // each change with its value before and after (canonical names and units) and its class
+      changes?: { name: string; before: number | null; after: number | null; class: string | null }[];
+    }
   | { kind: "build"; id: string; flight: string | null; number: number; reason: string | null }
   | { kind: "firmware"; flight: string; from: string; to: string }
   | { kind: "recommendation"; id: string; flight: string; param: string | null; proposed: number | null; grade: string };

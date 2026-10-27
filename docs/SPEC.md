@@ -1760,7 +1760,7 @@ Rules that keep decisions easy:
 | Navigation and GNSS | Estimator innovations, GPS quality, jamming and spoofing events with their evidence, position-controller error statistics | Select segments |
 | Flying without GNSS | Readiness by area, measured drift and dead-reckoning range, outages and drills, the recovery card | Open an outage or drill; print the recovery card |
 | Links and ground station | Telemetry and RC loss, outages, fade margin, predicted against measured signal, latency, link quality against distance and heading, command results | Pick a ground station or link |
-| Parameter history | Snapshots per flight, change sets with origin, measured effect of each change | Diff any two flights, tag, export a past snapshot |
+| Parameter history | The History tab of Trends: change sets with origin, in-flight A/B splits, revert tests and credits, each with its measured effect; the changes ranked behind each shift | Filter by kind; open a shift's ranked changes; open its trend or flight. Diff any two flights and export a past snapshot come with their engine methods |
 | Plan | Staged recommendations with evidence and expected effects, each with its procedure, and the session's test card | Accept, reject, export `.param` or `.params` (each step, revert, undo), print the test card |
 | Sync | Each laptop, last sync, items waiting to upload, quarantined items with reasons | Retry; open a quarantined item's details |
 | Ask | Chat about this flight, airframe or platform | Answers cite evidence and open the matching plot |
@@ -1798,6 +1798,25 @@ Rules that keep decisions easy:
   - the changes that prepared it, with their grades.
 - **The tune-check card:** the profile's ground check, flight and abort steps from the tune-check procedure.
 - **Wind at take-off** joins the comparison with the weather work (F2).
+
+**The History view** (a tab of Trends, beside its metrics; `ui/src/components/HistoryView.svelte`, `ui/src/lib/history.ts`; mock-up `History.dc.html`). The airframe in scope's parameter history, newest first, laid out from `trend.events`, `trend.attribution`, `trend.revert_test`, `trend.credits`, `trend.fleet`, `flight.ab` and `recommend.history`; every verdict and number is the engine's.
+
+- **Entries.** One per flight for what first applied at its start: its parameter change sets, build and firmware changes, and graded recommendations. One more for each in-flight A/B split, shown above its flight's start. On the left, the flight's number in the airframe's flying order and its date.
+  - **What changed.** Tuning and calibration changes with their values before and after. Learned values, counters, hardware IDs and ground-station settings are listed apart as set aside; a flight whose only changes are those has no entry.
+  - **Tags:** *after AutoTune* on the change that first applies after the AutoTune action's flight; *nobody recorded setting these* on an unexplained change set.
+  - **Measured effect.** The shifts at that boundary (the flight where their candidates at full timing first applied), each with its effect in the metric's unit (a percentage metric in percentage points), its 95% interval and its verdict: beyond this airframe's spread, intervals apart, or inconclusive. Without a shift it says none was measured: inside the spread, or too few flights yet, which the engine does not tell apart.
+  - **Revert tests.** A flight that flew a revert-test step shows the metric on that flight against the shift's medians before and after, and the step's reading. The shift's own entry says whether a test settled it, or which step to fly next.
+  - **Credits** sit with their shift, kept or undone; the flight that undid one says so.
+  - **A/B splits** show the changes (the knob's marked), both sides in seconds after arming, each result, and the top-ranked cause with its confidence.
+- **Filters:** all changes, parameters, build, firmware, AutoTune, and with a measured effect (a shift, A/B result or revert reading that is not inconclusive or unclear).
+- **The inspector** opens on the newest worse shift not yet settled, else the newest worse one, and on any measured effect picked:
+  - the effect and interval, with the metric over the payload band's flights (`trend.series`), the shift and its revert flights marked and the airframe's baseline dashed;
+  - the ranked changes, each with the map's reason, its score and bar, its factors as the engine multiplied them, the fleet's votes and whether the platform confirmed the link (`trend.fleet`). The confidence is the shift's, once: the engine gives no likelihood per candidate;
+  - confounders: a build or firmware change in the same window, each weather variable's medians either side against its threshold, and the changes set aside;
+  - the revert test's steps with what each later flight showed, the next step in words, and what only a person can put back; or the credit for a better shift;
+  - open the trend (the Metrics tab, on that metric and payload band) or the flight report.
+- **Bounds.** Revert tests are read for the 20 newest worse shifts. In-flight changes are looked for on the 30 newest flights, one flight at a time after the rest has loaded; a flight the engine cannot split shows none.
+- **Not yet.** The mock-up's diff of two flights, export of a past snapshot, and saving a revert step's two files (`trend.revert_test` gives their text, but no method writes them to a file the person picks) wait for their engine methods.
 
 ### Explanations for every metric and data point
 
@@ -1927,7 +1946,7 @@ Each band shows its source on hover. Changing a platform's targets is an enginee
   - A metric whose zones come only from the baseline has no fixed zones drawn.
 - **Drift.** The last 2 flights both outside the baseline on the worse side, with the baseline made without them, are flagged as drift, even inside every fixed zone. On a metric with a target band, either side is worse. One bad flight is not drift, and a metric getting better never is.
 - **Event lane.**
-  - Parameter change sets, with their origin and the parameters they changed.
+  - Parameter change sets, with their origin and the parameters they changed, each with its value before and after and its class.
   - Build changes after the first build.
   - Firmware updates.
   - Graded recommendations.
@@ -1943,7 +1962,7 @@ Platform targets that an engineer edits, with a recorded reason, come with the U
 - **Airframe dashboard:** metric cards grouped by subsystem. Each card shows the latest value, its zone, the change since the previous flight and since baseline, and a sparkline with its band. A card opens the full trend.
 - **Trend chart:** one point per flight with a whisker for the spread across its segments, and an event lane with markers for parameter change sets, build changes, firmware updates and applied app recommendations. Selecting a marker shows the diff and the effect measured by attribution.
   - **Phase 1:** each point is coloured by its zone, with the baseline as a dashed band and the start of drift marked. A whisker is drawn only where the analyzer reports a spread.
-  - Selecting a marker lists the changes recorded at that flight. Their measured effect, and the ranking of which change caused a shift, arrive with change attribution in Phase 2.
+  - Selecting a marker lists the changes recorded at that flight. Their measured effect, and the ranking of which change caused a shift, are in the History tab (User interface, "The History view").
   - Selecting a point shows that flight's value, zone, payload and change since the previous flight, and opens its report.
   - Payload is picked from the labels the airframe has flown with, or all payloads together.
 - **Platform view:** the same metric for every airframe of a platform as small multiples on shared axes, with the platform band. Airframes drifting away from their siblings are highlighted.
@@ -2369,7 +2388,7 @@ The AI layer can propose links the map lacks; those are shown as hypotheses unti
 - **The fleet.** What the platform's other airframes showed for the same change then weighs in (Fleet evidence, below): confirmed multiplies the score by 1.5, contradicted by 0.5, and a change the map does not tie to the metric but the fleet confirmed scores 0.6 as a learned link.
 - **Confidence.** High when the top candidate is linked, scores at least twice the next, and no build or firmware change sits with it; medium when it is linked; low otherwise.
 - **Weather.** For a metric the weather can move (`rules/attribution.json`, "weather": wind and gusts for tracking, attitude and response errors, hover power, current and motor saturation; density altitude for power, hover throttle, saturation and the motor-out margin; temperature for ESC temperature and battery resistance), the shift lists each variable's median over the flights before and after it, from the records that cover at least half of their flight. A difference of at least 3 m/s of wind, 4 m/s of gusts, 300 m of density altitude or 8 °C lowers the confidence one step (high to medium, medium to low). Uncalibrated; with no records nothing changes.
-- **Where it shows.** The engine gives the shifts with their ranked candidates and each link's reason (`trend.attribution`). The trend marker and the inspector come with the trends and history screen, whose mock-up waits for approval.
+- **Where it shows.** The engine gives the shifts with their ranked candidates and each link's reason (`trend.attribution`). The History tab of Trends lists each shift under its change set and opens its ranked changes in the inspector (User interface, "The History view"); a shift marker on the trend chart itself is still to come.
 - **In grading.** A procedure's check `no_shift_worse` fails when a metric shifted worse between the first flight with the change and the one graded. When the shift's top-ranked cause is the change's own parameter, or a value its work saves (the gains AutoTune saves), the grade is regressed, unless the weather differed beyond the thresholds above: then the check fails and the grade is not regressed on that shift alone. The AutoTune offer carries it: this is the Phase 2 gate's "nothing else regresses". A metric with too few flights to judge is no shift, so it passes until those flights are flown.
 
 **The in-flight A/B split** (`history/ab.py`; numbers in `rules/attribution.json` "in_flight", uncalibrated). Method step 4 above, measured within one flight:
@@ -2388,7 +2407,7 @@ The AI layer can propose links the map lacks; those are shown as hypotheses unti
   - **A metric with an interval on each side** (the tune check's tracking errors) compares the two as a pair, as two flights do: a shift when the intervals are apart and the change is at least 10%.
   - **Any other metric** is measured on 10 s blocks across each side, and tested as a shift over flights is: at least 3 blocks before and 2 after, the effect at least twice the blocks' spread, with a bootstrap interval.
 - **The causes.** The moment's changes, ranked by the map as a shift's are (strength, direction, size; timing is always exact). There is no build, firmware or weather between the sides to confound them.
-- **Where it shows.** The engine gives each split with its sides in seconds after arming, its results and its ranked changes (`flight.ab`). It joins the trends and history screen, whose mock-up waits for approval. It does not enter AI packets.
+- **Where it shows.** The engine gives each split with its sides in seconds after arming, its results and its ranked changes (`flight.ab`). The History tab lists each split of the airframe's newest flights under its flight. It does not enter AI packets.
 - **Checked on SITL** (`copter-quad-tune-ab`). Six roll doublets, then the roll rate gains written to 0.4 of their defaults mid-flight, then six more:
   - roll rate tracking error went from 25.1% to 41.0%, and roll attitude tracking error from 6.6% to 17.2%, each with the two sides' intervals apart;
   - roll rate P was ranked first, with high confidence;
@@ -2412,7 +2431,7 @@ The AI layer can propose links the map lacks; those are shown as hypotheses unti
 
   A metric with an interval on each flight (the tune check's) reads the test flight's interval instead, against the last flight before and the first after: touching one and apart from the other.
 - **Bisection.** Once a step explains the shift, the steps after it are not needed. A step that is not the cause, or is unclear, sends the next one.
-- **Where it shows.** The engine method `trend.revert_test` gives a shift's steps, what each later flight showed and the step to fly next. With a step and a file kind, it also gives that step's two files. The inspector of the trends screen shows it once that screen's mock-up is approved.
+- **Where it shows.** The engine method `trend.revert_test` gives a shift's steps, what each later flight showed and the step to fly next. With a step and a file kind, it also gives that step's two files. The History tab's inspector shows the steps, what each later flight showed and the step to fly next; saving the files from there waits for a method that writes them.
 
 **Example of what the user sees** (illustrative values):
 
@@ -2437,17 +2456,17 @@ The AI layer can propose links the map lacks; those are shown as hypotheses unti
   - **Confirmed:** at least 3 airframes agree, and at most a quarter of the votes disagree.
   - **Contradicted:** the same the other way round.
   - **Learned link:** a change the map does not tie to the metric, once confirmed. This is how the platform's map gains a link from its own flights.
-- **Where it shows.** Each ranked candidate carries its votes. The engine method `trend.fleet` lists the platform's confirmed links, with whether the map already holds each.
+- **Where it shows.** Each ranked candidate carries its votes. The engine method `trend.fleet` lists the platform's confirmed links, with whether the map already holds each. The History tab's inspector shows both beside each ranked change.
 
 **Credit for improvements** (`history/credit.py`). Step 7 of "pointing at the cause", measured:
 
 - **What is credited.** A shift that made a metric better, at medium or high confidence, credits its top-ranked parameter change when the map or the fleet ties that change to the metric.
 - **Following the change.** The credit is kept while every later flight still has the value the change set. The first later flight with any other value undoes it, and is named with the value it had instead, because putting back a change that helped is where a regression starts.
-- **Where it shows.** The engine method `trend.credits` lists an airframe's credits, each kept or since undone. A worse shift is never credited: it gets the revert test.
+- **Where it shows.** The engine method `trend.credits` lists an airframe's credits, each kept or since undone. A worse shift is never credited: it gets the revert test. The History tab shows each credit with its shift, and names the flight that undid it there.
 
 ### History and upgrades
 
-**History view.** Per airframe, a timeline like a version history: snapshots, diffs, origin labels, tags such as "after Autotune", and export of any past snapshot as a `.param` file to roll back.
+**History view.** Per airframe, a timeline like a version history: snapshots, diffs, origin labels, tags such as "after Autotune", and export of any past snapshot as a `.param` file to roll back. The History tab of Trends (User interface, "The History view") gives the change sets, origins, tags and measured effects; diffs and snapshot export come with their engine methods.
 
 **Firmware upgrades.** Snapshots either side of an upgrade are compared through the dialect layer, so renamed parameters do not show as changes, while values that failed to carry over do.
 
