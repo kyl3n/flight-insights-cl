@@ -25,6 +25,7 @@ on:
       - knowledge/metrics/**
       - engine/src/flight_insights/recommend/**
       - engine/src/flight_insights/analyzers/**
+      - engine/src/flight_insights/history/**
       - engine/src/flight_insights/motor_out.py
       - tools/procedures/**
       - tools/fixtures/sitl/**

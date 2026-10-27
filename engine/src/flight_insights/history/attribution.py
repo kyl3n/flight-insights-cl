@@ -9,11 +9,14 @@ hardware IDs and ground-station settings are context (knowledge/params/classes.j
 A shift is found per airframe, metric, segment and payload group, never a loaded flight
 against a light one, at each boundary where changes first apply. Its windows run between
 the boundaries that could move that metric, so an unrelated change does not cut every
-series short. Every change the shift brackets is ranked by the map's strength, how well
-its direction fits, how large it was and how close in time; confounders (a build or a
-firmware change with it, or weather that differed between the flights before and after
-for a metric the weather can move) lower the confidence. Numbers are in
-rules/attribution.json.
+series short. An AutoTune flight is a boundary, not a measurement: it flies while its
+gains change and it twitches, so what it measured is left out, and changes with no
+measured flight between them (the AutoTune flights' own, one axis a pack) are judged
+together at the first flight that measured the metric after them. Every change the
+shift brackets is ranked by the map's strength, how well its direction fits, how large
+it was and how close in time; confounders (a build or a firmware change with it, or
+weather that differed between the flights before and after for a metric the weather can
+move) lower the confidence. Numbers are in rules/attribution.json.
 """
 
 from __future__ import annotations
@@ -21,6 +24,7 @@ from __future__ import annotations
 import json
 import math
 import zlib
+from bisect import bisect_left
 from collections.abc import Iterator, Mapping, Sequence
 from dataclasses import dataclass
 from typing import TYPE_CHECKING, Any, cast
@@ -161,11 +165,35 @@ def _firmware(flights: Sequence[tuple[Flight, str]]) -> dict[int, list[Change]]:
     return out
 
 
+def _autotune_runs(store: Store, runs: Sequence[str]) -> set[str]:
+    """The runs of flights that flew AutoTune: their AutoTune review ran (it is skipped
+    for a flight with no AutoTune session)."""
+    out: set[str] = set()
+    for i in range(0, len(runs), 500):
+        chunk = list(runs[i : i + 500])
+        rows = store.conn.execute(
+            f"SELECT id, analyzers_json FROM analysis_run "
+            f"WHERE id IN ({', '.join('?' for _ in chunk)})",
+            chunk,
+        ).fetchall()
+        for run, raw in rows:
+            ran = cast(dict[str, Any], json.loads(raw or "{}"))
+            review = ran.get("autotune")
+            if isinstance(review, dict) and cast(dict[str, Any], review).get("skipped") is None:
+                out.add(str(run))
+    return out
+
+
 def _series(
     store: Store, flights: Sequence[tuple[Flight, str]], metric: str | None
 ) -> dict[tuple[str, str, str], list[Point]]:
-    """(metric, segment, payload group) -> points in flying order."""
+    """(metric, segment, payload group) -> points in flying order. An AutoTune flight
+    gives none: it is a boundary, not a measurement."""
     runs = {f.run_id: (i, f.id, g) for i, (f, g) in enumerate(flights) if f.run_id}
+    for run in _autotune_runs(store, list(runs)):
+        del runs[run]
+    if not runs:
+        return {}
     out: dict[tuple[str, str, str], list[Point]] = {}
     marks = ", ".join("?" for _ in runs)
     query = (
@@ -346,9 +374,17 @@ def attribute(
     for (m, seg, group), points in sorted(_series(store, flights, metric).items()):
         if m not in reg.metrics:
             continue
-        relevant = [i for i in bounds if _relevant(reg, m, at[i])]
+        # Each boundary is judged at the first flight that measured the metric from it on:
+        # boundaries with no measured flight between them are one, with all their changes.
+        measured = [p.index for p in points]
+        at_point: dict[int, list[int]] = {}
+        for i in bounds:
+            k = bisect_left(measured, i)
+            if k < len(measured):
+                at_point.setdefault(measured[k], []).append(i)
+        relevant = [b for b, bs in at_point.items() if any(_relevant(reg, m, at[i]) for i in bs)]
         found: list[tuple[bool, float, Shift]] = []
-        for b in bounds:
+        for b in sorted(at_point):
             lo = max((i for i in relevant if i < b), default=-1)
             hi = min((i for i in relevant if i > b), default=len(flights))
             before = [p for p in points if lo <= p.index < b][-window:]

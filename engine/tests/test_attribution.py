@@ -289,6 +289,42 @@ def test_a_build_change_with_it_lowers_the_confidence(store: Store, reg: Registr
     }  # fmt: skip
 
 
+def test_changes_with_no_measured_flight_between_them_are_judged_together(
+    store: Store, reg: Registry
+) -> None:
+    """The flight between two changes measured no D noise (no stick inputs), so the
+    shift is judged at the next flight that did, with both changes bracketed."""
+    af = airframe(store)
+    ids = flights(store, af, [*noise([10.0, 10.4, 9.8, 10.2]), {}, *noise([20.1, 19.8, 20.4])])
+    change(store, af, ids[4], ("ATC_RAT_RLL_D", 0.003, 0.006, "tuning"))
+    change(store, af, ids[5], ("ATC_RAT_RLL_FLTD", 20.0, 40.0, "tuning"))
+    [s] = attribute(store, reg, af, "tune.d_noise_roll")
+    assert (s.flight, s.verdict) == (ids[5], "worse")
+    assert s.before == tuple(ids[:4]) and s.after == tuple(ids[5:])
+    assert {c.change.name for c in s.candidates} == {"ATC_RAT_RLL_D", "ATC_RAT_RLL_FLTD"}
+
+
+def autotuned(store: Store, flight: str) -> None:
+    """Marks the flight as one that flew AutoTune: its AutoTune review ran."""
+    store.conn.execute(
+        "UPDATE analysis_run SET analyzers_json = ? WHERE flight_id = ?",
+        (json.dumps({"autotune": {"version": 1, "skipped": None}}), flight),
+    )
+
+
+def test_what_an_autotune_flight_measured_is_no_measurement(store: Store, reg: Registry) -> None:
+    """Two AutoTune flights twitching at twice the noise, on gains saved as they went:
+    a boundary, not a shift."""
+    af = airframe(store)
+    ids = flights(store, af, noise([10.0, 10.4, 9.8, 10.2, 20.1, 19.8]))
+    change(store, af, ids[4], ("ATC_RAT_RLL_D", 0.003, 0.006, "tuning"))
+    [s] = attribute(store, reg, af, "tune.d_noise_roll")  # as measurements, they shift it
+    assert s.after == tuple(ids[4:])
+    for f in ids[4:]:
+        autotuned(store, f)
+    assert attribute(store, reg, af, "tune.d_noise_roll") == []
+
+
 def test_a_change_that_cannot_move_the_metric_does_not_split_its_window(
     store: Store, reg: Registry
 ) -> None:
