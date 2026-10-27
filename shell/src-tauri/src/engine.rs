@@ -1331,8 +1331,27 @@ mod tests {
         ] {
             let r = newest(source);
             let started = Instant::now();
-            let body = fetch::fetch(&http, fetch::address(&hosts, &r, &key).unwrap(), who)
-                .unwrap_or_else(|stop| panic!("{}: {stop}", source.name()));
+            let url = fetch::address(&hosts, &r, &key).unwrap();
+            let body = fetch::fetch(&http, url.clone(), who).unwrap_or_else(|stop| {
+                // Ask once more to say why: the status and the provider's own reason,
+                // with the key masked (the URL is never printed).
+                let why = http.get(url).send().map_or_else(
+                    |e| format!("no reply: {}", e.without_url()),
+                    |reply| {
+                        let status = reply.status();
+                        let text = reply
+                            .text()
+                            .unwrap_or_default()
+                            .replace(key.as_str(), "***");
+                        let reason = serde_json::from_str::<Value>(&text)
+                            .ok()
+                            .and_then(|v| v["reason"].as_str().map(str::to_owned))
+                            .unwrap_or(text);
+                        format!("{status}: {}", reason.chars().take(300).collect::<String>())
+                    },
+                );
+                panic!("{}: {stop} ({why})", source.name())
+            });
             let seconds = started.elapsed().as_secs_f64();
             if source == plan::Source::Kp {
                 let rows: Value = serde_json::from_slice(&body).expect("the K-index is JSON");
