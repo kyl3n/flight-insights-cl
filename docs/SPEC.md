@@ -1457,7 +1457,7 @@ The engine turns findings into a staged plan: a short list of changes for the ne
 
 The numbers above are illustrative. `expected_effect` comes from simulation where the engine can simulate (filters, thrust model) and is left qualitative where it cannot.
 
-**Where recommendations come from.** Each finding's candidate changes, plus one action for every finding at caution or worse that leaves nothing to load, such as a loose mount or a hot ESC. An action has no parameter. A finding whose change set replaces other findings' changes answers those findings too and takes on their weight. For example, the filter search's whole set answers the flags it explains. Every recommendation has a kind:
+**Where recommendations come from.** Each finding's candidate changes, plus one action for every finding at caution or worse that leaves nothing to load, such as a loose mount or a hot ESC. An action has no parameter. Findings with the same code on one flight, such as failsafes of two subsystems, are one action that cites each finding with its own wording; it is stored as one record, which is how every laptop knows it. A finding whose change set replaces other findings' changes answers those findings too and takes on their weight. For example, the filter search's whole set answers the flags it explains. Every recommendation has a kind:
 
 - **safety:** from a safety finding;
 - **stability:** from a finding at caution or worse;
