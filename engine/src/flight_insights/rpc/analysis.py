@@ -21,6 +21,7 @@
 | flight.propulsion | A flight's motor outputs, ESC telemetry and battery, reduced for display |
 | flight.system | A flight's loop load and timing, logging drops and errors, for display |
 | flight.tlogs | A flight's tlog sessions: each station clock against the vehicle's, and loss |
+| flight.links | A flight's links over time, and the failsafe settings for them, for display |
 | flight.tune | A flight's tune against one of its payload group's, and the plan's verdict |
 | flight.ab | Each parameter change made in flight, with the flight's two sides compared |
 | trend.revert_test | The single-change test flights that settle a shift, with what each showed |
@@ -45,7 +46,16 @@ from collections.abc import Callable
 from pathlib import Path
 from typing import TYPE_CHECKING, Any, cast
 
-from flight_insights import analyzers, recommend, recovery, review, trends, tune_view, views
+from flight_insights import (
+    analyzers,
+    links_view,
+    recommend,
+    recovery,
+    review,
+    trends,
+    tune_view,
+    views,
+)
 from flight_insights.analyzers.registry import LANGUAGES
 from flight_insights.filters import workbench
 from flight_insights.history import ab, attribution, credit, fleet, revert
@@ -302,6 +312,14 @@ def add_analysis_methods(server: Server, state: EngineState, guarded: Callable[[
         if store.get("flight", flight_id) is None:
             raise RpcError(BAD_INPUT, "no such flight")
         return tlog_sessions.sessions(store, flight_id)
+
+    @server.method("flight.links")
+    @guarded
+    def flight_links(_ctx: Context, params: dict[str, Any]) -> dict[str, Any]:
+        """The Links view: loss, outages and silences over time in seconds after arming,
+        the radios and the receiver, and the failsafe settings for the link. No position,
+        system ID or absolute time."""
+        return _view(params, links_view.links)
 
     opened: dict[str, analyzers.FlightData] = {}  # the last few flights the Tune view read
 

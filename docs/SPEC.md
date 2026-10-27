@@ -986,6 +986,27 @@ Receiver RSSI and link quality where reported, frame loss, failsafe entries and 
 - **`FS_THR_VALUE` margin:** the lowest throttle the receiver sent with valid input, outside failsafe and not overridden over MAVLink, less `FS_THR_VALUE`. Under 10 PWM is a finding. The receiver's own failsafe throttle is left out: the SITL receiver fixture sends 950 µs on loss and the margin still reads from the stick's 1000 µs.
 - **Not yet:** impossible channel jumps, and the ExpressLRS margin, which needs RSSI in dBm, not the autopilot's 0 to 1 scale.
 
+### The Links tab
+
+**On screen** (`flight.links`, `links_view.py`; mock-up Links). A tab on the flight report, beside Propulsion and power and System and buses. It is built from what ArduPilot and the ground station recorded; the radios' own logs come later. Every time is in seconds after arming, and the reply holds no position, system ID, station clock offset or absolute time. A test runs it for the SITL link flights against the location policy.
+
+- **Measured on this flight:** the link analyzer's values with their zones (Telemetry link and RC link above), each with the figures of its evidence under it. The tlog clock fit's delay spread (the median above the least delay, and its 95th percentile) stands in for latency.
+- **Findings on the links:** the link analyzer's, the commands' and the operator's (Ground station and operator), and the failsafe findings about a radio or ground-station failsafe, most urgent first.
+- **Failsafe settings for the link** (Copter only), each with its status. A setting the log does not hold is the firmware's default.
+  - **`FS_THR_ENABLE`,** with its action and `RC_FS_TIMEOUT`. Off is out of range, as the configuration review holds it. Flown from the ground station (`RC_OPTIONS` bit 0), the joystick's commands count as radio input, so it acts first when its wait is the shorter.
+  - **`FS_GCS_ENABLE`,** with its action and `FS_GCS_TIMEOUT`. Off is out of range when the ground station flies it, and only noted with a pilot's radio, which still flies it. On, behind a quicker radio failsafe, it is the backstop.
+  - **`FS_GCS_TIMEOUT`** against this flight's longest silence from the station while armed, in the ground-station silence's zones: within target or a near miss, with the margin left. A silence that reached it is the failsafe analysis's to judge.
+  - **`FS_OPTIONS`,** and `RC_OVERRIDE_TIME` when the station flies it, are listed, not judged: what they do shows in the losses.
+  - **Losing the link,** played in each mode it may be flown in, as the recovery card plays it (Flying without GNSS, "Recommendations and recovery"), with this flight's settings and the card's own words. A station that flies it has one loss; a pilot's radio has two, the radio and the telemetry with the radio working. A loss that leaves some mode with no one flying it is out of range.
+- **Over time,** with mode changes drawn and the disarmed time dimmed:
+  - **Downlink:** each station's silence before each packet from the vehicle, with the outages over 2 s marked, and its received, lost and out-of-order counts, clock fit and delay.
+  - **Uplink:** how long the ground station had gone unheard (`MAV.mgs`) against `FS_GCS_TIMEOUT`, and each link's loss.
+  - **Joystick:** when the station flies it, or wherever MAVLink overrides were sent, the share of the armed time an RC override was in force (`RCI2.OMask`), and the stretches with none. Each began at least `RC_OVERRIDE_TIME` after the joystick's last command. It is shown, not judged. `MANUAL_CONTROL` itself is in a tlog only when the station records its own packets.
+  - **Radio status:** the TX buffer against the 50% under which streams slow, and for SiK firmware radios the fade margin at each end against its 12 dB target.
+  - **RC receiver:** RSSI and link quality, and the receiver's own failsafes.
+- **Radio-reported quality:** what the app reads from any MAVLink link and from SiK and RFD radios, and that IP mesh radios and wfb-ng wait for their own logs.
+- **Later:** signal against distance and the predicted range, the antenna pattern, the radios' own statistics, the ground station's profile beside the flight and its comparison across the fleet, telemetry load against the link's capacity, and the round trip from TIMESYNC.
+
 ### GNSS quality and interference
 
 - Satellite count, accuracy, the u-blox jamming indicator and AGC logged in UBX1, estimator GPS innovation spikes, position and velocity jumps, and divergence between GPS and the estimator's dead-reckoned solution.
