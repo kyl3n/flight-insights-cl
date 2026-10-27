@@ -177,6 +177,8 @@ LEAKY: dict[str, tuple[str, Change] | tuple[str, Change, dict[str, Any]]] = {
                           _set("parameters", "AHRS_ORIG_LAT", value=12.3)),
     "compass_declination": ("Magnetic declination narrows down the place.",
                             _set("parameters", "COMPASS_DEC", value=0.04)),
+    "field_elevation": ("The barometer's field elevation gives away the site's altitude.",
+                        _set("parameters", "BARO_FIELD_ELV", value=1850)),
     "long_text": ("Text longer than the schema allows.",
                   _set("evidence", 0, "summary", value="x" * 300)),
     "bool_as_number": ("A boolean where a number belongs.",

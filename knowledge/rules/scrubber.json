@@ -92,7 +92,7 @@
     "ILB3": ["Diff"],
     "LOEG": ["EP"]
   },
-  "removed_parameters_about": "Parameters removed from every AI packet: origins and positions, magnetic declination, fence and rally settings, script slots that can hold anything, identities and serial numbers, and the simulator's settings (spec: Location scrubber, \"Location-revealing parameters removed\").",
+  "removed_parameters_about": "Parameters removed from every AI packet: origins and positions, magnetic declination, the barometer's ground pressure and temperature and the field's elevation (the autopilot keeps them as volatile values, which keeps them out already; named here so the policy does not rest on the metadata), fence and rally settings, script slots that can hold anything, identities and serial numbers, and the simulator's settings (spec: Location scrubber, \"Location-revealing parameters removed\").",
   "removed_parameters": [
     "^AHRS_ORIG",
     "^BCN_(LATITUDE|LONGITUDE|ALT)$",
@@ -102,6 +102,7 @@
     "^RALLY_",
     "^SCR_USER\\d+$",
     "^SIM_",
+    "^BARO\\d?_(GND_PRESS|GND_TEMP|FIELD_ELV)$",
     "SYSID",
     "SERIAL_NUM$",
     "(_LAT|_LNG|_LON|_LONG|LATITUDE|LONGITUDE)$"
