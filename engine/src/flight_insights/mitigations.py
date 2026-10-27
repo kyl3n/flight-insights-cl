@@ -73,7 +73,7 @@ AREAS = ("position", "switching", "heading", "height", "wind", "failsafes", "pil
 OUTAGE_FINDINGS = ("no_gnss.position_held", "no_gnss.position_lost")
 CHECKS = ("source", "drag_fusion", "pilot_fallback", "compass", "bit", "second_receiver")
 MEASURES = ("source", "drag_fusion")
-EFFECTS = ("keeps_position", "dead_reckons", "params")
+EFFECTS = ("keeps_position", "dead_reckons", "params", "params_link_first")
 GRADES = ("documented", "research")
 SENSORS = ("optical_flow", "external_nav", "beacon", "wheel_encoder")
 
@@ -473,11 +473,16 @@ def closes(m: Mapping[str, Any], setup: Setup, rules: Mapping[str, Any]
 # --- the goal and the ranking ------------------------------------------------------------
 
 
-def goal_check(failsafes: Mapping[str, Any], defaults: Mapping[str, float]) -> Goal:
-    """The recovery card's goal check, for parameters and what keeps a position."""
+def goal_check(
+    failsafes: Mapping[str, Any], defaults: Mapping[str, float],
+    flown: tuple[float | None, float | None] = (None, None),
+) -> Goal:  # fmt: skip
+    """The recovery card's goal check, for parameters and what keeps a position; `flown`
+    is the farthest the airframe has flown and its longest flight (recovery_link.flown),
+    which a way home on dead reckoning must fit within FS_DR_TIMEOUT."""
 
     def met(keeps: bool, dead_reckons: bool, params: Mapping[str, float]) -> bool | None:
-        return recovery_link.goal_met(failsafes, defaults, params, keeps, dead_reckons)
+        return recovery_link.goal_met(failsafes, defaults, params, keeps, dead_reckons, flown)
 
     return met
 
@@ -492,7 +497,8 @@ def goal_inputs(setup: Setup) -> tuple[bool, bool]:
 def makes_goal(m: Mapping[str, Any], setup: Setup, goal: Goal, now: bool | None) -> bool:
     """Whether the goal check, failing now, passes with the mitigation's effect: its
     source in set 1, dead reckoning on the wind, and the parameters it needs where the
-    flight has them off."""
+    flight has them off; with winning the radio link back first (platform setup,
+    link_loss), also those the parameter audit then proposes (`params_link_first`)."""
     effect: Mapping[str, Any] = m.get("effect") or {}
     if now is not False or not effect:
         return False
@@ -502,6 +508,10 @@ def makes_goal(m: Mapping[str, Any], setup: Setup, goal: Goal, now: bool | None)
     for name, value in needed.items():
         if not params.get(name):
             params[name] = float(value)
+    if setup.answers.get("link_loss") == "win_link_back":
+        first: Mapping[str, Any] = effect.get("params_link_first") or {}
+        for name, value in first.items():
+            params[name] = max(float(params.get(name, 0.0)), float(value))
     return bool(goal(keeps or bool(effect.get("keeps_position")),
                      dead or bool(effect.get("dead_reckons")), params))  # fmt: skip
 

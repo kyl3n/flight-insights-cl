@@ -21,9 +21,11 @@ from flight_insights.recovery_link import (
     RADIO,
     Kind,
     LinkMeasured,
+    Return,
     State,
     act,
     both_lost,
+    dead_reckoned_return,
 )
 
 PACK = load_pack()
@@ -301,3 +303,93 @@ def test_the_goal_is_met_only_when_it_flies_home_with_both_lost(reg: Registry) -
     assert card(reg, **first, FS_THR_ENABLE=3.0)["goal"]["met"] is False  # it lands
     station = card(reg, **STATION, FS_THR_ENABLE=1.0)
     assert station["goal"]["section"] == "link_lost" and station["goal"]["met"] is False
+
+
+# --- home on dead reckoning ---------------------------------------------------------------
+
+STARTS_ALL = ("LOITER", "POSHOLD", "ALT_HOLD", "GUIDED", "AUTO")
+FLOWN = (500.0, 1200.0)  # 500 m from where it armed, 20 minutes at most
+
+
+def dr_card(reg: Registry, flown: tuple[float | None, float | None] = FLOWN, /,
+            **params: float) -> dict[str, Any]:  # fmt: skip
+    p = STOCK | DRAG | {"FS_THR_ENABLE": 1.0} | params
+    readiness = NO_GNSS_READINESS.run(hover_flight({}, p), reg)
+    return build(readiness, SITL, NOTHING, p, DOC, 10.0, "HL1", "a3f9c2d1", None,
+                 failsafes=reg.rules["failsafes"], flown=flown)  # fmt: skip
+
+
+def test_the_way_home_on_dead_reckoning() -> None:
+    """The climb to RTL_ALT_M at WP_SPD_UP, then home at RTL_SPEED_MS, or WP_SPD where that
+    is 0; the firmware's defaults where the parameters do not hold them."""
+    defaults = DOC["link"]["defaults"]
+    assert dead_reckoned_return({}, defaults, 500.0, 1200.0) == Return(15 / 2.5 + 50.0, 1200.0)
+    faster = dead_reckoned_return({"RTL_SPEED_MS": 5.0}, defaults, 500.0, 1200.0)
+    assert faster is not None and faster.trip_s == 6.0 + 100.0
+    assert dead_reckoned_return({}, defaults, None, 1200.0) is None  # never measured
+
+
+def test_dead_reckoning_gets_it_home_when_the_timeout_outlasts_the_way_home(
+    reg: Registry,
+) -> None:
+    """FS_DR_TIMEOUT 1800 (the link's recovery first): from every mode, whichever goes
+    first, it ends in RTL on a dead-reckoned position. Flown in AltHold with GNSS lost
+    first, nothing sends it home until the link goes, any time in the flight: dead
+    reckoning must last the longest flight and then the trip."""
+    rules = reg.rules["failsafes"]
+    p = {**DOC["link"]["defaults"], **STOCK, **DRAG, "FS_DR_ENABLE": 2.0, "FS_THR_ENABLE": 1.0}
+    back = Return(56.0, 1200.0)
+    for start in STARTS_ALL:
+        ends = both_lost(rules, p | {"FS_DR_TIMEOUT": 1800.0}, State(start), True, False,
+                         True, True, back)  # fmt: skip
+        assert {(e.mode, e.position, e.dead_reckoning) for e in ends} == {("RTL", True, True)}, (
+            start
+        )
+    # 1200 s outlasts the trip but not a whole flight and the trip: AltHold lands
+    short = both_lost(rules, p | {"FS_DR_TIMEOUT": 1200.0}, State("ALT_HOLD"), True, False,
+                      True, True, back)  # fmt: skip
+    assert ("LAND", False) in {(e.mode, e.position) for e in short}
+    loiter = both_lost(rules, p | {"FS_DR_TIMEOUT": 1200.0}, State("LOITER"), True, False,
+                       True, True, back)  # fmt: skip
+    assert {e.mode for e in loiter} == {"RTL"}  # sent home at once: the trip is enough
+    # without the way home measured, the timeout ends it as before
+    unknown = both_lost(rules, p | {"FS_DR_TIMEOUT": 1800.0}, State("LOITER"), True, False,
+                        True, True)  # fmt: skip
+    assert {(e.mode, e.position) for e in unknown} == {("LAND", False)}
+
+
+def test_the_goal_met_on_dead_reckoning_says_so_and_warns(reg: Registry) -> None:
+    c = dr_card(reg, FS_DR_TIMEOUT=1800.0)
+    assert c["goal"]["met"] is True and c["goal"]["by"] == "dead_reckoning"
+    assert c["goal"]["trip_s"] == 56
+    assert will(c, "radio_lost")[-1] == (
+        "fly home on dead reckoning and land (RTL), its position drifting if GNSS is lost too"
+    )
+    steps = text(c, "radio_lost")
+    assert steps[-1].startswith("After a return home on dead reckoning it may land up to")
+    [gnss] = [s for s in c["sections"] if s["id"] == "gnss_lost"]
+    assert gnss["will"][0]["key"] == "will.dead_reckon_home"
+    assert "about 56 s from the farthest it has flown" in gnss["will"][0]["text"]["en"]
+    assert gnss["steps"][-1]["key"] == "step.dead_reckoned_home"
+    for lang in ("en", "uk"):
+        assert "{" not in card_text(c, lang)
+
+
+def test_dead_reckoning_short_of_the_way_home_or_unmeasured(reg: Registry) -> None:
+    short = dr_card(reg, FS_DR_TIMEOUT=30.0)
+    assert short["goal"]["met"] is False and short["goal"]["by"] is None
+    [gnss] = [s for s in short["sections"] if s["id"] == "gnss_lost"]
+    assert gnss["will"][0]["key"] == "will.dead_reckon_short"
+    assert all(p["key"] != "step.dead_reckoned_home" for s in short["sections"]
+               for p in s["steps"])  # fmt: skip
+    unmeasured = dr_card(reg, (None, None), FS_DR_TIMEOUT=1800.0)
+    assert unmeasured["goal"]["met"] is False and unmeasured["goal"]["trip_s"] is None
+    [gnss] = [s for s in unmeasured["sections"] if s["id"] == "gnss_lost"]
+    assert gnss["will"][0]["key"] == "will.dead_reckon"
+
+
+def test_a_trusted_position_home_is_not_dead_reckoning(reg: Registry) -> None:
+    flow_first = {k: v for k, v in FLOW.items() if not k.startswith("EK3_SRC2")}
+    c = dr_card(reg, **flow_first, EK3_SRC1_POSXY=0.0, EK3_SRC1_VELXY=5.0,
+                FS_DR_TIMEOUT=1800.0)  # fmt: skip
+    assert c["goal"]["met"] is True and c["goal"]["by"] == "position"

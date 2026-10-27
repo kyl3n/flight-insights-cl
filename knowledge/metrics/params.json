@@ -213,12 +213,12 @@
     "params.dead_reckoning_failsafe_off": {
       "stage": "operations",
       "title": {
-        "en": "Dead reckoning on the wind estimate does nothing (FS_DR_ENABLE 0)",
-        "uk": "Навігація за рахунком на оцінці вітру нічого не викликає (FS_DR_ENABLE 0)"
+        "en": "Dead reckoning sets off no failsafe (FS_DR_ENABLE 0)",
+        "uk": "Навігація за рахунком не запускає аварійного режиму (FS_DR_ENABLE 0)"
       },
       "action": {
-        "en": "Choose an action for dead reckoning, such as RTL: with drag fusion on, when the estimator loses its position and velocity sources it flies on its wind estimate alone for a short time (FS_DR_TIMEOUT), and the aircraft should head home or land while it still can.",
-        "uk": "Оберіть дію для навігації за рахунком, наприклад RTL: з увімкненим злиттям аеродинамічного опору, коли оцінювач втрачає джерела позиції й швидкості, він недовго (FS_DR_TIMEOUT) летить лише на оцінці вітру, і апарат має повертатися чи сідати, поки може."
+        "en": "Choose an action for dead reckoning, such as RTL: with drag fusion on, when the estimator loses its position and velocity sources it keeps a position on its own estimate, which nothing corrects, for FS_DR_TIMEOUT, and the aircraft should head home or land while it can.",
+        "uk": "Оберіть дію для навігації за рахунком, наприклад RTL: з увімкненим злиттям аеродинамічного опору, коли оцінювач втрачає джерела позиції й швидкості, він тримає позицію на власній оцінці, яку ніщо не виправляє, протягом FS_DR_TIMEOUT, і апарат має повертатися чи сідати, поки може."
       }
     },
     "params.dead_reckoning_timeout_short": {
@@ -228,8 +228,8 @@
         "uk": "Навігація за рахунком припиняється через {value} с, хоча відновити радіозв'язок важливіше"
       },
       "action": {
-        "en": "Set FS_DR_TIMEOUT to {proposed} s, so that with GNSS lost the aircraft keeps flying its failsafe home on the wind estimate until the battery failsafe acts, back towards the ground station where the link can come back. Its position drifts the longer it flies this way: fly a GNSS-off drill to see how far.",
-        "uk": "Задайте FS_DR_TIMEOUT {proposed} с, щоб після втрати GNSS апарат і далі летів додому в аварійному режимі на оцінці вітру, доки не спрацює аварійний режим батареї, назад до наземної станції, де зв'язок може відновитися. Що довше він так летить, то більше зміщується його позиція: виконайте тренування з вимкненим GNSS, щоб побачити наскільки."
+        "en": "Set FS_DR_TIMEOUT to {proposed} s, so that with GNSS lost the aircraft keeps flying its failsafe home on dead reckoning, back towards the ground station where the link can come back. Nothing corrects its position meanwhile, so it drifts, faster the longer it flies: it may land up to hundreds of metres from home and stay armed on the ground. Once the link is back, be ready to take over in AltHold or disarm. Fly a GNSS-off drill to see how far it drifts.",
+        "uk": "Задайте FS_DR_TIMEOUT {proposed} с, щоб після втрати GNSS апарат і далі летів додому в аварійному режимі за рахунком, назад до наземної станції, де зв'язок може відновитися. Його позицію тим часом ніщо не виправляє, тож вона зміщується, і що довше політ, то швидше: апарат може сісти за сотні метрів від дому й лишитися зведеним на землі. Щойно зв'язок відновиться, будьте готові перейти в AltHold або вимкнути двигуни. Виконайте тренування з вимкненим GNSS, щоб побачити, наскільки він зміщується."
       }
     },
     "params.ekf_failsafe_off": {
