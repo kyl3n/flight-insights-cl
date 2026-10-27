@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { cardKey, changeTone, chartData, groupName, groupOption, multiples, placeEvents, sparkPath, worstCheck, yRange, type PayloadGroup, type Series, type TrendPoint } from "./trends";
+import { cardKey, changeTone, chartData, conditionsText, groupName, groupOption, multiples, placeEvents, pointWeatherText, sparkPath, worstCheck, yRange, type PayloadGroup, type Series, type SeriesConditions, type TrendPoint } from "./trends";
 
 const pt = (flight: string, value: number): TrendPoint => ({
   flight, utc_us: null, value, spread: {}, zone: "target", payload: null, group: "band:0", kg: null,
@@ -71,5 +71,27 @@ describe("trends", () => {
     expect(changeTone(2, "higher")).toBe("better");
     expect(changeTone(2, "band")).toBe("same");
     expect(cardKey({ metric: "m", segment: "hover" })).toBe("m@hover");
+  });
+
+  it("says how many flights matched the weather asked for, and how many had no record", () => {
+    const whole: SeriesConditions = {
+      wind_max_ms: null, like_density: false, density_altitude_m: null, reference: null,
+      total: 21, matched: 21, no_record: 2, wind_choices: [3, 6, 9],
+    };
+    expect(conditionsText(whole, "en")).toBeNull(); // nothing asked: nothing to say
+    expect(conditionsText(undefined, "en")).toBeNull();
+    const calm = { ...whole, wind_max_ms: 6, matched: 16 };
+    expect(conditionsText(calm, "en")).toBe("16 of 21 flights match; 2 without a weather record left out");
+    const like = { ...whole, like_density: true, density_altitude_m: [340, 940] as [number, number], matched: 9, no_record: 0 };
+    expect(conditionsText(like, "en")).toBe("9 of 21 flights match (density altitude 340–940 m)");
+    expect(conditionsText(calm, "uk")).toBe("Підходять 16 з 21 польотів; 2 без запису погоди не враховано");
+  });
+
+  it("gives a point's weather in a line, and nothing for a flight with no record", () => {
+    const w = { quality: "reanalysis", coverage: 0.9, wind_ms: 4.24, gust_max_ms: 7, density_altitude_m: 640.4, temperature_c: 21.5 };
+    expect(pointWeatherText(w, "en")).toBe("wind 4.2 m/s, gusts 7 m/s, density altitude 640 m");
+    expect(pointWeatherText({ ...w, gust_max_ms: null }, "en")).toBe("wind 4.2 m/s, gusts – m/s, density altitude 640 m");
+    expect(pointWeatherText(null, "en")).toBeNull();
+    expect(pointWeatherText({ ...w, wind_ms: null }, "en")).toBeNull();
   });
 });

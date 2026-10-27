@@ -11,5 +11,9 @@
     "copter": ["vibration.p95", "power.hover_throttle", "esc.peak_temperature"],
     "plane": ["vibration.p95", "power.energy_per_minute", "system.slow_loops"]
   },
-  "key_segments": ["hover", "flight"]
+  "key_segments": ["hover", "flight"],
+  "conditions_about": "Filtering a series by its flights' weather records (spec: Performance trends, 'Like with like'): up to a wind, from wind_max_ms, and like the density of the flight shown, within the density-altitude difference attribution treats as a change in the weather (rules/attribution.json, weather.variables.density_altitude_m.differ). A record counts only with the coverage attribution asks for (weather.min_coverage); a flight with none is left out of a filtered series and counted as unknown. The baseline and the drift check are made from the flights that match.",
+  "conditions": {
+    "wind_max_ms": [3, 6, 9]
+  }
 }

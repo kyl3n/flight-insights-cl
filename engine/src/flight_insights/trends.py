@@ -18,7 +18,11 @@ baseline, with every change marked on the same time axis.
 - **Events.** Parameter change sets, build changes, firmware updates and applied
   recommendations, each placed at the flight it first applies to.
 - **Weather.** Each point carries its flight's wind, gusts, density altitude and
-  temperature from the weather record kept for it, when there is one.
+  temperature from the weather record kept for it, when there is one. A series can be
+  narrowed to flights up to a wind, or at the density of the flight shown (within the
+  difference attribution counts as a change in the weather); the baseline and drift
+  are then made from the flights that match, and those with no usable record are
+  counted, not guessed.
 
 Nothing here leaves the laptop or reads positions: only metric values, findings and
 the records the store already holds.
@@ -201,6 +205,58 @@ def _weather(rec: Mapping[str, Any] | None) -> dict[str, Any] | None:
     }
 
 
+@dataclass(frozen=True)
+class Conditions:
+    """Weather a series is narrowed to: up to a wind, and the density of the flight shown."""
+
+    wind_max_ms: float | None = None
+    like_density: bool = False
+
+    @property
+    def any(self) -> bool:
+        return self.wind_max_ms is not None or self.like_density
+
+
+def _usable(p: Mapping[str, Any], min_coverage: float) -> Mapping[str, Any] | None:
+    w = p.get("weather")
+    return w if w is not None and float(w.get("coverage") or 0) >= min_coverage else None
+
+
+def _narrow(
+    points: list[dict[str, Any]], conditions: Conditions, reg: Registry, flight_id: str | None
+) -> tuple[list[dict[str, Any]], dict[str, Any]]:
+    """The points whose flights' weather matches, and what was asked and found."""
+    rules: Mapping[str, Any] = reg.rules["attribution"]["weather"]
+    least = float(rules["min_coverage"])
+    within = float(rules["variables"]["density_altitude_m"]["differ"])
+    usable = [p for p in points if _usable(p, least) is not None]
+    out: dict[str, Any] = {
+        "wind_max_ms": conditions.wind_max_ms, "like_density": conditions.like_density,
+        "density_altitude_m": None, "reference": None, "total": len(points),
+        "matched": len(points), "no_record": len(points) - len(usable),
+        "wind_choices": list(reg.rules["trends"]["conditions"]["wind_max_ms"]),
+    }  # fmt: skip
+    if not conditions.any:
+        return points, out
+    kept = usable
+    if conditions.wind_max_ms is not None:
+        top = conditions.wind_max_ms
+        kept = [p for p in kept if (w := p["weather"].get("wind_ms")) is not None and w <= top]
+    if conditions.like_density:
+        known = [p for p in usable if p["weather"].get("density_altitude_m") is not None]
+        ref = next((p for p in known if p["flight"] == flight_id), known[-1] if known else None)
+        if ref is None:
+            kept = []
+        else:
+            da = float(ref["weather"]["density_altitude_m"])
+            out |= {"density_altitude_m": [round(da - within), round(da + within)],
+                    "reference": ref["flight"]}  # fmt: skip
+            kept = [p for p in kept if (d := p["weather"].get("density_altitude_m")) is not None
+                    and abs(float(d) - da) <= within]  # fmt: skip
+    out["matched"] = len(kept)
+    return kept, out
+
+
 def series(
     store: Store,
     reg: Registry,
@@ -210,10 +266,13 @@ def series(
     group: str | None = None,
     any_payload: bool = False,
     flight_id: str | None = None,
+    conditions: Conditions | None = None,
 ) -> dict[str, Any]:
     """One metric's series for one airframe, with its baseline, drift and zones.
     `group` picks a payload group, 'band:<k>' or 'label:<text>' (None: the group of
-    `flight_id`, else of the latest flight); `any_payload` mixes them."""
+    `flight_id`, else of the latest flight); `any_payload` mixes them. `conditions`
+    narrows it to flights flown in like weather (the density of `flight_id`, else of
+    the latest flight with a record)."""
     metric = reg.metrics[metric_id]
     rules: Mapping[str, Any] = reg.rules["trends"]
     flights = _flights(store, airframe_id)
@@ -241,6 +300,7 @@ def series(
     records = weather.kept(store, [p["flight"] for p in points])
     for p in points:
         p["weather"] = _weather(records.get(p["flight"]))
+    points, matched = _narrow(points, conditions or Conditions(), reg, flight_id)
     drift_n = int(rules["drift_flights"])
     tail = points[-drift_n:] if len(points) > drift_n else []
     earlier = points[: len(points) - len(tail)]
@@ -267,6 +327,7 @@ def series(
         "points": points,
         "baseline": shown,
         "drift": drift,
+        "conditions": matched,
     }
 
 

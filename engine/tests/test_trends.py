@@ -17,6 +17,7 @@ from flight_insights.platforms.records import create_airframe, create_platform
 from flight_insights.platforms.schema import load_schema
 from flight_insights.store import Store, StoreKeys, open_store
 from flight_insights.trends import (
+    Conditions,
     baseline,
     events,
     fleet_overview,
@@ -131,6 +132,60 @@ def test_each_point_carries_its_flights_weather(store: Store, reg: Registry) -> 
         "density_altitude_m": 640.0, "temperature_c": 21.5,
     }  # fmt: skip
     assert points[1]["weather"] is None and points[2]["weather"] is None
+
+
+def keep_weather(store: Store, fid: str, wind: float, da: float, coverage: float = 0.9) -> None:
+    rec = {"quality": "reanalysis", "coverage": coverage, "wind_ms": wind, "gust_max_ms": wind + 3,
+           "density_altitude_m": da, "temperature_c": 15.0}  # fmt: skip
+    store.conn.execute(
+        "INSERT INTO flight_weather (flight_id, basis, record_json) VALUES (?, 'b', ?)",
+        (fid, json.dumps(rec)),
+    )
+
+
+def test_a_series_narrowed_to_like_wind_and_density(store: Store, reg: Registry) -> None:
+    """Calm flights hold 12-13; the windy ones read 20 and would make a calm flight's
+    baseline wrong. Up to 6 m/s keeps the calm ones; like density keeps those within
+    300 m of the shown flight's density altitude (attribution's threshold); a flight
+    with no record, or one the downloads barely covered, is counted and left out."""
+    af = airframe(store)
+    flown = [(12, 3.0, 400.0), (20, 9.0, 450.0), (13, 4.0, 900.0), (12.5, 2.0, 500.0),
+             (21, 10.0, 420.0), (13, 5.0, 380.0), (12, 1.0, 410.0), (12.5, None, None),
+             (13, 2.0, 430.0)]  # fmt: skip
+    ids: list[str] = []
+    for n, (value, wind, da) in enumerate(flown):
+        ids.append(fly(store, af, n, hover(value)))
+        if wind is not None and da is not None:
+            keep_weather(store, ids[-1], wind, da, coverage=0.2 if n == 8 else 0.9)
+    whole = series(store, reg, af, VIBE, "hover")
+    assert whole["conditions"] | {"wind_choices": None} == {
+        "wind_max_ms": None, "like_density": False, "density_altitude_m": None,
+        "reference": None, "total": 9, "matched": 9, "no_record": 2, "wind_choices": None,
+    }  # fmt: skip
+    calm = series(store, reg, af, VIBE, "hover", conditions=Conditions(wind_max_ms=6))
+    assert [p["value"] for p in calm["points"]] == [12, 13, 12.5, 13, 12]
+    assert calm["conditions"]["matched"] == 5 and calm["conditions"]["no_record"] == 2
+    assert calm["baseline"] is not None and calm["baseline"]["high"] <= 13
+    assert whole["baseline"] is not None and whole["baseline"]["high"] > 15
+    like = series(store, reg, af, VIBE, "hover", flight_id=ids[0],
+                  conditions=Conditions(like_density=True))  # fmt: skip
+    assert like["conditions"]["reference"] == ids[0]
+    assert like["conditions"]["density_altitude_m"] == [100, 700]
+    assert [p["flight"] for p in like["points"]] == [ids[i] for i in (0, 1, 3, 4, 5, 6)]
+    both = series(store, reg, af, VIBE, "hover",
+                  conditions=Conditions(wind_max_ms=3, like_density=True))  # fmt: skip
+    assert both["conditions"]["reference"] == ids[6]  # the latest with a usable record
+    assert [p["flight"] for p in both["points"]] == [ids[0], ids[3], ids[6]]
+    assert whole["conditions"]["wind_choices"] == [3, 6, 9]
+
+
+def test_like_density_with_no_record_matches_nothing(store: Store, reg: Registry) -> None:
+    af = airframe(store)
+    for n, v in enumerate([12, 13]):
+        fly(store, af, n, hover(v))
+    s = series(store, reg, af, VIBE, "hover", conditions=Conditions(like_density=True))
+    assert s["points"] == [] and s["baseline"] is None
+    assert (s["conditions"]["matched"], s["conditions"]["no_record"]) == (0, 2)
 
 
 def test_drift_is_flagged_inside_the_target_zone(store: Store, reg: Registry) -> None:
@@ -368,6 +423,17 @@ def test_trends_over_rpc(tmp_path: Path) -> None:
     for bad_group in ("band:x", "heavy", 3):
         wrong = call(server, out, 16, "trend.series", airframe_id=af["id"], metric=card["metric"],
                      segment=card["segment"], group=bad_group)  # fmt: skip
+        assert wrong["error"]["code"] == -32602
+    # narrowed to like weather: the flight has no weather record, so nothing matches
+    calm = call(server, out, 19, "trend.series", airframe_id=af["id"], metric=card["metric"],
+                segment=card["segment"], group=card["group"], wind_max_ms=6,
+                like_density=True)["result"]  # fmt: skip
+    assert calm["points"] == [] and calm["conditions"]["no_record"] == 1
+    assert (calm["conditions"]["matched"], calm["conditions"]["total"]) == (0, 1)
+    for bad_weather in ({"wind_max_ms": "calm"}, {"wind_max_ms": -2}, {"wind_max_ms": True},
+                        {"like_density": "yes"}):  # fmt: skip
+        wrong = call(server, out, 20, "trend.series", airframe_id=af["id"], metric=card["metric"],
+                     segment=card["segment"], **bad_weather)  # fmt: skip
         assert wrong["error"]["code"] == -32602
     assert call(server, out, 9, "trend.events", airframe_id=af["id"])["result"] == []
     assert call(server, out, 17, "trend.attribution", airframe_id=af["id"])["result"] == []

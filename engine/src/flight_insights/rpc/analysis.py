@@ -10,7 +10,7 @@
 | recommend.set_status | A person accepts, rejects or marks a recommendation applied |
 | recommend.history | An airframe's recommendations, with what happened to each |
 | trend.overview | The airframe dashboard: each metric's latest value, zone, change and drift |
-| trend.series | One metric's series for an airframe, with its zones, baseline and drift |
+| trend.series | One metric's series for an airframe: zones, baseline, drift; at like weather |
 | trend.payloads | An airframe's payload bands by hover thrust, in kg once a flight is weighed |
 | trend.events | What changed on an airframe, placed at the flight it first applies to |
 | trend.attribution | An airframe's shifts (of one metric, or all), with their ranked causes |
@@ -459,9 +459,17 @@ def add_analysis_methods(server: Server, state: EngineState, guarded: Callable[[
         flight = params.get("flight_id")
         if flight is not None and not isinstance(flight, str):
             raise RpcError(INVALID_PARAMS, "flight_id must be text or null")
+        wind, like = params.get("wind_max_ms"), params.get("like_density", False)
+        if wind is not None and (
+            isinstance(wind, bool) or not isinstance(wind, int | float) or not 0 < wind < 100
+        ):
+            raise RpcError(INVALID_PARAMS, "wind_max_ms must be a positive number of m/s or null")
+        if not isinstance(like, bool):
+            raise RpcError(INVALID_PARAMS, "like_density must be true or false")
+        conditions = trends.Conditions(None if wind is None else float(wind), like)
         return trends.series(
             state.require_store(), reg, _id(params, "airframe_id"), metric, segment,
-            group, any_payload, flight,
+            group, any_payload, flight, conditions,
         )  # fmt: skip
 
     @server.method("trend.payloads")
