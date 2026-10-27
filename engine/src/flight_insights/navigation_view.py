@@ -17,14 +17,20 @@ It lays out what the flight's latest analysis already holds, read from the store
   fact (info);
 - **the readiness areas** (analyzers/no_gnss_readiness.py), each with its status, its
   values and which of the analyzer's sentences applies;
-- **what would get it home:** the flight's navigation-stage setup findings (the readiness
-  review's, and the parameter checks' on the GNSS fallback, the second receiver and the
-  compass), in the order the analysis gives them, each with its procedure's own steps,
-  and the readiness rules' sources. There is no ranked catalogue of mitigations yet.
+- **what would get it home:** the catalogue's mitigations that would change something
+  on this flight's setup, ranked (mitigations.py): each with what it closes here, whether
+  it makes the fleet goal reachable, its benefit measured on this airframe or its
+  platform, else as the catalogue expects it, its limits, its sources, and the steps of
+  the findings it answers. The setup findings that bear on getting home (the readiness
+  review's, and the parameter checks' on the GNSS fallback, the second receiver, the
+  compass and the dead-reckoning failsafe) keep their steps, each naming the
+  mitigations that answer it; and the GNSS-off drill's steps, with whether the
+  airframe's plan offers it (recommend/followup.py).
 
 From the log it reads only which messages each receiver logged, never a value of
 them. No position is read (local tracks stay with the analyzers), and every number in
-the reply is one the analysis stored, in seconds after arming or relative metres.
+the reply is one the analysis stored, in seconds after arming or relative metres; the
+mitigations' holds and drift come from the platform's stored analyses in the same way.
 """
 
 from __future__ import annotations
@@ -34,6 +40,7 @@ from typing import Any
 
 import numpy as np
 
+from flight_insights import mitigations
 from flight_insights.analyzers.flight import FlightData
 from flight_insights.analyzers.registry import Registry
 from flight_insights.analyzers.run import analysis_results
@@ -50,7 +57,8 @@ PEAKS = ("lowest_fix", "fewest_sats", "worst_hacc_m", "highest_cw", "worst_jam_s
 # the setup findings that bear on getting home without GNSS
 ACTIONS = ("no_gnss.source_not_fitted", "no_gnss.no_source_switch", "no_gnss.heading_needs_gnss",
            "no_gnss.drag_fusion_off", "no_gnss.no_pilot_fallback", "params.no_gnss_fallback",
-           "params.second_gnss_unset", "params.compassmot_not_done")  # fmt: skip
+           "params.second_gnss_unset", "params.compassmot_not_done",
+           "params.dead_reckoning_failsafe_off")  # fmt: skip
 # the failsafe analyzer's verdicts (analyzers/failsafes.py), in the status language
 JUDGED = {"failsafe.as_configured": "ok", "failsafe.fell_back": "caution",
           "failsafe.unexpected": "out", "failsafe.late": "caution"}  # fmt: skip
@@ -326,22 +334,75 @@ def _readiness(a: _Analysis) -> list[dict[str, Any]]:
     return out
 
 
+def _steps(reg: Registry, code: str, params: Mapping[str, Any]) -> list[dict[str, Any]]:
+    """A finding's procedure's own steps, filled from its params (the plan adds the
+    parameter files and their reboots); a step its finding cannot fill is left out."""
+    steps: list[dict[str, Any]] = []
+    for s in reg.procedures.get(code, {}).get("steps", ()):
+        if s["kind"] not in OWN_STEPS or s.get("when") is not None:
+            continue
+        text = {lang: render(t, params) for lang, t in s["text"].items()}
+        if not PLACEHOLDER.search(text["en"]):
+            steps.append({"kind": s["kind"], "text": text})
+    return steps
+
+
 def _actions(a: _Analysis, reg: Registry) -> list[dict[str, Any]]:
     """The setup findings that bear on getting home, as the analysis orders them, each with
-    its procedure's own steps (the plan adds the parameter files and their reboots)."""
-    out: list[dict[str, Any]] = []
-    for f in a.findings:
-        if f["code"] not in ACTIONS:
-            continue
-        steps: list[dict[str, Any]] = []
-        for s in reg.procedures.get(f["code"], {}).get("steps", ()):
-            if s["kind"] not in OWN_STEPS or s.get("when") is not None:
-                continue
-            text = {lang: render(t, f["params"]) for lang, t in s["text"].items()}
-            if not PLACEHOLDER.search(text["en"]):
-                steps.append({"kind": s["kind"], "text": text})
-        out.append({"finding": _ref(f), "steps": steps})
-    return out
+    its procedure's own steps."""
+    return [
+        {"finding": _ref(f), "steps": _steps(reg, f["code"], f["params"]), "mitigations": []}
+        for f in a.findings
+        if f["code"] in ACTIONS
+    ]
+
+
+def _mitigations(
+    store: Store, pack: Pack, reg: Registry, a: _Analysis, flight: FlightData,
+    actions: list[dict[str, Any]],
+) -> dict[str, Any]:  # fmt: skip
+    """The catalogue ranked for this flight's setup (mitigations.rank), each with the
+    findings it answers and their steps; each action names the mitigations answering it."""
+    doc = mitigations.load(pack, reg)
+    areas = {area: a.evidence[f"{AREA}{area}"] for area in AREAS if f"{AREA}{area}" in a.evidence}
+    setup = mitigations.Setup(areas, a.findings, flight.params, flight.answers)
+    airframe = flight.airframe_id
+    outages = mitigations.fleet_outages(store, reg, airframe) if airframe else []
+    goal = mitigations.goal_check(
+        reg.rules["failsafes"], pack.json("recovery/copter.json")["link"]["defaults"]
+    )
+    ranked = mitigations.rank(
+        doc, setup, reg.rules["no_gnss"]["readiness"], goal, outages, airframe
+    )
+    by_id = {f["id"]: f for f in a.findings}
+    for item in ranked["items"]:
+        answered = [by_id[i] for i in item["closes"]["findings"]]
+        item["closes"]["findings"] = [_ref(f) for f in answered]
+        seen: set[str] = set()
+        item["steps"] = []
+        for f in answered:
+            for step in _steps(reg, f["code"], f["params"]):
+                if step["text"]["en"] not in seen:
+                    seen.add(step["text"]["en"])
+                    item["steps"].append(step)
+        for action in actions:
+            if action["finding"]["id"] in {f["id"] for f in answered}:
+                action["mitigations"].append(item["id"])
+    drill: Mapping[str, Any] = doc["drill"]
+    drilled = sorted({o.flight for o in outages if o.drill and o.airframe == airframe})
+    offered = bool(airframe) and not drilled and f"{AREA}pilot_fallback" in a.evidence
+    sources: Mapping[str, Mapping[str, Any]] = doc["sources"]
+    return {
+        "goal_now": ranked["goal_now"],
+        "items": ranked["items"],
+        "drill": {
+            "about": drill["about"],
+            "measured": drilled,
+            "offered": offered,
+            "steps": _steps(reg, str(drill["procedure"]), {}),
+            "sources": [{"id": s, **sources[s]} for s in drill["sources"]],
+        },
+    }
 
 
 def _logged(table: Any, instance_column: str, instance: int, column: str) -> bool:
@@ -418,6 +479,7 @@ def navigation(
     outcomes: Mapping[str, Mapping[str, Any]] = result["analyzers"]
     skipped = {k: outcomes[k]["skipped"] if k in outcomes else None
                for k in ("gnss", "no_gnss", "no_gnss_readiness")}  # fmt: skip
+    actions = _actions(a, reg)
     return {
         "flight": flight_id,
         "airframe_id": row["airframe_id"],
@@ -428,6 +490,7 @@ def navigation(
         "receivers": receivers,
         "independent": independent,
         "readiness": readiness,
-        "actions": _actions(a, reg),
+        "mitigations": _mitigations(store, pack, reg, a, flight, actions),
+        "actions": actions,
         "sources": list(reg.rules["no_gnss"]["readiness"]["sources"]),
     }
