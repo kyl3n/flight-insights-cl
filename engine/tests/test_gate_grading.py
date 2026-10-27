@@ -15,6 +15,7 @@ import pytest
 from flight_insights.analyzers import Registry
 from flight_insights.analyzers.run import analysis_results
 from flight_insights.history import save_snapshot
+from flight_insights.history.attribution import attribute
 from flight_insights.history.snapshot import Snapshot
 from flight_insights.knowledge import Pack, load_pack
 from flight_insights.platforms.records import create_airframe, create_platform
@@ -412,6 +413,49 @@ def test_changes_made_ready_for_autotune_are_graded_after_it(gate: Gate) -> None
     graded = grade_flight(gate.store, gate.pack, f6, a6)
     assert sorted(str(g["param"]) for g in graded) == [*sorted(prepared), "None"]
     assert {g["status"] for g in graded} == {"confirmed"}
+
+
+def test_what_the_autotune_flights_measured_is_not_held_against_its_preparation(
+    gate: Gate,
+) -> None:
+    """The rate filters and back-off are graded on the flights after the AutoTune, as
+    the AutoTune is: a metric the pitch AutoTune flight pushed up (twitching, on roll's
+    gains saved the flight before) and that is back afterwards fails neither. In
+    ArduPilot's simulator the hover output spread rose so on an AutoTune flight, and the
+    preparation was graded no effect while the AutoTune was confirmed."""
+    prepared = {"ATC_RAT_RLL_FLTT": 10.0, "ATC_RAT_PIT_FLTT": 10.0, "AUTOTUNE_GMBK": 0.35}
+    changes = tuple(
+        {"param": p, "current": PARAMS[p], "proposed": v, "stage": "autotune"}
+        for p, v in prepared.items()
+    )
+    calm, busy = {D_NOISE: (5.0, 4.8, 5.2)}, {D_NOISE: (8.0, 7.7, 8.3)}
+    gate.plan(*gate.fly(LIGHT, BASE_LIGHT, changes=changes, extra=calm))
+    gate.plan(*gate.fly(LOADED, BASE_LOADED, changes=changes))
+    ready = save_snapshot(
+        gate.store, Snapshot(PARAMS | prepared, "copter", "4.7.0", "log start", "primary"),
+        gate.pack,
+    )  # fmt: skip
+    tuned: list[str] = []
+    for axis, measured in (("roll", calm), ("pitch", busy)):
+        f, a = gate.fly(LIGHT, saved=axis, snapshot=ready, extra=measured)
+        tuned.append(f)
+        grade_flight(gate.store, gate.pack, f, a)
+    saved_gains(gate, tuned[1], ("ATC_RAT_RLL_D", 0.0036, 0.006))  # roll's, on the pitch flight
+    f5, a5 = gate.fly(LIGHT, AFTER_LIGHT, snapshot=ready, extra=calm)
+    grade_flight(gate.store, gate.pack, f5, a5)
+    f6, a6 = gate.fly(LOADED, AFTER_LOADED, snapshot=ready)
+    # the shift is there, on the pitch AutoTune flight, put down to roll's saved gain
+    [shift] = [s for s in attribute(gate.store, gate.reg, gate.airframe) if s.metric == D_NOISE]
+    assert (shift.flight, shift.verdict) == (tuned[1], "worse")
+    assert shift.candidates[0].change.name == "ATC_RAT_RLL_D"
+    graded = grade_flight(gate.store, gate.pack, f6, a6)
+    assert sorted(str(g["param"]) for g in graded) == [*sorted(prepared), "None"]
+    assert {g["status"] for g in graded} == {"confirmed"}
+    for rec in history(gate.store, gate.airframe):
+        if rec["finding_code"] == OFFER and rec["status"] == "confirmed":
+            [check] = [c for c in rec["detail"]["grade"]["checks"]
+                       if c["check"] == "no_shift_worse"]  # fmt: skip
+            assert check["passed"] and check["shifts"] == []
 
 
 def saved_gains(gate: Gate, after: str, *changes: tuple[str, float, float]) -> None:
