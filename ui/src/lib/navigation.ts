@@ -2,8 +2,9 @@
 // and the pure helpers behind it (spec: User interface, "The Navigation and GNSS view";
 // mock-up Navigation): GNSS events, outages and drills, how the aircraft coped with each,
 // the evidence each receiver gave, the readiness to fly without GNSS, and what would get
-// it home. Every status here is the engine's; these helpers only word and place it.
-// Times are seconds after arming, distances relative metres from the analysis.
+// it home, ranked. Every status and rank here is the engine's; these helpers only word
+// and place it. Times are seconds after arming, distances relative metres from the
+// analysis; the mitigations' holds and drift come from the platform's analyses.
 
 import { CATALOGS, translate, type Locale, type MessageKey } from "./i18n";
 import type { ProcedureStep } from "./plan";
@@ -105,6 +106,72 @@ export interface AreaRow {
 export interface Action {
   finding: FindingRef;
   steps: { kind: ProcedureStep["kind"]; text: Text }[];
+  mitigations: string[]; // the ranked mitigations that answer it
+}
+
+/** A source in the catalogue: a wiki page (its URL and .rst path) or the 4.7.0 source. */
+export interface Source {
+  id: string;
+  title: string;
+  url: string;
+  path: string;
+  lines?: string;
+}
+
+/** A claim from the catalogue, with the sources it rests on. */
+export interface Cited {
+  text: Text;
+  sources: string[];
+}
+
+/** Outages of one kind, as the fleet measured them. */
+export interface Side {
+  outages: number;
+  hold_s: number; // the shortest time it kept a position it could fly on
+  throughout: boolean; // every one kept a position all through: the hold is a lower bound
+  drift_m_per_min: number | null; // the worst
+  scope: "airframe" | "platform" | null;
+}
+
+export type WorkKind = "settings" | "calibration" | "hardware" | "companion_computer" | "research";
+export type Rule = "goal" | "measured" | "expected" | "measured_no_gain";
+export type Level = "keeps_position" | "buys_time" | "keeps_heading" | "pilot_control" | "fewer_losses";
+
+/** One mitigation, ranked by the engine (mitigations.py) for this flight's setup. */
+export interface Mitigation {
+  id: string;
+  kind: WorkKind; // the work it takes from scratch
+  left: WorkKind; // the work left on this airframe, which the ranking uses
+  status: "missing" | "partial" | "no_switch" | "on_switch";
+  on_sets: number[]; // usable source sets that use it already
+  grade: "documented" | "research";
+  title: Text;
+  for_goal: Text;
+  makes_goal: boolean;
+  rule: Rule; // the ranking rule that placed it
+  basis: "measured" | "expected";
+  measured: { scope: "airframe" | "platform" | null; with: Side | null; without: Side | null } | null;
+  expected: { level: Level; text: Text; sources: string[] };
+  bounds: string[];
+  needs: Cited[];
+  limits: Cited[];
+  closes: { areas: { area: Area; status: AreaStatus }[]; findings: FindingRef[] };
+  steps: { kind: ProcedureStep["kind"]; text: Text }[];
+  sources: Source[];
+}
+
+export interface Drill {
+  about: Text;
+  measured: string[]; // the airframe's flights that measured a drill
+  offered: boolean; // the airframe's plan offers it
+  steps: { kind: ProcedureStep["kind"]; text: Text }[];
+  sources: Source[];
+}
+
+export interface Mitigations {
+  goal_now: boolean | null; // the goal with this flight's parameters
+  items: Mitigation[];
+  drill: Drill;
 }
 
 export interface NavigationView {
@@ -117,6 +184,7 @@ export interface NavigationView {
   receivers: Receiver[];
   independent: { estimator: boolean; barometer: boolean; second_receiver: boolean };
   readiness: AreaRow[];
+  mitigations: Mitigations;
   actions: Action[];
   sources: string[];
 }
@@ -284,6 +352,87 @@ export function goalLook(met: boolean): { status: Status; label: MessageKey } {
 }
 
 /** A procedure's own steps, as the shared step list shows them. */
-export function actionSteps(a: Action): ProcedureStep[] {
+export function actionSteps(a: { steps: Action["steps"] }): ProcedureStep[] {
   return a.steps.map((s) => ({ kind: s.kind, text: s.text, params: [], step: null, checks: [] }));
+}
+
+// --- what would get it home --------------------------------------------------------------
+
+/** The work a mitigation leaves, as its badge says it. */
+export function workLabel(kind: WorkKind, locale: Locale): string {
+  return translate(locale, `nav.work.${kind}` as MessageKey);
+}
+
+/** Why it is where it is in the ranking. */
+export function ruleLabel(rule: Rule, locale: Locale): string {
+  return translate(locale, `nav.rule.${rule}` as MessageKey);
+}
+
+/** What is already there, and what is left, when part of it is in place. */
+export function statusText(m: Mitigation, v: NavigationView, locale: Locale): string | null {
+  const sets = m.on_sets.map((n) => formatNumber(n, locale)).join(", ");
+  const switching = v.readiness.find((r) => r.area === "switching");
+  const channels = (switching?.values.switch_channels ?? []) as number[];
+  if (m.status === "on_switch") {
+    return translate(locale, "nav.mit.status.on_switch", { sets, channel: channels[0] ?? "–" });
+  }
+  if (m.status === "no_switch") return translate(locale, "nav.mit.status.no_switch", { sets });
+  if (m.status === "partial") return translate(locale, "nav.mit.status.partial", { work: workLabel(m.left, locale) });
+  return null;
+}
+
+function sideText(s: Side, locale: Locale): string {
+  const vars = { hold: formatNumber(s.hold_s, locale), count: s.outages };
+  let text = translate(locale, s.throughout ? "nav.mit.side.throughout" : "nav.mit.side.hold", vars);
+  if (s.drift_m_per_min !== null) {
+    text += translate(locale, "nav.mit.side.drift", { rate: formatNumber(s.drift_m_per_min, locale) });
+  }
+  return text;
+}
+
+/** Where a measurement was flown. */
+function scopeText(scope: Side["scope"], locale: Locale): string {
+  return translate(locale, scope === "airframe" ? "nav.mit.scope.airframe" : "nav.mit.scope.platform");
+}
+
+/** Its benefit: measured with and without it where the fleet flew both, else the
+ * catalogue's expectation, labelled which, with any one side that was measured. */
+export function benefitText(m: Mitigation, locale: Locale): { label: string; lines: string[] } {
+  const w = m.measured?.with ?? null;
+  const wo = m.measured?.without ?? null;
+  if (m.basis === "measured" && w && wo) {
+    return {
+      label: translate(locale, "nav.mit.measured", { scope: scopeText(m.measured?.scope ?? null, locale) }),
+      lines: [
+        translate(locale, "nav.mit.with", { side: sideText(w, locale) }),
+        translate(locale, "nav.mit.without", { side: sideText(wo, locale) }),
+      ],
+    };
+  }
+  const lines = [m.expected.text[locale]];
+  if (w) lines.push(translate(locale, "nav.mit.withOnly", { side: sideText(w, locale), scope: scopeText(w.scope, locale) }));
+  if (wo && m.measured) {
+    lines.push(translate(locale, "nav.mit.withoutOnly", { side: sideText(wo, locale), scope: scopeText(wo.scope, locale) }));
+  }
+  return { label: translate(locale, "nav.mit.expected"), lines };
+}
+
+/** A source as a line: its title, and where in the wiki or the firmware it is. */
+export function sourceText(s: Source): string {
+  return s.lines ? `${s.title} (${s.path}, ${s.lines})` : `${s.title} (${s.path})`;
+}
+
+/** The setup findings no ranked mitigation answers: they keep their own place. */
+export function unanswered(v: NavigationView): Action[] {
+  return v.actions.filter((a) => !a.mitigations.length);
+}
+
+/** Whether "Plan a GNSS-off drill" can open the airframe's plan with the drill in it. */
+export function canPlanDrill(v: NavigationView): boolean {
+  return Boolean(v.airframe_id && v.mitigations.drill.offered);
+}
+
+/** The drill as the procedure list shows it. */
+export function drillSteps(d: Drill): ProcedureStep[] {
+  return d.steps.map((s) => ({ kind: s.kind, text: s.text, params: [], step: null, checks: [] }));
 }

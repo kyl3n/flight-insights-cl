@@ -238,6 +238,19 @@ def gets_home(
     return True
 
 
+def goal_met(
+    rules: Mapping[str, Any], defaults: Mapping[str, float], params: Mapping[str, float],
+    keeps_position: bool, dead_reckons: bool,
+) -> bool:  # fmt: skip
+    """The goal as the card's link section plays it (`sections`): the one link a
+    station-flown aircraft has, else the pilot's radio, lost with GNSS. A setting the
+    parameters do not hold is the firmware's default (`defaults`)."""
+    p: Mapping[str, float] = dict(defaults) | dict(params)
+    station = bool(int(p.get("RC_OPTIONS", 0)) & IGNORE_RECEIVER)
+    ekf_on = int(p.get("FS_EKF_ACTION", 1)) != 0 and p.get("FS_EKF_THRESH", 0.8) != 0
+    return gets_home(rules, p, True, station, keeps_position, dead_reckons, ekf_on)
+
+
 def _joined(c: Card, items: Sequence[Mapping[str, str]]) -> dict[str, str]:
     """Texts in the reader's language as "a, b or c"."""
     word: Mapping[str, str] = c.doc["texts"]["word.or"]

@@ -170,6 +170,7 @@ def test_receivers_readiness_and_what_would_get_it_home(
 
     [action] = jam["actions"]
     assert action["finding"]["code"] == "no_gnss.drag_fusion_off"
+    assert action["mitigations"] == ["drag_fusion"]  # the mitigation that answers it
     assert [s["kind"] for s in action["steps"]] == ["ground_check", "fly", "abort", "verify"]
     assert all(s["text"]["en"] and s["text"]["uk"] for s in action["steps"])
     assert any("airspeed-estimation" in s for s in jam["sources"])
@@ -193,6 +194,9 @@ def _numbers(value: Any) -> set[float]:
 def test_the_reply_holds_no_position_and_only_stored_numbers(
     fleet: tuple[Any, Any, Views, Any],
 ) -> None:
+    """The flight's own numbers come from its analysis; the mitigations' holds and drift
+    from the platform's analyses, with counts of outages."""
+    fleet_stored = _numbers([[a["evidence"], a["metrics"]] for _, a in fleet[2].values()])
     for log, (view, analysis) in fleet[2].items():
         keys = {k.lower() for k, _ in _walk(view)}
         assert not keys & POSITION_KEYS, log
@@ -200,7 +204,12 @@ def test_the_reply_holds_no_position_and_only_stored_numbers(
         stored = _numbers([analysis["evidence"], analysis["metrics"],
                            [f["params"] for f in analysis["findings"]]])  # fmt: skip
         counted = {float(n) for n in range(1, 1 + len(view["events"]) + len(view["outages"]))}
-        unknown = _numbers(view) - stored - counted
+        own = {k: v for k, v in view.items() if k != "mitigations"}
+        unknown = _numbers(own) - stored - counted
+        assert not unknown, (log, unknown)
+        outages = {float(n) for n in range(1, 1 + sum(len(v["outages"]) for v, _ in
+                                                      fleet[2].values()))}  # fmt: skip
+        unknown = _numbers(view["mitigations"]) - fleet_stored - outages
         assert not unknown, (log, unknown)
 
 

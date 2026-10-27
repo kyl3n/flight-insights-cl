@@ -1409,6 +1409,46 @@
         }
       ]
     },
+    "followup.gnss_drill": {
+      "graded_by": "checks",
+      "steps": [
+        {
+          "kind": "ground_check",
+          "text": {
+            "en": "Choose calm air over open ground, clear of people, with room for the aircraft to drift downwind. If no switch has it yet, put the GPS-disable function on a spare two-position switch (RCn_OPTION 65), and keep AltHold or Stabilize on the flight-mode switch to take over.",
+            "uk": "Оберіть тиху погоду над відкритою місцевістю, подалі від людей, з місцем, куди апарат може віднести вітром. Якщо функцію ще не призначено, призначте вимкнення GPS на вільний 2-позиційний перемикач (RCn_OPTION 65) і тримайте AltHold або Stabilize на перемикачі режимів, щоб перебрати керування."
+          }
+        },
+        {
+          "kind": "fly",
+          "text": {
+            "en": "Take off in Loiter and climb to a safe height (on optical flow, within the rangefinder's range). With a source set for flying without GNSS, change to it first with its switch (aux function 90) and wait for the ground station's message. Then switch GNSS off with the GPS-disable switch for 30 seconds, hands off the sticks; switch it back on, change back to source set 1, and land.",
+            "uk": "Злетіть у Loiter і наберіть безпечну висоту (на оптичному потоці — у межах дальності далекоміра). Якщо є набір джерел для польоту без GNSS, спершу перемкніться на нього його перемикачем (допоміжна функція 90) і дочекайтеся повідомлення наземної станції. Потім вимкніть GNSS перемикачем вимкнення GPS на 30 секунд, не торкаючись стіків; увімкніть його знову, поверніться на набір джерел 1 і сідайте."
+          }
+        },
+        {
+          "kind": "abort",
+          "text": {
+            "en": "If the aircraft drifts towards anything, or the EKF failsafe starts to land it where it should not, switch GNSS back on and take over in AltHold.",
+            "uk": "Якщо апарат зносить до перешкод або аварійний режим EKF починає садити його не там, де слід, увімкніть GNSS знову й перейдіть в AltHold."
+          }
+        },
+        {
+          "kind": "verify",
+          "checks": [
+            {
+              "check": "has_metric",
+              "metric": "no_gnss.hold_s",
+              "required": true
+            }
+          ],
+          "text": {
+            "en": "The next log shows the drill: the GNSS-off outage, how long the estimator kept a position and, once GNSS came back, how far it had drifted.",
+            "uk": "Наступний журнал показує тренування: період із вимкненим GNSS, як довго оцінювач утримував позицію і, коли GNSS повернувся, наскільки її віднесло."
+          }
+        }
+      ]
+    },
     "option.input_tc_47.available": {
       "steps": [
         {

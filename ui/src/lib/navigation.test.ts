@@ -3,23 +3,40 @@ import {
   AREA_LOOK,
   actionSteps,
   areaText,
+  benefitText,
+  canPlanDrill,
   copingText,
+  drillSteps,
   eventFacts,
   firstPick,
   goalLook,
   picked,
   receiversLabel,
   rowLabel,
+  ruleLabel,
+  sourceText,
   span,
+  statusText,
+  unanswered,
   verdictWord,
+  workLabel,
+  type Action,
   type AreaRow,
   type CopingRow,
+  type Drill,
+  type Mitigation,
   type NavEvent,
   type NavigationView,
   type Outage,
 } from "./navigation";
 
 // Shaped as the engine's flight.navigation gives them for the SITL jam and drills.
+const drill = (over: Partial<Drill> = {}): Drill => ({
+  about: { en: "The flight that measures hold and drift.", uk: "Політ, що вимірює утримання й дрейф." },
+  measured: [], offered: true,
+  steps: [{ kind: "fly", text: { en: "Switch GNSS off for 30 seconds.", uk: "Вимкніть GNSS на 30 секунд." } }],
+  sources: [], ...over,
+});
 const event = (over: Partial<NavEvent> = {}): NavEvent => ({
   n: 1, class: "jamming", confidence: "medium", start_s: 23.5, end_s: 59.2, duration_s: 35.8,
   receivers: [1], channels: ["fix", "sats"], peaks: { fewest_sats: 3, worst_hacc_m: 299.96 },
@@ -38,7 +55,8 @@ const view = (over: Partial<NavigationView> = {}): NavigationView => ({
   skipped: { gnss: null, no_gnss: null, no_gnss_readiness: null },
   events: [], outages: [], receivers: [],
   independent: { estimator: true, barometer: true, second_receiver: false },
-  readiness: [], actions: [], sources: [], ...over,
+  readiness: [], actions: [], sources: [], mitigations: { goal_now: false, items: [], drill: drill() },
+  ...over,
 });
 const row = (over: Partial<CopingRow>): CopingRow => ({ id: "estimator", status: "info", verdict: "rejected", values: {}, ...over });
 const area = (over: Partial<AreaRow>): AreaRow => ({
@@ -140,10 +158,94 @@ describe("readiness", () => {
   });
 });
 
+// optical flow on the SITL drill airframe: measured on the platform, flow 30.2 s, alone 5.5 s
+const mitigation = (over: Partial<Mitigation> = {}): Mitigation => ({
+  id: "optical_flow", kind: "hardware", left: "hardware", status: "missing", on_sets: [],
+  grade: "documented", title: { en: "Optical flow", uk: "Оптичний потік" },
+  for_goal: { en: "Velocity over the ground.", uk: "Швидкість відносно землі." },
+  makes_goal: true, rule: "goal", basis: "measured",
+  measured: {
+    scope: "platform",
+    with: { outages: 1, hold_s: 30.2, throughout: true, drift_m_per_min: 0.2, scope: "platform" },
+    without: { outages: 3, hold_s: 5.5, throughout: false, drift_m_per_min: null, scope: "platform" },
+  },
+  expected: { level: "keeps_position", text: { en: "Modes work as with a GPS.", uk: "Режими працюють як із GPS." }, sources: [] },
+  bounds: ["relative_position"], needs: [], limits: [], closes: { areas: [], findings: [] }, steps: [],
+  sources: [], ...over,
+});
+const action = (id: string, mitigations: string[]): Action => ({
+  finding: { id, code: "no_gnss.drag_fusion_off", severity: "info", confidence: "high", params: {} },
+  steps: [], mitigations,
+});
+
+describe("the ranked mitigations", () => {
+  it("labels a measured benefit with where both sides were flown", () => {
+    const b = benefitText(mitigation(), "en");
+    expect(b.label).toBe("Measured on this platform's airframes");
+    expect(b.lines).toEqual([
+      "With it: kept a position all through, at least 30.2 s (1 measured); drift up to 0.2 m a minute",
+      "Without it: kept a position 5.5 s at the shortest (3 measured)",
+    ]);
+    expect(benefitText(mitigation(), "uk").lines[1]).toBe("Без нього: утримував позицію щонайменше 5,5 с (виміряно: 3)");
+  });
+
+  it("labels an expected benefit so, with any one side the fleet measured", () => {
+    const vio = mitigation({
+      id: "visual_odometry", basis: "expected", rule: "goal",
+      measured: { scope: null, with: null, without: { outages: 2, hold_s: 5.5, throughout: false, drift_m_per_min: null, scope: "airframe" } },
+    });
+    const b = benefitText(vio, "en");
+    expect(b.label).toBe("Expected, not yet measured on this fleet");
+    expect(b.lines).toEqual([
+      "Modes work as with a GPS.",
+      "Measured without it, on this airframe: kept a position 5.5 s at the shortest (2 measured)",
+    ]);
+    expect(benefitText(mitigation({ basis: "expected", measured: null }), "uk").label).toBe(
+      "Очікувано, ще не виміряно в цьому флоті",
+    );
+  });
+
+  it("says what is in place already and what work is left", () => {
+    const v = view({ readiness: [area({ area: "switching", status: "ready", say: "switch", values: { switch_channels: [8] } })] });
+    const onSwitch = mitigation({ status: "on_switch", left: "settings", on_sets: [2] });
+    expect(statusText(onSwitch, v, "en")).toBe(
+      "Already on source set 2, chosen with RC8: in source set 1 it would keep a position with nobody at the switch.",
+    );
+    expect(statusText(mitigation({ status: "partial", left: "calibration" }), v, "en")).toBe("Partly in place: calibration left.");
+    expect(statusText(mitigation(), v, "en")).toBeNull();
+    expect(workLabel("companion_computer", "uk")).toBe("бортовий комп'ютер");
+    expect(ruleLabel("goal", "en")).toBe("Makes the goal reachable");
+    expect(ruleLabel("measured_no_gain", "en")).toBe("Measured: no gain");
+  });
+
+  it("keeps the setup findings no mitigation answers in their own list", () => {
+    const v = view({ actions: [action("a", ["drag_fusion"]), action("b", [])] });
+    expect(unanswered(v).map((a) => a.finding.id)).toEqual(["b"]);
+  });
+
+  it("names each source with where it is in the wiki or the firmware", () => {
+    expect(sourceText({ id: "dr", title: "Dead Reckoning Failsafe", url: "https://ardupilot.org/copter/docs/deadreckoning-failsafe.html", path: "copter/source/docs/deadreckoning-failsafe.rst" })).toBe(
+      "Dead Reckoning Failsafe (copter/source/docs/deadreckoning-failsafe.rst)",
+    );
+    expect(sourceText({ id: "fs", title: "FS_DR_ENABLE", url: "https://github.com/x", path: "ArduCopter/Parameters.cpp", lines: "890-902" })).toBe(
+      "FS_DR_ENABLE (ArduCopter/Parameters.cpp, 890-902)",
+    );
+  });
+
+  it("plans a GNSS-off drill only while the airframe's plan offers one", () => {
+    expect(canPlanDrill(view())).toBe(true);
+    expect(canPlanDrill(view({ mitigations: { goal_now: false, items: [], drill: drill({ offered: false, measured: ["f"] }) } }))).toBe(false);
+    expect(canPlanDrill(view({ airframe_id: null }))).toBe(false);
+    expect(drillSteps(drill())).toEqual([
+      { kind: "fly", text: { en: "Switch GNSS off for 30 seconds.", uk: "Вимкніть GNSS на 30 секунд." }, params: [], step: null, checks: [] },
+    ]);
+  });
+});
+
 describe("what would get it home", () => {
   it("gives each finding's own procedure steps to the shared step list", () => {
     const steps = actionSteps({
-      finding: { id: "x", code: "no_gnss.drag_fusion_off", severity: "info", confidence: "high", params: {} },
+      ...action("x", ["drag_fusion"]),
       steps: [{ kind: "ground_check", text: { en: "Weigh it.", uk: "Зважте." } }],
     });
     expect(steps).toEqual([{ kind: "ground_check", text: { en: "Weigh it.", uk: "Зважте." }, params: [], step: null, checks: [] }]);
