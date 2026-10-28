@@ -314,6 +314,10 @@
       "en": "{code} is not offered again: flight {flight} showed the work done on this build of the airframe. A new build (propellers, motors) offers it again.",
       "uk": "{code} не пропонується знову: політ {flight} показав, що роботу виконано на цій збірці апарата. Нова збірка (гвинти, мотори) запропонує її знову."
     },
+    "measured_capacity": {
+      "en": "{code} is not proposed: {param} ({current_mah} mAh) is within {share_pct}% of the {measured_mah} mAh its pack measured over {flights} flights, the latest {flight}. The pack's own measurement beats its rated capacity.",
+      "uk": "{code} не пропонується: {param} ({current_mah} мА·год) відрізняється не більше ніж на {share_pct}% від {measured_mah} мА·год, виміряних для цієї батареї за {flights} польотів, останній — {flight}. Власне вимірювання батареї важливіше за її номінальну ємність."
+    },
     "check_failed": {
       "en": "The finding cleared, but a check of its procedure did not pass on the next flight.",
       "uk": "Знахідка зникла, але перевірка з її процедури не пройшла в наступному польоті."

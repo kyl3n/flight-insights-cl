@@ -55,6 +55,39 @@
         "en": "That is more than a battery failsafe can sensibly keep back ({max_pct}% of {capacity_mah} mAh): on those trips the failsafe would act too late to bring it home with its reserve. Fly less far on these packs, carry more capacity, or fly lighter; the range card shows the radius each weight allows. Worked out from the power model at {mass_kg} kg: {return_mah} mAh home at {airspeed_ms} m/s through the air into {wind_ms} m/s. The fastest it has flown is {top_ms} m/s.",
         "uk": "Це більше, ніж аварійний режим батареї може розумно залишити ({max_pct}% від {capacity_mah} мА·год): у таких рейсах він спрацює надто пізно, щоб повернути апарат додому з резервом. Літайте ближче на цих пакетах, беріть більшу ємність або летіть легше; картка дальності показує радіус для кожної ваги. Пораховано за моделлю потужності при {mass_kg} кг: {return_mah} мА·год додому на повітряній швидкості {airspeed_ms} м/с проти вітру {wind_ms} м/с. Найбільша швидкість, з якою він літав, — {top_ms} м/с."
       }
+    },
+    "performance.capacity_setting": {
+      "stage": "operations",
+      "title": {
+        "en": "{param} is {current_mah} mAh, but its pack measured {measured_mah} mAh over {flights} flights",
+        "uk": "{param} дорівнює {current_mah} мА·год, але його батарея за {flights} польотів показала {measured_mah} мА·год"
+      },
+      "action": {
+        "en": "Set {param} to {proposed_mah} mAh. The battery failsafe counts the charge used against {param} less its LOW_MAH ({low_mah} mAh), so with {param} {over_mah} mAh above what the pack holds it acts with less left than intended, or after the pack is empty. Each flight's capacity comes from its voltage against current, fitted to the pack's discharge curve; only flights that used at least 30% of the pack measure it. If a different pack flew, enter its capacity in the platform setup.",
+        "uk": "Встановіть {param} на {proposed_mah} мА·год. Аварійний режим батареї рахує витрачений заряд відносно {param} мінус LOW_MAH ({low_mah} мА·год), тож коли {param} на {over_mah} мА·год більший, ніж вміщує батарея, він спрацьовує, коли заряду лишається менше, ніж задумано, або вже після того, як батарея розрядилася. Ємність у кожному польоті визначається за напругою й струмом, апроксимованими кривою розряду батареї; її вимірюють лише польоти, що використали щонайменше 30% батареї. Якщо літала інша батарея, введіть її ємність у налаштуваннях платформи."
+      }
+    },
+    "performance.pack_worn": {
+      "stage": "operations",
+      "title": {
+        "en": "Pack {pack} holds {capacity_mah} mAh, {capacity_pct}% of its {rated_mah} mAh",
+        "uk": "Батарея {pack} вміщує {capacity_mah} мА·год, {capacity_pct}% від її {rated_mah} мА·год"
+      },
+      "action": {
+        "en": "Under {end_pct}% of its rated capacity, the usual end-of-life mark: retire the pack, or keep it for short flights and set the battery failsafe's capacity from what it holds. Measured on {measured} of its {flights} flights flown alone on one monitor.",
+        "uk": "Менше {end_pct}% номінальної ємності — звичайна межа ресурсу: виведіть батарею з експлуатації або залиште її для коротких польотів і задайте ємність для аварійного режиму за тим, що вона вміщує. Виміряно в {measured} з її {flights} польотів, коли вона була єдиною на одному моніторі."
+      }
+    },
+    "performance.pack_resistance": {
+      "stage": "operations",
+      "title": {
+        "en": "Pack {pack}'s resistance is {resistance_mohm} mOhm, {ratio} times its first flights' {first_mohm} mOhm",
+        "uk": "Опір батареї {pack} становить {resistance_mohm} мОм, у {ratio} раза більше, ніж {first_mohm} мОм у перших польотах"
+      },
+      "action": {
+        "en": "{end_ratio} times its first flights' resistance is the usual end-of-life mark: the pack sags more under load, gives less of its energy at high power and runs hotter. Retire it, or keep it for light work. A cold pack also reads high, so compare at a similar temperature first. The median of its latest {compared} flights against its first {compared}, of {flights} flown alone on one monitor.",
+        "uk": "Опір, у {end_ratio} раза більший за опір у перших польотах, — звичайна межа ресурсу: батарея сильніше просідає під навантаженням, віддає менше енергії на великій потужності й більше гріється. Виведіть її з експлуатації або залиште для легкої роботи. Холодна батарея теж показує високий опір, тож спершу порівняйте за подібної температури. Медіана останніх {compared} польотів проти перших {compared} з {flights}, коли вона була єдиною на одному моніторі."
+      }
     }
   }
 }

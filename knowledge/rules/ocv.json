@@ -13,12 +13,14 @@
     "LiFePO4": {"shape": "LiPo", "full_v": 3.65, "empty_v": 2.5, "cutoff_v": 2.6, "measured_shape": false, "charge_from_voltage": false}
   },
   "fit": {
-    "about": "A pack's capacity and resistance from one flight: its terminal voltage modelled as cells x OCV(z0 - charge used / Q) - R0 I - R1 (I low-passed with tau_s), z0 read from the voltage at rest before arming; R0 and R1 by least squares for each Q, Q searched within capacity_range of the rated capacity with a prior of capacity_spread. A flight that uses less than min_soc_span of the pack gives its resistance only.",
+    "about": "A pack's capacity and resistance from one flight: its terminal voltage modelled as cells x OCV(z0 - charge used / Q) - R0 I - R1 (I low-passed with tau_s), z0 read from the voltage at rest before arming; R0 and R1 by least squares for each Q, Q searched within capacity_range of the rated capacity with a prior of capacity_spread. A flight that uses less than min_soc_span of the pack gives its resistance only. When the capacity found is at the search's edge, or the model misses the voltage by more than max_rms_cell_v a cell (RMS), the rated capacity is far from the pack's: the search is made again without the prior, from the least the pack can hold (the charge used over the charge it started with) to the most a flight using min_soc_span of it shows; a fit that still misses by more is not trusted. On a flight (analyzers/pack.py), each monitor that measures its own pack is fitted over its rows from arming to disarming, up to the first row below cells x the chemistry's cutoff_v (a pack run flat collapses there, which no curve follows); its rest is the median of the last rest_samples rows before arming, else the quietest row within rest_window_s of arming (ArduPilot logs nothing before arming unless LOG_DISARMED is set), corrected for its current by the fitted R0.",
     "tau_s": 20.0,
     "capacity_range": [0.5, 1.5],
     "capacity_spread": 0.15,
     "min_soc_span": 0.3,
-    "rest_samples": 20
+    "rest_samples": 20,
+    "rest_window_s": 10.0,
+    "max_rms_cell_v": 0.05
   },
   "sources": [
     "LiPo open-circuit voltage against state of charge: ArduPilot's simulator battery table (libraries/SITL/SIM_Battery.cpp at Copter-4.7.0, soc_table), from a measured LiPo cell discharge.",

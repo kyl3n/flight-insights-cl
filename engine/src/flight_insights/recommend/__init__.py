@@ -75,7 +75,7 @@ def flight_plan(
     findings += followup.revert_findings(store, flight_id, dialect, params)
     findings += followup.drill_findings(store, reg, flight_id, analysis)
     findings += followup.sweep_findings(store, reg, flight_id, analysis)
-    from flight_insights.performance import advice, buildup, charge  # trends plans too
+    from flight_insights.performance import advice, buildup, charge, packs  # trends plans too
 
     ctx = (
         advice.context(store, cache, pack, reg, flight_id, analysis) if cache is not None else None
@@ -87,6 +87,15 @@ def flight_plan(
             for name, value in got.raise_limits.items():
                 limits[name] = max(value, limits.get(name, value))
         findings += charge.charge_findings(ctx, store, reg, params, analysis)
+    # each pack's capacity as its flights measured it, over the setup's rated capacity
+    found, measured = packs.capacity_findings(store, reg, flight_id, params, analysis)
+    findings += found + packs.aged_findings(store, reg, flight_id, analysis)
+    for h in measured:
+        audit = [f for f in findings if f["code"] == packs.AUDIT
+                 and any(c["param"] == h["param"] for c in f.get("changes", ()))]  # fmt: skip
+        if audit:
+            held.append(h)
+            findings = [f for f in findings if f not in audit]
     plan = build_plan(flight_id, findings, params, dialect, reg, limits)
     plan.held_back = held
     return plan
