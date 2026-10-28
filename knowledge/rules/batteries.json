@@ -1,0 +1,47 @@
+{
+  "about": "Which battery monitors measure a pack (analyzers/battery_power.py; spec: Power and efficiency analysis, 'Power buckets'). ArduPilot logs one BAT row per monitor; BAT.Inst 0 is BATT_, 1 is BATT2_, and so on to BATTG_. The pack's power is the sum, over the monitors that each measure their own pack's voltage and current (the pack types, or a monitor the parameters do not name), of voltage times current, read at the first such monitor's rows. A monitor that adds others up (sum), reads the ESCs' own telemetry (esc), measures no current, or measures something other than a flight pack (fuel, a generator, solar) is left out, so nothing is counted twice; when no pack monitor is logged, a sum monitor stands in, else an ESC monitor. Energy is power integrated over time by the trapezoid rule; stretches longer than max_gap_s with no row are bridged the same way and reported.",
+  "pack": [
+    4,
+    5,
+    6,
+    7,
+    8,
+    13,
+    14,
+    15,
+    16,
+    19,
+    21,
+    22,
+    25,
+    26,
+    28,
+    29,
+    30,
+    32
+  ],
+  "sum": [
+    10
+  ],
+  "esc": [
+    9
+  ],
+  "not_a_pack": [
+    0,
+    3,
+    11,
+    12,
+    17,
+    18,
+    20,
+    23,
+    24,
+    27,
+    31
+  ],
+  "max_gap_s": 1.0,
+  "sources": [
+    "BATT_MONITOR values and BAT.Inst (libraries/AP_BattMonitor/AP_BattMonitor_Params.cpp and AP_BattMonitor_Logging.cpp at Copter-4.7.0): 3 analog voltage only, 4 analog voltage and current, 9 ESC telemetry, 10 sum of selected monitors (current summed, voltage averaged, BATT_SUM_MASK), 11, 12 and 24 fuel, 17 and 18 generator, 20 MPPT solar, 23 Torqeedo, 27 EFI, 31 analog current only.",
+    "Up to 16 monitors, each with its own BATTx_ group; a SUM type consolidates monitors into one report through BATT_SUM_MASK (ArduPilot wiki, Battery Monitors (aka Power Monitors/Modules), ardupilot.org/copter/docs/common-powermodule-landingpage.html). Monitors on parallel packs each carry part of the current at the bus voltage, so the pack power is the sum of their volts times amps."
+  ]
+}
