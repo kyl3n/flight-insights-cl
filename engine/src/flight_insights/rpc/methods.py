@@ -62,6 +62,7 @@ from flight_insights.knowledge import Pack, load_pack
 from flight_insights.rpc.ai import add_ai_methods
 from flight_insights.rpc.analysis import add_analysis_methods
 from flight_insights.rpc.imports import add_import_methods
+from flight_insights.rpc.performance import add_performance_methods
 from flight_insights.rpc.server import (
     BAD_INPUT,
     CONFLICT,
@@ -511,4 +512,5 @@ def build_server(out: IO[str], pack: Pack | None = None) -> Server:
     add_ai_methods(server, state, guarded)
     add_sync_methods(server, state, guarded)
     add_weather_methods(server, state, guarded)
+    add_performance_methods(server, state, guarded)
     return server
