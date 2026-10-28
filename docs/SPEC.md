@@ -784,6 +784,23 @@ Added to Phase 2 on 2026-10-27 at the fleet owner's request, and built in steps 
 - **The procedure:** parameter file, temporary logging, card, abort criteria, verify checks on the flight's fast segment, and the undo file.
 - **When a limit binds:** the app says which one, with the solutions and the gain the models predict for each.
 
+**The fast segment** (measured now, `analyzers/fast.py`; what the build-up's checks read).
+
+- **The segment:** the flight's level steady tiles at 90% or more of its fastest level airspeed. Each tile's speed is its ground velocity less the flight's wind, measured as the wind analyzer measures it. A flight that cannot measure its drag is read by ground speed, and says so. It needs a fastest speed of 5 m/s or more and 10 s near it.
+- **Watched in it:**
+  - vibration (worst axis of any IMU) and clipping;
+  - the motors' highest output and the share of time any motor is at its top;
+  - the lean as a share of the position controller's limit;
+  - the attitude's and the horizontal velocity's error from their targets (target and achieved velocities only, never a position);
+  - the most height lost below the target;
+  - the packs' highest current and the first pack's deepest sag under load;
+  - the hottest ESC (not on the simulator, whose ESC temperatures are placeholders);
+  - the firmware's own thrust-loss warnings (ERR `THRUST_LOSS_CHECK`).
+- **Zones:** vibration and clipping as ArduPilot's vibration guide; a motor at its top as the motor health check; motor output under 80% (ArduPilot's thrust-loss check counts 90% throttle as full); lean under 80% of the limit; height loss under 1 m, and the build-up's abort at 2 m; no thrust-loss warning. The rest are read against the airframe's own fast flights.
+- **On the simulator:**
+  - **The heavy lifter's sweep:** tops at 12 m/s in still air.
+  - **The quad's sweep:** holds its ground speed both ways in a 1.5 m/s wind, so it reads 9.5 m/s through the air on its upwind legs.
+
 **Recommendations** (not yet).
 
 - **Cruise speed:** `WP_SPD` and `RTL_SPEED_MS` set to the speed the Priority answer calls for.
@@ -895,7 +912,7 @@ Copter analysis follows ArduPilot's own tuning order: setup parameters, a stable
 | Payload | Motor outputs, battery voltage, attitude, barometer pressure and temperature in steady hover | Hover thrust at standard air, which gives the mass ratio between flights and, with one known take-off weight, kilograms (Vehicle fingerprinting, "Payload estimation without a scale") |
 | Altitude control | CTUN, vertical position-controller logs, baro | Altitude and climb-rate tracking, hover-throttle learning, baro error from prop wash (4.7 adds `BARO1_THST_SCALE`) |
 | Position control | Horizontal position-controller logs, navigation targets | Position, velocity and acceleration tracking; overshoot at waypoint stops |
-| Energy and endurance | Power, estimator velocity, hover thrust, battery | Energy used, distance flown, the speed sweep (measured now), and, per airframe and payload: power against airspeed, flight time, range, radius, maximum speed, the best speeds, and the battery failsafe margin at maximum payload (Power and efficiency analysis, "Range, endurance and speed") |
+| Energy and endurance | Power, estimator velocity, hover thrust, battery | Energy used, distance flown, the speed sweep, the fast segment's watched metrics (measured now), and, per airframe and payload: power against airspeed, flight time, range, radius, maximum speed, the best speeds, and the battery failsafe margin at maximum payload (Power and efficiency analysis, "Range, endurance and speed") |
 | Incident forensics | Crash and thrust-loss checks, errors, events | The first fault in the chain: motor or ESC failure, thrust loss, estimator failure or battery collapse |
 
 ### The tune check
