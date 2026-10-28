@@ -777,12 +777,24 @@ Added to Phase 2 on 2026-10-27 at the fleet owner's request, and built in steps 
   - cost of transport, P/(W·V).
 - **What-ifs:** what each figure gains from 5% less weight, 10% less drag, 10 W less avionics draw, and 10% more capacity with 10% more of the pack's mass (the same cells in parallel, so the resistance falls as the capacity grows; left out while the pack's mass is unknown). Two build versions side by side.
 
-**The speed build-up** (when the speed goal is "fastest safe"; not yet).
+**The speed build-up** (when the speed goal is "fastest safe"; the verified speed, the step and its predicted margins are worked out, `performance/envelope.py` and `thermal.py`; the procedure, the readiness checks and the staging are not yet).
 
-- **Verified speed:** the highest steady airspeed the airframe held for 10 s at the same or a heavier payload, with every watched metric inside its margin.
+- **Verified speed:** the fastest fast segment (below) the airframe held for 10 s or more at the same weight or heavier (within 3%), with every watched metric that has zones in its target zone. A flight with anything outside its target verifies nothing.
 - **Each step:**
   - The step goes 1 m/s or 10% past the verified speed, whichever is smaller.
-  - It is offered only when the models predict every margin holds at the new speed: lean, thrust headroom, current, sag, ESC temperature from a thermal model, vibration, and attitude and velocity tracking.
+  - It is offered only when the models predict every margin holds at the new speed:
+    - **lean:** the lean the measured drag needs, carried to the weight and air, inside the lean share's target zone;
+    - **thrust headroom:** that lean within the lean the thrust allows at this weight;
+    - **current:** the power model's current at the lowest voltage the pack reaches before its failsafe, within the pack's rating and `MOT_BAT_CURR_MAX` (this covers the pack's sag);
+    - **ESC temperature:** each ESC's thermal model settled at its share of that current, 10 °C under the ESCs' protection temperature;
+    - **motor output and vibration:** a straight line against speed through the airframe's fast segments flown long enough at the same weight or heavier, inside their target zones. Segments outside their zones count too: they show where it goes wrong;
+    - **attitude and velocity tracking:** the same straight line, no more than 1.5 times what the verified speed showed, since these have no fixed zones.
+  - Lean, thrust and current must all be predictable, or the step is held back. The others are checked when the data allows.
+  - When a margin fails, the first that fails is the limit that binds.
+- **The ESC thermal model** (`performance/thermal.py`), per ESC from a flight's own telemetry: `dT/dt = (T_air + k·I² − T)/τ`.
+  - It is fitted by output error: the model's temperature from the flight's current is compared with the logged temperature, so the telemetry's whole-degree steps do not bias it. For each τ it is linear in the start temperature, the air's and k; τ is searched and refined.
+  - A flight whose current hardly changes gives no model.
+  - Not on the simulator, whose ESC temperatures are placeholders.
   - It is staged at Navigation, so it waits for the mechanical, filter and tune stages.
   - It also needs its own readiness checks, among them the notch's tracking range covering the motor frequency at top-speed throttle.
 - **The procedure:** parameter file, temporary logging, card, abort criteria, verify checks on the flight's fast segment, and the undo file.
