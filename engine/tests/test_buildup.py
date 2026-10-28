@@ -20,6 +20,7 @@ from flight_insights.history.persist import load_snapshot
 from flight_insights.params import Dialect
 from flight_insights.performance import advice
 from flight_insights.performance.buildup import (
+    LEAN,
     LIMITED,
     MISSING,
     NOT_READY,
@@ -29,6 +30,7 @@ from flight_insights.performance.buildup import (
     gate,
 )
 from flight_insights.recommend import build_plan
+from flight_insights.recommend.plan import _never  # pyright: ignore[reportPrivateUsage]
 from flight_insights.recommend.records import _check  # pyright: ignore[reportPrivateUsage]
 from flight_insights.store.cache import ColumnCache
 from flight_insights.store.db import open_store
@@ -210,3 +212,55 @@ def test_an_info_finding_or_one_that_does_not_matter_at_speed_holds_nothing(ligh
     # nothing to hold without a step
     assert gate([planted("gnss.jamming", "caution")], {}, REG) == (
         [planted("gnss.jamming", "caution")], {})  # fmt: skip
+
+
+def test_a_lean_limit_just_short_rises_by_its_step_with_the_step(light: Any) -> None:
+    ctx, params = light
+    base = params | {"WP_SPD": 10.0}
+    [step] = buildup(ctx, base, REG).findings
+    p = step["params"]
+    lean_deg = p["thrust_value"]  # the lean the step needs, degrees
+    assert p["thrust_limit"] > lean_deg + 4  # the thrust allows more than 2 degrees past it
+    # a lean limit a degree under the one whose 80% the step's lean needs
+    short = round(lean_deg / 0.8) - 1.0
+    got = buildup(ctx, base | {"PSC_ANGLE_MAX": short}, REG)
+    by = {f["code"]: f for f in got.findings}
+    assert set(by) == {STEP, LEAN}
+    lean = by[LEAN]
+    assert lean["changes"] == [{"param": "PSC_ANGLE_MAX", "proposed": short + 2.0,
+                                "stage": "navigation"}]  # fmt: skip
+    assert lean["params"]["from_deg"] == short and lean["params"]["to_deg"] <= p["thrust_limit"]
+    assert got.raise_limits == {"WP_SPD": by[STEP]["params"]["proposed_ms"],
+                                "PSC_ANGLE_MAX": short + 2.0}  # fmt: skip
+    texts_filled(lean)
+    dialect = Dialect(REG.pack, "copter", "4.7.0")
+    plan = build_plan("fl", got.findings, base | {"PSC_ANGLE_MAX": short}, dialect, REG,
+                      got.raise_limits)  # fmt: skip
+    [rec] = [r for r in plan.recommendations if r.param == "PSC_ANGLE_MAX"]
+    assert rec.status != "blocked" and rec.proposed == short + 2.0
+    held = build_plan("fl", got.findings, base | {"PSC_ANGLE_MAX": short}, dialect, REG)
+    [rec] = [r for r in held.recommendations if r.param == "PSC_ANGLE_MAX"]
+    assert rec.status == "blocked"  # never raised without the step's limit
+    # far short: 2 degrees do not reach, so the lean binds as before
+    far = buildup(ctx, base | {"PSC_ANGLE_MAX": short - 6.0}, REG).findings
+    assert [f["code"] for f in far] == [LIMITED + "lean"]
+    # held back while a finding that matters at speed is open: both, and both limits
+    out, limits = gate([*got.findings, planted("gnss.jamming", "caution")], got.raise_limits,
+                       REG)  # fmt: skip
+    assert [f["code"] for f in out if f["code"].startswith("speed.")] == [NOT_READY]
+    assert limits == {}
+
+
+@pytest.mark.parametrize(("param", "current", "value", "raised"), [
+    ("PSC_ANGLE_MAX", 0.0, 40.0, True),   # 0 flies at ATC_ANGLE_MAX's 30
+    ("PSC_ANGLE_MAX", 0.0, 30.0, False),
+    ("LOIT_ANG_MAX", 0.0, 25.0, True),    # 0 flies at 2/3 of 30
+    ("LOIT_ANG_MAX", 0.0, 20.0, False),
+    ("RTL_SPEED_MS", 0.0, 12.0, True),    # 0 flies at WP_SPD's 10
+])  # fmt: skip
+def test_a_zero_is_read_as_what_it_flies_at(param: str, current: float, value: float,
+                                            raised: bool) -> None:  # fmt: skip
+    params = {"ATC_ANGLE_MAX": 30.0, "PSC_ANGLE_MAX": 0.0, "LOIT_ANG_MAX": 0.0, "WP_SPD": 10.0,
+              "RTL_SPEED_MS": 0.0, param: current}  # fmt: skip
+    note = _never(REG.rules["recommend"], param, current, value, params)
+    assert (note is not None and note.reason == "never_raise") == raised

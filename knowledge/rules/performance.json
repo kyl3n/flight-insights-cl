@@ -88,6 +88,8 @@
     "trend_gap_ms": 1.0,
     "tracking_growth": 1.5,
     "required": ["lean", "thrust", "current"],
+    "lean_step_deg": 2.0,
+    "lean_about": "When the lean alone holds the step back and the thrust allows more (performance/buildup.py): PSC_ANGLE_MAX, the automatic modes' lean limit (AUTO, Guided, RTL and Loiter's base; ATC_ANGLE_MAX stays the pilot's), raised by at most lean_step_deg, never past the whole degrees the thrust allows at the step nor the firmware's 80, and only when the step then holds every margin. AC_PosControl.cpp get_lean_angle_max_rad: PSC_ANGLE_MAX when set, else ATC_ANGLE_MAX, under the lean the thrust leaves.",
     "solutions_about": "What moves each limit the models predict, and by how much (envelope.gains): the airspeed the limit allows again with the change, less what it allows now. drag_share scales the frame's flat-plate drag (the wind fit's k2 and the power model's drag area; the rotors' in-plane force stays), thrust_share the thrust for the same throttle (the hover throttle divided by it: larger or higher-pitch propellers, higher KV or voltage), mass_share the weight, rating_share the packs' continuous rating and MOT_BAT_CURR_MAX, heating_share how much a current heats the ESCs (cooling). Round numbers to compare levers by, not a design.",
     "solutions": {
       "lean": [{"name": "drag", "drag_share": 0.85}],

@@ -202,18 +202,34 @@ def _never(
     raise_rule: Mapping[str, Any] = never["raise"]
     if _matches(param, raise_rule["names"]):
         unlimited = _matches(param, raise_rule["zero_means_unlimited"])
-        stands_for = raise_rule["zero_means"].get(param)  # 0 flies at another setting
-        if current == 0 and stands_for is not None and params is not None:
-            current = params.get(stands_for)
 
-        def level(v: float) -> float:
-            return math.inf if unlimited and v == 0 else v
+        def level(v: float | None) -> float | None:
+            if v == 0 and unlimited:
+                return math.inf
+            return _standing(param, v, params or {}, raise_rule["zero_means"])
 
-        if current is None or level(value) > level(current):
+        now, then = level(current), level(value)
+        if now is None or then is None or then > now:
             limit = (raise_limits or {}).get(param)
             if limit is None or value > limit + 1e-9:
                 return Note("never_raise", {"param": param})
     return None
+
+
+def _standing(param: str, value: float | None, params: Mapping[str, float],
+              zero_means: Mapping[str, Any], depth: int = 0) -> float | None:  # fmt: skip
+    """What a setting flies at: its value, or what its 0 stands for (another setting, or a
+    share of the least of several, each read the same way); None when that is not known."""
+    if value != 0 or depth > 3:
+        return value
+    means = zero_means.get(param)
+    if means is None:
+        return value
+    of = [means] if isinstance(means, str) else list(means["of"])
+    share = 1.0 if isinstance(means, str) else float(means["share"])
+    got = [_standing(p, params[p], params, zero_means, depth + 1) for p in of if p in params]
+    known = [g for g in got if g is not None]
+    return share * min(known) if known else None
 
 
 def _validate(

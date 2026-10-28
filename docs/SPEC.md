@@ -835,7 +835,7 @@ Added to Phase 2 on 2026-10-27 at the fleet owner's request, and built in steps 
     The card also gives what it is good for: the weights and speeds flown, the air, the reserve and the latest flight's parameters.
   - An unknown airframe is refused as bad input.
 
-**The speed build-up** (when the speed goal is "fastest safe"; the verified speed, the step and its predicted margins are worked out, `performance/envelope.py` and `thermal.py`, and given to the plan with the step's procedure and what each solution to a binding limit would gain, `performance/buildup.py`, held back until the flight is ready; the notch's reach at the step's throttle and the lean-limit raises are not yet).
+**The speed build-up** (when the speed goal is "fastest safe"; the verified speed, the step and its predicted margins are worked out, `performance/envelope.py` and `thermal.py`, and given to the plan with the step's procedure and what each solution to a binding limit would gain, `performance/buildup.py`, held back until the flight is ready, with the lean limit raised where it alone holds the step back; the notch's reach at the step's throttle is not yet).
 
 - **Verified speed:** the fastest fast segment (below) the airframe held for 10 s or more at the same weight or heavier (within 3%), with every watched metric that has zones in its target zone. A flight with anything outside its target verifies nothing.
 - **Each step:**
@@ -861,6 +861,11 @@ Added to Phase 2 on 2026-10-27 at the fleet owner's request, and built in steps 
     - **thrust:** the hover throttle at a known weight;
     - **current:** the packs' rating and size, or `MOT_BAT_CURR_MAX`.
   - **A margin failing** (`speed.limited_by_<margin>`): its predicted value and limit, and what moves it.
+  - **The lean limit, when it alone holds the step back** (`speed.build_up_lean`, rules "envelope" `lean_step_deg`):
+    - **When:** lean is the binding limit and the thrust at the step's weight still allows more lean.
+    - **What:** `PSC_ANGLE_MAX` is raised by at most 2°, never past the whole degrees the thrust allows nor the firmware's 80°, and only if every margin then holds. The step is offered with it.
+    - **Why `PSC_ANGLE_MAX`:** it is the automatic modes' limit (AUTO, Guided, RTL, and Loiter's base). In ArduCopter 4.7.0 the position controller leans to `PSC_ANGLE_MAX` when it is set, else `ATC_ANGLE_MAX`, under the lean the thrust leaves (`AC_PosControl.cpp` `get_lean_angle_max_rad`). The pilot's `ATC_ANGLE_MAX` stays as it is.
+    - **Further short:** where 2° do not reach, the lean binds as before (`speed.limited_by_lean`).
   - **While the goal is fastest,** `WP_SPD` follows the build-up, not the Priority answer. The home speed and the battery failsafe's charge still follow their own rules.
 - **Staging:** at Navigation, so it waits for the mechanical, filter and tune stages.
 - **Ready first** (`buildup.gate`, rules `rules/performance.json` "readiness"):
@@ -869,7 +874,7 @@ Added to Phase 2 on 2026-10-27 at the fleet owner's request, and built in steps 
     - those staging would offer it alongside or ahead of: GNSS (`gnss.*`); the motor-out margin (`motor_out.short`); the packs and their failsafe (`performance.pack_worn`, `pack_resistance`, `capacity_setting`, `low_mah`, `return_short`, `failsafe.battery_near_miss`);
     - the earlier stages' findings that fail first at higher power, named so the reason shows: `power.board_voltage`, `esc.*`, `motors.saturation`, `vibration.*`.
   - **Why:** the step is flown on GNSS speed and position; it leans further into what a lost motor leaves; it draws more current from the packs.
-  - **Shown as:** `speed.build_up_not_ready`, with the codes it waits for and no change. Its raise limit is dropped, so nothing passes the verified speed.
+  - **Shown as:** `speed.build_up_not_ready`, with the codes it waits for and no change. The step's raise limits (`WP_SPD`, and `PSC_ANGLE_MAX` with a lean raise) are dropped, so nothing passes the verified speed.
   - **An app rule, uncalibrated.**
 - **The procedure** (`speed.build_up_step`):
   - **The card:** light air (under 3 m/s), open ground with a straight run of about 400 m, at 30 m or higher, at the weight it is for. Fly out and back in AUTO, 15 s or more steady each way.
@@ -887,7 +892,6 @@ Added to Phase 2 on 2026-10-27 at the fleet owner's request, and built in steps 
     Less drag area scales the frame's own drag and the power model's drag area, not the rotors' in-plane force.
 - **Not yet:**
   - the notch's reach at the step's throttle. In throttle and ESC-RPM tracking the notch follows the motors with no upper clamp but 48% of the sample rate (ArduPilot 4.7.0 `AP_Vehicle::update_dynamic_notch`), so only FFT tracking can fall short, past `FFT_MAXHZ`. The motor frequency rises with the square root of thrust, so only 5-14% above hover at the step's lean;
-  - raising the lean limits within the thrust headroom.
 
 **The fast segment** (measured now, `analyzers/fast.py`; what the build-up's checks read).
 
@@ -1851,7 +1855,7 @@ The numbers above are illustrative. `expected_effect` comes from simulation wher
 - Step limits: gain changes larger than the rule pack's per-flight limit are split across flights. The limit starts at a quarter of the current value, uncalibrated, for rate, angle and position gains.
 - Never proposed automatically:
   - disabling arming checks or failsafes: setting `ARMING_SKIPCHK` or `FS_OPTIONS` bits, or zeroing a failsafe enable or action;
-  - raising limits past what the log shows the airframe can do. A listed limit is never raised; for some limits, 0 means unlimited. The exception is speed. `WP_SPD`, `RTL_SPEED_MS` and `LOIT_SPEED_MS` may rise up to the airframe's verified speed less its typical wind, measured for the flight's weight (`performance/advice.py`). With the platform's speed goal "fastest safe", the speed build-up raises `WP_SPD` one predicted, gated step at a time past it (`performance/buildup.py`; Power and efficiency analysis, "Range, endurance and speed"). Raising the lean limits within measured thrust headroom is not yet. `BATT_LOW_MAH` and `BATT_CRT_MAH` are never lowered.
+  - raising limits past what the log shows the airframe can do. A listed limit is never raised. A 0 is read as what it flies at (ArduCopter 4.7.0): `RTL_SPEED_MS` at `WP_SPD`, `PSC_ANGLE_MAX` at `ATC_ANGLE_MAX`, `LOIT_ANG_MAX` at 2/3 of the smaller of the two, and a rate or acceleration limit at 0 is unlimited. The exception is speed. `WP_SPD`, `RTL_SPEED_MS` and `LOIT_SPEED_MS` may rise up to the airframe's verified speed less its typical wind, measured for the flight's weight (`performance/advice.py`). With the platform's speed goal "fastest safe", the speed build-up raises `WP_SPD` one predicted, gated step at a time past it (`performance/buildup.py`; Power and efficiency analysis, "Range, endurance and speed"). Inside the build-up, `PSC_ANGLE_MAX` may also rise, by at most 2° with each step and within the lean the thrust allows. `BATT_LOW_MAH` and `BATT_CRT_MAH` are never lowered.
 
   The lists are in the rule pack.
 
