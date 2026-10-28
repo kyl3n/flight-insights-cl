@@ -51,6 +51,8 @@ BASE: dict[str, Any] = {
         {"metric": "power.battery_resistance", "segment": "flight", "value": 0.0061,
          "zone": "target"},
         {"metric": "esc.peak_temperature", "segment": "flight", "value": 66, "zone": None},
+        {"metric": "energy.distance_m", "segment": "flight", "value": 4512, "zone": None},
+        {"metric": "energy.wh_per_km", "segment": "flight", "value": 290.9, "zone": None},
     ],
     "findings": [
         {"ref": "F1", "code": "esc.hot", "severity": "caution", "confidence": "medium",
@@ -78,6 +80,13 @@ BASE: dict[str, Any] = {
          "segment": {"kind": "gnss", "start_s": 402.5, "end_s": 431},
          "values": {"largest_track_gap_m": 62, "estimator_resets": 2, "largest_reset_m": 9,
                     "drift_m": 14, "drift_m_per_min": 3, "minutes_to_tolerance": 3.3}},
+        # how far it flew, from the estimator's ground speed: one number in whole metres
+        {"ref": "E4", "kind": "series",
+         "summary": "1312 Wh (30309 mAh) from the packs over 4.51 km flown",
+         "messages": ["BAT", "XKF1"], "fields": ["Volt", "Curr", "VN", "VE"],
+         "segment": {"kind": "flight", "start_s": 0, "end_s": 1084.2},
+         "values": {"used_wh": 1312.4, "flown_m": 4512, "wh_per_km": 290.9,
+                    "cruise_wh_per_km": 111.2, "hover_wh": 337.2, "level_s": 402}},
     ],
     "parameters": {
         "ATC_RAT_PIT_P": 0.135, "INS_HNTCH_FREQ": 80, "INS_HNTCH_BW": 40,
@@ -193,6 +202,8 @@ LEAKY: dict[str, tuple[str, Change] | tuple[str, Change, dict[str, Any]]] = {
                         _set("parameters", "BARO_FIELD_ELV", value=1850)),
     "position_metres_fine": ("A distance worked out from positions, to the centimetre.",
                              _set("evidence", 2, "values", "largest_track_gap_m", value=61.84)),
+    "flown_metres_fine": ("The distance flown, to the centimetre.",
+                          _set("evidence", 3, "values", "flown_m", value=4512.37)),
     "position_metres_series": ("Distances worked out from positions as a series, which traces "
                                "the path.",
                                _set("evidence", 2, "values", "drift_m", value=[3, 5, 8, 14])),

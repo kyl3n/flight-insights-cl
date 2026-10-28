@@ -73,6 +73,18 @@
     "segment": "flight",
     "value": 66,
     "zone": null
+   },
+   {
+    "metric": "energy.distance_m",
+    "segment": "flight",
+    "value": 4512,
+    "zone": null
+   },
+   {
+    "metric": "energy.wh_per_km",
+    "segment": "flight",
+    "value": 290.9,
+    "zone": null
    }
   ],
   "findings": [
@@ -167,6 +179,34 @@
      "drift_m": 14,
      "drift_m_per_min": 3,
      "minutes_to_tolerance": 3.3
+    }
+   },
+   {
+    "ref": "E4",
+    "kind": "series",
+    "summary": "1312 Wh (30309 mAh) from the packs over 4.51 km flown",
+    "messages": [
+     "BAT",
+     "XKF1"
+    ],
+    "fields": [
+     "Volt",
+     "Curr",
+     "VN",
+     "VE"
+    ],
+    "segment": {
+     "kind": "flight",
+     "start_s": 0,
+     "end_s": 1084.2
+    },
+    "values": {
+     "used_wh": 1312.4,
+     "flown_m": 4512,
+     "wh_per_km": 290.9,
+     "cruise_wh_per_km": 111.2,
+     "hover_wh": 337.2,
+     "level_s": 402
     }
    }
   ],

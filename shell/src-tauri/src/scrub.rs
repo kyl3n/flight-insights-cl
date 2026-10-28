@@ -448,12 +448,14 @@ static FIELD: LazyLock<Regex> = LazyLock::new(|| Regex::new(r"^[A-Za-z0-9_]{1,16
 static PARAMETER: LazyLock<Regex> =
     LazyLock::new(|| Regex::new(r"^[A-Z][A-Z0-9_]{0,16}$").unwrap());
 
-/// Distances the engine works out from positions on the laptop. In evidence each may only
-/// be one whole number of metres: a finer value or a series could trace the path. The
-/// engine's rules list them too (knowledge/rules/scrubber.json, "position_derived").
-const POSITION_METRES: [&str; 6] = [
+/// Distances the engine works out on the laptop, from positions or from the ground speed
+/// (how far a flight flew). In evidence each may only be one whole number of metres: a finer
+/// value or a series could trace the path. The engine's rules list them too
+/// (knowledge/rules/scrubber.json, "position_derived").
+const POSITION_METRES: [&str; 7] = [
     "drift_m",
     "drift_m_per_min",
+    "flown_m",
     "largest_altitude_gap_m",
     "largest_receivers_gap_m",
     "largest_reset_m",
@@ -987,7 +989,7 @@ const CLEAN: [(&str, &str); 5] = [
         include_str!("../../../tests/scrubber/packets/clean/tool_spectrum.json"),
     ),
 ];
-const LEAKY: [(&str, &str); 33] = [
+const LEAKY: [(&str, &str); 34] = [
     (
         "bool_as_number",
         include_str!("../../../tests/scrubber/packets/leaky/bool_as_number.json"),
@@ -1011,6 +1013,10 @@ const LEAKY: [(&str, &str); 33] = [
     (
         "field_elevation",
         include_str!("../../../tests/scrubber/packets/leaky/field_elevation.json"),
+    ),
+    (
+        "flown_metres_fine",
+        include_str!("../../../tests/scrubber/packets/leaky/flown_metres_fine.json"),
     ),
     (
         "long_text",
@@ -1359,7 +1365,9 @@ mod tests {
             check(r#"{"rate_hz": 1000.5, "minutes_to_tolerance": 3.3}"#),
             0
         );
+        assert_eq!(check(r#"{"flown_m": 4512, "used_wh": 1312.4}"#), 0);
         assert_eq!(check(r#"{"largest_track_gap_m": 61.84}"#), 1);
+        assert_eq!(check(r#"{"flown_m": 4512.37}"#), 1);
         assert_eq!(check(r#"{"drift_m": [3, 5, 8]}"#), 1);
         assert_eq!(check(r#"{"drift_m": "14"}"#), 1);
         assert_eq!(check(r#"{"largest_reset_m": null}"#), 1);
