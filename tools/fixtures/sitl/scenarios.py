@@ -18,13 +18,15 @@ HOME_LAT, HOME_LNG = -35.363261, 149.165230
 
 @dataclass(frozen=True)
 class SetBits:
-    """A parameter change that sets bits in the vehicle's current value."""
+    """A parameter change that sets bits in the vehicle's current value (and clears
+    `clear`)."""
 
     bits: int
     note: str
+    clear: int = 0
 
     def __call__(self, current: float) -> float:
-        return int(current) | self.bits
+        return (int(current) | self.bits) & ~self.clear
 
 
 LOG_IMU_RAW = SetBits(1 << 19, "default with bit 19 (raw IMU) set")
@@ -528,6 +530,38 @@ def speed_sweep(speeds: tuple[float, ...], altitude: float = 15) -> Callable[[Ve
             hold = 12 + 0.8 * speed
             guided_velocity(v, 0, speed, 90, hold)
             guided_velocity(v, 0, -speed, 270, hold)
+        land_and_disarm(v)
+
+    return fly
+
+
+def buildup_card(run_m: float = 450, altitude: float = 30, hover: float = 30
+                 ) -> Callable[[Vehicle], None]:  # fmt: skip
+    """The speed build-up step's card: take off in GUIDED to `altitude` and hover `hover`
+    s, then fly a two-waypoint line east `run_m` and back in AUTO at WP_SPD (whatever the
+    step's file set), nose first, and land."""
+
+    def fly(v: Vehicle) -> None:
+        rel = ML.MAV_FRAME_GLOBAL_RELATIVE_ALT
+        v.upload_mission(
+            [
+                (ML.MAV_FRAME_GLOBAL, ML.MAV_CMD_NAV_WAYPOINT, HOME_LAT, HOME_LNG, 0),
+                (rel, ML.MAV_CMD_NAV_WAYPOINT, *offset(0, run_m), altitude),
+                (rel, ML.MAV_CMD_NAV_WAYPOINT, *offset(0, 0), altitude),
+            ]
+        )
+        v.mode("GUIDED")
+        v.arm()
+        v.command(ML.MAV_CMD_NAV_TAKEOFF, 0, 0, 0, 0, 0, 0, altitude)
+        v.wait_altitude(altitude - 0.5)
+        v.hold(hover)
+        v.mode("AUTO")
+        v.wait(
+            "the line flown out and back",
+            lambda m: m.seq == 2,  # type: ignore[attr-defined]
+            "MISSION_ITEM_REACHED",
+            600,
+        )
         land_and_disarm(v)
 
     return fly

@@ -15,13 +15,18 @@ it answered clear:
 - regressed: one of them is raised at a higher severity.
 
 A grade needs the analyzer that raised the finding to have judged the later flight; a
-log without the data it needs leaves the recommendation applied, ungraded. The checks
+log without the data it needs leaves the recommendation applied, ungraded. So does a
+finding the plan makes itself from the airframe's models (the cruise and home speeds, the
+battery failsafe's charge, the packs): no analyzer judges a later flight for it, and a
+later plan proposes again when the models move. The checks
 its procedure lists for the next log (a message logged, a metric within a limit, a
 parameter's value) are run too: a cleared finding with a failed check is no effect.
 
 Some recommendations are measured rather than cleared (a procedure `graded_by` its
 checks): AutoTune, say, is graded on whether tracking improved in every payload band
-(measured.py), not on its offer being raised again. A check marked `required` that
+(measured.py), not on its offer being raised again; the speed build-up's step, made by
+the plan, on its fast segment reaching the step and holding every watched metric in
+target, whichever analyzer judged the flight. A check marked `required` that
 cannot judge yet, such as a band not flown again, keeps the grade pending, unless a
 band already flown again is worse: that is regressed at once. An action whose
 procedure names the finding that shows it done (`applied_when`, with the axes it must
@@ -250,9 +255,12 @@ def _check(
     if kind == "reaches_proposed":  # the speed a step proposed, flown
         reached = [float(m["value"]) for m in analysis.get("metrics", ())
                    if m["metric"] == check["metric"] and m["value"] is not None]  # fmt: skip
-        if not reached or proposed is None:
+        # the value the flight was set to fly (the step's WP_SPD, for the step's test-flight
+        # logging too), else the one this recommendation proposed
+        target = params.get(check["param"]) if "param" in check else proposed
+        if not reached or target is None:
             return None
-        return max(reached) >= float(check["share"]) * proposed
+        return max(reached) >= float(check["share"]) * target
     if kind == "in_target":  # everything watched in the segment within its target
         zones = [m["zone"] for m in analysis.get("metrics", ())
                  if m["segment"] == check["segment"] and m.get("zone") is not None]  # fmt: skip
@@ -352,7 +360,15 @@ def grade_flight(
             lead = sources[0] if sources else {"code": rec["detail"]["code"], "severity": "info"}
             grade: str | None = None
             status: str = rec["status"]
-            if prepares or any(s.get("analyzer") not in judged for s in sources):
+            by_checks = rec["detail"].get("graded_by") == "checks"
+            # a finding no analyzer judged on this flight cannot clear on it, and one whose
+            # analyzer could not judge this flight waits for one that can; one the plan
+            # makes itself (the build-up's step, from the airframe's models: no analyzer
+            # runs for it) is graded by its own checks, which read this flight's metrics
+            unjudged = any(s.get("analyzer") not in judged for s in sources)
+            skipped = any(s.get("analyzer") in analysis["analyzers"] for s in sources
+                          if s.get("analyzer") not in judged)  # fmt: skip
+            if prepares or skipped or (unjudged and not by_checks):
                 status = "applied"  # the later log cannot judge it, or not yet
             else:
                 before = SEVERITY_RANK[lead["severity"]]
@@ -372,7 +388,6 @@ def grade_flight(
                             passed = _check(c, cleared, analysis, params, messages,
                                             rec["proposed_value"])  # fmt: skip
                             checks.append(dict(c) | {"passed": passed})
-                by_checks = rec["detail"].get("graded_by") == "checks"
                 if any(c.get("worse") for c in checks):
                     grade = "regressed"  # worse in a band flown: the others need not be waited for
                 elif any(c.get("required") and c["passed"] is None for c in checks):

@@ -1598,6 +1598,7 @@
             {
               "check": "reaches_proposed",
               "metric": "fast.speed_ms",
+              "param": "WP_SPD",
               "share": 0.97,
               "required": true
             },
@@ -1610,6 +1611,30 @@
           "text": {
             "en": "The next log's fast segment holds within 3% of the new speed for 10 s or more, with vibration, motor output, lean, attitude and velocity tracking, height, battery sag, ESC temperatures and thrust-loss checks all in target. The step is then the airframe's verified speed at this weight, and the next one is offered when the models predict it holds.",
             "uk": "Швидкісний відрізок наступного журналу тримається в межах 3% від нової швидкості 10 с або довше, з вібрацією, виходом моторів, нахилом, відстеженням положення й швидкості, висотою, просіданням батареї, температурами ESC і перевірками втрати тяги в цільовій зоні. Тоді цей крок стає підтвердженою швидкістю апарата за цієї ваги, а наступний пропонується, коли моделі передбачать, що він тримається."
+          }
+        }
+      ]
+    },
+    "speed.build_up_lean": {
+      "graded_by": "checks",
+      "steps": [
+        {
+          "kind": "verify",
+          "checks": [
+            {
+              "check": "has_metric",
+              "metric": "fast.speed_ms",
+              "required": true
+            },
+            {
+              "check": "in_target",
+              "segment": "fast",
+              "required": true
+            }
+          ],
+          "text": {
+            "en": "Flown at the raised lean limit, the next log's fast segment keeps lean, attitude and velocity tracking, height, vibration, motor output, battery sag and ESC temperatures all in target.",
+            "uk": "Під час польоту з підвищеною межею нахилу швидкісний відрізок наступного журналу тримає нахил, відстеження положення і швидкості, висоту, вібрацію, вихід моторів, просідання батареї та температури ESC у цільових межах."
           }
         }
       ]

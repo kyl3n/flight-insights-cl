@@ -27,9 +27,12 @@ from scenarios import (
     SCENARIOS,
     VIBRATING,
     Scenario,
+    SetBits,
     autotune,
+    buildup_card,
     copter_hover,
     land_and_disarm,
+    speed_sweep,
     sticks,
     tune_check,
 )
@@ -88,12 +91,19 @@ class Rehearsal:
     # Plans carried out, one test flight each, as a person works through the stages:
     # a problem in an earlier stage (logging dropouts, say) is fixed first.
     rounds: int = 3
-    # An action whose work is flights of its own (AutoTune): the airframe's earlier
-    # flights, the weaker setup and the test flight flown light and carrying `loaded_kg`
-    # (two payload bands), and the work between them. Its grade is the rehearsal's.
+    # The airframe's earlier flights, before the weaker setup's.
     before: tuple[Callable[[Vehicle], None], ...] = ()
+    # An action whose work is flights of its own (AutoTune): the weaker setup and the
+    # test flight flown light and carrying `loaded_kg` (two payload bands), and the work
+    # between them. Its grade is the rehearsal's.
     loaded_kg: float = 0.0
     work: tuple[Work, ...] = ()
+    # The take-off weight entered at each import, where the plan needs it (the speed
+    # build-up is for one weight).
+    takeoff_kg: float | None = None
+    # How many plans must offer each expected finding, each a step further than the
+    # last (a build-up's steps, each graded by the next flight before the next).
+    times: int = 1
 
 
 # A quad with motor vibration and ESC telemetry, whose harmonic notch is off: the
@@ -152,6 +162,59 @@ HEAVYLIFT_SOFT = Scenario(
 )
 AUTOTUNE_LOG = {"LOG_FILE_RATEMAX": 25}  # SITL's own SIM2 at loop rate would fill the log
 
+# Callisto set up as the app's earlier stages leave it, so the speed build-up (navigation)
+# is the stage on offer: the rate loop logged for the tune check (with navigation tuning
+# off, as a log trimmed for size may have it, so the step's test-flight logging has a bit
+# to switch on and its revert file one to take out again), one log a flight, the
+# roll and pitch rate P inside their documented range (0 to 0.35 at Copter-4.7.0; the
+# model's own 0.455 is above it), hover learning on at the learned hover throttle, the
+# battery failsafe set for its 12 cells (thresholds a cell: low 3.6 V, critical 3.5 V,
+# arming 3.69 V; Low returns home, Critical lands; the low charge kept for the way home
+# and 20% reserve), and a cruise speed under the 12 m/s its speed card verifies (the
+# model's own WP_SPD is 15). An earlier flight logs raw IMU, so the filter checks have
+# what they need.
+READY_CALLISTO = {
+    "LOG_BITMASK": SetBits(
+        1 << 0, "default, bit 0 (fast attitude) set, bit 5 (NTUN) cleared", 1 << 5
+    ),
+    "LOG_FILE_DSRMROT": 1,
+    "WP_SPD": 10,
+    "ATC_RAT_RLL_P": 0.35,
+    "ATC_RAT_PIT_P": 0.35,
+    "MOT_HOVER_LEARN": 2,
+    "MOT_THST_HOVER": 0.376,
+    "BATT_LOW_VOLT": 43.2,
+    "BATT_CRT_VOLT": 42.0,
+    "BATT_ARM_VOLT": 44.3,
+    "BATT_FS_LOW_ACT": 2,
+    "BATT_FS_CRT_ACT": 1,
+    "BATT_LOW_MAH": 13200,
+    "SIM_WIND_SPD": 0,
+}
+HEAVYLIFT_READY = Scenario(
+    name="rehearse-heavylift-ready",
+    vehicle="copter",
+    frame="octo coaxial X8",
+    description=(
+        "Heavy-lift X8 set up as the earlier stages leave it, flown through the speed card"
+        " (legs east and back west at 3, 6, 9 and 12 m/s) in still air."
+    ),
+    expected=["12 m/s verified at 32.5 kg; the build-up's first step offered"],
+    fly=speed_sweep((3.0, 6.0, 9.0, 12.0)),
+    params=READY_CALLISTO,  # type: ignore[arg-type]
+    boot_params={"LOG_DISARMED": 0, "SIM_ESC_TELEM": 0},
+    **CALLISTO,  # type: ignore[arg-type]
+)
+# Its setup answers: the airframe (Callisto's wheelbase and props), its 12-cell 44 Ah pack
+# (Callisto.json battCapacityAh), its weights, and the speed goal "fastest safe". The ESC
+# firmware is left unanswered, so DShot stays a question rather than a setup-stage offer.
+READY_ANSWERS = {
+    "wheelbase_mm": 1325, "prop_diameter_in": 30, "cells": 12, "capacity_mah": 44000,
+    "battery_chemistry": "LiPo", "empty_kg": 32.5, "typical_takeoff_kg": 32.5,
+    "max_takeoff_kg": 45, "max_current_a": 300, "reserve_pct": 20, "pack_mass_kg": 8,
+    "payload": "fixed", "speed_goal": "fastest",
+}  # fmt: skip
+
 REHEARSALS: dict[str, Rehearsal] = {
     r.name: r
     for r in [
@@ -184,6 +247,23 @@ REHEARSALS: dict[str, Rehearsal] = {
             answers={"payload": "fixed", "esc_firmware": "BLHeli_32", "battery_chemistry": "LiPo"},
             expects=("params.vibe_failsafe_off", "params.dead_reckoning_failsafe_off"),
             test_flight=copter_hover(30, altitude=10),
+        ),
+        Rehearsal(
+            name="heavylift-build-up",
+            description=(
+                "The speed build-up on a heavy-lift X8 whose speed card verified 12 m/s:"
+                " two steps, each WP_SPD one step past the verified speed with the logging"
+                " its checks read, flown on the step's card (an out-and-back line in AUTO),"
+                " and confirmed by that flight before the next is offered."
+            ),
+            setup=HEAVYLIFT_READY,
+            answers=READY_ANSWERS,
+            expects=("speed.build_up_step",),
+            test_flight=buildup_card(),
+            rounds=4,
+            before=(copter_hover(15, altitude=5, raw_in_hover=True),),
+            takeoff_kg=32.5,
+            times=2,
         ),
         Rehearsal(
             name="heavylift-autotune",

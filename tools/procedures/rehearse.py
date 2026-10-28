@@ -17,7 +17,8 @@ For each rehearsal in rehearsals.py:
    unless its own test flight needs them again.
 5. Repeat from 2 with the new plan, as a person works through the stages (a problem
    in an earlier stage, such as logging dropouts, is fixed first), until every finding
-   the rehearsal plants has been on offer, or for at most `rounds` plans.
+   the rehearsal plants has been on offer (`times` plans each, a step further each time,
+   for the speed build-up), or for at most `rounds` plans.
 6. Last, the revert file must take the test-flight settings out, and the undo file
    must put back every value the last plan started from.
 
@@ -63,6 +64,7 @@ sys.path.insert(0, str(HERE.parents[1] / "tools" / "fixtures" / "sitl"))
 sys.path.insert(0, str(HERE))
 
 from flight_insights.analyzers.registry import Registry  # noqa: E402
+from flight_insights.analyzers.run import run_analysis  # noqa: E402
 from flight_insights.imports import Decision, commit, propose, scan  # noqa: E402
 from flight_insights.knowledge import Pack, load_pack  # noqa: E402
 from flight_insights.params.files import read_param_file  # noqa: E402
@@ -236,12 +238,13 @@ class App:
         save_answers(self.store, schema, self.platform, version, dict(answers))
         self.airframe: str | None = None
 
-    def import_log(self, path: Path) -> str:
+    def import_log(self, path: Path, takeoff_kg: float | None = None) -> str:
+        """Import one flight, with its take-off weight when the person enters it."""
         batch = scan(self.store, self.pack, bytes(32), [path])
         decision = (
-            Decision("f1", airframe_id=self.airframe)
+            Decision("f1", airframe_id=self.airframe, takeoff_kg=takeoff_kg)
             if self.airframe
-            else Decision("f1", new_airframe=(self.platform, "SITL"))
+            else Decision("f1", new_airframe=(self.platform, "SITL"), takeoff_kg=takeoff_kg)
         )
         proposals = propose(self.store, self.pack, batch)
         [res] = commit(self.store, self.pack, self.cache, batch, proposals, [decision])
@@ -261,6 +264,12 @@ class App:
     def records(self) -> dict[str, dict[str, Any]]:
         assert self.airframe is not None
         return {r["id"]: r for r in history(self.store, self.airframe)}
+
+    def judged(self, flight: str) -> set[str]:
+        """The analyzers that judged a flight (and the plan's own follow-ups), as grading
+        counts them."""
+        out = run_analysis(self.store, self.cache, self.pack, flight)
+        return {n for n, o in out["analyzers"].items() if not o.get("skipped")} | {"followup"}
 
 
 # --- the report ----------------------------------------------------------------------------
@@ -413,29 +422,36 @@ def _rehearse(r: Rehearsal, sim: Simulator, app: App, out: Path, report: Report)
     if r.work:
         _rehearse_work(r, sim, app, out, report)
         return
+    for fly in r.before:  # the airframe's earlier flights
+        _fly(app, sim, fly, r.takeoff_kg)
 
     # The weaker setup, flown.
-    t0 = time.time()
-    r.setup.fly(sim.vehicle)
-    plan, recorded = app.plan(app.import_log(sim.log_since(t0)))
+    plan, recorded = _fly(app, sim, r.setup.fly, r.takeoff_kg)
     raised = {s.code for rec in plan.recommendations for s in rec.sources}
     report.check("the weaker setup raises what it plants", set(r.expects) <= raised, r.expects)
 
-    # Plan after plan, one test flight each, until what it plants has been on offer.
+    # Plan after plan, one test flight each, until what it plants has been on offer
+    # `times` times (a build-up's steps, each one further than the last).
+    offers: dict[str, list[list[tuple[str | None, float | None]]]] = {c: [] for c in r.expects}
     pending = set(r.expects)
     last: Round | None = None
+    tested: Round | None = None  # the last plan with test-flight settings, still on
     for n in range(1, r.rounds + 1):
         on_offer = sorted({s.code for rec in plan.offered() for s in rec.sources})
         actions = sorted(rec.lead.code for rec in plan.recommendations if rec.param is None)
         report.note(f"plan {n} ({plan.stage}) offers {on_offer}; actions {actions}")
         if not on_offer:
             break
-        pending -= set(on_offer)
+        for code in set(r.expects) & set(on_offer):
+            offers[code].append(sorted(
+                (rec.native, rec.proposed) for rec in plan.offered()
+                if any(s.code == code for s in rec.sources)
+            ))  # fmt: skip
+        pending = {c for c in r.expects if len(offers[c]) < r.times}
         last = _carry_out_plan(app, sim, plan, out / f"plan{n}", report, n)
-        t = time.time()
-        r.test_flight(sim.vehicle)
-        following, recorded_next = app.plan(app.import_log(sim.log_since(t)))
-        _graded(app, recorded, report, n)
+        tested = last if last.temporary else tested
+        following, recorded_next = _fly(app, sim, r.test_flight, r.takeoff_kg)
+        _graded(app, recorded, report, n, following.flight)
         if last.temporary:
             # The revert may wait for its stage, behind a problem the test flight found.
             follow = {
@@ -444,6 +460,9 @@ def _rehearse(r: Rehearsal, sim: Simulator, app: App, out: Path, report: Report)
                 if rec.lead.code == "followup.revert_test_settings" and rec.status != "blocked"
             }
             again = {rec.native for rec in following.offered() if rec.native_revert is not None}
+            # kept on, its revert held back, while the plan tests with it again (the speed
+            # build-up's next step, with the same logging)
+            again |= {h["param"] for h in following.held_back if h.get("reason") == "needed_again"}
             missing = sorted(set(last.temporary) - follow - again)
             held = {
                 rec.native: (rec.lead.code, rec.status, rec.native_value)
@@ -463,10 +482,18 @@ def _rehearse(r: Rehearsal, sim: Simulator, app: App, out: Path, report: Report)
         if not pending:
             break
     report.check("everything the weaker setup plants was on offer", not pending, sorted(pending))
+    if r.times > 1:
+        for code, got in offers.items():
+            report.check(
+                f"{code} on offer {r.times} times, a step further each time",
+                len(got) >= r.times and len({tuple(g) for g in got}) == len(got),
+                got,
+            )
 
-    # Last, the revert and undo files of the last plan carried out.
-    if last is not None and last.temporary:
-        back = load_back(sim, last.files["revert"], last.temporary)
+    # Last, the revert file of the last plan that set test-flight settings (kept on since,
+    # while later plans tested with them again), and the undo file of the last plan.
+    if tested is not None:
+        back = load_back(sim, tested.files["revert"], tested.temporary)
         report.check("the revert file takes the test-flight settings out", not back, back or None)
     if last is not None and "undo" in last.files:
         names = read_param_file(last.files["undo"]).values()
@@ -474,11 +501,12 @@ def _rehearse(r: Rehearsal, sim: Simulator, app: App, out: Path, report: Report)
         report.check("the undo file puts back every value it changed", not back, back or None)
 
 
-def _fly(app: App, sim: Simulator, fly: Callable[[Vehicle], None]) -> tuple[Plan, dict[str, Any]]:
+def _fly(app: App, sim: Simulator, fly: Callable[[Vehicle], None],
+         takeoff_kg: float | None = None) -> tuple[Plan, dict[str, Any]]:  # fmt: skip
     """One flight, imported and planned as the app does (grading earlier plans first)."""
     t = time.time()
     fly(sim.vehicle)
-    return app.plan(app.import_log(sim.log_since(t)))
+    return app.plan(app.import_log(sim.log_since(t), takeoff_kg))
 
 
 def _action(app: App, code: str) -> dict[str, Any]:
@@ -617,15 +645,28 @@ def _carry_out_plan(
     return Round(files, temporary, start)
 
 
-def _graded(app: App, recorded: Mapping[str, Any], report: Report, n: int) -> None:
-    """Every change a plan offered is confirmed by its test flight, each check passed."""
+def _graded(app: App, recorded: Mapping[str, Any], report: Report, n: int, flight: str) -> None:
+    """Every change a plan offered is confirmed by its test flight, each check passed. A
+    setting the plan made from the airframe's models (a cruise or home speed), which no
+    analyzer judges and no check of its own grades, is on the aircraft and stays applied."""
     records = app.records()
+    judged = app.judged(flight)
     for rec in recorded["recommendations"]:
         if rec["status"] != "next" or rec["canonical"] is None:
             continue
         row = records[rec["id"]]
         grade = row["detail"].get("grade") or {}
         checks = [(c["check"], c["passed"]) for c in grade.get("checks", ())]
+        sources = row["detail"].get("sources", ())
+        if row["detail"].get("graded_by") != "checks" and any(
+            s.get("analyzer") not in judged for s in sources
+        ):
+            report.check(
+                f"plan {n}: {rec['param']} -> {rec['proposed']} applied (set from the models)",
+                row["status"] == "applied" and not grade,
+                {"status": row["status"], "from": sorted({s["code"] for s in sources})},
+            )
+            continue
         report.check(
             f"plan {n}: {rec['param']} -> {rec['proposed']} confirmed by the test flight",
             row["status"] == "confirmed" and all(p is True for _, p in checks),

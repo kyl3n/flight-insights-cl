@@ -117,7 +117,8 @@ CHECKS: Mapping[str, tuple[str, ...]] = {
     # with the change, the heaviest band's value within max_ratio times, or max_above
     # over, the lightest band's
     "metric_vs_lightest": ("metric",),
-    # the metric reaching at least `share` of the value the recommendation proposed
+    # the metric reaching at least `share` of the value the recommendation proposed, or,
+    # with `param`, of that parameter's value on the graded flight
     "reaches_proposed": ("metric", "share"),
     # every metric with zones in the segment in its target zone
     "in_target": ("segment",),
@@ -483,6 +484,8 @@ def _procedure_step(
             raise KnowledgeError(f"{where}: metric_vs_lightest needs max_ratio or max_above")
         if not isinstance(check.get("required", False), bool):
             raise KnowledgeError(f"{where}: 'required' is true or false")
+        if "param" in check and not PARAM_NAME.fullmatch(str(check["param"])):
+            raise KnowledgeError(f"{where}: a check's param is a parameter name")
     when = s.get("when")
     if when is not None and not (isinstance(when.get("param"), str) and when.get("in")):
         raise KnowledgeError(f"{where}: 'when' needs a param and the values it keeps the step for")

@@ -311,6 +311,10 @@
       "en": "{code} is not proposed again: flight {flight} was checked with raw gyro data, and the filter settings and the airframe's build have not changed since.",
       "uk": "{code} не пропонується знову: політ {flight} перевірено з сирими даними гіроскопа, а налаштування фільтрів і збірка апарата відтоді не змінилися."
     },
+    "needed_again": {
+      "en": "{code} is held back: {param} stays as set for flight {flight}'s test, because {by} sets it again for its own test flight. It comes out once nothing needs it.",
+      "uk": "{code} відкладено: {param} лишається таким, як для тесту польоту {flight}, бо {by} знову встановлює його для власного тестового польоту. Його повернуть, щойно він більше не знадобиться."
+    },
     "held_once_done": {
       "en": "{code} is not offered again: flight {flight} showed the work done on this build of the airframe. A new build (propellers, motors) offers it again.",
       "uk": "{code} не пропонується знову: політ {flight} показав, що роботу виконано на цій збірці апарата. Нова збірка (гвинти, мотори) запропонує її знову."
