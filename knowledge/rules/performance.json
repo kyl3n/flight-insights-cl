@@ -110,6 +110,13 @@
     "max_share": 0.6,
     "defaults": {"RTL_ALT_M": 15.0, "RTL_SPEED_MS": 0.0, "WP_SPD": 10.0, "WP_SPD_UP": 2.5, "WP_SPD_DN": 1.5}
   },
+  "anomaly": {
+    "about": "A flight that drew more power than its airframe's other flights predict (performance/efficiency.py): its hover points and its level points, each over at least min_seconds, against the power model fitted without it, at each point's weight, airspeed, climb and air. Flagged when the power drawn exceeds the prediction by more than the larger of min_excess and sigmas times the robust spread (1.4826 x the median absolute deviation) of how far the other flights' energy sits from that same model, needing min_flights flights with points in all; the flight judged never widens the spread. Hover alone points at the propulsion or a weight entered wrong, level alone at drag. Uncalibrated until checked against the airframe's own flights; the 8% floor is above the 5% median leave-one-out error the HL1 validation asks of the model.",
+    "min_flights": 3,
+    "min_seconds": 20.0,
+    "min_excess": 0.08,
+    "sigmas": 3.0
+  },
   "readiness": {
     "about": "Before the speed build-up's next step is offered (performance/buildup.py `gate`): none of these findings open on the flight at a severity in `severities`. Staging already holds the build-up (navigation) behind the mechanical, filter and tune stages; these are the findings it would otherwise be offered alongside or ahead of, and the earlier-stage ones that matter most at speed, named so the reason is shown. GNSS: the step is flown on GNSS speed and position, and a disturbance at speed has less room. Motor-out margin: faster flight leans further and uses more of the thrust a lost motor leaves. The packs and their failsafe: the step draws more current from the pack, its sag and its reserve must be right first. ESCs, motors and vibration: what fails first at higher power. An app rule, uncalibrated: a prefix ending in '.' names a family.",
     "codes": ["gnss.", "motor_out.short", "performance.pack_worn", "performance.pack_resistance", "performance.capacity_setting", "performance.low_mah", "performance.return_short", "failsafe.battery_near_miss", "power.board_voltage", "esc.", "motors.saturation", "vibration."],
