@@ -22,7 +22,7 @@ the speeds stay where the model was fitted unless asked otherwise.
 
 from __future__ import annotations
 
-from collections.abc import Callable, Mapping
+from collections.abc import Callable, Mapping, Sequence
 from dataclasses import dataclass
 from typing import Any
 
@@ -153,3 +153,27 @@ def one_setting(model: Model, weight: float, density: float, rules: Mapping[str,
     cost = np.where(ok, p / g, np.inf)
     k = int(np.argmin(cost))
     return float(g[k]), float(cost[k]) * 1000 / 3600
+
+
+def held(model: Model, weight: float, density: float, rules: Mapping[str, Any], ground: Array,
+         along: float, across: float, cells: Cells = terminals) -> Array:  # fmt: skip
+    """Energy per metre over the ground (J/m) of a leg flown at a set ground speed, as
+    ArduPilot flies it: holding that ground speed, at whatever airspeed the wind takes."""
+    g = np.asarray(ground, np.float64)
+    return cells(model.power(weight, airspeed_for(g, along, across), 0.0, density, rules)) / g
+
+
+def climate(model: Model, weight: float, density: float, rules: Mapping[str, Any],
+            winds: Sequence[float], ground: Array, cells: Cells = terminals) -> Array:  # fmt: skip
+    """Wh per km of radius out and back at each set ground speed, averaged over the winds
+    the airframe has met, each from every one of the rules' directions."""
+    k = int(rules["speeds"]["directions"])
+    total = np.zeros_like(np.asarray(ground, np.float64))
+    n = 0
+    for w in winds or (0.0,):
+        for t in np.arange(k) * (2 * np.pi / k):
+            along, across = float(w * np.cos(t)), float(w * np.sin(t))
+            total = total + held(model, weight, density, rules, ground, along, across, cells)
+            total = total + held(model, weight, density, rules, ground, -along, across, cells)
+            n += 1
+    return total / n * 1000 / 3600

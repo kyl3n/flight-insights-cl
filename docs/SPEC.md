@@ -852,9 +852,18 @@ Added to Phase 2 on 2026-10-27 at the fleet owner's request, and built in steps 
   - **The heavy lifter's sweep:** tops at 12 m/s in still air.
   - **The quad's sweep:** holds its ground speed both ways in a 1.5 m/s wind, so it reads 9.5 m/s through the air on its upwind legs.
 
-**Recommendations** (not yet).
+**Recommendations** (the cruise and home speeds are worked out, `performance/advice.py`; the rest are not yet).
 
-- **Cruise speed:** `WP_SPD` and `RTL_SPEED_MS` set to the speed the Priority answer calls for.
+- **Cruise speed:** `WP_SPD` set to the speed the Priority answer calls for.
+  - **For endurance:** the airspeed of least power.
+  - **Otherwise:** the ground speed to set for out and back with the least energy per km of radius. It is averaged over the winds the airframe has met (each flight's measured wind), each from 8 directions, leaving out any wind it could not make way against. ArduPilot holds the set ground speed on both legs, at whatever airspeed the wind takes.
+- **Home speed:** `RTL_SPEED_MS` set to the ground speed of least energy per metre into the airframe's typical wind (the median of those measured) as a headwind. At 0, `RTL_SPEED_MS` flies at `WP_SPD`, and the never-raise rule reads it so.
+- **For both speeds:**
+  - **Within what was measured.** Speeds are searched up to the fastest level airspeed flown; for the home speed, its airspeed into the headwind. A setting past that span is lowered only when the best lies inside the span and the cost is already rising at its end. Its gain is then read at the end of the span, so it is a lower bound.
+  - **When nothing is proposed:** the setting is within 2% of the best, or the best is slower than 2 m/s (a hover is the best endurance).
+  - **Lowering** is always proposed.
+  - **Raising** goes only up to the verified speed less the typical wind, so the airspeed a headwind adds stays within what was verified. When the best cruise speed lies past that, a finding says so (`performance.cruise_unverified`): flying faster at this weight, held steady with everything in target, verifies more.
+  - **Low confidence** until the model is checked against the airframe's own flights to reserve. Each rests on the flight's own energy.
 - **`BATT_LOW_MAH`:** from the measured return energy (see "Return-energy margin" above).
 - **Battery and electrical:** `BATT_CAPACITY` against the measured pack, pack ageing, avionics draw.
 - **Payload drag and hover efficiency** against the airframe's own baseline.
@@ -1773,7 +1782,7 @@ The numbers above are illustrative. `expected_effect` comes from simulation wher
 - Step limits: gain changes larger than the rule pack's per-flight limit are split across flights. The limit starts at a quarter of the current value, uncalibrated, for rate, angle and position gains.
 - Never proposed automatically:
   - disabling arming checks or failsafes: setting `ARMING_SKIPCHK` or `FS_OPTIONS` bits, or zeroing a failsafe enable or action;
-  - raising limits past what the log shows the airframe can do. A listed limit is never raised; for some limits, 0 means unlimited. The exception is speed (not yet). `WP_SPD`, `RTL_SPEED_MS` and `LOIT_SPEED_MS` may rise up to the airframe's verified speed. With the platform's speed goal "fastest safe", the speed build-up may raise them, and the lean limits within measured thrust headroom, one predicted, gated step at a time (Power and efficiency analysis, "Range, endurance and speed"). `BATT_LOW_MAH` and `BATT_CRT_MAH` are never lowered.
+  - raising limits past what the log shows the airframe can do. A listed limit is never raised; for some limits, 0 means unlimited. The exception is speed. `WP_SPD`, `RTL_SPEED_MS` and `LOIT_SPEED_MS` may rise up to the airframe's verified speed less its typical wind, measured for the flight's weight (`performance/advice.py`). With the platform's speed goal "fastest safe", the speed build-up may raise them, and the lean limits within measured thrust headroom, one predicted, gated step at a time (Power and efficiency analysis, "Range, endurance and speed"; not yet). `BATT_LOW_MAH` and `BATT_CRT_MAH` are never lowered.
 
   The lists are in the rule pack.
 

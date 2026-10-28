@@ -40,10 +40,11 @@
     "levels": {"moving_ms": 2.0, "airspeed_span_ms": 6.0, "weight_apart": 0.1}
   },
   "speeds": {
-    "about": "The speeds to fly from the power model (performance/optimize.py): airspeeds searched every step_ms up to a cap; best endurance at least power, best range at least energy per metre through the air (from the cells when the pack's resistance is given); long-range cruise the fastest airspeed keeping long_range_share of the best range; each speed's band the airspeeds within band_share of its best.",
+    "about": "The speeds to fly from the power model (performance/optimize.py): airspeeds searched every step_ms up to a cap; best endurance at least power, best range at least energy per metre through the air (from the cells when the pack's resistance is given); long-range cruise the fastest airspeed keeping long_range_share of the best range; each speed's band the airspeeds within band_share of its best; winds averaged over directions directions.",
     "step_ms": 0.05,
     "long_range_share": 0.99,
-    "band_share": 0.02
+    "band_share": 0.02,
+    "directions": 8
   },
   "trips": {
     "about": "The standard trips (performance/radius.py; the fleet owner's decision of 2026-10-27, fixed trip types, never a route): climb to height_m at climb_ms, out, a hover at the site (drop_hover_s on a drop, site_minutes on the site trip), back, descend at descent_ms at hover power. The climb and descent rates are the flight's own WP_SPD_UP and WP_SPD_DN where known; these are ArduPilot 4.7's defaults. The worst direction is searched every direction_step_deg relative to the wind.",
@@ -87,6 +88,13 @@
     "trend_gap_ms": 1.0,
     "tracking_growth": 1.5,
     "required": ["lean", "thrust", "current"]
+  },
+  "advice": {
+    "about": "What the plan proposes from the power model (performance/advice.py): WP_SPD at the speed the setup's Priority calls for (endurance: least power; otherwise least energy per km of radius out and back over the airframe's measured winds, each from speeds.directions directions), rounded to cruise_step_ms; RTL_SPEED_MS at least energy per metre into the median measured wind as a headwind, rounded to home_step_ms (its increment). Nothing while the setting is within speeds.band_share of the best or the best is under min_cruise_ms. A raise of raise_up_to_verified goes no further than the verified speed less the median wind; uncalibrated until checked against the airframe's own flights to reserve.",
+    "min_cruise_ms": 2.0,
+    "cruise_step_ms": 0.1,
+    "home_step_ms": 0.5,
+    "raise_up_to_verified": ["WP_SPD", "LOIT_SPEED_MS", "RTL_SPEED_MS"]
   },
   "report": {
     "about": "What the Range & speed screen and the range card show (performance/report.py): the best airspeed and ground speed into each of headwinds_ms, and on the card the radius out and back with each as the wind, the worst way round.",

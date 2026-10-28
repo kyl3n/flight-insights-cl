@@ -182,22 +182,37 @@ def _matches(name: str, patterns: Iterable[str]) -> bool:
 
 
 def _never(
-    rules: Mapping[str, Any], param: str, current: float | None, value: float
+    rules: Mapping[str, Any],
+    param: str,
+    current: float | None,
+    value: float,
+    params: Mapping[str, float] | None = None,
+    raise_limits: Mapping[str, float] | None = None,
 ) -> Note | None:
+    """The never rules: bits that weaken checks, failsafes switched off, limits raised past
+    what the airframe has shown (except up to `raise_limits`, measured for it), and the
+    battery failsafe's charge lowered."""
     never: Mapping[str, Any] = rules["never"]
     if _matches(param, never["add_bits"]["names"]) and int(value) & ~int(current or 0):
         return Note("never_add_bits", {"param": param})
     if _matches(param, never["disable"]["names"]) and value == 0 and current != 0:
         return Note("never_disable", {"param": param})
+    if _matches(param, never["lower"]["names"]) and current is not None and value < current:
+        return Note("never_lower", {"param": param})
     raise_rule: Mapping[str, Any] = never["raise"]
     if _matches(param, raise_rule["names"]):
         unlimited = _matches(param, raise_rule["zero_means_unlimited"])
+        stands_for = raise_rule["zero_means"].get(param)  # 0 flies at another setting
+        if current == 0 and stands_for is not None and params is not None:
+            current = params.get(stands_for)
 
         def level(v: float) -> float:
             return math.inf if unlimited and v == 0 else v
 
         if current is None or level(value) > level(current):
-            return Note("never_raise", {"param": param})
+            limit = (raise_limits or {}).get(param)
+            if limit is None or value > limit + 1e-9:
+                return Note("never_raise", {"param": param})
     return None
 
 
@@ -378,18 +393,20 @@ def build_plan(
     params: Mapping[str, float],
     dialect: Dialect,
     reg: Registry,
+    raise_limits: Mapping[str, float] | None = None,
 ) -> Plan:
     """The staged plan for one flight's findings. `params` are the flight's own,
-    canonical; `findings` as analysis results hold them (with "changes").
+    canonical; `findings` as analysis results hold them (with "changes"). `raise_limits`
+    are how far the airframe's measurements let a never-raise limit rise.
 
     Test-flight settings are for the test flight on offer. Those a later stage's finding
     asks for (logging the rate loop for a tune check, while the filters are still being
     set) wait for their own stage, even where they share a parameter with one on offer:
     the plan is made again with them held back, and their finding waits as an action."""
-    plan = _build_plan(flight, findings, params, dialect, reg, None)
+    plan = _build_plan(flight, findings, params, dialect, reg, None, raise_limits)
     if plan.stage is None or not _holds_back(plan.stage, findings, params, reg):
         return plan
-    return _build_plan(flight, findings, params, dialect, reg, plan.stage)
+    return _build_plan(flight, findings, params, dialect, reg, plan.stage, raise_limits)
 
 
 def _later(reg: Registry, stage: str, gate: str, source: Source) -> bool:
@@ -420,6 +437,7 @@ def _build_plan(
     dialect: Dialect,
     reg: Registry,
     hold_after: str | None,
+    raise_limits: Mapping[str, float] | None,
 ) -> Plan:
     rules: Mapping[str, Any] = reg.rules["recommend"]
     boot_only: Mapping[str, str] = rules["boot_only"]["params"]  # read at start-up only
@@ -430,7 +448,7 @@ def _build_plan(
 
     def check(param: str, value: float) -> Note | None:
         name, nvalue = native(param, value)
-        return _never(rules, param, params.get(param), value) or _validate(
+        return _never(rules, param, params.get(param), value, params, raise_limits) or _validate(
             name, value if nvalue is None else nvalue, dialect.meta.get(name), firmware
         )
 
