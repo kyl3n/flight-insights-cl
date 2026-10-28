@@ -750,7 +750,7 @@ Added to Phase 2 on 2026-10-27 at the fleet owner's request, and built in steps 
   - at cruise: the level tiles' energy over their own distance.
 - **Where the energy went:** the energy in each steady tile's phase (low, hover, level, climb, descent, manoeuvre), and what fell between tiles. The parts add up to the whole.
 
-**What the user gets** (the speeds, the radius, the projections, the efficiency figures, the what-ifs and maximum speed are worked out, `performance/optimize.py`, `radius.py`, `project.py` and `top_speed.py`; the stored model and the screens are not yet).
+**What the user gets** (the speeds, the radius, the projections, the efficiency figures, the what-ifs and maximum speed are worked out, `performance/optimize.py`, `radius.py`, `project.py` and `top_speed.py`, and given over RPC with the stored model, `report.py`; the screens are not yet).
 
 - **Speeds:**
   - best-endurance speed (minimum power);
@@ -788,6 +788,29 @@ Added to Phase 2 on 2026-10-27 at the fleet owner's request, and built in steps 
   - Wh per kg-km;
   - cost of transport, P/(W·V).
 - **What-ifs:** what each figure gains from 5% less weight, 10% less drag, 10 W less avionics draw, and 10% more capacity with 10% more of the pack's mass (the same cells in parallel, so the resistance falls as the capacity grows; left out while the pack's mass is unknown). Two build versions side by side.
+- **The inputs** (`performance/report.py`), each given with where it came from:
+  - **the pack:** the setup's chemistry, cells and capacity, charged full, with the median of its flights' measured resistance;
+  - **the failsafe:** the latest flight's `BATT_LOW_VOLT` for `BATT_LOW_TIMER` (on the sag-compensated voltage when `BATT_FS_VOLTSRC` is 1), and `BATT_CAPACITY` less `BATT_LOW_MAH`;
+  - **the reserve:** the setup's `reserve_pct`, else 20%;
+  - **the weight:** the one asked for, else the setup's typical take-off, else the heaviest flown;
+  - **the air:** the airframe's usual (the median density of its points), or standard;
+  - **the top:** the speeds are searched up to the fastest level airspeed flown, ending exactly on it, so they stay where the model was measured;
+  - **the drag, for maximum speed:** the latest flight that measured its own, at that flight's weight and air;
+  - **the build-up:** each flight's fast segment with its weight, and the ESCs' thermal models from the latest flight with ESC telemetry.
+
+  Whatever an input is missing for is left out, with what to enter or fly to get it. An airframe that has only hovered gets its hover time alone, with its interval; the speeds, range and radius wait for level flight.
+- **Over RPC:**
+  - `airframe.performance` (weight, usual or standard air, trip, wind): the inputs, the speeds, the figures and their intervals, against weight, the radius by direction relative to the wind, the best leg into each headwind, the what-ifs that change something, maximum speed and the build-up's next step;
+  - `airframe.range_card`: a row for each of the empty, typical and heaviest take-off weights, with:
+    - hover time and best endurance (the low end);
+    - the cruise speed Priority calls for (best endurance for endurance, else best range);
+    - range (the low end);
+    - the radius out and back in still air and at 5 and 10 m/s, the worst way round, and in still air also its low end;
+    - maximum speed and what limits it, and the verified speed;
+    - the best ground speed into each headwind.
+
+    The card also gives what it is good for: the weights and speeds flown, the air, the reserve and the latest flight's parameters.
+  - An unknown airframe is refused as bad input.
 
 **The speed build-up** (when the speed goal is "fastest safe"; the verified speed, the step and its predicted margins are worked out, `performance/envelope.py` and `thermal.py`; the procedure, the readiness checks and the staging are not yet).
 
