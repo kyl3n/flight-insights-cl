@@ -40,6 +40,10 @@ INCH = 0.0254
 FORMAT = 1  # of model_json: raised when what is kept changes shape
 
 
+class PerformanceError(LookupError):
+    """No such airframe."""
+
+
 @dataclass(frozen=True)
 class AirframeModel:
     airframe_id: str
@@ -184,6 +188,8 @@ def from_json(text: str) -> AirframeModel:
 def load(store: Store, cache: ColumnCache, pack: Pack, airframe_id: str) -> AirframeModel:
     """The airframe's model: the one kept while what it was made from is unchanged, else
     made again and kept."""
+    if store.get("airframe", airframe_id) is None:
+        raise PerformanceError("no such airframe")
     b = basis(store, pack, airframe_id)
     kept = store.conn.execute(
         "SELECT basis, model_json FROM performance_fit WHERE airframe_id = ?", (airframe_id,)

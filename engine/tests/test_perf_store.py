@@ -140,5 +140,7 @@ def test_the_rpc_gives_the_summary_and_the_points(tmp_path: Path) -> None:
                                        "density", "mass_kg", "seconds"}  # fmt: skip
     bad = call(server, out, 42, "airframe.performance_model", airframe_id="")
     assert bad["error"]["code"] == -32602
+    unknown = call(server, out, 45, "airframe.performance_points", airframe_id="nope")
+    assert unknown["error"]["code"] == -32003 and "no such airframe" in unknown["error"]["message"]
     call(server, out, 43, "files.release", path=p["path"])
     call(server, out, 44, "engine.shutdown")

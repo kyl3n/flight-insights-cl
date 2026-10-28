@@ -13,7 +13,7 @@ import pyarrow as pa
 
 from flight_insights.performance import airframe as perf
 from flight_insights.performance.fit import NAMES
-from flight_insights.rpc.server import INVALID_PARAMS, Context, RpcError, Server
+from flight_insights.rpc.server import BAD_INPUT, INVALID_PARAMS, Context, RpcError, Server
 
 if TYPE_CHECKING:
     from flight_insights.rpc.methods import EngineState
@@ -24,6 +24,15 @@ def _airframe(params: dict[str, Any]) -> str:
     if not isinstance(value, str) or not value:
         raise RpcError(INVALID_PARAMS, "airframe_id must be an airframe's id")
     return value
+
+
+def _model(state: EngineState, params: dict[str, Any]) -> perf.AirframeModel:
+    store, cache = state.require_store(), state.cache
+    assert cache is not None
+    try:
+        return perf.load(store, cache, state.pack, _airframe(params))
+    except perf.PerformanceError as e:
+        raise RpcError(BAD_INPUT, str(e)) from None
 
 
 def summary(m: perf.AirframeModel) -> dict[str, Any]:
@@ -57,19 +66,15 @@ def add_performance_methods(server: Server, state: EngineState,
     @server.method("airframe.performance_model")
     @guarded
     def performance_model(ctx: Context, params: dict[str, Any]) -> dict[str, Any]:
-        store, cache = state.require_store(), state.cache
-        assert cache is not None
         ctx.progress(0.0, "fitting the power model")
-        m = perf.load(store, cache, state.pack, _airframe(params))
+        m = _model(state, params)
         ctx.progress(1.0, "done")
         return summary(m)
 
     @server.method("airframe.performance_points")
     @guarded
     def performance_points(ctx: Context, params: dict[str, Any]) -> dict[str, Any]:
-        store, cache = state.require_store(), state.cache
-        assert cache is not None
-        m = perf.load(store, cache, state.pack, _airframe(params))
+        m = _model(state, params)
         rows = [(i, f.mass_kg, p) for i, f in enumerate(m.flights) for p in f.points]
         columns: dict[str, pa.Array[Any]] = {
             "flight": pa.array([r[0] for r in rows], pa.int32()),
