@@ -232,14 +232,14 @@ Serial numbers and unique IDs stay on the machine; the scrubber already removes 
 
 **Setting up a new platform.** Before a platform's first flight, a guided setup walks through every part of the aircraft in order, so nothing is missed:
 
-1. **Platform:** name, vehicle type, frame and motor layout, and the configuration questions (payload, mission, priority, temperatures, non-GNSS sources).
+1. **Platform:** name, vehicle type, frame and motor layout, and the configuration questions (payload, mission, priority, the speed goal, temperatures, non-GNSS sources).
 2. **Flight controller:** board, firmware, mounting and vibration isolation.
 3. **Propulsion:** each motor's model, KV, position and direction; propeller diameter, pitch, blades and material; ESC model, firmware, protocol, telemetry and temperature protection setting.
-4. **Power:** battery chemistry, cells, capacity and pack IDs, with datasheet limits for current and temperature; power module and its calibration; avionics supply.
+4. **Power:** battery chemistry, cells, capacity and pack IDs, with datasheet limits for current and temperature; the energy reserve kept at landing (20% when unanswered) and the mass of the packs flown together; power module and its calibration; avionics supply.
 5. **Navigation sensors:** GNSS receivers and antennas, compasses, barometers, rangefinder, optical flow and visual odometry.
 6. **Links:** RC receiver and protocol, telemetry radio and video link, and every antenna on the aircraft: model, type, gain, polarisation, placement, orientation and cable. Ground-side equipment has its own profile (see Ground station profiles). It also asks what comes first when the radio link and GNSS are both lost (`link_loss`): winning the link back, by flying the failsafe home on dead reckoning for as long as the battery allows, or landing once dead reckoning has run as long as drills held a position. A choice whose stored value is a code carries its own words in English and Ukrainian (`choice_labels`).
 7. **Payload and peripherals:** payload mounts and release, gimbal and camera, companion computer, CAN nodes.
-8. **Weights:** empty, typical take-off and maximum take-off.
+8. **Weights:** empty (ready to fly with its packs, no payload), typical take-off and maximum take-off.
 9. **Review:** a completeness check lists every gap and what it prevents; for example, no prop diameter means no starting filter values, and no ESC temperature setting means no ESC temperature limits.
 10. **First parameter file:** the file the aircraft will fly with goes through the configuration review before the first flight.
 
@@ -315,6 +315,7 @@ The right settings depend on facts a log only partly shows. The app fills in wha
 | Does the payload change in flight (drop, winch, spray)? | A sudden mass change needs controller and failsafe settings that tolerate it | Gripper and winch outputs, steps in hover thrust |
 | Main mission | Hover and slow survey, long cruise and agile flight need different tunes | Time in each mode and speed band |
 | Priority | Endurance, stability or responsiveness decides the trade-offs between filtering, gains and speed | Asked only |
+| Speed goal | Efficient (cruise at the speed the priority calls for) or fastest safe (build the cruise speed up, step by step, towards the most the airframe can safely hold) | Asked only |
 | Operating temperatures | Battery derating, ESC and motor margins | Weather records |
 | Which non-GNSS sources are fitted (optical flow, rangefinder, visual odometry)? | GNSS loss is always assumed, so these decide how the aircraft holds position and gets home without it | Estimator source parameters |
 | Links in use | Failsafe timing and telemetry rates | Parameters and tlogs |
@@ -596,7 +597,7 @@ Every watt the battery delivers is traced to where it went (lift, forward motion
 
 | Bucket | How it is measured | What it reveals |
 | --- | --- | --- |
-| Total electrical power | Battery volts times amps | The baseline for everything else |
+| Total electrical power | Battery volts times amps, summed over every monitor that measures its own pack (parallel packs each on a monitor); a sum or ESC monitor stands in only when no pack monitor is logged, so nothing counts twice (`rules/batteries.json`) | The baseline for everything else |
 | Propulsion | Sum of ESC input power, where ESC telemetry reports current | The share that reaches the motors |
 | Avionics and payload | Total minus propulsion | Companion computers, video, payload loads; often larger than expected |
 | Battery internal loss | Current squared times the battery resistance ArduPilot logs | Heat in the pack; rises with age and cold |
@@ -663,8 +664,104 @@ T is the hover thrust (take-off weight scaled by the payload ratio), ρ is air d
 - **Board voltage.** ArduPilot's pre-arm check expects 4.3 to 5.8 V ([pre-arm checks](https://ardupilot.org/copter/docs/common-prearm-safety-checks.html)). The app also flags in-flight dips that line up with servo or payload events, an early brownout sign.
 - **Current sensor calibration.** Logged consumed mAh against the mAh the charger put back (entered after charging) gives the current sensor's scale error, and a corrected scale parameter. A miscalibrated sensor makes every capacity-based failsafe fire at the wrong time.
 - **The battery monitor against the ESCs.** With real ESC telemetry (not the simulator's), the monitor is flagged when the ESCs draw more than 10% more current in hover than it reports (they cannot: the battery feeds them and the avionics), or when its voltage is more than 3% from theirs while at most a fifth of the hover current flows, so the harness drop is negligible. ESC sensors have errors of their own, so the finding proposes no scale. Its procedure calibrates the power module against a multimeter (`BATT_VOLT_MULT`) and the charger (`BATT_AMP_PERVLT`). The same procedure follows an analog power module the platform setup says was never calibrated. These are app rules, uncalibrated.
-- **Return-energy margin.** ArduPilot suggests 20% of capacity as the capacity-based failsafe level ([battery failsafe](https://ardupilot.org/copter/docs/failsafe-battery.html)). The app replaces that rule of thumb with the measured energy needed to return from typical mission distances at RTL speed, plus a reserve, and proposes `BATT_LOW_MAH` from it.
+- **Return-energy margin.** ArduPilot suggests 20% of capacity as the capacity-based failsafe level ([battery failsafe](https://ardupilot.org/copter/docs/failsafe-battery.html)). The app replaces that rule of thumb with the measured energy needed to return from typical mission distances at RTL speed, plus a reserve, and proposes `BATT_LOW_MAH` from it. The return is the farthest the airframe usually flies (the 90th percentile, kept on the laptop) at `RTL_SPEED_MS` into its usual headwind, plus the climb to `RTL_ALT_M`, the landing and the reserve, with the energy from the power model below (not yet).
 - **Cold-weather derating.** Pack datasheets limit current at low temperature; one Tattu high-voltage pack allows at most 0.2C below 0 °C, 0.5C from 0 to 10 °C, and 5C above 10 °C ([pack listing](https://www.gensace.de/tattu-3-0-10500mah-53-2v-25c-14s1p-high-voltage-lipo-battery-pack-with-as150u-f-plug.html)). With pack temperature logged or entered, the app flags flights that exceeded the derated current for the pack in the build profile.
+
+### Range, endurance and speed
+
+Added to Phase 2 on 2026-10-27 at the fleet owner's request, and built in steps (the speed sweep, measured now, is under "Levers the app evaluates"). From the airframe's own flights, the app works out how long and how far it can fly at each weight, how far out it can go and come back, how fast it can safely fly, and the best speed to cruise at. It also shows which hardware and settings would buy more range, time or speed.
+
+**The fleet owner's decisions (2026-10-27/28)**
+
+- **Radius only for standard trips.** The trips are: out and back; out loaded, drop the payload, back light; and out and back with 5 min at the site. No trip is typed in, and there are no routes, waypoints or maps. The non-goal "mission planning" stands.
+- **The reserve.** Every flight time, range and radius keeps the larger of two reserves: the aircraft's own battery failsafe (`BATT_LOW_MAH` and `BATT_LOW_VOLT` as configured), or 20% of usable energy. The 20% is a platform setup answer. On top of that comes the measured energy to descend and land.
+- **Cruise speed follows the platform's Priority answer.** Efficiency, stability and agility get the best-range speed (the fewest Wh per km). Endurance gets the best-endurance speed (the most minutes). Both are always shown, with the cost of any other speed.
+- **The speed goal is the user's choice.** It is "efficient" (the default) or "fastest safe". With "fastest safe", the app helps push the airframe to the most speed it can safely hold. It watches vibration, motor and ESC temperatures and every other metric that guards against losing the aircraft. It makes sure the tune, filters and settings are right first, and it names what would let it go faster.
+- **Phase 2, now.** It is flown alongside the HL1 gate flights. The Phase 2 gate is unchanged.
+
+**The power model** (`performance/`, not yet). It is fitted per airframe and build version, with weight as a variable.
+
+- **What is fitted:** the battery's terminal power (volts times amps, summed over the pack monitors), in steady 2 s tiles of level flight, hover, climb and descent.
+- **Momentum theory with Glauert's inflow:**
+  - Thrust and the rotor's tilt come from the force balance against the airframe's parasite drag, whose flat-plate area comes from the wind analyzer's square-law drag.
+  - The rotor's in-plane drag costs no extra power, so it is not counted as parasite power.
+  - Climb and parasite power come out of the inflow, not as added terms.
+  - Profile power for fixed-pitch props scales like induced power without ESC RPM, and from RPM with it.
+- **Electrical layer:** the power is divided by a fitted efficiency, plus the avionics' draw. That draw is measured where ESC telemetry exists.
+- **Priors:** from the literature, marked uncalibrated (induced-power factor, motor and ESC efficiency, profile coefficient). Fitted with numpy alone.
+- **Uncertainty:** from a bootstrap over flights, plus model error drawn from leave-one-flight-out prediction of each flight's energy.
+- **The model is shown at the level its data supports:**
+  - the full model with a speed sweep and two payloads;
+  - the shape partly from theory, marked, with ordinary flights;
+  - hover endurance only, with hovers alone.
+- **Extrapolation** past the speeds and weights flown is drawn dashed and labelled.
+
+**The battery's usable energy** (not yet).
+
+- **Model:** an open-circuit voltage curve per chemistry, refined from flights, and the pack's resistance.
+- **Capacity:** measured per pack from the charge used against the change in rest voltage, and trended against cycles.
+- **Simulation:** a discharge simulation at the planned power stops at the first of:
+  - the reserve;
+  - the voltage failsafe for its timer;
+  - the capacity failsafe as the firmware counts mAh;
+  - the cell cutoff;
+  - the current limit.
+
+**What the user gets** (not yet; the screens wait for their mock-ups).
+
+- **Speeds:**
+  - best-endurance speed (minimum power);
+  - best-range speed (the tangent from the origin);
+  - the long-range cruise speed (99% of best range);
+  - each with the band within 2% of it.
+- **Wind.** ArduPilot holds ground speed, so the cruise speed for an out-and-back trip is chosen against the airframe's own measured winds, and the card gives the speed to fly into a headwind.
+- **Projections:**
+  - flight time (hover and best);
+  - range;
+  - radius for the standard trips, by wind speed and direction relative to the wind;
+  - all against take-off weight, with the limits marked: maximum take-off, the hover-throttle limit, the motor-out weight and the current limit.
+- **Maximum speed:** the least of the lean limit (from the measured drag at that weight), thrust headroom and the power or current limit. It is shown beside the configured `WP_SPD`, `LOIT_SPEED_MS` and the firmware's caps.
+- **Efficiency:**
+  - hover figure of merit and g/W at standard air;
+  - Wh/km;
+  - Wh per kg-km;
+  - cost of transport.
+- **What-ifs:** less weight, more capacity with its mass, less drag, less avionics draw, and two build versions side by side.
+
+**The speed build-up** (when the speed goal is "fastest safe"; not yet).
+
+- **Verified speed:** the highest steady airspeed the airframe held for 10 s at the same or a heavier payload, with every watched metric inside its margin.
+- **Each step:**
+  - The step goes 1 m/s or 10% past the verified speed, whichever is smaller.
+  - It is offered only when the models predict every margin holds at the new speed: lean, thrust headroom, current, sag, ESC temperature from a thermal model, vibration, and attitude and velocity tracking.
+  - It is staged at Navigation, so it waits for the mechanical, filter and tune stages.
+  - It also needs its own readiness checks, among them the notch's tracking range covering the motor frequency at top-speed throttle.
+- **The procedure:** parameter file, temporary logging, card, abort criteria, verify checks on the flight's fast segment, and the undo file.
+- **When a limit binds:** the app says which one, with the solutions and the gain the models predict for each.
+
+**Recommendations** (not yet).
+
+- **Cruise speed:** `WP_SPD` and `RTL_SPEED_MS` set to the speed the Priority answer calls for.
+- **`BATT_LOW_MAH`:** from the measured return energy (see "Return-energy margin" above).
+- **Battery and electrical:** `BATT_CAPACITY` against the measured pack, pack ageing, avionics draw.
+- **Payload drag and hover efficiency** against the airframe's own baseline.
+- **Energy anomaly:** a flight whose power departs from the model.
+
+**Privacy.**
+
+- **On the laptop:** position-derived distances, air density and the range card stay here.
+- **Per-flight figures:** only scalars. The distance flown is one whole number of metres.
+- **Not sent:** airframe projections never go into an AI packet.
+
+**Validation before the figures lose their "estimate" label.**
+
+- **Synthetic flights** with known answers.
+- **ArduPilot's simulator.** It checks plumbing, drag and the battery model. Its motors draw power in proportion to thrust, so it cannot check the speed dependence.
+- **The published DJI Matrice 100 dataset** (Rodrigues et al., Scientific Data 2021), as position-free window averages, once its hosts are allowed.
+- **HL1's own flights:**
+  - leave-one-flight-out energy error, median at most 5% and P90 at most 10%;
+  - the best-range speed inside the sweep's measured 2% band;
+  - a flight to reserve within 5% of the projected time.
 
 ## ESC and motor health
 
@@ -753,7 +850,7 @@ Copter analysis follows ArduPilot's own tuning order: setup parameters, a stable
 | Payload | Motor outputs, battery voltage, attitude, barometer pressure and temperature in steady hover | Hover thrust at standard air, which gives the mass ratio between flights and, with one known take-off weight, kilograms (Vehicle fingerprinting, "Payload estimation without a scale") |
 | Altitude control | CTUN, vertical position-controller logs, baro | Altitude and climb-rate tracking, hover-throttle learning, baro error from prop wash (4.7 adds `BARO1_THST_SCALE`) |
 | Position control | Horizontal position-controller logs, navigation targets | Position, velocity and acceleration tracking; overshoot at waypoint stops |
-| Endurance | Power, hover thrust, battery | Hover power, energy per minute, endurance per payload level, battery failsafe margin at maximum payload |
+| Energy and endurance | Power, estimator velocity, hover thrust, battery | Energy used, distance flown, the speed sweep (measured now), and, per airframe and payload: power against airspeed, flight time, range, radius, maximum speed, the best speeds, and the battery failsafe margin at maximum payload (Power and efficiency analysis, "Range, endurance and speed") |
 | Incident forensics | Crash and thrust-loss checks, errors, events | The first fault in the chain: motor or ESC failure, thrust loss, estimator failure or battery collapse |
 
 ### The tune check
@@ -1563,7 +1660,7 @@ The numbers above are illustrative. `expected_effect` comes from simulation wher
 - Step limits: gain changes larger than the rule pack's per-flight limit are split across flights. The limit starts at a quarter of the current value, uncalibrated, for rate, angle and position gains.
 - Never proposed automatically:
   - disabling arming checks or failsafes: setting `ARMING_SKIPCHK` or `FS_OPTIONS` bits, or zeroing a failsafe enable or action;
-  - raising limits past what the log shows the airframe can do. No analyzer measures that yet, so a listed limit is never raised; for some limits, 0 means unlimited.
+  - raising limits past what the log shows the airframe can do. A listed limit is never raised; for some limits, 0 means unlimited. The exception is speed (not yet). `WP_SPD`, `RTL_SPEED_MS` and `LOIT_SPEED_MS` may rise up to the airframe's verified speed. With the platform's speed goal "fastest safe", the speed build-up may raise them, and the lean limits within measured thrust headroom, one predicted, gated step at a time (Power and efficiency analysis, "Range, endurance and speed"). `BATT_LOW_MAH` and `BATT_CRT_MAH` are never lowered.
 
   The lists are in the rule pack.
 
@@ -1857,7 +1954,8 @@ Rules that keep decisions easy:
 | Weather | The flight's weather record at the surface and in its height band, the wind the aircraft measured against the model's, the K-index; the airframe's wind envelope per payload band, its limit, and the lean needed at 8 m/s | Open the weather settings; compare models (not yet). Trends filter by wind and density on the Trends screen |
 | Filter workbench | Pre- and post-filter spectra, spectrogram over time with motor RPM and notch centres overlaid, predicted spectrum, phase-lag readout | Edit candidate filter values and see the prediction update |
 | Tune | Attitude tracking error (the tune's measure) and rate tracking error (its guard) per axis, each with its 95% interval, against a tune-check flight of the same payload band; step and frequency responses of one axis, both flights; the stick inputs counted and those left out, with why; whether the plan improved the tune | Pick the flight to compare with (same band), the payload band and the axis; open the tune-check card |
-| Propulsion and power | Per-motor output and RPM, temperatures, sag, battery resistance; the motor-out margin with each motor stopped in turn, and the payload band; the thrust-model fit (not yet) | Select motors and segments; see which motor loss is worst |
+| Propulsion and power | Per-motor output and RPM, temperatures, sag, battery resistance; the motor-out margin with each motor stopped in turn, and the payload band; the thrust-model fit (not yet); this flight's energy: where it went, power against time, its tiles on the airframe's power curve, and the watched metrics at speed (not yet) | Select motors and segments; see which motor loss is worst |
+| Range and speed (not yet) | Per airframe: flight time, range, radius and maximum speed against take-off weight and wind; power against airspeed with the best speeds; efficiency; batteries; what-ifs and builds side by side; the speed build-up when the speed goal is "fastest safe"; the data the figures rest on | Pick payload, pack, air, wind, trip and build; switch the speed goal; plan the speed sweep or the next speed step; print the range card |
 | System and buses | CPU load, loop timing, latency budget, per-task CPU, bus and interface errors | Align with flight events; compare before and after a change |
 | Navigation and GNSS | The fleet goal; jamming and spoofing events with their class, confidence and evidence; outages and drills; how the aircraft coped with each; the evidence each receiver gives; the Flying without GNSS view below; later, estimator innovations, GPS quality and position-controller error statistics | Pick an event, outage or drill; select segments (later) |
 | Flying without GNSS | On the Navigation and GNSS tab: readiness by area, measured drift and dead-reckoning range, outages and drills, what would get it home, the recovery card in short | Open an outage or drill; print the recovery card |
@@ -2837,7 +2935,7 @@ Phase 1 is the first release engineers can use on real aircraft: it answers the 
 | --- | --- | --- | --- |
 | 0. Foundations | Decoders for .bin and tlog, parameter dialects and history, cache, fingerprint. Tauri shell, engine sidecar, CLI, platform and ground station setup, import, laptop keys | about 6 weeks | 4.7 logs, the fleet's own included, decode exactly as pymavlink decodes them |
 | 1. Copter filters and health (first release) | Filters, vibration, power, ESC and motors, bus and CPU, configuration review. Recommendations with step-by-step procedures, trends, explanations, encrypted Drive sync, AI layer. Settings-only checks, with their procedures, for the Phase 2 subsystems too: failsafes, GNSS, EKF sources and compass, rate-tuning starting values and the AutoTune procedure, navigation and operations | about 8 weeks | Zero scrubber leaks, sync soak test clean, filter prediction on target |
-| 2. Copter tune and heavy-lift | Rate loop and Autotune results, thrust model (`MOT_THST_EXPO` fitted from ESC RPM once real logs validate the fit; the simulator's RPM is linear in the motor command), payload, motor-out margin, weather and wind. Change attribution, link analysis, whether failsafes worked, GNSS jamming and spoofing, flying without GNSS | about 8 weeks | A reference heavy-lift airframe measurably improved by the app's own plan |
+| 2. Copter tune and heavy-lift | Rate loop and Autotune results, thrust model (`MOT_THST_EXPO` fitted from ESC RPM once real logs validate the fit; the simulator's RPM is linear in the motor command), payload, motor-out margin, weather and wind. Change attribution, link analysis, whether failsafes worked, GNSS jamming and spoofing, flying without GNSS. Range, flight time and speed (added 2026-10-27): power against airspeed, usable pack energy, the best cruise speed, radius, maximum speed and the speed build-up | about 8 weeks | A reference heavy-lift airframe measurably improved by the app's own plan |
 | 3. Plane and QuadPlane | TECS, airspeed, cruise efficiency, transition reports. VTOL analyzers on the Q_ parameter families | about 10 weeks | Transition and TECS findings confirmed on reference airframes |
 | 4. Helicopter and MAVLink download | Rotor speed, geometry-based notches, heli rate loops. Log and system-file download over MAVLink | about 8 weeks | Heli findings confirmed on a reference helicopter |
 | 5. More platforms | macOS, Linux ARM64. Mobile viewer reading the shared Drive | ongoing | |
