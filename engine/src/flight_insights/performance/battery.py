@@ -30,6 +30,7 @@ from typing import Any
 import numpy as np
 
 Array = np.ndarray[Any, Any]
+EDGE = 1.01  # a capacity within 1% of a search's edge is at it
 
 
 @dataclass(frozen=True)
@@ -232,13 +233,19 @@ def usable_curve(
 
 @dataclass(frozen=True)
 class PackFit:
-    capacity_ah: float | None  # None when the flight used too little of the pack
+    capacity_ah: float | None  # None when the flight cannot tell it (see `more_than_ah`)
     resistance: float  # R0, Ohm
     slow_resistance: float  # R1, Ohm (the RC branch)
     start_soc: float
     end_soc: float
     used_ah: float
     rms_v: float
+    # the voltage followed within the rules' error per cell: when not, nothing it gives
+    # is to be trusted, and the rated capacity is far from the pack's
+    follows: bool = True
+    searched: tuple[float, float] = (0.0, 0.0)  # the capacities searched, Ah
+    free: bool = False  # searched without the rated capacity's prior
+    more_than_ah: float | None = None  # holds more than this, which the flight cannot show
 
 
 def lowpass(t: Array, x: Array, tau: float) -> Array:
@@ -249,6 +256,18 @@ def lowpass(t: Array, x: Array, tau: float) -> Array:
         a = np.exp(-(t[k] - t[k - 1]) / tau)
         out[k] = a * out[k - 1] + (1 - a) * x[k]
     return out
+
+
+def _golden(cost: Callable[[float], float], a: float, b: float, steps: int = 80) -> float:
+    golden = (np.sqrt(5) - 1) / 2
+    c, d = b - golden * (b - a), a + golden * (b - a)
+    for _ in range(steps):
+        if cost(c) < cost(d):
+            b = d
+        else:
+            a = c
+        c, d = b - golden * (b - a), a + golden * (b - a)
+    return (a + b) / 2
 
 
 def fit_pack(
@@ -263,13 +282,22 @@ def fit_pack(
     rules: Mapping[str, Any],
 ) -> PackFit:
     """A pack's capacity and resistance from one flight's terminal voltage and current
-    (every sample), starting from the voltage at rest before arming."""
+    (every sample), starting from the voltage at rest before arming.
+
+    The capacity is searched near the rated one, with it as a prior. When that finds the
+    capacity at the search's edge, or misses the voltage by more than the rules allow a
+    cell, the rated capacity is far from the pack's: the search is made again without the
+    prior, from the least the pack can hold (the charge used, over the charge it started
+    with) to the most a flight that used `min_soc_span` of it shows."""
     spec: Mapping[str, Any] = rules["fit"]
     t = np.asarray(t_s, np.float64)
     v = np.asarray(volts, np.float64)
     i = np.asarray(amps, np.float64)
     used = np.concatenate([[0.0], np.cumsum(np.diff(t) * (i[1:] + i[:-1]) / 2)]) / 3600.0
     slow = lowpass(t, i, float(spec["tau_s"]))
+    total = float(used[-1])
+    span_min = float(spec["min_soc_span"])
+    gate = float(spec["max_rms_cell_v"]) * cells
 
     def solve(q: float, z0: float) -> tuple[float, float, float]:
         e = cells * chem.ocv(z0 - used / q)
@@ -288,27 +316,37 @@ def fit_pack(
     _, r0, _ = solve(rated_ah, z0)
     z0 = float(chem.soc_at((rest_volts + rest_amps * r0) / cells))
 
+    def rms(sse: float) -> float:
+        return float(np.sqrt(sse / n))
+
+    def result(q: float | None, at: float, searched: tuple[float, float], free: bool,
+               more: float | None = None) -> PackFit:  # fmt: skip
+        sse, r0, r1 = solve(at, z0)
+        return PackFit(q, r0, r1, z0, z0 - total / at, total, rms(sse), rms(sse) <= gate,
+                       searched, free, more)  # fmt: skip
+
     def cost(q: float) -> float:
         sse = solve(q, z0)[0]
         # the residual variance per sample against the capacity prior, as a log-likelihood
         return n * np.log(max(sse / n, 1e-12)) + ((q - rated_ah) / sigma) ** 2
 
-    span = float(used[-1]) / rated_ah
-    if span >= float(spec["min_soc_span"]) and chem.charge_from_voltage:
-        golden = (np.sqrt(5) - 1) / 2
-        a, b = lo, hi
-        c, d = b - golden * (b - a), a + golden * (b - a)
-        for _ in range(80):
-            if cost(c) < cost(d):
-                b = d
-            else:
-                a = c
-            c, d = b - golden * (b - a), a + golden * (b - a)
-        best = (a + b) / 2
-        sse, r0, r1 = solve(best, z0)
-        q: float | None = best
+    if not chem.charge_from_voltage:
+        return result(None, rated_ah, (rated_ah, rated_ah), False)
+    if total / rated_ah >= span_min:
+        best = _golden(cost, lo, hi)
+        first = result(best, best, (lo, hi), False)
+        inside = lo * EDGE < best < hi / EDGE
     else:
-        q = None
-        sse, r0, r1 = solve(rated_ah, z0)
-    end = z0 - float(used[-1]) / (q or rated_ah)
-    return PackFit(q, r0, r1, z0, end, float(used[-1]), float(np.sqrt(sse / n)))
+        first = result(None, rated_ah, (rated_ah, rated_ah), False)
+        inside = True
+    if inside and first.follows:
+        return first
+    # the rated capacity is far off: search from the least the pack can hold
+    floor = total / max(z0, 1e-6)
+    ceiling = total / span_min
+    if ceiling <= floor * EDGE:
+        return first
+    best = _golden(lambda q: solve(q, z0)[0], floor, ceiling)
+    if best >= ceiling / EDGE:  # more than the flight can show: no capacity
+        return result(None, ceiling, (floor, ceiling), True, ceiling)
+    return result(best, best, (floor, ceiling), True)

@@ -110,6 +110,16 @@
     "max_share": 0.6,
     "defaults": {"RTL_ALT_M": 15.0, "RTL_SPEED_MS": 0.0, "WP_SPD": 10.0, "WP_SPD_UP": 2.5, "WP_SPD_DN": 1.5}
   },
+  "packs": {
+    "about": "Each pack's capacity and resistance over its flights (performance/packs.py; each flight's fit is analyzers/pack.py's, rules/ocv.json 'fit'). A monitor's measured capacity is the median of the capacities its latest `flights` flights of the airframe measured (a flight measures one when it uses at least min_soc_span of the pack), needing min_flights of them. BATTn_CAPACITY more than capacity_share above it is lowered to it, rounded down to round_mah: the capacity failsafe counts down from BATTn_CAPACITY, so a setting above the pack acts with less charge left than BATTn_LOW_MAH. A setting below it is left: it only acts early. A pack has aged when its measured capacity is under aged_capacity of its rated capacity (the end-of-life convention: USABC's test manual and GB/Z 18333.1 end life at 80% of rated), or when its resistance (R0 + R1, the median of its latest `compare` flights) reaches aged_resistance times the median of its first `compare` (200% of initial, the convention the power metrics already cite). Only flights where the pack flew alone on one monitor count towards a pack's history: the import does not record which monitor read which of several packs. Uncalibrated: SITL's packs come back within 2%, real packs are not yet checked.",
+    "flights": 5,
+    "min_flights": 2,
+    "capacity_share": 0.1,
+    "round_mah": 100,
+    "aged_capacity": 0.8,
+    "aged_resistance": 2.0,
+    "compare": 3
+  },
   "report": {
     "about": "What the Range & speed screen and the range card show (performance/report.py): the best airspeed and ground speed into each of headwinds_ms, and on the card the radius out and back with each as the wind, the worst way round.",
     "headwinds_ms": [0.0, 5.0, 10.0]

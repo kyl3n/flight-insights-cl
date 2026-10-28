@@ -39,6 +39,7 @@ from flight_insights.analyzers.flight import FlightError
 from flight_insights.analyzers.motors_health import motors
 from flight_insights.knowledge import Pack as KnowledgePack
 from flight_insights.performance import airframe as perf
+from flight_insights.performance import packs
 from flight_insights.performance.battery import Failsafe, Pack, chemistry
 from flight_insights.performance.envelope import Fast, verified
 from flight_insights.performance.envelope import Inputs as EnvelopeInputs
@@ -113,6 +114,28 @@ def _evidence(store: Store, run_id: str, eid: str) -> Mapping[str, Any] | None:
     return found[0].get("values", {}) if found else None
 
 
+def measured_pack(store: Store, reg: Registry, flight_id: str) -> tuple[float, float, int] | None:
+    """The packs as the airframe's latest flights up to this one measured them, taken as
+    in parallel (as their power is summed): the capacities added, the resistances under
+    held load combined; None unless every monitor of the latest fitted flight has both."""
+    spec: Mapping[str, Any] = reg.rules["performance"]["packs"]
+    upto = packs.flown_upto(store, reg, flight_id)
+    fitted = [packs.fits(store, f.run_id) for f in upto if f.run_id is not None]
+    fitted = [x for x in fitted if x]
+    if not fitted:
+        return None
+    capacity = packs.measured(store, reg, flight_id)
+    monitors = set(fitted[-1])
+    if not monitors <= set(capacity):
+        return None
+    conductance = 0.0
+    for m in monitors:
+        ohms = [x[m].resistance_mohm for x in fitted if m in x][-int(spec["flights"]) :]
+        conductance += 1.0 / max(float(np.median(ohms)) / 1000.0, 1e-6)
+    flights = max(len(capacity[m].flights) for m in monitors)
+    return sum(capacity[m].capacity_mah for m in monitors), 1.0 / conductance, flights
+
+
 def gather(store: Store, cache: ColumnCache, pack: KnowledgePack, airframe_id: str) -> Inputs:
     """Everything the figures need, with where each came from and what is missing."""
     reg = Registry.load(pack)
@@ -150,9 +173,10 @@ def gather(store: Store, cache: ColumnCache, pack: KnowledgePack, airframe_id: s
     if out.top_ms is None:
         out.missing["top"] = "fly level legs (the speed card) so the speeds have a measured span"
 
-    # the pack
+    # the pack: as its monitors measured it (in parallel), else the setup's and BAT.Res
     cells, capacity = _number(a, "cells"), _number(a, "capacity_mah")
-    if cells is None or capacity is None:
+    got = measured_pack(store, reg, flights[-1].id)
+    if cells is None or (capacity is None and got is None):
         out.missing["pack"] = "enter the pack's cells and capacity in the setup"
     else:
         name = str(a.get("battery_chemistry") or "LiPo")
@@ -160,10 +184,18 @@ def gather(store: Store, cache: ColumnCache, pack: KnowledgePack, airframe_id: s
                        for f in flights if f.run_id]  # fmt: skip
         ohms = [v[0] / 1000.0 for v in resistances if v is not None]
         r = float(np.median(ohms)) if ohms else 0.0
-        out.pack = Pack(chemistry(reg.rules["ocv"], name), int(cells), capacity / 1000.0, r)
-        out.sources["pack"] = f"{int(cells)}S {name} of {capacity:g} mAh from the setup, " + (
-            f"{1000 * r:.0f} mOhm over {len(ohms)} flights" if ohms else "no resistance measured"
-        )
+        if got is not None:
+            mah, r, n = got
+            out.sources["pack"] = (f"{int(cells)}S {name} of {mah:.0f} mAh and {1000 * r:.1f} mOhm "
+                                   f"as {n} flights measured it")  # fmt: skip
+        else:
+            assert capacity is not None
+            mah = capacity
+            out.sources["pack"] = f"{int(cells)}S {name} of {capacity:g} mAh from the setup, " + (
+                f"{1000 * r:.0f} mOhm over {len(ohms)} flights" if ohms
+                else "no resistance measured"
+            )  # fmt: skip
+        out.pack = Pack(chemistry(reg.rules["ocv"], name), int(cells), mah / 1000.0, r)
     p = latest.params
     low_v = float(p.get("BATT_LOW_VOLT", 0.0) or 0.0)
     out.failsafe = Failsafe(

@@ -1,0 +1,43 @@
+{
+  "about": "Each pack's capacity and resistance from a flight's voltage against current (analyzers/pack.py; spec: Power and efficiency analysis, 'The battery's usable energy').",
+  "metrics": {
+    "pack.capacity_mah": {
+      "name": {"en": "Pack capacity", "uk": "Ємність батареї"},
+      "unit": "mA.h",
+      "direction": "higher",
+      "definition": {
+        "en": "The charge the first pack (the one the failsafes watch) holds from full to empty, measured on this flight. It falls as a pack ages; under 80% of its rated capacity is the usual end of life.",
+        "uk": "Заряд, який перша батарея (та, за якою стежать аварійні режими) вміщує від повної до порожньої, виміряний у цьому польоті. Він падає зі старінням батареї; менше 80% номінальної ємності — звичайна межа ресурсу."
+      },
+      "method": {
+        "en": "The terminal voltage fitted as cells x OCV(start charge - charge used / capacity) - R0 I - R1 (I low-passed), every BAT row from arming until a cell falls below the chemistry's cutoff; the start charge from the voltage at rest. Only when the flight used at least 30% of the pack.",
+        "uk": "Напруга на клемах апроксимується як кількість елементів x OCV(початковий заряд - витрачений заряд / ємність) - R0 I - R1 (I після фільтра нижніх частот) за всіма рядками BAT від озброєння, доки напруга елемента не впаде нижче порогу хімії; початковий заряд — за напругою в спокої. Лише якщо політ використав щонайменше 30% батареї."
+      },
+      "messages": ["BAT"],
+      "source": {
+        "kind": "baseline",
+        "title": "Judged against the pack's rated capacity: 80% of rated ends life (USABC Electric Vehicle Battery Test Procedures Manual; GB/Z 18333.1-2001)"
+      }
+    },
+    "pack.resistance_mohm": {
+      "name": {"en": "Pack resistance (fitted)", "uk": "Опір батареї (апроксимований)"},
+      "unit": "mOhm",
+      "direction": "lower",
+      "definition": {
+        "en": "The first pack's resistance under a held load: the instant drop R0 plus the slower one R1 that builds over tens of seconds, fitted from the whole flight's voltage against current. It rises as a pack ages or gets cold; 200% of its first flights is the usual end of life.",
+        "uk": "Опір першої батареї під тривалим навантаженням: миттєве падіння R0 плюс повільніше R1, що наростає за десятки секунд, апроксимовані за напругою й струмом усього польоту. Він росте зі старінням або охолодженням батареї; 200% від перших польотів — звичайна межа ресурсу."
+      },
+      "method": {
+        "en": "R0 + R1 from the same fit as the pack's capacity, by least squares over every BAT row from arming until a cell falls below the chemistry's cutoff.",
+        "uk": "R0 + R1 з тієї самої апроксимації, що й ємність, методом найменших квадратів за всіма рядками BAT від озброєння, доки напруга елемента не впаде нижче порогу хімії."
+      },
+      "messages": ["BAT"],
+      "source": {
+        "kind": "baseline",
+        "title": "Judged against the pack's own first flights; 200% of initial is the end-of-life convention (Barcellona et al., Politecnico di Milano)",
+        "url": "https://re.public.polimi.it/handle/11311/1227399"
+      }
+    }
+  },
+  "findings": {}
+}
