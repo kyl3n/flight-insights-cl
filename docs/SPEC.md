@@ -679,7 +679,7 @@ Added to Phase 2 on 2026-10-27 at the fleet owner's request, and built in steps 
 - **The speed goal is the user's choice.** It is "efficient" (the default) or "fastest safe". With "fastest safe", the app helps push the airframe to the most speed it can safely hold. It watches vibration, motor and ESC temperatures and every other metric that guards against losing the aircraft. It makes sure the tune, filters and settings are right first, and it names what would let it go faster.
 - **Phase 2, now.** It is flown alongside the HL1 gate flights. The Phase 2 gate is unchanged.
 
-**The power model** (`performance/`: the points and the fit are built; the airframe's stored model and what it shows are not yet). It is fitted per airframe and build version, with weight as a variable.
+**The power model** (`performance/`: the points, the fit and the airframe's stored model are built; what the screens show is not yet). It is fitted per airframe and build version, with weight as a variable.
 
 - **What is fitted:** the battery's terminal power (volts times amps, summed over the pack monitors), in steady 2 s tiles of level flight, hover, climb and descent.
 - **Steady tiles and phases** (measured now, `analyzers/steady.py`, rules in `rules/energy.json`):
@@ -716,6 +716,18 @@ Added to Phase 2 on 2026-10-27 at the fleet owner's request, and built in steps 
   - the shape partly from theory, marked, with ordinary flights;
   - hover endurance only, with hovers alone.
 - **Extrapolation** past the speeds and weights flown is drawn dashed and labelled.
+- **The airframe's model** (`performance/airframe.py`):
+  - **Inputs:** every flight of the airframe gives its points or the reason it gives none. A flight whose weight is not known gives none to the fit.
+  - **Rotors:** the discs of its motor frame (a coaxial pair shares its arm's disc), at the setup's propeller diameter.
+  - **Storage:** it is kept in the local table `performance_fit`, never synced, with what it was made from:
+    - the engine and the knowledge;
+    - the airframe, its build and its platform's setup;
+    - each flight with its latest analysis and weather record.
+
+    Any change, and it is made again on the next request.
+  - **RPC:**
+    - `airframe.performance_model`: the fit, its intervals, each flight's leave-one-out energy error, and what each flight gave;
+    - `airframe.performance_points`: the points as an Arrow IPC file. Columns are airspeed, climb, power, air density, weight, phase and seconds, with no time and no heading.
 
 **The battery's usable energy** (the model, the discharge and the usable energy against load are worked out, `performance/battery.py`; capacity per pack over its cycles is not yet).
 
