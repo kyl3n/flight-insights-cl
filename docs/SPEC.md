@@ -737,14 +737,24 @@ Added to Phase 2 on 2026-10-27 at the fleet owner's request, and built in steps 
   - at cruise: the level tiles' energy over their own distance.
 - **Where the energy went:** the energy in each steady tile's phase (low, hover, level, climb, descent, manoeuvre), and what fell between tiles. The parts add up to the whole.
 
-**What the user gets** (not yet; the screens wait for their mock-ups).
+**What the user gets** (the speeds and the radius are worked out, `performance/optimize.py` and `radius.py`; the projections, the stored model and the screens are not yet).
 
 - **Speeds:**
   - best-endurance speed (minimum power);
   - best-range speed (the tangent from the origin);
   - the long-range cruise speed (99% of best range);
   - each with the band within 2% of it.
-- **Wind.** ArduPilot holds ground speed, so the cruise speed for an out-and-back trip is chosen against the airframe's own measured winds, and the card gives the speed to fly into a headwind.
+- **Wind.**
+  - ArduPilot holds ground speed, so the cruise speed for an out-and-back trip is chosen against the airframe's own measured winds.
+  - The card gives the speed to fly into a headwind: least energy per metre over the ground.
+  - A crosswind takes airspeed to hold the track: the ground speed is the wind along the track plus √(V² − wind across²).
+  - With one speed setting for out and back, both legs fly the same ground speed. The best setting has the least energy for the two legs per metre.
+- **Radius.**
+  - Each trip climbs to its height (40 m by default), flies out, hovers at the site (the drop's 30 s, or the site's 5 minutes), flies back and descends at hover power.
+  - Each leg flies its own best airspeed in its wind, up to the verified speed.
+  - The fixed energy comes off the budget first. The radius is what is left over the two legs' energy per metre.
+  - The worst direction is searched every 5° relative to the wind.
+  - On an out-and-back trip a wind along the track costs the same whichever way it blows. On a drop trip the way home is flown lighter.
 - **Projections:**
   - flight time (hover and best);
   - range;
