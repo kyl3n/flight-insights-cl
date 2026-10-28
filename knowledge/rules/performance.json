@@ -87,7 +87,14 @@
     "esc_margin_c": 10.0,
     "trend_gap_ms": 1.0,
     "tracking_growth": 1.5,
-    "required": ["lean", "thrust", "current"]
+    "required": ["lean", "thrust", "current"],
+    "solutions_about": "What moves each limit the models predict, and by how much (envelope.gains): the airspeed the limit allows again with the change, less what it allows now. drag_share scales the frame's flat-plate drag (the wind fit's k2 and the power model's drag area; the rotors' in-plane force stays), thrust_share the thrust for the same throttle (the hover throttle divided by it: larger or higher-pitch propellers, higher KV or voltage), mass_share the weight, rating_share the packs' continuous rating and MOT_BAT_CURR_MAX, heating_share how much a current heats the ESCs (cooling). Round numbers to compare levers by, not a design.",
+    "solutions": {
+      "lean": [{"name": "drag", "drag_share": 0.85}],
+      "thrust": [{"name": "thrust", "thrust_share": 1.1}, {"name": "weight", "mass_share": 0.9}],
+      "current": [{"name": "rating", "rating_share": 1.25}, {"name": "drag", "drag_share": 0.85}],
+      "esc_temp": [{"name": "cooling", "heating_share": 0.8}, {"name": "drag", "drag_share": 0.85}]
+    }
   },
   "advice": {
     "about": "What the plan proposes from the power model (performance/advice.py): WP_SPD at the speed the setup's Priority calls for (endurance: least power; otherwise least energy per km of radius out and back over the airframe's measured winds, each from speeds.directions directions), rounded to cruise_step_ms; RTL_SPEED_MS at least energy per metre into the median measured wind as a headwind, rounded to home_step_ms (its increment). Nothing while the setting is within speeds.band_share of the best or the best is under min_cruise_ms. A raise of raise_up_to_verified goes no further than the verified speed less the median wind; uncalibrated until checked against the airframe's own flights to reserve.",

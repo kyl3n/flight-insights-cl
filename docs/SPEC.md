@@ -825,7 +825,7 @@ Added to Phase 2 on 2026-10-27 at the fleet owner's request, and built in steps 
     The card also gives what it is good for: the weights and speeds flown, the air, the reserve and the latest flight's parameters.
   - An unknown airframe is refused as bad input.
 
-**The speed build-up** (when the speed goal is "fastest safe"; the verified speed, the step and its predicted margins are worked out, `performance/envelope.py` and `thermal.py`, and given to the plan with the step's procedure, `performance/buildup.py`; the readiness checks, the gains each solution would bring and the lean-limit raises are not yet).
+**The speed build-up** (when the speed goal is "fastest safe"; the verified speed, the step and its predicted margins are worked out, `performance/envelope.py` and `thermal.py`, and given to the plan with the step's procedure and what each solution to a binding limit would gain, `performance/buildup.py`; the readiness checks and the lean-limit raises are not yet).
 
 - **Verified speed:** the fastest fast segment (below) the airframe held for 10 s or more at the same weight or heavier (within 3%), with every watched metric that has zones in its target zone. A flight with anything outside its target verifies nothing.
 - **Each step:**
@@ -858,7 +858,15 @@ Added to Phase 2 on 2026-10-27 at the fleet owner's request, and built in steps 
   - **The test-flight logging:** `LOG_BITMASK` bits 1, 4, 5, 7, 9, 10 and 17, which log attitude, control, navigation, vibration, battery, outputs and motors (ArduCopter 4.7.0 `Copter.cpp` and `Log.cpp`; ESC telemetry logs whenever logging is on).
   - **Abort criteria,** with the undo file.
   - **The next flight's checks** (graded by its checks alone): its fast segment reaches 97% of the step speed (`reaches_proposed`), and every watched metric with zones is in target (`in_target`). The step is then the verified speed.
-- **When a limit binds:** the app says which one and what moves it. The gain the models predict for each solution is not yet given.
+- **When a limit binds:** the app says which one and what moves it. For the limits the models predict, it also gives (`envelope.gains`):
+  - **the airspeed the limit allows now:** the fastest at which it holds, searched every 0.5 m/s up to 40 m/s, then every 0.05 m/s past the last that holds;
+  - **how much faster each solution would let it fly,** with the rules' round numbers to compare levers by, not a design:
+    - **lean:** 15% less drag area;
+    - **thrust:** 10% more thrust (larger or higher-pitch propellers, higher KV or voltage), or 10% less weight;
+    - **current:** packs rated 25% higher, or 15% less drag area;
+    - **ESC temperature:** cooling that cuts their heating by 20%, or 15% less drag area.
+
+    Less drag area scales the frame's own drag and the power model's drag area, not the rotors' in-plane force.
 - **Not yet:**
   - the build-up's own readiness checks, among them the notch's tracking range covering the motor frequency at top-speed throttle;
   - raising the lean limits within the thrust headroom.

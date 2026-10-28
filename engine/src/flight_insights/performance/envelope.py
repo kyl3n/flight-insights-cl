@@ -33,7 +33,7 @@ speed build-up"; rules in `knowledge/rules/performance.json` "envelope").
 from __future__ import annotations
 
 from collections.abc import Mapping, Sequence
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 from typing import Any
 
 import numpy as np
@@ -130,17 +130,13 @@ def _target_limit(reg: Registry, metric: str) -> float:
     return float(high)
 
 
-def step(history: Sequence[Fast], inputs: Inputs, mass_kg: float, density: float,
-         reg: Registry) -> Step:  # fmt: skip
-    """The next step at this weight and air, what the models predict there, and whether it
-    is offered."""
+def model_checks(inputs: Inputs, at: float, mass_kg: float, density: float,
+                 reg: Registry) -> tuple[list[Check], list[str]]:  # fmt: skip
+    """The checks the models predict at an airspeed (lean, thrust, current, ESC
+    temperature), and those they cannot predict."""
     rules: Mapping[str, Any] = reg.rules["performance"]
     wind_rules: Mapping[str, Any] = reg.rules["wind"]["envelope"]
     spec: Mapping[str, Any] = rules["envelope"]
-    base = verified(history, mass_kg, rules)
-    if base is None:
-        return Step(None, None, (), ("verified",), "verified", False)
-    at = next_speed(base.speed_ms, rules)
     checks: list[Check] = []
     missing: list[str] = []
 
@@ -171,6 +167,86 @@ def step(history: Sequence[Fast], inputs: Inputs, mass_kg: float, density: float
             missing.append("esc_temp")
     else:
         missing.append("current")
+    return checks, missing
+
+
+def _holds(name: str, inputs: Inputs, at: float, mass_kg: float, density: float,
+           reg: Registry) -> bool | None:  # fmt: skip
+    found = [c for c in model_checks(inputs, at, mass_kg, density, reg)[0] if c.name == name]
+    return found[0].holds if found else None
+
+
+def allows(name: str, inputs: Inputs, mass_kg: float, density: float, reg: Registry) -> float:
+    """The fastest airspeed at which the model's check `name` holds, searched up to the top
+    speed's search end every half metre a second, then to its step past the last that
+    holds; 0 when it holds at none. The current dips past the hover and rises again
+    (the power's bucket), so it is the fastest that holds, not the first that fails."""
+    spec: Mapping[str, Any] = reg.rules["performance"]["top_speed"]
+    top, fine = float(spec["search_ms"]), float(spec["step_ms"])
+    coarse = np.arange(0.5, top + 0.25, 0.5)
+    ok = [v for v in coarse if _holds(name, inputs, float(v), mass_kg, density, reg)]
+    if not ok:
+        return 0.0
+    last = float(max(ok))
+    if last >= top:
+        return top
+    for v in np.arange(last + fine, last + 0.5, fine)[::-1]:
+        if _holds(name, inputs, float(v), mass_kg, density, reg):
+            return float(v)
+    return last
+
+
+def _solved(solution: Mapping[str, Any], inputs: Inputs, mass_kg: float) -> tuple[Inputs, float]:
+    """The inputs and weight with one of the rules' solutions applied."""
+    if "drag_share" in solution:  # the frame's flat plate: its drag and its parasite power
+        k = float(solution["drag_share"])
+        basis = replace(inputs.basis, drag=replace(inputs.basis.drag, k2=inputs.basis.drag.k2 * k))
+        model = replace(inputs.model, drag_area=inputs.model.drag_area * k)
+        return replace(inputs, basis=basis, model=model), mass_kg
+    if "thrust_share" in solution:  # as much more thrust: the hover throttle that much lower
+        throttle = inputs.basis.throttle
+        if throttle is None:
+            return inputs, mass_kg
+        basis = replace(inputs.basis, throttle=throttle / float(solution["thrust_share"]))
+        return replace(inputs, basis=basis), mass_kg
+    if "mass_share" in solution:
+        return inputs, mass_kg * float(solution["mass_share"])
+    if "rating_share" in solution:  # the packs' rating and MOT_BAT_CURR_MAX alike
+        k = float(solution["rating_share"])
+        params = dict(inputs.params)
+        if params.get("MOT_BAT_CURR_MAX"):
+            params["MOT_BAT_CURR_MAX"] = float(params["MOT_BAT_CURR_MAX"]) * k
+        rating = inputs.current_a * k if inputs.current_a else None
+        return replace(inputs, params=params, current_a=rating), mass_kg
+    if "heating_share" in solution:  # cooler ESCs: the same current heats them less
+        k = float(solution["heating_share"])
+        return replace(inputs, thermals=[replace(t, k=t.k * k) for t in inputs.thermals]), mass_kg
+    raise ValueError(f"an unknown solution: {dict(solution)}")
+
+
+def gains(name: str, inputs: Inputs, mass_kg: float, density: float,
+          reg: Registry) -> tuple[float, dict[str, float]]:  # fmt: skip
+    """The airspeed the model's check `name` allows now, and how much faster each of the
+    rules' solutions for it would let the airframe fly."""
+    now = allows(name, inputs, mass_kg, density, reg)
+    out: dict[str, float] = {}
+    for solution in reg.rules["performance"]["envelope"]["solutions"].get(name, ()):
+        changed, mass = _solved(solution, inputs, mass_kg)
+        out[str(solution["name"])] = allows(name, changed, mass, density, reg) - now
+    return now, out
+
+
+def step(history: Sequence[Fast], inputs: Inputs, mass_kg: float, density: float,
+         reg: Registry) -> Step:  # fmt: skip
+    """The next step at this weight and air, what the models predict there, and whether it
+    is offered."""
+    rules: Mapping[str, Any] = reg.rules["performance"]
+    spec: Mapping[str, Any] = rules["envelope"]
+    base = verified(history, mass_kg, rules)
+    if base is None:
+        return Step(None, None, (), ("verified",), "verified", False)
+    at = next_speed(base.speed_ms, rules)
+    checks, missing = model_checks(inputs, at, mass_kg, density, reg)
 
     flown = _comparable(history, mass_kg, rules)
     for name, metric in TRENDS.items():
