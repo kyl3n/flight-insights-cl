@@ -1,0 +1,38 @@
+{
+  "about": "Findings the recommendation engine raises from the airframe's power model (performance/advice.py; spec: Power and efficiency analysis, 'Range, endurance and speed', 'Recommendations'), not from one log's data alone. Each rests on the flight's own energy (energy:flight) and is low confidence until the model is checked against the airframe's own flights to reserve.",
+  "findings": {
+    "performance.cruise_speed": {
+      "stage": "navigation",
+      "title": {
+        "en": "WP_SPD of {current_ms} m/s costs {loss_pct}% more than {best_ms} m/s, the best speed for the setup's Priority at {mass_kg} kg",
+        "uk": "WP_SPD {current_ms} м/с коштує на {loss_pct}% більше, ніж {best_ms} м/с — найкраща швидкість для пріоритету з налаштувань при {mass_kg} кг"
+      },
+      "action": {
+        "en": "Set WP_SPD to {proposed_ms} m/s: {gain_pct}% less energy for the same work. For range it is the ground speed with the least energy per km of radius out and back, over the {winds} winds the airframe has met from every direction; for endurance, the airspeed of least power. A raise goes no further than the speed the airframe has verified at this weight less its typical wind ({typical_wind_ms} m/s).",
+        "uk": "Встановіть WP_SPD на {proposed_ms} м/с: на {gain_pct}% менше енергії на ту саму роботу. Для дальності це шляхова швидкість із найменшою енергією на кілометр радіуса туди й назад за {winds} вітрів, які апарат зустрічав, з усіх напрямків; для тривалості — повітряна швидкість найменшої потужності. Підвищення не йде далі за швидкість, яку апарат підтвердив за цієї ваги, мінус його типовий вітер ({typical_wind_ms} м/с)."
+      }
+    },
+    "performance.cruise_unverified": {
+      "stage": "navigation",
+      "title": {
+        "en": "The best cruise speed, {best_ms} m/s, is faster than the airframe has verified at {mass_kg} kg",
+        "uk": "Найкраща крейсерська швидкість, {best_ms} м/с, більша за ту, яку апарат підтвердив при {mass_kg} кг"
+      },
+      "action": {
+        "en": "Raises go no further than the fastest the airframe has held for 10 s at this weight or heavier with every watched metric in target ({verified_ms} m/s, 0 when none), less its typical wind ({typical_wind_ms} m/s): {limit_ms} m/s. Fly the speed card at this weight; its fastest legs, held steady with vibration, motors, temperatures and tracking in target, verify a faster speed.",
+        "uk": "Підвищення не йде далі за найбільшу швидкість, яку апарат утримував 10 с за цієї чи більшої ваги з усіма спостережуваними показниками в цільовій зоні ({verified_ms} м/с, 0 — якщо такої немає), мінус його типовий вітер ({typical_wind_ms} м/с): {limit_ms} м/с. Виконайте картку розгону за цієї ваги; її найшвидші відрізки, витримані рівно з вібрацією, моторами, температурами й відстеженням у цільовій зоні, підтвердять більшу швидкість."
+      }
+    },
+    "performance.rtl_speed": {
+      "stage": "navigation",
+      "title": {
+        "en": "Flying home at {current_ms} m/s into the typical {typical_wind_ms} m/s wind costs {loss_pct}% more energy per metre than {proposed_ms} m/s",
+        "uk": "Політ додому на {current_ms} м/с проти типового вітру {typical_wind_ms} м/с коштує на {loss_pct}% більше енергії на метр, ніж {proposed_ms} м/с"
+      },
+      "action": {
+        "en": "Set RTL_SPEED_MS to {proposed_ms} m/s ({gain_pct}% less charge per metre home; the best is {best_ms} m/s at {mass_kg} kg): the ground speed of least energy per metre into the airframe's typical wind, so a return home takes the least charge. A raise goes no further than the verified speed less that wind.",
+        "uk": "Встановіть RTL_SPEED_MS на {proposed_ms} м/с (на {gain_pct}% менше заряду на метр додому; найкраща — {best_ms} м/с при {mass_kg} кг): шляхова швидкість найменшої енергії на метр проти типового вітру апарата, щоб повернення додому забирало найменше заряду. Підвищення не йде далі за підтверджену швидкість мінус цей вітер."
+      }
+    }
+  }
+}

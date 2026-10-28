@@ -24,8 +24,8 @@ SETUP = CALLISTO | {"cells": 12, "capacity_mah": 30000, "battery_chemistry": "Li
                     "max_current_a": 300, "reserve_pct": 20, "pack_mass_kg": 8}  # fmt: skip
 
 
-@pytest.fixture(scope="module")
-def fleet(tmp_path_factory: pytest.TempPathFactory) -> dict[str, Any]:
+def make_fleet(tmp_path_factory: pytest.TempPathFactory) -> dict[str, Any]:
+    """The simulator's Callisto flown light and loaded, and a hover-only airframe."""
     keys = StoreKeys.generate()
     folder = tmp_path_factory.mktemp("report")
     store = open_store(folder / "r.db", keys, "e" * 32)
@@ -36,6 +36,11 @@ def fleet(tmp_path_factory: pytest.TempPathFactory) -> dict[str, Any]:
     bare = airframe(store, "Callisto, no pack", CALLISTO | {"typical_takeoff_kg": 32.5})
     flown(store, cache, "copter-heavylift-discharge", bare, 32.5)
     return {"store": store, "cache": cache, "airframe": af, "bare": bare}
+
+
+@pytest.fixture(scope="module")
+def fleet(tmp_path_factory: pytest.TempPathFactory) -> dict[str, Any]:
+    return make_fleet(tmp_path_factory)
 
 
 @pytest.fixture(scope="module")

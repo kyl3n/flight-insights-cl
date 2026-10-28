@@ -75,7 +75,15 @@ def flight_plan(
     findings += followup.revert_findings(store, flight_id, dialect, params)
     findings += followup.drill_findings(store, reg, flight_id, analysis)
     findings += followup.sweep_findings(store, reg, flight_id, analysis)
-    plan = build_plan(flight_id, findings, params, dialect, reg)
+    from flight_insights.performance import advice  # it reads trends, which plans flights
+
+    speed = (
+        advice.speed_advice(store, cache, pack, reg, flight_id, params, analysis)
+        if cache is not None
+        else advice.Advice()
+    )
+    findings += speed.findings
+    plan = build_plan(flight_id, findings, params, dialect, reg, speed.raise_limits)
     plan.held_back = held
     return plan
 

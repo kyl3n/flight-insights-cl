@@ -20,7 +20,12 @@
     "raise": {
       "names": ["ATC_ANGLE_MAX", "PSC_ANGLE_MAX", "LOIT_ANG_MAX", "ATC_RATE_*_MAX", "ATC_ACC_*_MAX", "PILOT_SPD_*", "PILOT_ACC_Z", "WP_SPD*", "WP_ACC*", "LOIT_SPEED_MS", "LOIT_ACC_MAX_M", "RTL_SPEED_MS", "FENCE_ALT_MAX", "FENCE_RADIUS", "MOT_SPIN_MAX"],
       "zero_means_unlimited": ["ATC_RATE_*_MAX", "ATC_ACC_*_MAX", "PSC_ANGLE_MAX", "LOIT_ANG_MAX"],
-      "why": "No analyzer yet measures what the airframe can do beyond what it has flown, so a limit is never raised automatically."
+      "zero_means": {"RTL_SPEED_MS": "WP_SPD"},
+      "why": "A limit is never raised past what the airframe has shown it can do. The one exception: WP_SPD, LOIT_SPEED_MS and RTL_SPEED_MS may rise up to the airframe's verified speed less its typical wind (performance/advice.py), the fastest it has held at the flight's weight or heavier with every watched metric in target. RTL_SPEED_MS at 0 flies at WP_SPD."
+    },
+    "lower": {
+      "names": ["BATT*_LOW_MAH", "BATT*_CRT_MAH"],
+      "why": "Lowering the charge a battery failsafe keeps back leaves less to get home on."
     }
   },
   "any_stage": {
@@ -220,6 +225,10 @@
     "never_disable": {
       "en": "Setting {param} to 0 switches a failsafe off: never proposed automatically.",
       "uk": "Значення 0 для {param} вимикає аварійний режим: ніколи не пропонується автоматично."
+    },
+    "never_lower": {
+      "en": "Lowering {param} leaves less charge for the way home: never proposed automatically.",
+      "uk": "Зменшення {param} залишає менше заряду на дорогу додому: ніколи не пропонується автоматично."
     },
     "never_raise": {
       "en": "Raising {param} past what the logs show the aircraft can do is never proposed automatically.",
