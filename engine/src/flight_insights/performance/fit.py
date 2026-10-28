@@ -83,6 +83,7 @@ class Fitted:
     lofo: Mapping[str, float]  # flight: relative error of its energy predicted without it
     bootstrap: Mapping[str, tuple[float, float]]  # coefficient: 95% interval
     left_out: int  # points where momentum theory fails
+    replicates: tuple[Model, ...] = ()  # the bootstrap's models, for the projections' spread
 
 
 def _columns(thrust: Array, normal: Array, edgewise: Array, vh: Array, vi: Array) -> Array:
@@ -265,6 +266,7 @@ def fitted(rows: Sequence[Row], disc_area: float, coaxial: bool, rules: Mapping[
                 lofo[name] = energy_error(without, [r for r in rows if r.flight == name], rules)
     rng = np.random.default_rng(int(spec["seed"]))
     draws: dict[str, list[float]] = {n: [] for n in (*NAMES, "drag_area")}
+    replicates: list[Model] = []
     if len(names) >= 2:
         by = {n: [r for r in rows if r.flight == n] for n in names}
         for _ in range(int(spec["bootstrap"])):
@@ -278,6 +280,7 @@ def fitted(rows: Sequence[Row], disc_area: float, coaxial: bool, rules: Mapping[
             again = fit(sample, disc_area, coaxial, rules)
             if again is None:
                 continue
+            replicates.append(again)
             for n in draws:
                 draws[n].append(float(getattr(again, n)))
     tail = (1.0 - float(spec["level"])) / 2 * 100
@@ -288,4 +291,4 @@ def fitted(rows: Sequence[Row], disc_area: float, coaxial: bool, rules: Mapping[
                  np.array([r.airspeed for r in rows]), np.array([r.climb for r in rows]),
                  rules).valid  # fmt: skip
     return Fitted(model, level(rows, rules), len(rows), len(names), lofo, bootstrap,
-                  int(np.count_nonzero(~np.asarray(valid, bool))))  # fmt: skip
+                  int(np.count_nonzero(~np.asarray(valid, bool))), tuple(replicates))  # fmt: skip
