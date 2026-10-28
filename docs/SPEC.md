@@ -738,7 +738,7 @@ Added to Phase 2 on 2026-10-27 at the fleet owner's request, and built in steps 
   - at cruise: the level tiles' energy over their own distance.
 - **Where the energy went:** the energy in each steady tile's phase (low, hover, level, climb, descent, manoeuvre), and what fell between tiles. The parts add up to the whole.
 
-**What the user gets** (the speeds, the radius, the projections, the efficiency figures and the what-ifs are worked out, `performance/optimize.py`, `radius.py` and `project.py`; maximum speed, the stored model and the screens are not yet).
+**What the user gets** (the speeds, the radius, the projections, the efficiency figures, the what-ifs and maximum speed are worked out, `performance/optimize.py`, `radius.py`, `project.py` and `top_speed.py`; the stored model and the screens are not yet).
 
 - **Speeds:**
   - best-endurance speed (minimum power);
@@ -765,7 +765,11 @@ Added to Phase 2 on 2026-10-27 at the fleet owner's request, and built in steps 
   - **A trip's energy** is read at the trip's mean power, repeated until the two agree. A varying load loses a fraction of a per cent more to the pack's resistance than a steady one at its mean; that is well inside the model's error.
   - **Against weight:** nine weights from empty to the heaviest take-off. A weight within 5% of the weights flown is marked measured; the rest are extrapolated. Weights the pack cannot hover are left out.
   - **How sure:** each figure again for every bootstrap model (once the airframe has 3 flights or more; with fewer, resampling mostly refits one flight alone), each with a zero-mean model error sized by the leave-one-flight-out errors' root mean square. Those errors come from a model fitted on fewer flights, so they size the spread rather than shift it. The 95% interval is shown about the model's own figure, and the card uses the low end.
-- **Maximum speed:** the least of the lean limit (from the measured drag at that weight), thrust headroom and the power or current limit. It is shown beside the configured `WP_SPD`, `LOIT_SPEED_MS` and the firmware's caps.
+- **Maximum speed:** the least of three limits, shown beside the configured `WP_SPD`, `LOIT_SPEED_MS` and the firmware's documented ranges.
+  - **Lean.** Flying at a speed through still air takes the lean that holding position in a wind of that speed does. The drag comes from the wind analyzer and is carried to the weight and air: the frame's drag per kilogram as ρ/m, the rotors' in-plane force as √(ρ/m). The limit is `PSC_ANGLE_MAX`, else `ATC_ANGLE_MAX`.
+  - **Thrust.** The lean that keeps the throttle within 80% of full, from the hover throttle measured at a known weight. That throttle grows with the weight and falls with the air. Forward flight needs less throttle than a hover, so this errs slow.
+  - **Current.** The model's power at the lowest voltage the pack reaches before its failsafe (`BATT_LOW_VOLT`, else the cells' cutoff), within the least of the pack's continuous rating and `MOT_BAT_CURR_MAX`.
+  - The answer says which limit binds. Above the fastest airspeed flown it is marked extrapolated.
 - **Efficiency:**
   - hover figure of merit (the ideal power W·v_h over the packs' power) and g/W at standard air;
   - Wh/km at the best-range airspeed;
