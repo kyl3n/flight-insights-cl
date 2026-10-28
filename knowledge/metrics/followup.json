@@ -22,6 +22,17 @@
         "en": "Fly a GNSS-off drill: in calm air over open ground at a safe height, switch GNSS off with the GPS-disable switch (aux function 65) for 30 s, then on again. Its log shows how long the estimator kept a position without GNSS and how far it had drifted, which ranks what would get the aircraft home.",
         "uk": "Виконайте тренування з вимкненим GNSS: у тиху погоду над відкритою місцевістю на безпечній висоті вимкніть GNSS перемикачем вимкнення GPS (допоміжна функція 65) на 30 с, потім увімкніть знову. Журнал покаже, як довго оцінювач утримував позицію без GNSS і наскільки її віднесло, і за цим упорядковуються заходи, що повернуть апарат додому."
       }
+    },
+    "followup.speed_sweep": {
+      "stage": "evidence",
+      "title": {
+        "en": "No speed sweep has been flown at this payload",
+        "uk": "На цьому навантаженні ще не виконано розгону за швидкістю"
+      },
+      "action": {
+        "en": "Fly the speed-sweep card once at each payload you carry: a minute's hover, then straight legs at steady speeds from slow to fast, each flown both ways, in calm air. It measures the power the airframe needs at each airspeed, which gives its best cruise speed, range, radius and flight time; ArduPilot's simulator cannot show it.",
+        "uk": "Виконайте картку розгону за швидкістю один раз на кожному навантаженні, яке ви возите: хвилина зависання, потім прямі відрізки на усталених швидкостях від повільної до швидкої, кожен в обидва боки, у тиху погоду. Вона вимірює потужність, потрібну апарату на кожній повітряній швидкості, а з неї — найкращу крейсерську швидкість, дальність, радіус і тривалість польоту; симулятор ArduPilot цього не показує."
+      }
     }
   }
 }

@@ -513,6 +513,23 @@ def wind_hover(v: Vehicle) -> None:
     land_and_disarm(v)
 
 
+def speed_sweep(v: Vehicle) -> None:
+    """The speed-sweep card, shortened to keep the file small: take off to 15 m, hover 20 s,
+    then legs east and back west, nose first, at 2, 4, 6 and 8 m/s, each long enough to
+    hold its speed at least 10 s after the turn, and land. The default quad leans to its
+    limit at about 10 m/s of airspeed, so the fastest leg into the wind stays under it."""
+    v.mode("GUIDED")
+    v.arm()
+    v.command(ML.MAV_CMD_NAV_TAKEOFF, 0, 0, 0, 0, 0, 0, 15)
+    v.wait_altitude(14.5)
+    guided_velocity(v, 0, 0, 90, 20)
+    for speed in (2.0, 4.0, 6.0, 8.0):
+        hold = 12 + 0.8 * speed
+        guided_velocity(v, 0, speed, 90, hold)
+        guided_velocity(v, 0, -speed, 270, hold)
+    land_and_disarm(v)
+
+
 COPTER = dict(binary="arducopter", model="+", defaults=["default_params/copter.parm"])
 
 # Motor vibration and ESC telemetry as ArduPilot's DynamicRpmNotches autotest simulates
@@ -610,6 +627,8 @@ OPTICAL_FLOW = {
 WIND = {"SIM_WIND_SPD": 6, "SIM_WIND_DIR": 90, "SIM_WIND_TURB": 1}
 # A wind of 5 m/s from the west at every height (SIM_WIND_T 1: no profile), gusting
 STEADY_WIND = {"SIM_WIND_SPD": 5, "SIM_WIND_DIR": 270, "SIM_WIND_T": 1, "SIM_WIND_TURB": 1}
+# A light wind of 1.5 m/s from the west at every height, gusting: along the sweep's legs
+LIGHT_WIND = {"SIM_WIND_SPD": 1.5, "SIM_WIND_DIR": 270, "SIM_WIND_T": 1, "SIM_WIND_TURB": 1}
 WIND_EXPECTED = [
     "GUIDED take-off to 20 m; 6 s legs at 3, 6 and 9 m/s on eight courses, the nose 0, 30"
     " or 60 degrees off the course; then a hover facing eight ways, 5 s each; LAND",
@@ -1206,6 +1225,27 @@ SCENARIOS: dict[str, Scenario] = {
             ],
             fly=wind_legs,
             params=STEADY_WIND,
+            boot_params=FAILSAFE_LOGGING,
+            **COPTER,  # type: ignore[arg-type]
+        ),
+        Scenario(
+            name="copter-quad-sweep",
+            vehicle="copter",
+            frame="quad +",
+            description=(
+                "The speed-sweep card, shortened: a 20 s hover at 15 m, then legs east and"
+                " back west, nose first, at 2, 4, 6 and 8 m/s in GUIDED, in a gusting 1.5 m/s"
+                " wind from the west along the legs (SIM_WIND_T 1)."
+            ),
+            expected=[
+                "GUIDED take-off to 15 m; 20 s hover; legs east and back west at 2, 4, 6"
+                " and 8 m/s, each holding its speed at least 10 s; LAND",
+                "streamed messages capped at 10 Hz (LOG_FILE_RATEMAX): XKF1 at 10 Hz a core",
+                "the energy analyzer: 4 speeds flown both ways, the fastest about 8 m/s",
+                "steady hover windows: 30 s in GUIDED",
+            ],
+            fly=speed_sweep,
+            params=LIGHT_WIND,
             boot_params=FAILSAFE_LOGGING,
             **COPTER,  # type: ignore[arg-type]
         ),

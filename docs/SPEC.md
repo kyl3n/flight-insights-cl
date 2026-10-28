@@ -638,6 +638,25 @@ T is the hover thrust (take-off weight scaled by the payload ratio), ρ is air d
 | Payload | Hover power against payload ratio | Endurance per payload; cost of carrying unused payload |
 | Avionics load | Total minus propulsion | Equipment that can be powered down or moved to a separate pack |
 
+**The speed sweep (measured now).** The cruise-speed lever needs power at several airspeeds for each payload. ArduPilot's simulator cannot provide it: its motors draw power in proportion to thrust (`SIM_Motor.cpp` at Copter-4.7.0), so it shows no drop at moderate forward speed. The data has to come from the aircraft.
+
+- **The card.** A procedure (`followup.speed_sweep`), flown once at each payload the airframe carries:
+  - calm air (wind under 3 m/s) and a straight run of about 400 m;
+  - a 60 s hover;
+  - an out-and-back line in AUTO at one height of 20–40 m, nose first, at 4, 6, 8, 10, 12 and 14 m/s, each speed held at least 20 s each way;
+  - extra speeds stop once the lean passes about 80% of its limit or the speed is no longer held;
+  - optionally, straight climbs at 1, 2 and 3 m/s.
+- **Abort:** switch to Loiter and land on oscillation, a thrust-loss or ESC temperature warning, the battery's caution level, a speed or height not held, or rising wind.
+- **What the analyzer counts** (the energy analyzer, `analyzers/energy.py`, rules `rules/energy.json`):
+  - **Tiles:** 2 s tiles of the primary estimator core's velocity (XKF1), kept when level and steady.
+  - **Legs:** back-to-back tiles holding one speed and track for at least 10 s.
+  - **Pairs:** a leg and the next one, heading back within 30° of the opposite way inside 60 s. A pair reads as its mean speed, which cancels the wind along the legs whether the pilot held the airspeed or ArduPilot the ground speed.
+  - **Speeds:** pairs grouped into speeds 1.5 m/s apart. `energy.sweep_levels` counts them, and `energy.sweep_fastest_ms` is the fastest.
+  - **Privacy:** only ground velocity is read, and only the count and the speeds leave.
+- **Grading:** the next log must count at least four speeds.
+- **When it is offered:** as a follow-up finding at the evidence stage, kind performance, so it never holds a stage back. It is offered for a multirotor flight with battery current logged, while no flight of the airframe in the same payload group, flown no later, counted four speeds (`recommend/followup.py`). The fleet owner chose (2026-10-28) to fly it with HL1's first gate flights.
+- **Checked in the simulator:** `copter-quad-sweep` flies the card in GUIDED at 2, 4, 6 and 8 m/s in a 1.5 m/s wind along the legs, and counts four speeds. The default quad leans to its limit at about 10 m/s of airspeed: flown at 9 m/s into a 3 m/s wind, it held only 7.2 m/s, and that pair rightly counted no new speed.
+
 **Other vehicle types.** Plane: power against airspeed gives the drag polar and best lift-to-drag speed; throttle pumping from TECS wastes energy; steady control-surface offsets at cruise indicate trim drag with a mechanical fix. QuadPlane: energy per transition, share of time in VTOL, energy spent in assist. Heli: power at each governed headspeed the operator has flown, so headspeed choices are compared on data.
 
 ### Electrical system health

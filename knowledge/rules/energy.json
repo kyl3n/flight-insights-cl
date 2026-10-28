@@ -1,0 +1,27 @@
+{
+  "about": "Energy, range and speed (spec: Power and efficiency analysis, 'Range, endurance and speed'; analyzers/energy.py). Uncalibrated against real aircraft: checked on synthetic flights and in ArduPilot's simulator.",
+  "uncalibrated": true,
+  "sweep": {
+    "about": "The speed sweep (procedure followup.speed_sweep): straight legs held at steady speeds, each flown both ways. The flight is cut into tile_s tiles of the primary estimator core (XKF1); a tile is level and steady when it holds at least min_samples rows, flies at least min_height_m above take-off, at a ground speed of at least min_speed_ms, accelerating under max_accel m/s/s, climbing or descending under max_climb m/s, and turning its track under max_turn_deg_s. Back-to-back steady tiles whose ground speed stays within leg_speed_ms of the leg's mean and whose track stays within leg_track_deg of its first tile make a leg; legs of at least min_leg_s count. A leg and the next one make a pair, flown both ways, when the next starts within pair_gap_s, heads within reciprocal_deg of the opposite way, and differs in ground speed by at most pair_speed_ms (twice the strongest wind the card allows, for a pilot holding the airspeed; ArduPilot holding WP_SPD keeps the two alike). A pair's speed is the mean of its two, which cancels the wind along the legs. Pairs sorted by speed split into levels where the next is more than level_gap_ms faster. The sweep is measured once min_levels levels are flown; the follow-up offers the card until a flight of the airframe in the same payload group has.",
+    "tile_s": 2.0,
+    "min_samples": 10,
+    "min_height_m": 5.0,
+    "min_speed_ms": 1.0,
+    "max_accel": 0.3,
+    "max_climb": 0.3,
+    "max_turn_deg_s": 5.0,
+    "leg_speed_ms": 0.75,
+    "leg_track_deg": 15.0,
+    "min_leg_s": 10.0,
+    "level_gap_ms": 1.5,
+    "pair_gap_s": 60.0,
+    "reciprocal_deg": 30.0,
+    "pair_speed_ms": 6.0,
+    "min_levels": 4,
+    "sources": [
+      "Power against airspeed comes from level segments flown at steady speed: the minimum is the best-endurance speed and the tangent from the origin the best-range speed (Leishman, Principles of Helicopter Aerodynamics, 2nd ed., 2006, ch. 5, 'Performance'). On multirotors the curve's shape depends on payload and speed and is measured, not assumed (Rodrigues et al., In-flight positional and energy use data set of a DJI Matrice 100 quadcopter for small package delivery, Scientific Data 8, 2021, doi:10.1038/s41597-021-00930-x: legs at several speeds and three payloads).",
+      "Reciprocal legs: flying a leg both ways at one setpoint and averaging cancels the wind along it, the standard way to measure airspeed performance without an air-data sensor (FAA Advisory Circular 23-8C, Flight Test Guide, 2011, 'Airspeed calibration' ground-course method).",
+      "ArduPilot's simulator draws power in proportion to thrust (libraries/SITL/SIM_Motor.cpp at Copter-4.7.0: current = power_factor * |thrust| / voltage), so it shows no drop in power at moderate forward speed: the sweep has to be flown on the aircraft."
+    ]
+  }
+}

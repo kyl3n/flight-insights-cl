@@ -1,0 +1,24 @@
+source: sitl
+vehicle: copter
+frame: quad +
+firmware: 4.7.0
+ardupilot_commit: 1511f27194f1dcc3728270883047bdf022b3fd53
+scenario: copter-quad-sweep
+description: 'The speed-sweep card, shortened: a 20 s hover at 15 m, then legs east
+  and back west, nose first, at 2, 4, 6 and 8 m/s in GUIDED, in a gusting 1.5 m/s
+  wind from the west along the legs (SIM_WIND_T 1).'
+parameters_set:
+  LOG_DISARMED: 0
+  SIM_ESC_TELEM: 0
+  LOG_FILE_RATEMAX: 10
+  SIM_WIND_SPD: 1.5
+  SIM_WIND_DIR: 270
+  SIM_WIND_T: 1
+  SIM_WIND_TURB: 1
+faults: []
+expected:
+- GUIDED take-off to 15 m; 20 s hover; legs east and back west at 2, 4, 6 and 8 m/s,
+  each holding its speed at least 10 s; LAND
+- 'streamed messages capped at 10 Hz (LOG_FILE_RATEMAX): XKF1 at 10 Hz a core'
+- 'the energy analyzer: 4 speeds flown both ways, the fastest about 8 m/s'
+- 'steady hover windows: 30 s in GUIDED'
