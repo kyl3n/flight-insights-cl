@@ -30,11 +30,11 @@ KEYED = {  # finding parameters, evidence values: snake_case keys, scalar values
     "additionalProperties": False,
     "maxProperties": 64,
 }
-# Distances worked out from positions on this laptop (rules/scrubber.json
-# "position_derived"): in evidence, each is one whole number of metres, never a list or a
-# finer value. The shell's check holds the same list on its own (scrub.rs).
+# Distances worked out on this laptop (rules/scrubber.json "position_derived"), from
+# positions or from the ground speed: in evidence, each is one whole number of metres, never
+# a list or a finer value. The shell's check holds the same list on its own (scrub.rs).
 POSITION_METRES = (
-    "drift_m", "drift_m_per_min", "largest_altitude_gap_m", "largest_receivers_gap_m",
+    "drift_m", "drift_m_per_min", "flown_m", "largest_altitude_gap_m", "largest_receivers_gap_m",
     "largest_reset_m", "largest_track_gap_m",
 )  # fmt: skip
 EVIDENCE_VALUES = KEYED | {"properties": {k: {"type": "integer"} for k in POSITION_METRES}}

@@ -84,11 +84,11 @@
     "TEMP": {"Temp": 1},
     "VNIM": {"Pres": 100}
   },
-  "position_derived_about": "Distances the engine works out on this laptop from positions, which may still reach the AI path from evidence the policy otherwise withholds: one value per event or outage (the largest gap between GNSS and the estimator, the largest estimator reset, the largest gap between GNSS and barometric altitude, the drift found when GNSS returned and the drift per minute), rounded to the step given (whole metres), never a series, a direction or a position. The user's decision of 2026-10-27 (spec: Location scrubber, \"Distances worked out from positions\").",
+  "position_derived_about": "Distances the engine works out on this laptop from positions, which may still reach the AI path from evidence the policy otherwise withholds: one value per event or outage (the largest gap between GNSS and the estimator, the largest estimator reset, the largest gap between GNSS and barometric altitude, the drift found when GNSS returned and the drift per minute; the distance a flight flew, integrated from the estimator's ground speed), rounded to the step given (whole metres), never a series, a direction or a position. The user's decision of 2026-10-27 (spec: Location scrubber, \"Distances worked out from positions\").",
   "position_derived": {
     "largest_track_gap_m": 1, "largest_receivers_gap_m": 1, "largest_reset_m": 1,
     "estimator_resets": 1, "largest_altitude_gap_m": 1,
-    "drift_m": 1, "drift_m_per_min": 1, "minutes_to_tolerance": 0.1
+    "drift_m": 1, "drift_m_per_min": 1, "minutes_to_tolerance": 0.1, "flown_m": 1
   },
   "pressure_ok_about": "Pressure fields that are differences or engine internals, which say nothing about where the aircraft is.",
   "pressure_ok": {

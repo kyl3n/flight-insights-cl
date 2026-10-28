@@ -1,6 +1,7 @@
-"""The speed sweep, on flights made to a known answer: straight legs flown both ways count
-as one speed each, whatever the wind along them; legs flown one way, turning, low or
-short do not."""
+"""The energy analyzer on flights made to a known answer. The speed sweep: straight legs
+flown both ways count as one speed each, whatever the wind along them; legs flown one way,
+turning, low or short do not. A flight's energy: the packs' energy, the distance over the
+ground, energy per km in all and at cruise, and the energy by phase adding up to the whole."""
 
 from __future__ import annotations
 
@@ -13,7 +14,8 @@ import pyarrow as pa
 import pytest
 from flight_builder import flight, table
 
-from flight_insights.analyzers.energy import ENERGY, legs, levels, pairs, tiles
+from flight_insights.analyzers.battery_power import supply
+from flight_insights.analyzers.energy import ENERGY, flight_energy, legs, levels, pairs, tiles
 from flight_insights.analyzers.registry import Registry
 from flight_insights.analyzers.wind import ekf
 from flight_insights.knowledge import load_pack
@@ -22,14 +24,23 @@ REG = Registry.load(load_pack())
 RULES: dict[str, Any] = dict(REG.rules["energy"]["sweep"])
 HZ = 10  # XKF1 as LOG_FILE_RATEMAX 10 logs it
 ARM = 1_000_000
+V = {b"unit": b"V", b"multiplier": b"1.0"}
+A = {b"unit": b"A", b"multiplier": b"1.0"}
 
 Piece = tuple[float, float, float, float]  # seconds, north m/s, east m/s, climb m/s
 
 
-def made(pieces: Sequence[Piece], height: float = 20.0, ramp: float = 3.0):  # type: ignore[no-untyped-def]
+def made(
+    pieces: Sequence[Piece],
+    height: float = 20.0,
+    ramp: float = 3.0,  # type: ignore[no-untyped-def]
+    amps: float | None = None,
+    volts: float = 50.0,
+):
     """A flight from the ground: a climb to `height`, then each piece at a constant ground
     velocity, joined by `ramp` s of straight-line change in velocity (as a turnaround),
-    then disarmed. XKF1 from one core at 10 Hz."""
+    then disarmed. XKF1 from one core at 10 Hz; with `amps`, one pack monitor drawing that
+    current at `volts` throughout, at the same rows."""
     t: list[float] = []
     vn: list[float] = []
     ve: list[float] = []
@@ -74,7 +85,14 @@ def made(pieces: Sequence[Piece], height: float = 20.0, ramp: float = 3.0):  # t
         "VD": (pa.float32(), vd),
         "PD": (pa.float32(), pd),
     })  # fmt: skip
-    return flight({"XKF1": x1}, ARM, times[-1])
+    if amps is None:
+        return flight({"XKF1": x1}, ARM, times[-1])
+    bat = table(times, {
+        "Inst": (pa.uint8(), [0] * n_rows),
+        "Volt": (pa.float32(), [volts] * n_rows),
+        "Curr": (pa.float32(), [amps] * n_rows),
+    }, {"Volt": V, "Curr": A})  # fmt: skip
+    return flight({"XKF1": x1, "BAT": bat}, ARM, times[-1], params={"BATT_MONITOR": 4})
 
 
 def sweep(speeds: Sequence[float], wind_along: float = 0.0, hold: float = 20.0) -> list[Piece]:
@@ -97,7 +115,7 @@ def test_each_speed_flown_both_ways_counts_once() -> None:
     m = measured(f)
     assert m["energy.sweep_levels"] == 4
     assert m["energy.sweep_fastest_ms"] == pytest.approx(10.0, abs=1e-4)
-    [ev] = ENERGY.run(f, REG).evidence
+    [ev] = [x for x in ENERGY.run(f, REG).evidence if x.id == "energy:sweep"]
     assert ev.values["legs"] == 8 and ev.values["pairs"] == 4
     assert ev.values["slowest_ms"] == pytest.approx(4.0, abs=0.01)
 
@@ -161,3 +179,45 @@ def test_skipped_for_other_vehicles() -> None:
     f = made(sweep([4.0, 6.0]))
     plane = flight({}, f.arm_us, f.disarm_us, fingerprint={"vehicle": "plane"})
     assert ENERGY.run(plane, REG).skipped
+
+
+def test_a_flights_energy_and_distance_are_their_known_answers() -> None:
+    """1 kW throughout, a climb, a hover, then 6 m/s east and back west: the energy is the
+    power times the time, the distance the speeds times their times, and the phases add up
+    to the whole."""
+    f = made(sweep([6.0]), amps=20.0, volts=50.0)
+    e = ekf(f)
+    packs = supply(f, REG.rules["batteries"])
+    assert e is not None and packs is not None
+    fe = flight_energy(e, packs, f.arm_us, f.disarm_us, REG.rules["energy"]["phases"], 1.0)
+    seconds = (f.disarm_us - f.arm_us) / 1e6
+    assert fe.used_wh == pytest.approx(1000.0 * seconds / 3600, rel=1e-6)
+    assert fe.used_mah == pytest.approx(20.0 * seconds / 3.6, rel=1e-6)
+    speed = np.hypot(e["VN"], e["VE"])
+    assert fe.flown_m == pytest.approx(float(np.trapezoid(speed, e["t"] / 1e6)), rel=1e-9)
+    # two 20 s legs at 6 m/s, and three 3 s ramps (up, the turnaround, down) averaging 3 m/s
+    assert fe.flown_m == pytest.approx(2 * 20 * 6.0 + 3 * 3 * 3.0, rel=0.01)
+    assert sum(fe.phase_wh.values()) == pytest.approx(fe.used_wh, rel=1e-12)
+    assert fe.phase_s["level"] >= 30 and fe.phase_s["hover"] >= 18 and fe.phase_s["climb"] > 0
+    # in level flight at 6 m/s, 1 kW is 1000 / 6 J per metre: 46.3 Wh per km
+    assert fe.cruise_wh_per_km == pytest.approx(1000.0 / 6.0 / 3.6, rel=1e-3)
+    m = measured(f)
+    assert m["energy.used_wh"] == pytest.approx(fe.used_wh)
+    assert m["energy.distance_m"] == round(fe.flown_m)
+    assert m["energy.wh_per_km"] == pytest.approx(fe.wh_per_km)
+    assert m["energy.cruise_wh_per_km"] == pytest.approx(fe.cruise_wh_per_km)
+    flight_ev = [ev for ev in ENERGY.run(f, REG).evidence if ev.id == "energy:flight"]
+    assert flight_ev[0].values["flown_m"] == round(fe.flown_m)
+    assert isinstance(flight_ev[0].values["flown_m"], int)
+
+
+def test_a_hover_gives_no_energy_per_km() -> None:
+    m = measured(made([(60.0, 0.0, 0.0, 0.0)], amps=20.0))
+    assert m["energy.used_wh"] > 0 and m["energy.distance_m"] < 10
+    assert "energy.wh_per_km" not in m and "energy.cruise_wh_per_km" not in m
+
+
+def test_no_battery_monitor_gives_the_sweep_alone() -> None:
+    r = ENERGY.run(made(sweep([4.0, 6.0])), REG)
+    assert [ev.id for ev in r.evidence] == ["energy:sweep"]
+    assert "energy.used_wh" not in {m.metric for m in r.metrics}

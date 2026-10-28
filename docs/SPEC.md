@@ -715,6 +715,15 @@ Added to Phase 2 on 2026-10-27 at the fleet owner's request, and built in steps 
   - the cell cutoff;
   - the current limit.
 
+**A flight's energy** (measured now, `analyzers/energy.py`).
+
+- **Energy and charge:** the packs' power and current, integrated from arming to disarming over every row. On ArduPilot's simulator it agrees with the firmware's own `BAT.EnrgTot` and `CurrTot`.
+- **Distance flown:** the primary estimator core's horizontal ground speed integrated over the same time, in whole metres. No position is read. On the simulator it agrees with the GPS ground speed integrated, within 1%.
+- **Energy per km:**
+  - for the whole flight, once it covered 200 m;
+  - at cruise: the level tiles' energy over their own distance.
+- **Where the energy went:** the energy in each steady tile's phase (low, hover, level, climb, descent, manoeuvre), and what fell between tiles. The parts add up to the whole.
+
 **What the user gets** (not yet; the screens wait for their mock-ups).
 
 - **Speeds:**
@@ -758,7 +767,7 @@ Added to Phase 2 on 2026-10-27 at the fleet owner's request, and built in steps 
 **Privacy.**
 
 - **On the laptop:** position-derived distances, air density and the range card stay here.
-- **Per-flight figures:** only scalars. The distance flown is one whole number of metres.
+- **Per-flight figures:** only scalars. The distance flown is one whole number of metres; both location checks refuse it finer, or as a list (`flown_m`).
 - **Not sent:** airframe projections never go into an AI packet.
 
 **Validation before the figures lose their "estimate" label.**

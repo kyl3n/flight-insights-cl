@@ -56,6 +56,100 @@
         "kind": "baseline",
         "title": "No universal range: what this airframe has flown, read against its history and the speed card"
       }
+    },
+    "energy.used_wh": {
+      "name": {
+        "en": "Energy used",
+        "uk": "Витрачена енергія"
+      },
+      "unit": "W.h",
+      "direction": "band",
+      "definition": {
+        "en": "The energy the flight took from its packs, from arming to disarming, at the packs' terminals: every monitor that measures its own pack, added up.",
+        "uk": "Енергія, яку політ узяв із батарей від озброєння до роззброєння, на клемах батарей: сума всіх моніторів, що вимірюють власну батарею."
+      },
+      "method": {
+        "en": "Each counted monitor's volts times amps, summed, integrated over time by the trapezoid rule over every row from arming to disarming. Gaps in the rows are integrated across and their length reported.",
+        "uk": "Добуток напруги на струм кожного врахованого монітора, підсумований і проінтегрований за часом методом трапецій по всіх рядках від озброєння до роззброєння. Пропуски в рядках інтегруються наскрізь, а їхня тривалість наводиться."
+      },
+      "messages": [
+        "BAT"
+      ],
+      "source": {
+        "kind": "baseline",
+        "title": "No universal range: what this airframe has flown, read against its own history"
+      }
+    },
+    "energy.distance_m": {
+      "name": {
+        "en": "Distance flown",
+        "uk": "Пройдена відстань"
+      },
+      "unit": "m",
+      "direction": "band",
+      "definition": {
+        "en": "How far the aircraft flew over the ground, from arming to disarming, in whole metres: how far, never where.",
+        "uk": "Яку відстань апарат пролетів над землею від озброєння до роззброєння, у цілих метрах: скільки, але ніколи де."
+      },
+      "method": {
+        "en": "The primary estimator core's horizontal ground speed (XKF1 north and east velocity) integrated over time by the trapezoid rule over every row, rounded to the metre. No position is read.",
+        "uk": "Горизонтальна шляхова швидкість основного ядра оцінювача (північна й східна швидкості XKF1), проінтегрована за часом методом трапецій по всіх рядках і округлена до метра. Жодних координат не читається."
+      },
+      "messages": [
+        "XKF1"
+      ],
+      "source": {
+        "kind": "baseline",
+        "title": "No universal range: what this airframe has flown, read against its own history"
+      }
+    },
+    "energy.wh_per_km": {
+      "name": {
+        "en": "Energy per km",
+        "uk": "Енергія на кілометр"
+      },
+      "unit": "W.h/km",
+      "direction": "lower",
+      "definition": {
+        "en": "The flight's energy over the distance it flew, take-off, hovering and landing included: what the whole mission cost per km.",
+        "uk": "Енергія польоту, поділена на пройдену відстань, з урахуванням зльоту, зависання й посадки: скільки вся місія коштувала на кілометр."
+      },
+      "method": {
+        "en": "Energy used divided by distance flown, once the flight covered at least 200 m over the ground.",
+        "uk": "Витрачена енергія, поділена на пройдену відстань, коли політ пройшов над землею щонайменше 200 м."
+      },
+      "messages": [
+        "BAT",
+        "XKF1"
+      ],
+      "source": {
+        "kind": "baseline",
+        "title": "No universal range: what this airframe has flown, read against its own history"
+      }
+    },
+    "energy.cruise_wh_per_km": {
+      "name": {
+        "en": "Energy per km at cruise",
+        "uk": "Енергія на кілометр у крейсерському польоті"
+      },
+      "unit": "W.h/km",
+      "direction": "lower",
+      "definition": {
+        "en": "Energy per km over the ground in steady level flight alone, take-off, hovering, climbs and turns left out. It depends on the speed flown and the wind: compare it at like speeds and winds.",
+        "uk": "Енергія на кілометр над землею лише в усталеному горизонтальному польоті, без зльоту, зависання, наборів висоти й поворотів. Залежить від швидкості й вітру: порівнюйте за подібних швидкостей і вітру."
+      },
+      "method": {
+        "en": "The packs' energy in the flight's level 2 s tiles (at least 5 m up and 2 m/s, climbing under 0.3 m/s, accelerating under 0.3 m/s/s, turning under 5 deg/s) over the ground distance flown in those tiles, once they covered at least 200 m.",
+        "uk": "Енергія батарей у горизонтальних 2-секундних проміжках польоту (щонайменше 5 м висоти й 2 м/с, набір висоти до 0,3 м/с, прискорення до 0,3 м/с², поворот до 5 град/с), поділена на відстань над землею, пройдену в цих проміжках, коли вона становить щонайменше 200 м."
+      },
+      "messages": [
+        "BAT",
+        "XKF1"
+      ],
+      "source": {
+        "kind": "baseline",
+        "title": "No universal range: what this airframe has flown, read against its own history"
+      }
     }
   },
   "findings": {}

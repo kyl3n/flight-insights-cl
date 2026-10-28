@@ -9,11 +9,13 @@ from __future__ import annotations
 from pathlib import Path
 from typing import Any
 
+import numpy as np
 import pytest
 from test_imports import airframe
 
 from flight_insights.analyzers import FlightData, Registry
 from flight_insights.analyzers.energy import ENERGY
+from flight_insights.dataflash import si
 from flight_insights.imports.commit import Decision, commit
 from flight_insights.imports.propose import propose
 from flight_insights.imports.scan import scan
@@ -56,8 +58,43 @@ def test_the_simulator_flying_the_card_counts_its_four_speeds(flown: dict[str, A
     m = {x.metric: x.value for x in r.metrics}
     assert m["energy.sweep_levels"] == 4
     assert m["energy.sweep_fastest_ms"] == pytest.approx(8.0, abs=0.3)
-    [ev] = r.evidence
+    [ev] = [x for x in r.evidence if x.id == "energy:sweep"]
     assert ev.values["slowest_ms"] == pytest.approx(2.0, abs=0.3)
+
+
+def at_arming_and_disarming(f: FlightData, name: str, field: str) -> float:
+    """What a logged running total gathered between arming and disarming."""
+    bat = f.table(name)
+    assert bat is not None
+    t = np.asarray(bat.column("TimeUS").to_numpy(), np.int64)
+    v = si.values(bat, field)
+    return float(np.interp(f.disarm_us, t, v) - np.interp(f.arm_us, t, v))
+
+
+def test_the_flights_energy_matches_the_firmwares_own_totals(flown: dict[str, Any]) -> None:
+    """The packs' energy and charge, integrated from every row, agree with what ArduPilot
+    counted itself (BAT.EnrgTot, BAT.CurrTot); the distance flown with the GPS ground speed
+    integrated over the same time."""
+    f = data(flown, "copter-quad-sweep")
+    r = ENERGY.run(f, Registry.load(flown["pack"]))
+    m = {x.metric: x.value for x in r.metrics}
+    [ev] = [x for x in r.evidence if x.id == "energy:flight"]
+    assert m["energy.used_wh"] == pytest.approx(at_arming_and_disarming(f, "BAT", "EnrgTot"),
+                                                rel=0.005)  # fmt: skip
+    assert ev.values["used_mah"] / 1000 == pytest.approx(
+        at_arming_and_disarming(f, "BAT", "CurrTot"), rel=0.01
+    )
+    gps = f.table("GPS", ["TimeUS", "Spd"])
+    assert gps is not None
+    t = np.asarray(gps.column("TimeUS").to_numpy(), np.int64)
+    inside = (t >= f.arm_us) & (t <= f.disarm_us)
+    ground = float(np.trapezoid(si.values(gps, "Spd")[inside], t[inside] / 1e6))
+    assert m["energy.distance_m"] == pytest.approx(ground, rel=0.01)
+    # the legs at cruise cost less per km than the whole flight with its hover and climb
+    assert m["energy.cruise_wh_per_km"] < m["energy.wh_per_km"]
+    phases = ("low", "hover", "level", "climb", "descent", "manoeuvre", "untiled")
+    assert sum(ev.values[f"{k}_wh"] for k in phases) == pytest.approx(ev.values["used_wh"],
+                                                                      abs=0.5)  # fmt: skip
 
 
 def test_short_legs_on_many_courses_are_no_sweep(flown: dict[str, Any]) -> None:
