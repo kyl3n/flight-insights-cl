@@ -315,6 +315,7 @@ def test_every_fixture_is_one_flight_with_the_modes_its_scenario_flew(
         "copter-quad-nognss-drill": ["GUIDED", "LOITER", "LAND"],  # LAND by the EKF failsafe
         "copter-quad-nognss-flow": ["GUIDED", "LOITER", "LAND"],
         "copter-quad-wind": ["GUIDED", "LAND"],
+        "copter-quad-sweep": ["GUIDED", "LAND"],
         "copter-quad-wind-calm": ["GUIDED", "LAND"],
         "copter-quad-wind-hover": ["GUIDED", "LAND"],
     }[log.stem]

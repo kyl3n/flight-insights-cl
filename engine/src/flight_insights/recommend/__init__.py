@@ -74,6 +74,7 @@ def flight_plan(
             findings = [f for f in findings if f["code"] != code]
     findings += followup.revert_findings(store, flight_id, dialect, params)
     findings += followup.drill_findings(store, reg, flight_id, analysis)
+    findings += followup.sweep_findings(store, reg, flight_id, analysis)
     plan = build_plan(flight_id, findings, params, dialect, reg)
     plan.held_back = held
     return plan
