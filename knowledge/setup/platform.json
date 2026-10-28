@@ -154,6 +154,33 @@
      ]
     },
     {
+     "id": "speed_goal",
+     "label": {
+      "en": "Speed goal",
+      "uk": "Мета щодо швидкості"
+     },
+     "type": "choice",
+     "required": false,
+     "why": {
+      "en": "Efficient cruises at the speed the priority calls for (best range, or best flight time for endurance); fastest safe builds the cruise speed up step by step towards the most the airframe can safely hold, watching vibration, temperatures and every safety margin",
+      "uk": "«Ощадливо» — крейсерська швидкість за пріоритетом (найбільша дальність або, для тривалості, найдовший політ); «Найшвидше безпечно» — крейсерська швидкість нарощується крок за кроком до найбільшої, яку апарат безпечно утримує, зі стеженням за вібрацією, температурами й усіма запасами безпеки"
+     },
+     "choices": [
+      "efficient",
+      "fastest"
+     ],
+     "choice_labels": {
+      "efficient": {
+       "en": "Efficient",
+       "uk": "Ощадливо"
+      },
+      "fastest": {
+       "en": "Fastest safe",
+       "uk": "Найшвидше безпечно"
+      }
+     }
+    },
+    {
      "id": "min_temp_c",
      "label": {
       "en": "Coldest flying temperature",
@@ -597,6 +624,38 @@
      "unit": "°C"
     },
     {
+     "id": "reserve_pct",
+     "label": {
+      "en": "Energy reserve at landing",
+      "uk": "Резерв енергії при посадці"
+     },
+     "type": "number",
+     "required": false,
+     "why": {
+      "en": "Flight time, range and radius keep the larger of this share of usable energy (20% when unanswered) and the battery failsafe's own reserve, plus the energy to descend and land",
+      "uk": "Тривалість польоту, дальність і радіус зберігають більше з двох: цю частку корисної енергії (20%, якщо не вказано) або власний резерв аварійного режиму батареї, плюс енергію на зниження й посадку"
+     },
+     "unit": "%"
+    },
+    {
+     "id": "pack_mass_kg",
+     "label": {
+      "en": "Mass of the packs flown together",
+      "uk": "Маса батарей, з якими літають разом"
+     },
+     "type": "number",
+     "required": false,
+     "why": {
+      "en": "What a bigger or smaller pack would give: its energy against the weight it adds",
+      "uk": "Що дасть більша чи менша батарея: її енергія проти маси, яку вона додає"
+     },
+     "prevents": {
+      "en": "Pack size what-ifs",
+      "uk": "Оцінки «що як» для розміру батареї"
+     },
+     "unit": "kg"
+    },
+    {
      "id": "power_module",
      "label": {
       "en": "Power module",
@@ -953,8 +1012,8 @@
     {
      "id": "empty_kg",
      "label": {
-      "en": "Empty weight",
-      "uk": "Маса порожнього апарата"
+      "en": "Empty weight, ready to fly with its packs, no payload",
+      "uk": "Маса без вантажу, готова до польоту, з батареями"
      },
      "type": "number",
      "required": true,

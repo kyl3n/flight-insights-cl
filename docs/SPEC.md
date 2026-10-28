@@ -232,14 +232,14 @@ Serial numbers and unique IDs stay on the machine; the scrubber already removes 
 
 **Setting up a new platform.** Before a platform's first flight, a guided setup walks through every part of the aircraft in order, so nothing is missed:
 
-1. **Platform:** name, vehicle type, frame and motor layout, and the configuration questions (payload, mission, priority, temperatures, non-GNSS sources).
+1. **Platform:** name, vehicle type, frame and motor layout, and the configuration questions (payload, mission, priority, the speed goal, temperatures, non-GNSS sources).
 2. **Flight controller:** board, firmware, mounting and vibration isolation.
 3. **Propulsion:** each motor's model, KV, position and direction; propeller diameter, pitch, blades and material; ESC model, firmware, protocol, telemetry and temperature protection setting.
-4. **Power:** battery chemistry, cells, capacity and pack IDs, with datasheet limits for current and temperature; power module and its calibration; avionics supply.
+4. **Power:** battery chemistry, cells, capacity and pack IDs, with datasheet limits for current and temperature; the energy reserve kept at landing (20% when unanswered) and the mass of the packs flown together; power module and its calibration; avionics supply.
 5. **Navigation sensors:** GNSS receivers and antennas, compasses, barometers, rangefinder, optical flow and visual odometry.
 6. **Links:** RC receiver and protocol, telemetry radio and video link, and every antenna on the aircraft: model, type, gain, polarisation, placement, orientation and cable. Ground-side equipment has its own profile (see Ground station profiles). It also asks what comes first when the radio link and GNSS are both lost (`link_loss`): winning the link back, by flying the failsafe home on dead reckoning for as long as the battery allows, or landing once dead reckoning has run as long as drills held a position. A choice whose stored value is a code carries its own words in English and Ukrainian (`choice_labels`).
 7. **Payload and peripherals:** payload mounts and release, gimbal and camera, companion computer, CAN nodes.
-8. **Weights:** empty, typical take-off and maximum take-off.
+8. **Weights:** empty (ready to fly with its packs, no payload), typical take-off and maximum take-off.
 9. **Review:** a completeness check lists every gap and what it prevents; for example, no prop diameter means no starting filter values, and no ESC temperature setting means no ESC temperature limits.
 10. **First parameter file:** the file the aircraft will fly with goes through the configuration review before the first flight.
 
@@ -315,6 +315,7 @@ The right settings depend on facts a log only partly shows. The app fills in wha
 | Does the payload change in flight (drop, winch, spray)? | A sudden mass change needs controller and failsafe settings that tolerate it | Gripper and winch outputs, steps in hover thrust |
 | Main mission | Hover and slow survey, long cruise and agile flight need different tunes | Time in each mode and speed band |
 | Priority | Endurance, stability or responsiveness decides the trade-offs between filtering, gains and speed | Asked only |
+| Speed goal | Efficient (cruise at the speed the priority calls for) or fastest safe (build the cruise speed up, step by step, towards the most the airframe can safely hold) | Asked only |
 | Operating temperatures | Battery derating, ESC and motor margins | Weather records |
 | Which non-GNSS sources are fitted (optical flow, rangefinder, visual odometry)? | GNSS loss is always assumed, so these decide how the aircraft holds position and gets home without it | Estimator source parameters |
 | Links in use | Failsafe timing and telemetry rates | Parameters and tlogs |
