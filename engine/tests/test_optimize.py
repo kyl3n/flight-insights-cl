@@ -19,6 +19,7 @@ from flight_insights.performance.fit import G, Model
 from flight_insights.performance.optimize import (
     airspeed_for,
     best,
+    grid,
     ground_for,
     leg,
     one_setting,
@@ -42,6 +43,17 @@ def test_level_flight_power_is_avionics_and_parasite_drag() -> None:
     v = np.array([0.0, 5.0, 10.0])
     p = DRAG.power(W, v, 0.0, RHO, RULES)
     assert p == pytest.approx(A_W + 0.5 * RHO * F * v**3, rel=1e-9)
+
+
+def test_the_search_ends_on_its_cap() -> None:
+    # the fastest flown is rarely a whole number of steps: no speed past it is offered
+    for top in (11.9925, 12.0, 0.03):
+        v = grid(top, 0.05)
+        assert v[-1] == top and v.max() == top and np.all(np.diff(v) > 0)
+        assert np.all(np.diff(v) <= 0.05 + 1e-12)
+    s = best(DRAG, W, RHO, RULES, top=2.01)
+    assert s.range == 2.01 and s.long_range == 2.01  # the tangent lies past the cap
+    assert grid(0.0, 0.05).size == 0
 
 
 def test_the_best_range_is_the_tangent_from_the_origin() -> None:

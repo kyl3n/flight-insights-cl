@@ -63,7 +63,11 @@ class Speeds:
 
 
 def grid(top: float, step: float) -> Array:
-    return np.arange(step, top + step / 2, step)
+    """Airspeeds every `step` up to `top`, ending on `top` itself: never past the cap."""
+    if top <= 0:
+        return np.zeros(0)
+    v = np.arange(step, top, step)
+    return np.append(v[v < top - step / 1000], top)
 
 
 def _band(v: Array, cost: Array, share: float) -> tuple[float, float]:

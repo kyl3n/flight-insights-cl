@@ -23,6 +23,7 @@ from flight_insights.performance.optimize import best
 from flight_insights.performance.project import (
     against_weight,
     figures,
+    hover_spread,
     pack_curve,
     spread,
     trip_radius,
@@ -179,6 +180,18 @@ def test_the_bootstrap_counts_once_there_are_enough_flights() -> None:
     assert three["hover_s"].high / f.hover_s - 1 == pytest.approx(1 / 0.9 - 1, abs=0.02)
     two = spread(fitted({"a": 0.0, "b": 0.0}, models), RULES, curve, 30.0, 30.0, RHO, 30.0)
     assert two["hover_s"].low == pytest.approx(f.hover_s) == pytest.approx(two["hover_s"].high)
+
+
+def test_the_hover_time_alone_has_the_same_interval() -> None:
+    # an airframe that has only hovered gets this much: drawn the same way as every figure
+    curve = steady_curve()
+    models = tuple(replace(DRAG, avionics=A_W * k) for k in np.linspace(0.9, 1.1, 41))
+    fit = fitted({"a": 0.04, "b": -0.03, "c": 0.02}, models)
+    full = spread(fit, RULES, curve, 30.0, 30.0, RHO, 30.0)["hover_s"]
+    alone = hover_spread(fit, RULES, curve, 30.0, RHO)
+    assert (alone.low, alone.median, alone.high) == pytest.approx(
+        (full.low, full.median, full.high), rel=1e-12
+    )
 
 
 def test_each_what_if_moves_what_it_should() -> None:

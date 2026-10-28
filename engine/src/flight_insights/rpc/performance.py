@@ -5,6 +5,7 @@ weight and phase only: no time, no heading, nothing about where."""
 
 from __future__ import annotations
 
+import math
 import uuid
 from collections.abc import Callable
 from typing import TYPE_CHECKING, Any
@@ -12,6 +13,7 @@ from typing import TYPE_CHECKING, Any
 import pyarrow as pa
 
 from flight_insights.performance import airframe as perf
+from flight_insights.performance import report as perf_report
 from flight_insights.performance.fit import NAMES
 from flight_insights.rpc.server import BAD_INPUT, INVALID_PARAMS, Context, RpcError, Server
 
@@ -94,3 +96,44 @@ def add_performance_methods(server: Server, state: EngineState,
             w.write_table(table)
         return {"path": str(target), "rows": table.num_rows,
                 "flights": [f.flight_id for f in m.flights]}  # fmt: skip
+
+    @server.method("airframe.performance")
+    @guarded
+    def performance(ctx: Context, params: dict[str, Any]) -> dict[str, Any]:
+        store, cache = state.require_store(), state.cache
+        assert cache is not None
+        kg = params.get("mass_kg")
+        if kg is not None and (isinstance(kg, bool) or not isinstance(kg, int | float)
+                               or not math.isfinite(kg) or not 0 < kg <= 1000):  # fmt: skip
+            raise RpcError(INVALID_PARAMS, "mass_kg must be a weight above 0 kg")
+        air = params.get("air", "usual")
+        if air not in ("usual", "standard"):
+            raise RpcError(INVALID_PARAMS, "air must be 'usual' or 'standard'")
+        trip = params.get("trip", "out_and_back")
+        if trip not in ("out_and_back", "drop", "site"):
+            raise RpcError(INVALID_PARAMS, "trip must be 'out_and_back', 'drop' or 'site'")
+        wind = params.get("wind_ms", 0.0)
+        if isinstance(wind, bool) or not isinstance(wind, int | float) or not 0 <= wind <= 30:
+            raise RpcError(INVALID_PARAMS, "wind_ms must be from 0 to 30 m/s")
+        ctx.progress(0.0, "working out the figures")
+        try:
+            out = perf_report.report(store, cache, state.pack, _airframe(params),
+                                     None if kg is None else float(kg), air, trip,
+                                     float(wind))  # fmt: skip
+        except perf.PerformanceError as e:
+            raise RpcError(BAD_INPUT, str(e)) from None
+        ctx.progress(1.0, "done")
+        return out
+
+    @server.method("airframe.range_card")
+    @guarded
+    def range_card(ctx: Context, params: dict[str, Any]) -> dict[str, Any]:
+        store, cache = state.require_store(), state.cache
+        assert cache is not None
+        ctx.progress(0.0, "working out the card")
+        try:
+            out = perf_report.range_card(store, cache, state.pack, _airframe(params))
+        except perf.PerformanceError as e:
+            raise RpcError(BAD_INPUT, str(e)) from None
+        ctx.progress(1.0, "done")
+        return out

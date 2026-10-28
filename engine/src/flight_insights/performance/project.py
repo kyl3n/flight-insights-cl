@@ -157,6 +157,15 @@ def efficiency(model: Model, rules: Mapping[str, Any], mass_kg: float, density: 
     )
 
 
+def measured(rules: Mapping[str, Any], flown_kg: tuple[float, float] | None,
+             mass_kg: float) -> bool:  # fmt: skip
+    """Whether a weight lies within the rules' margin of the weights flown."""
+    margin = float(rules["projections"]["measured_margin"])
+    return flown_kg is not None and flown_kg[0] * (1 - margin) <= mass_kg <= flown_kg[1] * (
+        1 + margin
+    )
+
+
 def figures(model: Model, rules: Mapping[str, Any], curve: Usable, mass_kg: float,
             empty_kg: float, density: float, top: float,
             flown_kg: tuple[float, float] | None = None,
@@ -175,10 +184,6 @@ def figures(model: Model, rules: Mapping[str, Any], curve: Usable, mass_kg: floa
         trip = standard(kind, rules, max(mass_kg - empty_kg, 0.0))
         r = trip_radius(model, rules, curve, mass_kg, density, trip, 0.0, 0.0, top)
         out[kind] = 0.0 if r is None else r.metres
-    margin = float(rules["projections"]["measured_margin"])
-    measured = flown_kg is not None and (
-        flown_kg[0] * (1 - margin) <= mass_kg <= flown_kg[1] * (1 + margin)
-    )
     return Figures(
         mass_kg=mass_kg,
         hover_s=float(curve.seconds(hover)[()]),
@@ -187,7 +192,7 @@ def figures(model: Model, rules: Mapping[str, Any], curve: Usable, mass_kg: floa
         range_m=float(seconds[1]) * s.range,
         range_ms=s.range,
         radius_m=out,
-        measured=measured,
+        measured=measured(rules, flown_kg, mass_kg),
         efficiency=efficiency(model, rules, mass_kg, density, s.range),
     )
 
@@ -227,38 +232,64 @@ def _values(f: Figures | None) -> dict[str, float]:
             "radius_m": f.radius_m["out_and_back"]}  # fmt: skip
 
 
-def spread(fitted: Fitted, rules: Mapping[str, Any], curve: Usable, mass_kg: float,
-           empty_kg: float, density: float, top: float) -> dict[str, Spread]:  # fmt: skip
-    """The figures' 95% interval at one weight, about the model's own figure (the median).
-    Each draw is a bootstrap model (once the airframe has the rules' flights; with fewer,
-    resampling them mostly refits one flight alone, and the model itself is drawn) with a
-    model error: a zero-mean normal error with the leave-one-flight-out errors' root mean
-    square (a flight's energy predicted `1 + e` times what it took, so the power is the
-    model's over `1 + e`). The leave-one-out errors are those of a model fitted on fewer
-    flights, so they size the spread rather than shift it. The radius is the out-and-back
-    trip's."""
+def draws(fitted: Fitted, rules: Mapping[str, Any]) -> list[Model]:
+    """The models the figures' spread is drawn from. Each is a bootstrap model (once the
+    airframe has the rules' flights; with fewer, resampling them mostly refits one flight
+    alone, and the model itself is drawn) with a model error: a zero-mean normal error with
+    the leave-one-flight-out errors' root mean square (a flight's energy predicted `1 + e`
+    times what it took, so the power is the model's over `1 + e`). The leave-one-out errors
+    are those of a model fitted on fewer flights, so they size the spread rather than shift
+    it."""
     spec: Mapping[str, Any] = rules["projections"]
     rng = np.random.default_rng(int(rules["fit"]["seed"]))
     errors = np.array(list(fitted.lofo.values()), np.float64)
     sigma = float(np.sqrt(np.mean(errors**2))) if len(errors) else 0.0
     enough = fitted.flights >= int(spec["bootstrap_min_flights"]) and fitted.replicates
     models = fitted.replicates if enough else (fitted.model,) * int(rules["fit"]["bootstrap"])
+    out: list[Model] = []
+    for m in models:
+        e = float(rng.normal(0.0, sigma)) if sigma > 0 else 0.0
+        out.append(scaled(m, 1.0 / (1.0 + e)))
+    return out
+
+
+def interval(centre: float, values: Sequence[float], rules: Mapping[str, Any]) -> Spread:
+    """The 95% interval of the drawn `values`, laid about the model's own figure."""
+    tail = (1.0 - float(rules["projections"]["level"])) / 2 * 100
+    mid = float(np.median(values))
+    return Spread(centre + float(np.percentile(values, tail)) - mid, centre,
+                  centre + float(np.percentile(values, 100 - tail)) - mid)  # fmt: skip
+
+
+def spread(fitted: Fitted, rules: Mapping[str, Any], curve: Usable, mass_kg: float,
+           empty_kg: float, density: float, top: float) -> dict[str, Spread]:  # fmt: skip
+    """The figures' 95% interval at one weight, about the model's own figure (the median):
+    the figures again with each of the `draws`. The radius is the out-and-back trip's."""
     centre = _values(figures(fitted.model, rules, curve, mass_kg, empty_kg, density, top,
                              trips=("out_and_back",)))  # fmt: skip
     got: dict[str, list[float]] = {k: [] for k in SPREAD}
-    for m in models:
-        e = float(rng.normal(0.0, sigma)) if sigma > 0 else 0.0
-        found = _values(figures(scaled(m, 1.0 / (1.0 + e)), rules, curve, mass_kg, empty_kg,
-                                density, top, trips=("out_and_back",)))  # fmt: skip
+    for m in draws(fitted, rules):
+        found = _values(figures(m, rules, curve, mass_kg, empty_kg, density, top,
+                                trips=("out_and_back",)))  # fmt: skip
         for k in SPREAD:
             got[k].append(found[k])
-    tail = (1.0 - float(spec["level"])) / 2 * 100
-    out: dict[str, Spread] = {}
-    for k, v in got.items():
-        mid = float(np.median(v))
-        out[k] = Spread(centre[k] + float(np.percentile(v, tail)) - mid, centre[k],
-                        centre[k] + float(np.percentile(v, 100 - tail)) - mid)  # fmt: skip
-    return out
+    return {k: interval(centre[k], v, rules) for k, v in got.items()}
+
+
+def hover_seconds(model: Model, rules: Mapping[str, Any], curve: Usable, mass_kg: float,
+                  density: float) -> float:  # fmt: skip
+    """How long the pack holds a hover in still air at this weight; 0 when it cannot."""
+    p = model.power(mass_kg * G, 0.0, 0.0, density, rules)
+    return float(curve.seconds(p)[()]) if float(curve.at(p)[()]) > 0 else 0.0
+
+
+def hover_spread(fitted: Fitted, rules: Mapping[str, Any], curve: Usable, mass_kg: float,
+                 density: float) -> Spread:  # fmt: skip
+    """The hover time's 95% interval alone, from the same draws as `spread`: all an airframe
+    that has only hovered can be told with its own measurements."""
+    return interval(hover_seconds(fitted.model, rules, curve, mass_kg, density),
+                    [hover_seconds(m, rules, curve, mass_kg, density)
+                     for m in draws(fitted, rules)], rules)  # fmt: skip
 
 
 @dataclass(frozen=True)

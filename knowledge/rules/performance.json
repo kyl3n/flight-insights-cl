@@ -88,6 +88,10 @@
     "tracking_growth": 1.5,
     "required": ["lean", "thrust", "current"]
   },
+  "report": {
+    "about": "What the Range & speed screen and the range card show (performance/report.py): the best airspeed and ground speed into each of headwinds_ms, and on the card the radius out and back with each as the wind, the worst way round.",
+    "headwinds_ms": [0.0, 5.0, 10.0]
+  },
   "top_speed": {
     "about": "The maximum level airspeed (performance/top_speed.py): the least of the lean limit (the measured drag carried to the weight and air, at PSC_ANGLE_MAX else ATC_ANGLE_MAX), the thrust limit (acos of the hover throttle at that weight over 0.8 of full, wind.json's throttle_limit), and the current limit (the model's power within the lowest voltage times the least of the pack's rating and MOT_BAT_CURR_MAX), searched every step_ms up to search_ms.",
     "search_ms": 40.0,

@@ -251,6 +251,8 @@ pub const UI_METHODS: &[&str] = &[
     "airframe.recovery_card",
     "airframe.performance_model",
     "airframe.performance_points",
+    "airframe.performance",
+    "airframe.range_card",
     "airframe.record_change",
     "station.schema",
     "station.create",
