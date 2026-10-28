@@ -16,9 +16,9 @@ Power and efficiency analysis, "Range, endurance and speed", "What the user gets
   the current), a fraction of a per cent, well inside the model's own error.
 - **Against weight:** from the empty weight to the heaviest take-off, each marked measured
   where the weight is within the weights flown (by the rules' margin), else extrapolated.
-- **How sure:** each figure again for every bootstrap model, each with a model error drawn
-  from the leave-one-flight-out energy errors: the 95% interval and the median. The card
-  uses the low end.
+- **How sure:** each figure again for every bootstrap model (once there are enough flights
+  to resample), each with a zero-mean model error sized by the leave-one-flight-out energy
+  errors: the 95% interval about the model's own figure. The card uses the low end.
 - **Efficiency:** the hover's figure of merit (the ideal power `W v_h` over the packs'
   power) and grams per watt in standard air, and at the best-range airspeed Wh/km, Wh per
   kg-km and the cost of transport `P / (W V)`.
@@ -220,35 +220,45 @@ class Spread:
 SPREAD = ("hover_s", "endurance_s", "range_m", "radius_m")
 
 
+def _values(f: Figures | None) -> dict[str, float]:
+    if f is None:
+        return dict.fromkeys(SPREAD, 0.0)
+    return {"hover_s": f.hover_s, "endurance_s": f.endurance_s, "range_m": f.range_m,
+            "radius_m": f.radius_m["out_and_back"]}  # fmt: skip
+
+
 def spread(fitted: Fitted, rules: Mapping[str, Any], curve: Usable, mass_kg: float,
            empty_kg: float, density: float, top: float) -> dict[str, Spread]:  # fmt: skip
-    """The figures' 95% interval and median at one weight, over the bootstrap's models,
-    each with a model error drawn from the leave-one-flight-out errors (a flight's energy
-    predicted `1 + e` times what it took, so the power is the model's over `1 + e`); the
-    radius is the out-and-back trip's. With no bootstrap, the model alone."""
+    """The figures' 95% interval at one weight, about the model's own figure (the median).
+    Each draw is a bootstrap model (once the airframe has the rules' flights; with fewer,
+    resampling them mostly refits one flight alone, and the model itself is drawn) with a
+    model error: a zero-mean normal error with the leave-one-flight-out errors' root mean
+    square (a flight's energy predicted `1 + e` times what it took, so the power is the
+    model's over `1 + e`). The leave-one-out errors are those of a model fitted on fewer
+    flights, so they size the spread rather than shift it. The radius is the out-and-back
+    trip's."""
     spec: Mapping[str, Any] = rules["projections"]
     rng = np.random.default_rng(int(rules["fit"]["seed"]))
-    errors = np.array(list(fitted.lofo.values()) or [0.0], np.float64)
-    models = fitted.replicates or (fitted.model,)
+    errors = np.array(list(fitted.lofo.values()), np.float64)
+    sigma = float(np.sqrt(np.mean(errors**2))) if len(errors) else 0.0
+    enough = fitted.flights >= int(spec["bootstrap_min_flights"]) and fitted.replicates
+    models = fitted.replicates if enough else (fitted.model,) * int(rules["fit"]["bootstrap"])
+    centre = _values(figures(fitted.model, rules, curve, mass_kg, empty_kg, density, top,
+                             trips=("out_and_back",)))  # fmt: skip
     got: dict[str, list[float]] = {k: [] for k in SPREAD}
     for m in models:
-        e = float(rng.choice(errors))
-        f = figures(scaled(m, 1.0 / (1.0 + e)), rules, curve, mass_kg, empty_kg, density, top,
-                    trips=("out_and_back",))  # fmt: skip
-        if f is None:
-            for k in SPREAD:
-                got[k].append(0.0)
-            continue
-        got["hover_s"].append(f.hover_s)
-        got["endurance_s"].append(f.endurance_s)
-        got["range_m"].append(f.range_m)
-        got["radius_m"].append(f.radius_m["out_and_back"])
+        e = float(rng.normal(0.0, sigma)) if sigma > 0 else 0.0
+        found = _values(figures(scaled(m, 1.0 / (1.0 + e)), rules, curve, mass_kg, empty_kg,
+                                density, top, trips=("out_and_back",)))  # fmt: skip
+        for k in SPREAD:
+            got[k].append(found[k])
     tail = (1.0 - float(spec["level"])) / 2 * 100
-    low, high = tail, 100 - tail
-    return {
-        k: Spread(float(np.percentile(v, low)), float(np.median(v)), float(np.percentile(v, high)))
-        for k, v in got.items()
-    }
+    out: dict[str, Spread] = {}
+    for k, v in got.items():
+        mid = float(np.median(v))
+        out[k] = Spread(centre[k] + float(np.percentile(v, tail)) - mid, centre[k],
+                        centre[k] + float(np.percentile(v, 100 - tail)) - mid)  # fmt: skip
+    return out
 
 
 @dataclass(frozen=True)
