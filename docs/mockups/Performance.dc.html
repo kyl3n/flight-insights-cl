@@ -1,0 +1,1026 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Range and speed</title>
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&amp;family=IBM+Plex+Sans:wght@400;500;600&amp;display=swap" rel="stylesheet">
+<style>
+body{margin:0;background:#0E1114}
+a{color:#7CC4F0}a:hover{color:#A9D9F7}
+button{font-family:inherit}
+:focus-visible{outline:2px solid #7CC4F0;outline-offset:2px}
+@media (max-width:720px){.rail{flex:1 1 100% !important;width:100% !important;flex-direction:row !important;overflow-x:auto;padding:8px !important}.rail-spacer{display:none !important}}
+</style>
+</helmet>
+<div style="min-height: 100vh; display: flex; flex-wrap: wrap; background: #0E1114; color: #E7EAEE; font-family: 'IBM Plex Sans', system-ui, sans-serif; font-size: 14px; line-height: 1.45;">
+
+<nav class="rail" aria-label="Main navigation" style="flex: 0 0 76px; width: 76px; box-sizing: border-box; background: #0A0C0F; border-right: 1px solid #1E242B; display: flex; flex-direction: column; align-items: center; gap: 4px; padding: 14px 0 16px;">
+<svg role="img" aria-label="Flight Insights" width="36" height="36" viewBox="0 0 36 36" style="flex: 0 0 auto; margin-bottom: 14px;"><rect x="1" y="1" width="34" height="34" rx="9" fill="#13222D" stroke="#2A4558"></rect><path d="M8 25l6-7 5 4 9-12" fill="none" stroke="#5AB0E8" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"></path><circle cx="28" cy="10" r="2.4" fill="#5AB0E8"></circle></svg>
+<a href="Main.dc.html" style="flex: 0 0 auto; width: 60px; padding: 8px 0 7px; border-radius: 10px; display: flex; flex-direction: column; align-items: center; gap: 4px; font-size: 11px; font-weight: 500; text-decoration: none; color: #A3ACB6;"><svg aria-hidden="true" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="7" height="7" rx="1.5"></rect><rect x="14" y="3" width="7" height="7" rx="1.5"></rect><rect x="3" y="14" width="7" height="7" rx="1.5"></rect><rect x="14" y="14" width="7" height="7" rx="1.5"></rect></svg>Fleet</a>
+<a href="FlightReport.dc.html" style="flex: 0 0 auto; width: 60px; padding: 8px 0 7px; border-radius: 10px; display: flex; flex-direction: column; align-items: center; gap: 4px; font-size: 11px; font-weight: 500; text-decoration: none; color: #A3ACB6;"><svg aria-hidden="true" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M6 3h9l4 4v14H6z"></path><path d="M14 3v5h5"></path><path d="M9 13h7M9 17h5"></path></svg>Flights</a>
+<a href="Trends.dc.html" aria-current="page" style="flex: 0 0 auto; width: 60px; padding: 8px 0 7px; border-radius: 10px; display: flex; flex-direction: column; align-items: center; gap: 4px; font-size: 11px; font-weight: 500; text-decoration: none; color: #9BD3F5; background: rgba(90,176,232,0.15);"><svg aria-hidden="true" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M3 17l5-5 4 3 8-8"></path><path d="M15 7h5v5"></path></svg>Trends</a>
+<a href="ConfigReview.dc.html" style="flex: 0 0 auto; width: 60px; padding: 8px 0 7px; border-radius: 10px; display: flex; flex-direction: column; align-items: center; gap: 4px; font-size: 11px; font-weight: 500; text-decoration: none; color: #A3ACB6;"><svg aria-hidden="true" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M4 6h10M18 6h2M4 12h4M12 12h8M4 18h12"></path><circle cx="16" cy="6" r="2"></circle><circle cx="10" cy="12" r="2"></circle><circle cx="18" cy="18" r="2"></circle></svg>Params</a>
+<a href="Plan.dc.html" style="flex: 0 0 auto; width: 60px; padding: 8px 0 7px; border-radius: 10px; display: flex; flex-direction: column; align-items: center; gap: 4px; font-size: 11px; font-weight: 500; text-decoration: none; color: #A3ACB6;"><svg aria-hidden="true" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M10 6h10M10 12h10M10 18h10"></path><path d="M3.5 6l1.5 1.5L7.5 5"></path><path d="M3.5 12l1.5 1.5L7.5 11"></path><circle cx="5" cy="18" r="1.5"></circle></svg>Plan</a>
+<button type="button" style="flex: 0 0 auto; width: 60px; padding: 8px 0 7px; border: 0; border-radius: 10px; background: transparent; display: flex; flex-direction: column; align-items: center; gap: 4px; font-size: 11px; font-weight: 500; color: #A3ACB6; cursor: pointer;"><svg aria-hidden="true" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M4 5h16v11H9l-5 4z"></path><path d="M8 10h8"></path></svg>Ask</button>
+<div class="rail-spacer" style="flex: 1 1 auto;"></div>
+<button type="button" style="flex: 0 0 auto; width: 60px; padding: 8px 0 7px; border: 0; border-radius: 10px; background: transparent; display: flex; flex-direction: column; align-items: center; gap: 4px; font-size: 11px; font-weight: 500; color: #A3ACB6; cursor: pointer;"><svg aria-hidden="true" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3v11"></path><path d="M7 9l5 5 5-5"></path><path d="M4 17v3h16v-3"></path></svg>Imports</button>
+<button type="button" style="flex: 0 0 auto; width: 60px; padding: 8px 0 7px; border: 0; border-radius: 10px; background: transparent; display: flex; flex-direction: column; align-items: center; gap: 4px; font-size: 11px; font-weight: 500; color: #A3ACB6; cursor: pointer;"><svg aria-hidden="true" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"></circle><path d="M12 2v3M12 19v3M2 12h3M19 12h3M4.9 4.9L7 7M17 17l2.1 2.1M4.9 19.1L7 17M17 7l2.1-2.1"></path></svg>Settings</button>
+</nav>
+
+<div style="flex: 999 1 560px; min-width: 0; display: flex; flex-direction: column;">
+
+<header style="display: flex; flex-wrap: wrap; align-items: center; gap: 12px 16px; padding: 10px 24px; min-height: 60px; box-sizing: border-box; border-bottom: 1px solid #1E242B;">
+<nav aria-label="Scope" style="display: flex; align-items: center; gap: 4px; flex-wrap: wrap;">
+<button type="button" style="display: flex; align-items: center; gap: 6px; padding: 6px 10px; border: 1px solid transparent; border-radius: 8px; background: transparent; font-size: 13px; color: #CBD2D9; cursor: pointer;">Heavy-lift X8<svg aria-hidden="true" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#7C8691" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M6 9l6 6 6-6"></path></svg></button>
+<svg aria-hidden="true" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#4A535D" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 6l6 6-6 6"></path></svg>
+<button type="button" style="display: flex; align-items: center; gap: 6px; padding: 6px 10px; border: 1px solid #262D35; border-radius: 8px; background: #151A1F; font-family: 'IBM Plex Mono', ui-monospace, monospace; font-size: 13px; color: #E7EAEE; cursor: pointer;">HL-07<svg aria-hidden="true" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#7C8691" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M6 9l6 6 6-6"></path></svg></button>
+</nav>
+<button type="button" style="flex: 1 1 200px; max-width: 360px; display: flex; align-items: center; gap: 8px; padding: 8px 12px; border: 1px solid #262D35; border-radius: 8px; background: #12161A; color: #8A949E; font-size: 13px; text-align: left; cursor: pointer;"><svg aria-hidden="true" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><circle cx="11" cy="11" r="6"></circle><path d="M20 20l-4.5-4.5"></path></svg><span style="flex: 1 1 auto;">Search or jump</span><kbd style="font-family: 'IBM Plex Mono', ui-monospace, monospace; font-size: 11px; padding: 2px 6px; border: 1px solid #333B45; border-radius: 5px; color: #A3ACB6;">Ctrl K</kbd></button>
+<div style="margin-left: auto; display: flex; align-items: center; gap: 8px; flex-wrap: wrap;">
+<span style="display: flex; align-items: center; gap: 6px; padding: 5px 10px; border-radius: 999px; background: #151A1F; border: 1px solid #222930; font-size: 12px; color: #A3ACB6;"><span aria-hidden="true" style="width: 7px; height: 7px; border-radius: 50%; background: #3DBE8B;"></span>Claude API</span>
+<button type="button" style="display: flex; align-items: center; gap: 8px; padding: 9px 14px; border: 0; border-radius: 8px; background: #5AB0E8; color: #06121A; font-size: 13px; font-weight: 600; cursor: pointer;"><svg aria-hidden="true" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3v11"></path><path d="M7 9l5 5 5-5"></path><path d="M4 17v3h16v-3"></path></svg>Import logs</button>
+</div>
+</header>
+<div style="display: flex; flex-direction: column; gap: 12px; padding: 18px 24px 0;">
+<div style="display: flex; flex-wrap: wrap; align-items: baseline; gap: 8px 16px;">
+<h1 style="margin: 0; font-size: 22px; font-weight: 600; letter-spacing: -0.01em;">HL-07 · Range and speed</h1>
+<p style="margin: 0; font-size: 13px; color: #A3ACB6;">How far, how long and how fast this airframe can fly with each payload, from its own flights. Planning figures, not limits the aircraft enforces.</p>
+</div>
+<nav aria-label="Airframe views" style="display: flex; flex-wrap: wrap; gap: 2px; border-bottom: 1px solid #1E242B;">
+<sc-for list="{{tabs}}" as="t" hint-placeholder-count="5">
+<a href="{{t.href}}" style="padding: 9px 12px 10px; font-size: 13px; font-weight: 500; text-decoration: none; color: {{t.c}}; border-bottom: 2px solid {{t.line}}; margin-bottom: -1px;">{{t.label}}</a>
+</sc-for>
+</nav>
+<div role="group" aria-label="What to plan for" style="display: flex; flex-direction: column; gap: 10px; padding: 12px 14px; border-radius: 12px; background: #12161A; border: 1px solid #262D35;">
+<div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(min(440px, 100%), 1fr)); gap: 8px 24px;">
+<sc-for list="{{controls}}" as="g" hint-placeholder-count="7">
+<div style="display: flex; flex-wrap: wrap; align-items: center; gap: 6px 10px;">
+<span style="flex: 0 0 76px; font-size: 12px; color: #A3ACB6;">{{g.label}}</span>
+<div role="group" aria-label="{{g.label}}" style="display: flex; flex-wrap: wrap; gap: 6px;"><sc-for list="{{g.items}}" as="b" hint-placeholder-count="3"><button type="button" aria-pressed="{{b.on}}" onClick="{{b.pick}}" style="padding: 6px 10px; border: 1px solid {{b.bd}}; border-radius: 7px; background: {{b.bg}}; font-size: 12px; color: {{b.c}}; cursor: pointer;">{{b.label}}</button></sc-for></div>
+</div>
+</sc-for>
+</div>
+<div style="display: flex; flex-wrap: wrap; align-items: baseline; gap: 4px 16px; padding-top: 8px; border-top: 1px solid #222930; font-size: 12px;">
+<span style="color: #CBD2D9;"><span style="color: #8A949E;">Cruise</span> {{cruise}}</span>
+<span style="margin-left: auto; color: #8A949E;">Distances and air density are worked out on this laptop. Nothing on this screen is sent anywhere.</span>
+</div>
+</div>
+</div>
+
+<main style="display: flex; flex-wrap: wrap; gap: 20px; padding: 16px 24px 24px; align-items: flex-start;">
+<div style="flex: 999 1 560px; min-width: 0; display: flex; flex-direction: column; gap: 16px;">
+
+<div style="padding: 10px 14px; border-radius: 10px; background: #151F27; border: 1px solid #23394A; display: flex; flex-direction: column; gap: 4px;">
+<span style="display: inline-flex; align-items: center; gap: 5px; font-size: 12px; font-weight: 600; color: #9FB2C6;"><span aria-hidden="true" style="font-size: 9px;">◆</span>Estimates until HL1’s validation flights pass</span>
+<span style="font-size: 12px; line-height: 1.5; color: #CBD2D9;">Figures marked estimate come from a model of power against airspeed and weight, fitted to HL-07’s flights. The method is validated on the reference airframe HL1 when three checks pass: each flight’s energy predicted from the other flights within 5% at the median and 10% at the 90th percentile, and a flight flown down to the reserve ending within 5% of its prediction. HL1 now: median 4.1%, 90th percentile 9.6%; the flight to the reserve is not flown yet.</span>
+</div>
+
+<section aria-labelledby="rec-title" style="display: flex; flex-direction: column; gap: 10px;">
+<div style="display: flex; flex-wrap: wrap; align-items: baseline; gap: 6px 12px;"><h2 id="rec-title" style="margin: 0; font-size: 15px; font-weight: 600;">Recommendations</h2><span style="font-size: 12px; color: #8A949E;">Each opens in the plan, which exports a parameter file for a person to load. Nothing is written to the aircraft.</span></div>
+<div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 10px;">
+<sc-for list="{{recs}}" as="r" hint-placeholder-count="4">
+<article style="display: flex; flex-direction: column; gap: 8px; padding: 12px 14px; border-radius: 10px; background: #151A1F; border: 1px solid #262D35;">
+<h3 style="margin: 0; font-size: 14px; font-weight: 600; color: #E7EAEE;">{{r.title}}</h3>
+<sc-if value="{{r.hasP}}" hint-placeholder-val="{{ true }}">
+<div style="font-family: 'IBM Plex Mono', ui-monospace, monospace; font-size: 12px;"><span style="color: #CBD2D9;">{{r.p}}</span> <span style="color: #A3ACB6;">{{r.a}}</span> <span aria-hidden="true" style="color: #6E7883;">→</span> <span style="color: #9BD3F5;">{{r.b}}</span> <span style="color: #8A949E;">{{r.unit}}</span></div>
+</sc-if>
+<p style="margin: 0; font-size: 12px; line-height: 1.5; color: #B8C0C8;">{{r.why}}</p>
+<div style="display: flex; flex-wrap: wrap; gap: 4px 12px; font-size: 12px;"><sc-for list="{{r.ev}}" as="e" hint-placeholder-count="2"><a href="{{e.href}}" style="text-decoration: none;">{{e.t}}</a></sc-for></div>
+<a href="Plan.dc.html" style="margin-top: auto; align-self: flex-start; display: inline-flex; align-items: center; min-height: 32px; padding: 0 12px; border: 1px solid #2D5068; border-radius: 8px; background: rgba(90,176,232,0.10); color: #9BD3F5; font-size: 12px; font-weight: 600; text-decoration: none;">Open in plan</a>
+</article>
+</sc-for>
+</div>
+</section>
+
+<section aria-labelledby="kpi-title" style="flex: 0 0 auto; min-width: 0; display: flex; flex-direction: column; gap: 12px; padding: 16px 18px; border-radius: 12px; background: #12161A; border: 1px solid #262D35;">
+<div style="display: flex; flex-wrap: wrap; align-items: baseline; gap: 6px 12px;"><h2 id="kpi-title" style="margin: 0; font-size: 15px; font-weight: 600;">{{plLabel}} payload · {{wLabel}} take-off</h2><span style="font-size: 12px; color: #8A949E;">Pick a figure to see how it is worked out</span></div>
+<div style="display: grid; grid-template-columns: repeat(auto-fill, minmax(178px, 1fr)); gap: 10px;">
+<sc-for list="{{kpis}}" as="k" hint-placeholder-count="10">
+<button type="button" aria-pressed="{{k.on}}" aria-controls="ins-title" onClick="{{k.pick}}" style="display: flex; flex-direction: column; align-items: stretch; gap: 5px; padding: 12px 14px; border-radius: 10px; background: {{k.bg}}; border: 1px solid {{k.bd}}; color: inherit; font-family: inherit; text-align: left; cursor: pointer;">
+<span style="display: flex; justify-content: space-between; align-items: baseline; gap: 6px;"><span style="font-size: 12px; color: #A3ACB6;">{{k.name}}</span><span style="flex: 0 0 auto; padding: 1px 7px; border-radius: 6px; font-size: 11px; color: {{k.tagC}}; background: {{k.tagBg}};">{{k.tag}}</span></span>
+<span style="display: flex; align-items: baseline; gap: 5px;"><span style="font-family: 'IBM Plex Mono', ui-monospace, monospace; font-size: 20px; font-weight: 500; color: #E7EAEE;">{{k.v}}</span><span style="font-size: 12px; color: #8A949E;">{{k.u}}</span></span>
+<span style="font-family: 'IBM Plex Mono', ui-monospace, monospace; font-size: 11px; color: #8A949E;">{{k.ivl}}</span>
+<span style="font-size: 12px; line-height: 1.4; color: #A3ACB6;">{{k.sub}}</span>
+<sc-if value="{{k.hasV5}}" hint-placeholder-val="{{ false }}"><span style="padding-top: 5px; border-top: 1px dashed #333B45; font-size: 12px; color: #A3ACB6;">v5, not flown: <span style="font-family: 'IBM Plex Mono', ui-monospace, monospace; color: #CBD2D9;">{{k.v5}}</span></span></sc-if>
+</button>
+</sc-for>
+</div>
+<div id="reserve" style="display: flex; flex-direction: column; gap: 4px; padding: 10px 12px; border-radius: 9px; background: #151A1F; border: 1px solid #262D35; font-size: 12px; line-height: 1.5; color: #CBD2D9;">
+<span style="font-weight: 600; color: #E7EAEE;">The reserve, kept back in every figure</span>
+<span>The larger of the aircraft’s battery failsafe (<span style="font-family: 'IBM Plex Mono', ui-monospace, monospace;">BATT_LOW_MAH</span> 4400 mAh, 189 Wh; <span style="font-family: 'IBM Plex Mono', ui-monospace, monospace;">BATT_LOW_VOLT</span> 42.0 V, about <span style="font-family: 'IBM Plex Mono', ui-monospace, monospace;">{{reserve.fs}} Wh</span>) and 20% of the packs’ usable energy (<span style="font-family: 'IBM Plex Mono', ui-monospace, monospace;">{{reserve.pct}} Wh</span>), plus <span style="font-family: 'IBM Plex Mono', ui-monospace, monospace;">{{reserve.land}} Wh</span> measured to descend and land.</span>
+<span><span style="color: #8A949E;">Energy to plan with</span> <span style="font-family: 'IBM Plex Mono', ui-monospace, monospace; color: #E7EAEE;">{{reserve.plan}} Wh</span> of the <span style="font-family: 'IBM Plex Mono', ui-monospace, monospace;">{{reserve.pack}} Wh</span> the {{reserve.packName}} gives at best-range cruise · 2 × 12S 22 Ah, 1,954 Wh rated</span>
+</div>
+</section>
+
+<section id="c1" aria-labelledby="c1-title" style="flex: 0 0 auto; min-width: 0; display: flex; flex-direction: column; gap: 12px; padding: 16px 18px; border-radius: 12px; background: #12161A; border: 1px solid #262D35;">
+<div style="display: flex; flex-wrap: wrap; align-items: baseline; gap: 6px 12px;"><h2 id="c1-title" style="margin: 0; font-size: 15px; font-weight: 600;">Payload, range and flight time</h2><span style="font-size: 12px; color: #8A949E;">Still air · each weight at its own best-range and best-endurance speed</span></div>
+<figure style="min-width: 0; margin: 0; display: flex; flex-direction: column; gap: 6px;">
+<figcaption style="display: flex; flex-wrap: wrap; gap: 4px 14px; font-size: 12px; color: #A3ACB6;"><span style="color: #E7EAEE; font-weight: 500;">Against take-off weight</span><span><span aria-hidden="true" style="color: #5AB0E8;">━</span> model, with its 95% band</span><span><span aria-hidden="true" style="color: #5AB0E8;">┅</span> extrapolated</span><span><span aria-hidden="true" style="color: #E7EAEE;">●</span> HL-07’s flights</span><span><span aria-hidden="true" style="color: #3A424B;">▮</span> outside the weights flown</span><span><span aria-hidden="true" style="color: #9BD3F5;">│</span> chosen payload</span></figcaption>
+<svg role="img" aria-label="{{c1.aria}}" width="100%" viewBox="0 0 900 384" style="display: block;">
+<rect x="60" y="40" width="{{c1.exLoW}}" height="130" fill="rgba(58,66,75,0.28)"></rect>
+<rect x="60" y="210" width="{{c1.exLoW}}" height="130" fill="rgba(58,66,75,0.28)"></rect>
+<rect x="{{c1.exHiX}}" y="40" width="{{c1.exHiW}}" height="130" fill="rgba(58,66,75,0.28)"></rect>
+<rect x="{{c1.exHiX}}" y="210" width="{{c1.exHiW}}" height="130" fill="rgba(58,66,75,0.28)"></rect>
+<sc-for list="{{c1.ytR}}" as="g" hint-placeholder-count="5"><line x1="60" y1="{{g.gy}}" x2="880" y2="{{g.gy}}" stroke="#1E242B"></line><text x="{{g.x}}" y="{{g.y}}" fill="#8A949E" font-size="11" text-anchor="end" font-family="IBM Plex Mono, monospace">{{g.l}}</text></sc-for>
+<sc-for list="{{c1.ytT}}" as="g" hint-placeholder-count="5"><line x1="60" y1="{{g.gy}}" x2="880" y2="{{g.gy}}" stroke="#1E242B"></line><text x="{{g.x}}" y="{{g.y}}" fill="#8A949E" font-size="11" text-anchor="end" font-family="IBM Plex Mono, monospace">{{g.l}}</text></sc-for>
+<line x1="60" y1="170" x2="880" y2="170" stroke="#2A3139"></line>
+<line x1="60" y1="340" x2="880" y2="340" stroke="#2A3139"></line>
+<text x="876" y="56" fill="#CBD2D9" font-size="12" text-anchor="end" font-family="IBM Plex Sans, sans-serif">Range at best-range speed, km</text>
+<text x="876" y="226" fill="#CBD2D9" font-size="12" text-anchor="end" font-family="IBM Plex Sans, sans-serif">Flight time, min</text>
+<text x="64" y="164" fill="#8A949E" font-size="11" font-family="IBM Plex Sans, sans-serif">extrapolated</text>
+<text x="{{c1.exHiX}}" y="164" dx="6" fill="#8A949E" font-size="11" font-family="IBM Plex Sans, sans-serif">extrapolated</text>
+<sc-for list="{{c1.markers}}" as="m" hint-placeholder-count="5"><line x1="{{m.x}}" y1="36" x2="{{m.x}}" y2="340" stroke="{{m.col}}" stroke-opacity="0.7" stroke-dasharray="3 3"></line><text x="{{m.x}}" y="{{m.ty}}" fill="{{m.col}}" font-size="11" text-anchor="{{m.a}}" font-family="IBM Plex Sans, sans-serif">{{m.label}}</text></sc-for>
+<path d="{{c1.range.band}}" fill="#5AB0E8" fill-opacity="0.14"></path>
+<path d="{{c1.best.band}}" fill="#5AB0E8" fill-opacity="0.12"></path>
+<path d="{{c1.range.solid}}" fill="none" stroke="#5AB0E8" stroke-width="2.2"></path>
+<path d="{{c1.range.lo}}" fill="none" stroke="#5AB0E8" stroke-width="2" stroke-dasharray="5 4"></path>
+<path d="{{c1.range.hi}}" fill="none" stroke="#5AB0E8" stroke-width="2" stroke-dasharray="5 4"></path>
+<path d="{{c1.best.solid}}" fill="none" stroke="#5AB0E8" stroke-width="2.2"></path>
+<path d="{{c1.best.lo}}" fill="none" stroke="#5AB0E8" stroke-width="2" stroke-dasharray="5 4"></path>
+<path d="{{c1.best.hi}}" fill="none" stroke="#5AB0E8" stroke-width="2" stroke-dasharray="5 4"></path>
+<path d="{{c1.hover.solid}}" fill="none" stroke="#9BD3F5" stroke-width="1.6"></path>
+<path d="{{c1.hover.lo}}" fill="none" stroke="#9BD3F5" stroke-width="1.4" stroke-dasharray="5 4"></path>
+<path d="{{c1.hover.hi}}" fill="none" stroke="#9BD3F5" stroke-width="1.4" stroke-dasharray="5 4"></path>
+<text x="{{c1.bestLab.x}}" y="{{c1.bestLab.y}}" fill="#CBD2D9" font-size="11" font-family="IBM Plex Sans, sans-serif">at best-endurance speed</text>
+<text x="{{c1.hovLab.x}}" y="{{c1.hovLab.y}}" fill="#CBD2D9" font-size="11" font-family="IBM Plex Sans, sans-serif">hovering</text>
+<sc-for list="{{c1.dots}}" as="d" hint-placeholder-count="16"><circle cx="{{d.x}}" cy="{{d.yr}}" r="3.5" fill="#E7EAEE" stroke="#12161A" stroke-width="1.5"></circle><circle cx="{{d.x}}" cy="{{d.yt}}" r="3.5" fill="#E7EAEE" stroke="#12161A" stroke-width="1.5"></circle></sc-for>
+<line x1="{{c1.sel.x}}" y1="40" x2="{{c1.sel.x}}" y2="340" stroke="#9BD3F5" stroke-width="1.2"></line>
+<circle cx="{{c1.sel.x}}" cy="{{c1.sel.yr}}" r="5" fill="#12161A" stroke="#9BD3F5" stroke-width="2"></circle>
+<circle cx="{{c1.sel.x}}" cy="{{c1.sel.yt}}" r="5" fill="#12161A" stroke="#9BD3F5" stroke-width="2"></circle>
+<text x="{{c1.sel.lx}}" y="{{c1.sel.yr}}" dy="-12" fill="#9BD3F5" font-size="12" text-anchor="{{c1.sel.la}}" font-family="IBM Plex Mono, monospace">{{c1.sel.lr}}</text>
+<text x="{{c1.sel.lx}}" y="{{c1.sel.yt}}" dy="-12" fill="#9BD3F5" font-size="12" text-anchor="{{c1.sel.la}}" font-family="IBM Plex Mono, monospace">{{c1.sel.lt}}</text>
+<sc-for list="{{c1.xt}}" as="t" hint-placeholder-count="7"><text x="{{t.x}}" y="{{t.y}}" fill="#8A949E" font-size="11" text-anchor="{{t.a}}" font-family="IBM Plex Mono, monospace">{{t.l}}</text></sc-for>
+<text x="470" y="380" fill="#A3ACB6" font-size="11" text-anchor="middle" font-family="IBM Plex Sans, sans-serif">Take-off weight, kg · empty with both packs 22.0 kg</text>
+</svg>
+</figure>
+<p style="margin: 0; font-size: 12px; line-height: 1.5; color: #8A949E;">Flown from 24.6 to 32.0 kg on build v4 (16 flights); lighter and heavier is extrapolated, so the band widens. The lines across the top: the motor-out target from the Propulsion view, the most the platform setup allows, half the thrust in hover, and where a 2.5 m/s climb late in a flight would draw the power module’s 200 A.</p>
+</section>
+
+<section id="c2" aria-labelledby="c2-title" style="flex: 0 0 auto; min-width: 0; display: flex; flex-direction: column; gap: 12px; padding: 16px 18px; border-radius: 12px; background: #12161A; border: 1px solid #262D35;">
+<div style="display: flex; flex-wrap: wrap; align-items: baseline; gap: 6px 12px;"><h2 id="c2-title" style="margin: 0; font-size: 15px; font-weight: 600;">Power and speed</h2><span style="font-size: 12px; color: #8A949E;">Steady level flight, 2 s tiles averaged per flight and 1 m/s · {{c2.lbl}}</span></div>
+<figure style="min-width: 0; margin: 0; display: flex; flex-direction: column; gap: 6px;">
+<figcaption style="display: flex; flex-wrap: wrap; gap: 4px 14px; font-size: 12px; color: #A3ACB6;"><span style="color: #E7EAEE; font-weight: 500;">Electrical power against airspeed, by payload</span><span><span aria-hidden="true" style="color: #CFE9FA;">━</span> 0 kg, not flown</span><span><span aria-hidden="true" style="color: #9BD3F5;">●━</span> 4 kg, 10 flights</span><span><span aria-hidden="true" style="color: #5AB0E8;">●━</span> 8 kg, 6 flights</span><span><span aria-hidden="true" style="color: #2F7FB8;">━</span> 12 kg, not flown</span><span>┅ beyond the speeds flown</span><span>- - tangent from the origin</span></figcaption>
+<svg role="img" aria-label="{{c2.aria}}" width="100%" viewBox="0 0 900 384" style="display: block;">
+<sc-if value="{{c2.showEx}}" hint-placeholder-val="{{ true }}"><rect x="{{c2.exX}}" y="40" width="{{c2.exW}}" height="316" fill="rgba(58,66,75,0.28)"></rect></sc-if>
+<sc-for list="{{c2.yt}}" as="g" hint-placeholder-count="6"><line x1="52" y1="{{g.gy}}" x2="876" y2="{{g.gy}}" stroke="#1E242B"></line><text x="{{g.x}}" y="{{g.y}}" fill="#8A949E" font-size="11" text-anchor="end" font-family="IBM Plex Mono, monospace">{{g.l}}</text></sc-for>
+<line x1="52" y1="356" x2="876" y2="356" stroke="#2A3139"></line>
+<sc-for list="{{c2.lines}}" as="l" hint-placeholder-count="3"><line x1="{{l.x}}" y1="36" x2="{{l.x}}" y2="356" stroke="{{l.c}}" stroke-opacity="0.8" stroke-dasharray="{{l.dash}}"></line></sc-for>
+<text x="{{c2.l0.x}}" y="14" fill="#A3ACB6" font-size="11" text-anchor="middle" font-family="IBM Plex Sans, sans-serif">{{c2.l0.l}}</text>
+<text x="{{c2.l1.x}}" y="14" fill="{{c2.l1.c}}" font-size="11" text-anchor="{{c2.l1.a}}" font-family="IBM Plex Sans, sans-serif">{{c2.l1.l}}</text>
+<text x="{{c2.l2.x}}" y="{{c2.l2.y}}" fill="#E7EAEE" font-size="11" text-anchor="{{c2.l2.a}}" font-family="IBM Plex Sans, sans-serif">{{c2.l2.l}}</text>
+<path d="{{c2.band}}" fill="{{c2.sel}}" fill-opacity="0.16"></path>
+<sc-for list="{{c2.curves}}" as="c" hint-placeholder-count="4"><path d="{{c.solid}}" fill="none" stroke="{{c.col}}" stroke-opacity="{{c.op}}" stroke-width="{{c.w}}"></path><path d="{{c.dash}}" fill="none" stroke="{{c.col}}" stroke-opacity="{{c.op}}" stroke-width="{{c.w}}" stroke-dasharray="5 4"></path><text x="{{c.lx}}" y="{{c.ly}}" fill="#CBD2D9" font-size="11" font-family="IBM Plex Sans, sans-serif">{{c.label}}</text></sc-for>
+<sc-for list="{{c2.pts}}" as="q" hint-placeholder-count="46"><circle cx="{{q.x}}" cy="{{q.y}}" r="3" fill="{{q.c}}" stroke="#12161A" stroke-width="1.2"></circle></sc-for>
+<line x1="{{c2.tan.x1}}" y1="{{c2.tan.y1}}" x2="{{c2.tan.x2}}" y2="{{c2.tan.y2}}" stroke="#E7EAEE" stroke-opacity="0.7" stroke-width="1.2" stroke-dasharray="6 4"></line>
+<circle cx="{{c2.mp.x}}" cy="{{c2.mp.y}}" r="5.5" fill="#12161A" stroke="#E7EAEE" stroke-width="2"></circle>
+<text x="{{c2.mp.x}}" y="{{c2.mp.ly}}" fill="#E7EAEE" font-size="12" text-anchor="middle" font-family="IBM Plex Mono, monospace">{{c2.mp.l}}</text>
+<circle cx="{{c2.mr.x}}" cy="{{c2.mr.y}}" r="5.5" fill="#E7EAEE" stroke="#12161A" stroke-width="2"></circle>
+<text x="{{c2.mr.lx}}" y="{{c2.mr.ly}}" fill="#E7EAEE" font-size="12" text-anchor="end" font-family="IBM Plex Mono, monospace">{{c2.mr.l}}</text>
+<sc-for list="{{c2.xt}}" as="t" hint-placeholder-count="5"><text x="{{t.x}}" y="{{t.y}}" fill="#8A949E" font-size="11" text-anchor="{{t.a}}" font-family="IBM Plex Mono, monospace">{{t.l}}</text></sc-for>
+</svg>
+</figure>
+<div style="display: flex; flex-wrap: wrap; gap: 16px; align-items: flex-start; padding-top: 4px; border-top: 1px solid #222930;">
+<figure id="c3" style="flex: 999 1 420px; min-width: 0; margin: 0; display: flex; flex-direction: column; gap: 6px;">
+<figcaption style="display: flex; flex-wrap: wrap; gap: 4px 14px; font-size: 12px; color: #A3ACB6;"><span style="color: #E7EAEE; font-weight: 500;">Energy per km over the ground, and flight time, against airspeed · {{plLabel}}</span><sc-for list="{{c3.lines}}" as="l" hint-placeholder-count="3"><span><span aria-hidden="true" style="color: {{l.col}};">━</span> {{l.label}}</span></sc-for></figcaption>
+<svg role="img" aria-label="{{c3.aria}}" width="100%" viewBox="0 0 640 352" style="display: block;">
+<sc-for list="{{c3.yt}}" as="g" hint-placeholder-count="5"><line x1="52" y1="{{g.gy}}" x2="616" y2="{{g.gy}}" stroke="#1E242B"></line><text x="{{g.x}}" y="{{g.y}}" fill="#8A949E" font-size="11" text-anchor="end" font-family="IBM Plex Mono, monospace">{{g.l}}</text></sc-for>
+<sc-for list="{{c3.ytT}}" as="g" hint-placeholder-count="4"><line x1="52" y1="{{g.gy}}" x2="616" y2="{{g.gy}}" stroke="#1E242B"></line><text x="{{g.x}}" y="{{g.y}}" fill="#8A949E" font-size="11" text-anchor="end" font-family="IBM Plex Mono, monospace">{{g.l}}</text></sc-for>
+<line x1="52" y1="160" x2="616" y2="160" stroke="#2A3139"></line>
+<line x1="52" y1="320" x2="616" y2="320" stroke="#2A3139"></line>
+<text x="612" y="34" fill="#CBD2D9" font-size="12" text-anchor="end" font-family="IBM Plex Sans, sans-serif">Wh per km over the ground</text>
+<text x="612" y="204" fill="#CBD2D9" font-size="12" text-anchor="end" font-family="IBM Plex Sans, sans-serif">Flight time, min</text>
+<line x1="{{c3.verX}}" y1="20" x2="{{c3.verX}}" y2="320" stroke="#9BD3F5" stroke-opacity="0.8" stroke-dasharray="2 3"></line>
+<text x="{{c3.verX}}" y="182" dx="5" fill="#9BD3F5" font-size="11" font-family="IBM Plex Sans, sans-serif">{{c3.verL}}</text>
+<sc-for list="{{c3.lines}}" as="l" hint-placeholder-count="3"><path d="{{l.d}}" fill="none" stroke="{{l.col}}" stroke-width="2"></path><circle cx="{{l.bx}}" cy="{{l.by}}" r="4.5" fill="{{l.col}}" stroke="#12161A" stroke-width="1.5"></circle><text x="{{l.lx}}" y="{{l.ly}}" fill="#E7EAEE" font-size="11" font-family="IBM Plex Mono, monospace">{{l.bl}}</text></sc-for>
+<text x="{{c3.n1x}}" y="{{c3.n1y}}" fill="#CBD2D9" font-size="11" font-family="IBM Plex Sans, sans-serif">{{c3.note1}}</text>
+<path d="{{c3.time}}" fill="none" stroke="#5AB0E8" stroke-width="2.2"></path>
+<circle cx="{{c3.tmp.x}}" cy="{{c3.tmp.y}}" r="4.5" fill="#5AB0E8" stroke="#12161A" stroke-width="1.5"></circle>
+<text x="{{c3.tmp.x}}" y="{{c3.tmp.y}}" dy="-9" fill="#E7EAEE" font-size="11" text-anchor="middle" font-family="IBM Plex Mono, monospace">{{c3.tmp.l}}</text>
+<circle cx="{{c3.tmr.x}}" cy="{{c3.tmr.y}}" r="4.5" fill="#12161A" stroke="#5AB0E8" stroke-width="2"></circle>
+<text x="{{c3.tmr.x}}" y="{{c3.tmr.y}}" dx="8" dy="-8" fill="#E7EAEE" font-size="11" font-family="IBM Plex Mono, monospace">{{c3.tmr.l}}</text>
+<sc-for list="{{c3.xt}}" as="t" hint-placeholder-count="5"><text x="{{t.x}}" y="{{t.y}}" fill="#8A949E" font-size="11" text-anchor="{{t.a}}" font-family="IBM Plex Mono, monospace">{{t.l}}</text></sc-for>
+</svg>
+</figure>
+<div style="flex: 1 1 220px; display: flex; flex-direction: column; gap: 8px; font-size: 12px; line-height: 1.5; color: #CBD2D9;">
+<p style="margin: 0;">The minimum of each line is the speed to fly. Flight time does not depend on the wind; distance over the ground does.</p>
+<p style="margin: 0;"><span style="color: #8A949E;">Still air</span> · {{c3.note1}}.</p>
+<p style="margin: 0;"><span style="color: #8A949E;">Headwind</span> · {{c3.note2}}.</p>
+<p style="margin: 0; color: #8A949E;">Speeds above the {{capLabel}} are not used for planning until the speed build-up verifies them.</p>
+</div>
+</div>
+</section>
+
+<sc-if value="{{goalFast}}" hint-placeholder-val="{{ false }}">
+<section id="c11" aria-labelledby="c11-title" style="flex: 0 0 auto; min-width: 0; display: flex; flex-direction: column; gap: 12px; padding: 16px 18px; border-radius: 12px; background: #12161A; border: 1px solid #2D5068;">
+<div style="display: flex; flex-wrap: wrap; align-items: baseline; gap: 6px 12px;"><h2 id="c11-title" style="margin: 0; font-size: 15px; font-weight: 600;">Speed build-up · {{plLabel}}</h2><span style="font-size: 12px; color: #8A949E;">A speed counts as verified once held steady for 10 s with every watched metric inside its margin</span></div>
+<div style="display: flex; flex-wrap: wrap; gap: 16px; align-items: flex-start;">
+<div style="flex: 1 1 240px; min-width: 0; display: flex; flex-direction: column; gap: 6px;">
+<h3 style="margin: 0; font-size: 13px; font-weight: 600;">Verified speed, by payload</h3>
+<sc-for list="{{c11.bands}}" as="b" hint-placeholder-count="4"><div style="display: grid; grid-template-columns: 86px minmax(0, 1fr); gap: 8px; padding: 6px 0; border-bottom: 1px solid #1E242B; font-size: 12px;"><span style="color: {{b.c}}; font-weight: 600;">{{b.l}}</span><span style="color: #CBD2D9;">{{b.t}}</span></div></sc-for>
+</div>
+<div style="flex: 2 1 340px; min-width: 0; display: flex; flex-direction: column; gap: 8px;">
+<h3 style="margin: 0; font-size: 13px; font-weight: 600;">Next step: {{c11.Vn}} m/s, {{c11.from}}</h3>
+<span style="font-size: 12px; color: #8A949E;">Predicted at the step, each against its limit. The ESC limit is its protection setting, 100 °C, less 10 °C.</span>
+<sc-for list="{{c11.rows}}" as="r" hint-placeholder-count="6"><div style="display: flex; flex-wrap: wrap; align-items: center; gap: 4px 10px; font-size: 12px;"><span style="flex: 0 0 150px; color: #A3ACB6;">{{r.n}}</span><span aria-hidden="true" style="flex: 1 1 100px; height: 6px; border-radius: 3px; background: #232A31;"><span style="display: block; height: 6px; border-radius: 3px; width: {{r.w}}%; background: {{r.c}};"></span></span><span style="flex: 1 1 150px; font-family: 'IBM Plex Mono', ui-monospace, monospace; color: #E7EAEE; text-align: right;">{{r.v}}</span></div></sc-for>
+<div style="padding: 10px 12px; border-radius: 9px; background: rgba(232,163,61,0.08); border: 1px solid #5A4526; display: flex; flex-direction: column; gap: 3px;"><span style="display: inline-flex; align-items: center; gap: 5px; font-size: 12px; font-weight: 600; color: #E8A33D;"><span aria-hidden="true" style="font-size: 9px;">▲</span>Binding limit: {{c11.bind}}</span><span style="font-size: 12px; line-height: 1.45; color: #CBD2D9;">{{c11.bindV}} predicted at {{c11.Vn}} m/s. Fly the step only after the plan’s inspection of motor 3 and ESC 3.</span></div>
+</div>
+</div>
+<div style="display: flex; flex-wrap: wrap; gap: 16px; align-items: flex-start; padding-top: 10px; border-top: 1px solid #222930;">
+<div style="flex: 1 1 280px; min-width: 0; display: flex; flex-direction: column; gap: 6px;">
+<h3 style="margin: 0; font-size: 13px; font-weight: 600;">Ready for the step?</h3>
+<ul style="list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 5px; font-size: 12px; line-height: 1.45;">
+<sc-for list="{{c11.ready}}" as="x" hint-placeholder-count="7"><li style="display: flex; gap: 8px;"><span aria-hidden="true" style="flex: 0 0 12px; color: {{x.c}};">{{x.g}}</span><span style="color: #CBD2D9;">{{x.t}}</span></li></sc-for>
+</ul>
+</div>
+<div style="flex: 1 1 320px; min-width: 0; display: flex; flex-direction: column; gap: 6px;">
+<h3 style="margin: 0; font-size: 13px; font-weight: 600;">To go faster</h3>
+<sc-for list="{{c11.sols}}" as="s" hint-placeholder-count="6"><div style="display: flex; flex-wrap: wrap; align-items: baseline; gap: 2px 8px; padding: 6px 0; border-bottom: 1px solid #1E242B; font-size: 12px;"><span style="flex: 1 1 200px; color: #E7EAEE;">{{s.t}}</span><span style="padding: 1px 7px; border-radius: 6px; font-size: 11px; color: {{s.tagC}}; background: {{s.tagBg}};">{{s.tag}}</span><span style="flex: 1 1 100%; color: #A3ACB6;">{{s.g}}</span></div></sc-for>
+</div>
+</div>
+<div style="display: flex; flex-wrap: wrap; align-items: center; gap: 8px 12px;">
+<a href="Plan.dc.html" style="display: inline-flex; align-items: center; justify-content: center; min-height: 40px; padding: 0 14px; border-radius: 8px; background: #5AB0E8; color: #06121A; font-size: 13px; font-weight: 600; text-decoration: none;">Plan step 1</a>
+<span style="flex: 1 1 300px; font-size: 12px; line-height: 1.45; color: #8A949E;">Adds a test card and a parameter file for step 1 (<span style="font-family: 'IBM Plex Mono', ui-monospace, monospace;">WP_SPD</span> {{c11.Vn}} for one leg, fast attitude logging on) to the plan, with the abort criteria. Fly it in less than 3 m/s of wind: <span style="font-family: 'IBM Plex Mono', ui-monospace, monospace;">WP_SPD</span> is a ground speed. Nothing is written to the aircraft.</span>
+</div>
+</section>
+</sc-if>
+<sc-if value="{{goalEff}}" hint-placeholder-val="{{ true }}">
+<div style="display: flex; flex-wrap: wrap; align-items: center; gap: 8px 12px; padding: 10px 14px; border-radius: 10px; border: 1px dashed #333B45; font-size: 12px; color: #8A949E;"><span style="flex: 1 1 300px;">Speed build-up: the verified speed at each payload, the next 1 m/s step with its predicted margins, and what would let it go faster.</span><button type="button" onClick="{{goFast}}" style="padding: 6px 10px; border: 1px solid #333B45; border-radius: 7px; background: transparent; font-size: 12px; color: #CBD2D9; cursor: pointer;">Set the speed goal to Fastest safe</button></div>
+</sc-if>
+
+<section id="c4" aria-labelledby="c4-title" style="flex: 0 0 auto; min-width: 0; display: flex; flex-direction: column; gap: 12px; padding: 16px 18px; border-radius: 12px; background: #12161A; border: 1px solid #262D35;">
+<div style="display: flex; flex-wrap: wrap; align-items: baseline; gap: 6px 12px;"><h2 id="c4-title" style="margin: 0; font-size: 15px; font-weight: 600;">Wind</h2><span style="font-size: 12px; color: #8A949E;">Directions are relative to the wind, never to a place</span></div>
+<div style="display: flex; flex-wrap: wrap; gap: 16px; align-items: flex-start;">
+<figure style="flex: 999 1 380px; min-width: 0; margin: 0; display: flex; flex-direction: column; gap: 6px;">
+<figcaption style="display: flex; flex-wrap: wrap; gap: 4px 14px; font-size: 12px; color: #A3ACB6;"><span style="color: #E7EAEE; font-weight: 500;">Radius against wind speed · {{c4.trip}}</span><sc-for list="{{c4.series}}" as="s" hint-placeholder-count="3"><span><span aria-hidden="true" style="color: {{s.col}};">{{s.glyph}}</span> {{s.l}}</span></sc-for></figcaption>
+<svg role="img" aria-label="{{c4.aria}}" width="100%" viewBox="0 0 640 268" style="display: block;">
+<sc-for list="{{c4.yt}}" as="g" hint-placeholder-count="5"><line x1="48" y1="{{g.gy}}" x2="624" y2="{{g.gy}}" stroke="#1E242B"></line><text x="{{g.x}}" y="{{g.y}}" fill="#8A949E" font-size="11" text-anchor="end" font-family="IBM Plex Mono, monospace">{{g.l}}</text></sc-for>
+<line x1="48" y1="236" x2="624" y2="236" stroke="#2A3139"></line>
+<sc-for list="{{c4.series}}" as="s" hint-placeholder-count="3"><path d="{{s.d}}" fill="none" stroke="{{s.col}}" stroke-width="{{s.w}}" stroke-dasharray="{{s.dash}}"></path></sc-for>
+<circle cx="{{c4.cur.x}}" cy="{{c4.cur.y}}" r="5" fill="#12161A" stroke="#9BD3F5" stroke-width="2"></circle>
+<text x="{{c4.cur.lx}}" y="{{c4.cur.y}}" dy="20" fill="#9BD3F5" font-size="12" text-anchor="{{c4.cur.la}}" font-family="IBM Plex Mono, monospace">{{c4.cur.l}}</text>
+<sc-for list="{{c4.xt}}" as="t" hint-placeholder-count="7"><text x="{{t.x}}" y="{{t.y}}" fill="#8A949E" font-size="11" text-anchor="{{t.a}}" font-family="IBM Plex Mono, monospace">{{t.l}}</text></sc-for>
+</svg>
+</figure>
+<figure style="flex: 1 1 220px; max-width: 260px; min-width: 0; margin: 0; display: flex; flex-direction: column; gap: 6px;">
+<figcaption style="font-size: 12px; color: #A3ACB6;"><span style="color: #E7EAEE; font-weight: 500;">By direction of travel, {{c4.windL}}</span></figcaption>
+<svg role="img" aria-label="{{c4.paria}}" width="100%" viewBox="0 0 220 236" style="display: block;">
+<sc-for list="{{c4.polar.rings}}" as="r" hint-placeholder-count="2"><circle cx="110" cy="120" r="{{r.r}}" fill="none" stroke="#2A3139"></circle><text x="{{r.lx}}" y="{{r.ly}}" fill="#A3ACB6" font-size="10" text-anchor="end" font-family="IBM Plex Mono, monospace">{{r.l}}</text></sc-for>
+<line x1="110" y1="30" x2="110" y2="210" stroke="#1E242B"></line>
+<line x1="20" y1="120" x2="200" y2="120" stroke="#1E242B"></line>
+<path d="{{c4.polar.d}}" fill="#5AB0E8" fill-opacity="0.14" stroke="#5AB0E8" stroke-width="2"></path>
+<circle cx="{{c4.polar.wx}}" cy="{{c4.polar.wy}}" r="4.5" fill="#E7EAEE" stroke="#12161A" stroke-width="1.5"></circle>
+<sc-if value="{{c4.polar.both}}" hint-placeholder-val="{{ true }}"><circle cx="{{c4.polar.wx2}}" cy="{{c4.polar.wy2}}" r="4.5" fill="#E7EAEE" stroke="#12161A" stroke-width="1.5"></circle></sc-if>
+<path d="M110 6 L110 22 M104 16 L110 23 L116 16" fill="none" stroke="#A3ACB6" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"></path>
+<text x="118" y="14" fill="#A3ACB6" font-size="10" font-family="IBM Plex Sans, sans-serif">wind</text>
+<text x="110" y="230" fill="#8A949E" font-size="10" text-anchor="middle" font-family="IBM Plex Sans, sans-serif">out with the wind</text>
+<text x="4" y="112" fill="#8A949E" font-size="10" font-family="IBM Plex Sans, sans-serif">across</text>
+<text x="216" y="112" fill="#8A949E" font-size="10" text-anchor="end" font-family="IBM Plex Sans, sans-serif">across</text>
+</svg>
+<span style="font-size: 12px; color: #8A949E;">Up is out into the wind. ● the worst direction: {{c4.worstL}}.</span>
+</figure>
+</div>
+<div id="c5" style="display: flex; flex-direction: column; gap: 8px; padding-top: 10px; border-top: 1px solid #222930;">
+<div style="display: flex; flex-wrap: wrap; align-items: baseline; gap: 6px 12px;"><h3 style="margin: 0; font-size: 13px; font-weight: 600;">The speed to fly into a headwind · {{plLabel}}</h3><span style="font-size: 12px; color: #8A949E;"><span style="font-family: 'IBM Plex Mono', ui-monospace, monospace;">WP_SPD</span> and <span style="font-family: 'IBM Plex Mono', ui-monospace, monospace;">RTL_SPEED_MS</span> are ground speeds: set these</span></div>
+<div style="overflow-x: auto;"><table aria-label="Best ground speed against headwind" style="width: 100%; border-collapse: collapse; font-size: 13px; color: #CBD2D9;"><thead><tr><th scope="col" style="padding: 6px 10px; text-align: left; font-weight: 500; color: #8A949E; border-bottom: 1px solid #262D35;">Headwind</th><th scope="col" style="padding: 6px 10px; text-align: left; font-weight: 500; color: #8A949E; border-bottom: 1px solid #262D35;">Best over the ground</th><th scope="col" style="padding: 6px 10px; text-align: left; font-weight: 500; color: #8A949E; border-bottom: 1px solid #262D35;">Fly at, over the ground</th><th scope="col" style="padding: 6px 10px; text-align: right; font-weight: 500; color: #8A949E; border-bottom: 1px solid #262D35;">Energy</th><th scope="col" style="padding: 6px 10px; text-align: right; font-weight: 500; color: #8A949E; border-bottom: 1px solid #262D35;"></th></tr></thead><tbody>
+<sc-for list="{{hwRows}}" as="h" hint-placeholder-count="4"><tr><td style="padding: 7px 10px; border-bottom: 1px solid #1E242B; vertical-align: top;"><span style="font-family: 'IBM Plex Mono', ui-monospace, monospace; color: #E7EAEE;">{{h.w}}</span></td><td style="padding: 7px 10px; border-bottom: 1px solid #1E242B; vertical-align: top;"><span style="font-family: 'IBM Plex Mono', ui-monospace, monospace; color: #A3ACB6;">{{h.best}}</span> <span style="font-size: 12px; color: #8A949E;">{{h.bestAir}}</span></td><td style="padding: 7px 10px; border-bottom: 1px solid #1E242B; vertical-align: top;"><span style="font-family: 'IBM Plex Mono', ui-monospace, monospace; color: #E7EAEE;">{{h.fly}}</span> <span style="font-size: 12px; color: #8A949E;">{{h.flyAir}}</span></td><td style="padding: 7px 10px; border-bottom: 1px solid #1E242B; vertical-align: top; text-align: right;"><span style="font-family: 'IBM Plex Mono', ui-monospace, monospace; color: #E7EAEE;">{{h.whkm}}</span></td><td style="padding: 7px 10px; border-bottom: 1px solid #1E242B; vertical-align: top; text-align: right;"><span style="display: inline-flex; align-items: center; gap: 5px; font-size: 12px; font-weight: 600; color: {{h.stc}}; white-space: nowrap;"><span aria-hidden="true" style="font-size: 9px;">{{h.st}}</span>{{h.stl}}</span></td></tr></sc-for>
+</tbody></table></div>
+</div>
+</section>
+
+<section id="c6" aria-labelledby="c6-title" style="flex: 0 0 auto; min-width: 0; display: flex; flex-direction: column; gap: 12px; padding: 16px 18px; border-radius: 12px; background: #12161A; border: 1px solid #262D35;">
+<div style="display: flex; flex-wrap: wrap; align-items: baseline; gap: 6px 12px;"><h2 id="c6-title" style="margin: 0; font-size: 15px; font-weight: 600;">Batteries</h2><span style="font-size: 12px; color: #8A949E;">Packs fly as matched pairs; each B- number is one pair · resistance as ArduPilot logs it</span></div>
+<div style="display: flex; flex-wrap: wrap; gap: 16px; align-items: flex-start;">
+<figure style="flex: 999 1 340px; min-width: 0; margin: 0; display: flex; flex-direction: column; gap: 6px;">
+<figcaption style="display: flex; flex-wrap: wrap; gap: 4px 14px; font-size: 12px; color: #A3ACB6;"><span style="color: #E7EAEE; font-weight: 500;">Energy down to the reserve, Wh, against average load</span><sc-for list="{{c6.lines}}" as="l" hint-placeholder-count="4"><span><span aria-hidden="true" style="color: {{l.col}};">━</span> {{l.l}}</span></sc-for></figcaption>
+<svg role="img" aria-label="{{c6.aria}}" width="100%" viewBox="0 0 600 250" style="display: block;">
+<sc-for list="{{c6.yt}}" as="g" hint-placeholder-count="4"><line x1="52" y1="{{g.gy}}" x2="584" y2="{{g.gy}}" stroke="#1E242B"></line><text x="{{g.x}}" y="{{g.y}}" fill="#8A949E" font-size="11" text-anchor="end" font-family="IBM Plex Mono, monospace">{{g.l}}</text></sc-for>
+<line x1="52" y1="216" x2="584" y2="216" stroke="#2A3139"></line>
+<line x1="{{c6.loadX}}" y1="20" x2="{{c6.loadX}}" y2="216" stroke="#9BD3F5" stroke-opacity="0.8" stroke-dasharray="2 3"></line>
+<text x="{{c6.loadLx}}" y="30" fill="#9BD3F5" font-size="11" text-anchor="{{c6.loadA}}" font-family="IBM Plex Sans, sans-serif">{{c6.loadL}}</text>
+<sc-for list="{{c6.lines}}" as="l" hint-placeholder-count="4"><path d="{{l.d}}" fill="none" stroke="{{l.col}}" stroke-width="2" stroke-dasharray="{{l.dash}}"></path></sc-for>
+<sc-for list="{{c6.xt}}" as="t" hint-placeholder-count="6"><text x="{{t.x}}" y="{{t.y}}" fill="#8A949E" font-size="11" text-anchor="{{t.a}}" font-family="IBM Plex Mono, monospace">{{t.l}}</text></sc-for>
+</svg>
+</figure>
+<div style="flex: 1 1 260px; min-width: 0; display: flex; flex-direction: column; gap: 10px;">
+<figure style="margin: 0; display: flex; flex-direction: column; gap: 4px;">
+<figcaption style="font-size: 12px; color: #A3ACB6;"><span style="color: #E7EAEE; font-weight: 500;">Capacity, share of rated, against charge cycles</span></figcaption>
+<svg role="img" aria-label="{{c6.caria}}" width="100%" viewBox="0 0 260 142" style="display: block;">
+<sc-for list="{{c6.cyt}}" as="g" hint-placeholder-count="4"><line x1="40" y1="{{g.gy}}" x2="248" y2="{{g.gy}}" stroke="#1E242B"></line><text x="{{g.x}}" y="{{g.y}}" fill="#8A949E" font-size="10" text-anchor="end" font-family="IBM Plex Mono, monospace">{{g.l}}</text></sc-for>
+<sc-for list="{{c6.cap}}" as="s" hint-placeholder-count="3"><path d="{{s.d}}" fill="none" stroke="{{s.col}}" stroke-width="1.6"></path><sc-for list="{{s.dots}}" as="d" hint-placeholder-count="6"><circle cx="{{d.x}}" cy="{{d.y}}" r="3" fill="{{s.col}}" stroke="#12161A" stroke-width="1"></circle></sc-for></sc-for>
+<sc-for list="{{c6.cxt}}" as="t" hint-placeholder-count="4"><text x="{{t.x}}" y="{{t.y}}" fill="#8A949E" font-size="10" text-anchor="{{t.a}}" font-family="IBM Plex Mono, monospace">{{t.l}}</text></sc-for>
+</svg>
+</figure>
+<figure style="margin: 0; display: flex; flex-direction: column; gap: 4px;">
+<figcaption style="font-size: 12px; color: #A3ACB6;"><span style="color: #E7EAEE; font-weight: 500;">Resistance, share of new, against charge cycles</span> · <span style="color: #E8A33D;">▲</span> caution above 150%, an app rule, uncalibrated</figcaption>
+<svg role="img" aria-label="{{c6.raria}}" width="100%" viewBox="0 0 260 142" style="display: block;">
+<rect x="40" y="14" width="208" height="{{c6.r150h}}" fill="#E8A33D" fill-opacity="0.07"></rect>
+<sc-for list="{{c6.ryt}}" as="g" hint-placeholder-count="3"><line x1="40" y1="{{g.gy}}" x2="248" y2="{{g.gy}}" stroke="#1E242B"></line><text x="{{g.x}}" y="{{g.y}}" fill="#8A949E" font-size="10" text-anchor="end" font-family="IBM Plex Mono, monospace">{{g.l}}</text></sc-for>
+<line x1="40" y1="{{c6.r150}}" x2="248" y2="{{c6.r150}}" stroke="#E8A33D" stroke-opacity="0.7" stroke-dasharray="4 3"></line>
+<sc-for list="{{c6.res}}" as="s" hint-placeholder-count="3"><path d="{{s.d}}" fill="none" stroke="{{s.col}}" stroke-width="1.6"></path><sc-for list="{{s.dots}}" as="d" hint-placeholder-count="6"><circle cx="{{d.x}}" cy="{{d.y}}" r="3" fill="{{s.col}}" stroke="#12161A" stroke-width="1"></circle></sc-for></sc-for>
+<text x="{{c6.b17x}}" y="{{c6.b17y}}" dy="-8" fill="#E8A33D" font-size="10" text-anchor="end" font-family="IBM Plex Mono, monospace">B-17 · 170%</text>
+<sc-for list="{{c6.cxt}}" as="t" hint-placeholder-count="4"><text x="{{t.x}}" y="{{t.y}}" fill="#8A949E" font-size="10" text-anchor="{{t.a}}" font-family="IBM Plex Mono, monospace">{{t.l}}</text></sc-for>
+</svg>
+</figure>
+</div>
+</div>
+<div style="overflow-x: auto;"><table aria-label="Pack pairs" style="width: 100%; border-collapse: collapse; font-size: 13px; color: #CBD2D9;"><thead><tr><th scope="col" style="padding: 6px 10px; text-align: left; font-weight: 500; color: #8A949E; border-bottom: 1px solid #262D35;">Pair</th><th scope="col" style="padding: 6px 10px; text-align: right; font-weight: 500; color: #8A949E; border-bottom: 1px solid #262D35;">Cycles</th><th scope="col" style="padding: 6px 10px; text-align: right; font-weight: 500; color: #8A949E; border-bottom: 1px solid #262D35;">Capacity</th><th scope="col" style="padding: 6px 10px; text-align: right; font-weight: 500; color: #8A949E; border-bottom: 1px solid #262D35;">Resistance</th><th scope="col" style="padding: 6px 10px; text-align: right; font-weight: 500; color: #8A949E; border-bottom: 1px solid #262D35;">Range, {{plLabel}}</th><th scope="col" style="padding: 6px 10px; text-align: right; font-weight: 500; color: #8A949E; border-bottom: 1px solid #262D35;"></th></tr></thead><tbody>
+<sc-for list="{{c6.rows}}" as="r" hint-placeholder-count="3"><tr><td style="padding: 7px 10px; border-bottom: 1px solid #1E242B;"><span style="font-family: 'IBM Plex Mono', ui-monospace, monospace; color: #E7EAEE;">{{r.n}}</span></td><td style="padding: 7px 10px; border-bottom: 1px solid #1E242B; text-align: right;"><span style="font-family: 'IBM Plex Mono', ui-monospace, monospace;">{{r.cy}}</span></td><td style="padding: 7px 10px; border-bottom: 1px solid #1E242B; text-align: right;"><span style="font-family: 'IBM Plex Mono', ui-monospace, monospace;">{{r.cap}}</span></td><td style="padding: 7px 10px; border-bottom: 1px solid #1E242B; text-align: right;"><span style="font-family: 'IBM Plex Mono', ui-monospace, monospace;">{{r.res}}</span></td><td style="padding: 7px 10px; border-bottom: 1px solid #1E242B; text-align: right;"><span style="font-family: 'IBM Plex Mono', ui-monospace, monospace; color: #E7EAEE;">{{r.range}}</span></td><td style="padding: 7px 10px; border-bottom: 1px solid #1E242B; text-align: right;"><span style="display: inline-flex; align-items: center; gap: 5px; font-size: 12px; font-weight: 600; color: {{r.c}}; white-space: nowrap;"><span aria-hidden="true" style="font-size: 9px;">{{r.g}}</span>{{r.s}}</span></td></tr></sc-for>
+</tbody></table></div>
+</section>
+
+<sc-if value="{{cmpOn}}" hint-placeholder-val="{{ false }}">
+<section id="c10" aria-labelledby="c10-title" style="flex: 0 0 auto; min-width: 0; display: flex; flex-direction: column; gap: 12px; padding: 16px 18px; border-radius: 12px; background: #12161A; border: 1px solid #2D5068;">
+<div style="display: flex; flex-wrap: wrap; align-items: baseline; gap: 6px 12px;"><h2 id="c10-title" style="margin: 0; font-size: 15px; font-weight: 600;">Build v4 against v5 · KV175, planned</h2><span style="font-size: 12px; color: #8A949E;">v5 is not flown: its curves come from T-Motor’s bench data with HL-07’s own drag and packs</span></div>
+<div style="display: flex; flex-wrap: wrap; gap: 16px; align-items: flex-start;">
+<figure style="flex: 1 1 280px; min-width: 0; margin: 0; display: flex; flex-direction: column; gap: 6px;">
+<figcaption style="display: flex; flex-wrap: wrap; gap: 4px 14px; font-size: 12px; color: #A3ACB6;"><span style="color: #E7EAEE; font-weight: 500;">Power against airspeed, {{plLabel}}</span><span><span aria-hidden="true" style="color: #5AB0E8;">━</span> v4, flown</span><span><span aria-hidden="true" style="color: #A3ACB6;">┅</span> v5, not flown</span></figcaption>
+<svg role="img" aria-label="{{c10.aria}}" width="100%" viewBox="0 0 440 200" style="display: block;">
+<sc-for list="{{c10.pyt}}" as="g" hint-placeholder-count="3"><line x1="44" y1="{{g.gy}}" x2="430" y2="{{g.gy}}" stroke="#1E242B"></line><text x="{{g.x}}" y="{{g.y}}" fill="#8A949E" font-size="10" text-anchor="end" font-family="IBM Plex Mono, monospace">{{g.l}}</text></sc-for>
+<path d="{{c10.p4}}" fill="none" stroke="#5AB0E8" stroke-width="2.2"></path>
+<path d="{{c10.p5}}" fill="none" stroke="#A3ACB6" stroke-width="2" stroke-dasharray="5 4"></path>
+<sc-for list="{{c10.pxt}}" as="t" hint-placeholder-count="3"><text x="{{t.x}}" y="{{t.y}}" fill="#8A949E" font-size="10" text-anchor="{{t.a}}" font-family="IBM Plex Mono, monospace">{{t.l}}</text></sc-for>
+</svg>
+</figure>
+<figure style="flex: 1 1 280px; min-width: 0; margin: 0; display: flex; flex-direction: column; gap: 6px;">
+<figcaption style="display: flex; flex-wrap: wrap; gap: 4px 14px; font-size: 12px; color: #A3ACB6;"><span style="color: #E7EAEE; font-weight: 500;">Range against take-off weight</span><span><span aria-hidden="true" style="color: #5AB0E8;">━</span> v4</span><span><span aria-hidden="true" style="color: #A3ACB6;">┅</span> v5, not flown</span></figcaption>
+<svg role="img" aria-label="{{c10.raria}}" width="100%" viewBox="0 0 440 200" style="display: block;">
+<sc-for list="{{c10.ryt}}" as="g" hint-placeholder-count="3"><line x1="44" y1="{{g.gy}}" x2="430" y2="{{g.gy}}" stroke="#1E242B"></line><text x="{{g.x}}" y="{{g.y}}" fill="#8A949E" font-size="10" text-anchor="end" font-family="IBM Plex Mono, monospace">{{g.l}}</text></sc-for>
+<path d="{{c10.r4}}" fill="none" stroke="#5AB0E8" stroke-width="2.2"></path>
+<path d="{{c10.r5}}" fill="none" stroke="#A3ACB6" stroke-width="2" stroke-dasharray="5 4"></path>
+<sc-for list="{{c10.rxt}}" as="t" hint-placeholder-count="3"><text x="{{t.x}}" y="{{t.y}}" fill="#8A949E" font-size="10" text-anchor="{{t.a}}" font-family="IBM Plex Mono, monospace">{{t.l}}</text></sc-for>
+</svg>
+</figure>
+</div>
+<div style="overflow-x: auto;"><table aria-label="Build v4 against v5" style="width: 100%; border-collapse: collapse; font-size: 13px; color: #CBD2D9;"><thead><tr><th scope="col" style="padding: 6px 10px; text-align: left; font-weight: 500; color: #8A949E; border-bottom: 1px solid #262D35;"></th><th scope="col" style="padding: 6px 10px; text-align: right; font-weight: 500; color: #8A949E; border-bottom: 1px solid #262D35;">v4 · KV210, flown</th><th scope="col" style="padding: 6px 10px; text-align: right; font-weight: 500; color: #8A949E; border-bottom: 1px solid #262D35;">v5 · KV175, not flown</th></tr></thead><tbody>
+<sc-for list="{{c10.facts}}" as="f" hint-placeholder-count="5"><tr><td style="padding: 7px 10px; border-bottom: 1px solid #1E242B;">{{f.n}}</td><td style="padding: 7px 10px; border-bottom: 1px solid #1E242B; text-align: right;"><span style="font-family: 'IBM Plex Mono', ui-monospace, monospace; color: #E7EAEE;">{{f.a}}</span></td><td style="padding: 7px 10px; border-bottom: 1px solid #1E242B; text-align: right;"><span style="color: #E8A33D;">{{f.warn}}</span> <span style="font-family: 'IBM Plex Mono', ui-monospace, monospace; color: #E7EAEE;">{{f.b}}</span></td></tr></sc-for>
+</tbody></table></div>
+<p style="margin: 0; font-size: 12px; line-height: 1.5; color: #CBD2D9;">The lower KV turns the same props more efficiently but slower at full throttle: about 6% less power at every speed, and 11% less thrust. With less thrust in reserve, the motor-out target is met only up to a lighter take-off. Fly v5 light first; its figures stay estimates until it has.</p>
+</section>
+</sc-if>
+<sc-if value="{{cmpOff}}" hint-placeholder-val="{{ true }}">
+<div style="display: flex; flex-wrap: wrap; align-items: center; gap: 8px 12px; padding: 10px 14px; border-radius: 10px; border: 1px dashed #333B45; font-size: 12px; color: #8A949E;"><span style="flex: 1 1 300px;">Build comparison: the planned v5 · KV175 against v4, from the maker’s bench data. v5 is not flown.</span><button type="button" onClick="{{goCmp}}" style="padding: 6px 10px; border: 1px solid #333B45; border-radius: 7px; background: transparent; font-size: 12px; color: #CBD2D9; cursor: pointer;">Compare with v5</button></div>
+</sc-if>
+
+<section id="c8" aria-labelledby="c8-title" style="flex: 0 0 auto; min-width: 0; display: flex; flex-direction: column; gap: 12px; padding: 16px 18px; border-radius: 12px; background: #12161A; border: 1px solid #262D35;">
+<div style="display: flex; flex-wrap: wrap; align-items: baseline; gap: 6px 12px;"><h2 id="c8-title" style="margin: 0; font-size: 15px; font-weight: 600;">What if</h2><span style="font-size: 12px; color: #8A949E;">Each change alone, at {{plLabel}} · range at best-range speed, flight time at best-endurance speed</span></div>
+<div style="overflow-x: auto;"><table aria-label="What-if changes and their effect" style="width: 100%; border-collapse: collapse; font-size: 13px; color: #CBD2D9;"><thead><tr><th scope="col" style="padding: 6px 10px; text-align: left; font-weight: 500; color: #8A949E; border-bottom: 1px solid #262D35;">Change</th><th scope="col" style="padding: 6px 10px; text-align: left; font-weight: 500; color: #8A949E; border-bottom: 1px solid #262D35;">Range</th><th scope="col" style="padding: 6px 10px; text-align: left; font-weight: 500; color: #8A949E; border-bottom: 1px solid #262D35;">Flight time</th><th scope="col" style="padding: 6px 10px; text-align: right; font-weight: 500; color: #8A949E; border-bottom: 1px solid #262D35;">From</th></tr></thead><tbody>
+<sc-for list="{{whatIf}}" as="w" hint-placeholder-count="4"><tr><td style="padding: 8px 10px; border-bottom: 1px solid #1E242B; vertical-align: top;"><span style="color: #E7EAEE;">{{w.what}}</span><br><span style="font-size: 12px; color: #8A949E;">{{w.why}}</span></td><td style="padding: 8px 10px; border-bottom: 1px solid #1E242B; vertical-align: top; white-space: nowrap;"><span aria-hidden="true" style="display: inline-block; width: 90px; height: 6px; border-radius: 3px; background: #232A31; vertical-align: middle; margin-right: 8px;"><span style="display: block; height: 6px; border-radius: 3px; width: {{w.wr}}%; background: #5AB0E8;"></span></span><span style="font-family: 'IBM Plex Mono', ui-monospace, monospace; color: #E7EAEE;">{{w.drp}}</span> <span style="font-family: 'IBM Plex Mono', ui-monospace, monospace; font-size: 12px; color: #8A949E;">{{w.dr}}</span></td><td style="padding: 8px 10px; border-bottom: 1px solid #1E242B; vertical-align: top; white-space: nowrap;"><span aria-hidden="true" style="display: inline-block; width: 90px; height: 6px; border-radius: 3px; background: #232A31; vertical-align: middle; margin-right: 8px;"><span style="display: block; height: 6px; border-radius: 3px; width: {{w.wt}}%; background: #9BD3F5;"></span></span><span style="font-family: 'IBM Plex Mono', ui-monospace, monospace; color: #E7EAEE;">{{w.dtp}}</span> <span style="font-family: 'IBM Plex Mono', ui-monospace, monospace; font-size: 12px; color: #8A949E;">{{w.dt}}</span></td><td style="padding: 8px 10px; border-bottom: 1px solid #1E242B; vertical-align: top; text-align: right;"><span style="padding: 1px 7px; border-radius: 6px; font-size: 11px; color: {{w.tagC}}; background: {{w.tagBg}};">{{w.tag}}</span></td></tr></sc-for>
+</tbody></table></div>
+<p style="margin: 0; font-size: 12px; color: #8A949E;">Bars run to 10%. Measured: the effect follows from what HL-07 has flown. Theory: the model alone, until a flight with the change confirms it.</p>
+</section>
+
+<section id="c9" aria-labelledby="c9-title" style="flex: 0 0 auto; min-width: 0; display: flex; flex-direction: column; gap: 12px; padding: 16px 18px; border-radius: 12px; background: #12161A; border: 1px solid #262D35;">
+<div style="display: flex; flex-wrap: wrap; align-items: baseline; gap: 6px 12px;"><h2 id="c9-title" style="margin: 0; font-size: 15px; font-weight: 600;">Density altitude · {{plLabel}}</h2><span style="font-size: 12px; color: #8A949E;">Worked out on this laptop, never sent</span></div>
+<figure style="min-width: 0; margin: 0; display: flex; flex-direction: column; gap: 6px;">
+<figcaption style="display: flex; flex-wrap: wrap; gap: 4px 14px; font-size: 12px; color: #A3ACB6;"><span style="color: #E7EAEE; font-weight: 500;">Change against standard air at sea level</span><span><span aria-hidden="true" style="color: #5AB0E8;">━</span> range at best-range speed</span><span><span aria-hidden="true" style="color: #9BD3F5;">━</span> hover endurance</span><span><span aria-hidden="true" style="color: #5AB0E8;">┅</span> beyond the density altitudes flown, 100–500 m</span></figcaption>
+<svg role="img" aria-label="{{c9.aria}}" width="100%" viewBox="0 0 900 200" style="display: block;">
+<rect x="{{c9.fx0}}" y="18" width="{{c9.fw}}" height="152" fill="#5AB0E8" fill-opacity="0.06"></rect>
+<sc-for list="{{c9.yt}}" as="g" hint-placeholder-count="3"><line x1="52" y1="{{g.gy}}" x2="876" y2="{{g.gy}}" stroke="#1E242B"></line><text x="{{g.x}}" y="{{g.y}}" fill="#8A949E" font-size="11" text-anchor="end" font-family="IBM Plex Mono, monospace">{{g.l}}</text></sc-for>
+<line x1="52" y1="{{c9.zero}}" x2="876" y2="{{c9.zero}}" stroke="#2A3139"></line>
+<path d="{{c9.rAll}}" fill="none" stroke="#5AB0E8" stroke-width="2" stroke-dasharray="5 4"></path>
+<path d="{{c9.rFl}}" fill="none" stroke="#5AB0E8" stroke-width="2.4"></path>
+<path d="{{c9.hAll}}" fill="none" stroke="#9BD3F5" stroke-width="2" stroke-dasharray="5 4"></path>
+<path d="{{c9.hFl}}" fill="none" stroke="#9BD3F5" stroke-width="2.4"></path>
+<circle cx="{{c9.ux}}" cy="{{c9.uyR}}" r="4.5" fill="#12161A" stroke="#5AB0E8" stroke-width="2"></circle>
+<circle cx="{{c9.ux}}" cy="{{c9.uyH}}" r="4.5" fill="#12161A" stroke="#9BD3F5" stroke-width="2"></circle>
+<text x="{{c9.ux}}" y="{{c9.uyR}}" dx="10" dy="-10" fill="#CBD2D9" font-size="11" font-family="IBM Plex Sans, sans-serif">this airframe’s usual air, 262 m</text>
+<text x="{{c9.rEnd.x}}" y="{{c9.rEnd.y}}" fill="#CBD2D9" font-size="11" text-anchor="end" font-family="IBM Plex Sans, sans-serif">{{c9.rEnd.l}}</text>
+<text x="{{c9.hEnd.x}}" y="{{c9.hEnd.y}}" fill="#CBD2D9" font-size="11" text-anchor="end" font-family="IBM Plex Sans, sans-serif">{{c9.hEnd.l}}</text>
+<sc-for list="{{c9.xt}}" as="t" hint-placeholder-count="7"><text x="{{t.x}}" y="{{t.y}}" fill="#8A949E" font-size="11" text-anchor="{{t.a}}" font-family="IBM Plex Mono, monospace">{{t.l}}</text></sc-for>
+</svg>
+</figure>
+<p style="margin: 0; font-size: 12px; line-height: 1.5; color: #8A949E;">Thin air costs power in hover and at low speed and saves a little drag at speed, so hover endurance falls faster than range: at 2,000 m, {{c9.h2}} min hovering ({{c9.dh2}}%) and {{c9.r2}} km ({{c9.d2}}%). Density comes from each flight’s barometer and temperature; the app keeps it, and the density altitude, on this laptop.</p>
+</section>
+
+<section id="c7" aria-labelledby="c7-title" style="flex: 0 0 auto; min-width: 0; display: flex; flex-direction: column; gap: 12px; padding: 16px 18px; border-radius: 12px; background: #12161A; border: 1px solid #262D35;">
+<div style="display: flex; flex-wrap: wrap; align-items: baseline; gap: 6px 12px;"><h2 id="c7-title" style="margin: 0; font-size: 15px; font-weight: 600;">Over time</h2><span style="font-size: 12px; color: #8A949E;">One point per flight · corrected to 30 kg and standard air</span></div>
+<figure style="min-width: 0; margin: 0; display: flex; flex-direction: column; gap: 6px;">
+<figcaption style="display: flex; flex-wrap: wrap; gap: 4px 14px; font-size: 12px; color: #A3ACB6;"><span style="color: #E7EAEE; font-weight: 500;">Flights 126–157</span><span><span aria-hidden="true" style="color: #E7EAEE;">●</span> flight</span><span><span aria-hidden="true" style="color: #E8A33D;">●</span> ▲ about 6% below</span><span><span aria-hidden="true" style="color: #5AB0E8;">┊</span> build change</span><span><span aria-hidden="true" style="color: #8A949E;">●</span> parameter change set</span><span><span aria-hidden="true" style="color: #A3ACB6;">◆</span> firmware</span></figcaption>
+<svg role="img" aria-label="{{c7.aria}}" width="100%" viewBox="0 0 900 336" style="display: block;">
+<text x="0" y="28" fill="#A3ACB6" font-size="11" font-family="IBM Plex Sans, sans-serif">Hover g/W</text>
+<text x="0" y="122" fill="#A3ACB6" font-size="11" font-family="IBM Plex Sans, sans-serif">Hover FM</text>
+<text x="0" y="216" fill="#A3ACB6" font-size="11" font-family="IBM Plex Sans, sans-serif">Wh/km</text>
+<sc-for list="{{c7.gw.yt}}" as="g" hint-placeholder-count="3"><line x1="76" y1="{{g.gy}}" x2="856" y2="{{g.gy}}" stroke="#1E242B"></line><text x="864" y="{{g.y}}" fill="#8A949E" font-size="10" font-family="IBM Plex Mono, monospace">{{g.l}}</text></sc-for>
+<sc-for list="{{c7.fm.yt}}" as="g" hint-placeholder-count="3"><line x1="76" y1="{{g.gy}}" x2="856" y2="{{g.gy}}" stroke="#1E242B"></line><text x="864" y="{{g.y}}" fill="#8A949E" font-size="10" font-family="IBM Plex Mono, monospace">{{g.l}}</text></sc-for>
+<sc-for list="{{c7.wh.yt}}" as="g" hint-placeholder-count="2"><line x1="76" y1="{{g.gy}}" x2="856" y2="{{g.gy}}" stroke="#1E242B"></line><text x="864" y="{{g.y}}" fill="#8A949E" font-size="10" font-family="IBM Plex Mono, monospace">{{g.l}}</text></sc-for>
+<line x1="{{c7.build}}" y1="10" x2="{{c7.build}}" y2="306" stroke="#5AB0E8" stroke-width="1.4" stroke-dasharray="4 3"></line>
+<path d="{{c7.gw.d}}" fill="none" stroke="#4A5561" stroke-width="1.2"></path>
+<path d="{{c7.fm.d}}" fill="none" stroke="#4A5561" stroke-width="1.2"></path>
+<path d="{{c7.wh.d}}" fill="none" stroke="#4A5561" stroke-width="1.2"></path>
+<sc-for list="{{c7.gw.dots}}" as="d" hint-placeholder-count="24"><circle cx="{{d.x}}" cy="{{d.y}}" r="3.5" fill="{{d.c}}"></circle></sc-for>
+<sc-for list="{{c7.fm.dots}}" as="d" hint-placeholder-count="24"><circle cx="{{d.x}}" cy="{{d.y}}" r="3.5" fill="{{d.c}}"></circle></sc-for>
+<sc-for list="{{c7.wh.dots}}" as="d" hint-placeholder-count="24"><circle cx="{{d.x}}" cy="{{d.y}}" r="3.5" fill="{{d.c}}"></circle></sc-for>
+<line x1="76" y1="296" x2="856" y2="296" stroke="#2A3139"></line>
+<text x="0" y="300" fill="#A3ACB6" font-size="11" font-family="IBM Plex Sans, sans-serif">Changes</text>
+<sc-for list="{{c7.params}}" as="m" hint-placeholder-count="4"><circle cx="{{m.x}}" cy="296" r="5" fill="#8A949E"></circle></sc-for>
+<path d="{{c7.fwD}}" fill="#A3ACB6"></path>
+<rect x="{{c7.bx}}" y="290" width="12" height="12" rx="2" fill="#5AB0E8"></rect>
+<text x="{{c7.btx}}" y="20" fill="#9BD3F5" font-size="11" font-family="IBM Plex Sans, sans-serif">Props replaced · build v4</text>
+<sc-for list="{{c7.xt}}" as="t" hint-placeholder-count="7"><text x="{{t.x}}" y="326" fill="#8A949E" font-size="11" text-anchor="middle" font-family="IBM Plex Mono, monospace">{{t.l}}</text></sc-for>
+</svg>
+</figure>
+<div style="display: flex; flex-wrap: wrap; align-items: center; gap: 8px 14px; font-size: 12px;"><span style="display: inline-flex; align-items: center; gap: 5px; font-weight: 600; color: #E8A33D;"><span aria-hidden="true" style="font-size: 9px;">▲</span>Flights 156 and 157: about 6% more power for the same thrust</span><span style="color: #A3ACB6;">Not explained by weight, air or wind. The Propulsion view names motors 3 and 7.</span><a href="Propulsion.dc.html" style="margin-left: auto;">Flight 156 energy</a><a href="Trends.dc.html">Open in Trends</a></div>
+</section>
+
+<section id="ds" aria-labelledby="ds-title" style="flex: 0 0 auto; min-width: 0; display: flex; flex-direction: column; gap: 12px; padding: 16px 18px; border-radius: 12px; background: #12161A; border: 1px solid #262D35;">
+<div style="display: flex; flex-wrap: wrap; align-items: baseline; gap: 6px 12px;"><h2 id="ds-title" style="margin: 0; font-size: 15px; font-weight: 600;">The data behind these figures</h2><span style="font-size: 12px; color: #8A949E;">Build v4 · 16 flights · steady 2 s tiles, averaged per flight and 1 m/s</span></div>
+<div style="display: flex; flex-wrap: wrap; gap: 16px; align-items: flex-start;">
+<div style="flex: 999 1 380px; min-width: 0; display: flex; flex-direction: column; gap: 6px;">
+<span style="font-size: 12px; color: #A3ACB6;">Minutes of steady flight, by payload and airspeed</span>
+<div style="overflow-x: auto;"><table aria-label="Minutes flown by payload and airspeed" style="width: 100%; border-collapse: separate; border-spacing: 2px; font-size: 12px;"><thead><tr><th scope="col" style="padding: 4px 6px; text-align: left; font-weight: 500; color: #8A949E;"></th><sc-for list="{{gridHead}}" as="h" hint-placeholder-count="8"><th scope="col" style="padding: 4px 6px; text-align: center; font-weight: 500; color: #8A949E; font-family: 'IBM Plex Mono', ui-monospace, monospace; font-size: 11px;">{{h}}</th></sc-for></tr></thead><tbody>
+<sc-for list="{{grid}}" as="r" hint-placeholder-count="4"><tr><th scope="row" style="padding: 4px 6px; text-align: left; font-weight: 500; color: #CBD2D9;">{{r.l}}</th><sc-for list="{{r.cells}}" as="c" hint-placeholder-count="8"><td style="padding: 5px 6px; text-align: center; border-radius: 4px; background: {{c.bg}}; color: {{c.c}}; font-family: 'IBM Plex Mono', ui-monospace, monospace;">{{c.v}}</td></sc-for></tr></sc-for>
+</tbody></table></div>
+<span style="font-size: 12px; color: #8A949E;">Airspeed in m/s; the first column is hover. A dot: nothing flown there.</span>
+</div>
+<div style="flex: 1 1 260px; min-width: 0; display: flex; flex-direction: column; gap: 8px;">
+<div style="display: flex; justify-content: space-between; align-items: baseline; gap: 10px; font-size: 12px;"><span style="color: #A3ACB6;">Each flight’s energy predicted from the others</span><span style="color: #E7EAEE; text-align: right;"><span style="font-family: 'IBM Plex Mono', ui-monospace, monospace;">3.8%</span> median · <span style="font-family: 'IBM Plex Mono', ui-monospace, monospace;">8.6%</span> at the 90th percentile</span></div>
+<div style="display: flex; justify-content: space-between; align-items: baseline; gap: 10px; font-size: 12px;"><span style="color: #A3ACB6;">Worst flight</span><span style="color: #E7EAEE; text-align: right;">flight 156, <span style="font-family: 'IBM Plex Mono', ui-monospace, monospace;">+6.2%</span> more than predicted</span></div>
+<div style="display: flex; justify-content: space-between; align-items: baseline; gap: 10px; font-size: 12px;"><span style="color: #A3ACB6;">Drag area</span><span style="color: #E7EAEE; text-align: right;"><span style="font-family: 'IBM Plex Mono', ui-monospace, monospace;">0.99 m²</span>, from lean in steady flight</span></div>
+<div style="display: flex; justify-content: space-between; align-items: baseline; gap: 10px; font-size: 12px;"><span style="color: #A3ACB6;">Usable energy</span><span style="color: #E7EAEE; text-align: right;">from each pair’s logged resistance and sag</span></div>
+<h3 style="margin: 4px 0 0; font-size: 13px; font-weight: 600;">Priors in use</h3>
+<ul style="margin: 0; padding-left: 18px; display: flex; flex-direction: column; gap: 4px; font-size: 12px; line-height: 1.45; color: #CBD2D9;">
+<li>Profile power from theory: blade drag from the prop maker’s data, until a sweep reaches 16 m/s</li>
+<li>Lower props in the upper props’ wash: from theory, 0.82 of an open prop’s thrust per watt</li>
+<li>Above the speeds flown: the drag area held constant</li>
+</ul>
+</div>
+</div>
+<div style="display: flex; flex-direction: column; gap: 6px; padding-top: 10px; border-top: 1px solid #222930;">
+<h3 style="margin: 0; font-size: 13px; font-weight: 600;">Speed-sweep card, by payload</h3>
+<sc-for list="{{sweeps}}" as="s" hint-placeholder-count="4"><div style="display: flex; flex-wrap: wrap; align-items: center; gap: 4px 12px; font-size: 12px;"><span style="flex: 0 0 52px; font-family: 'IBM Plex Mono', ui-monospace, monospace; color: #E7EAEE;">{{s.l}}</span><span style="display: inline-flex; align-items: center; gap: 5px; color: {{s.c}}; font-weight: 600;"><span aria-hidden="true" style="font-size: 9px;">{{s.g}}</span></span><span style="flex: 1 1 200px; color: #CBD2D9;">{{s.t}}</span><sc-if value="{{s.has}}" hint-placeholder-val="{{ true }}"><a href="Plan.dc.html" style="display: inline-flex; align-items: center; min-height: 30px; padding: 0 10px; border: 1px solid #333B45; border-radius: 7px; color: #CBD2D9; text-decoration: none;">{{s.a}}</a></sc-if></div></sc-for>
+<span style="font-size: 12px; color: #8A949E;">The sweep flies level legs at 2 m/s steps, both ways along the wind, in under 4 m/s of wind; each leg 20 s.</span>
+</div>
+</section>
+
+</div>
+
+<aside aria-labelledby="ins-title" style="flex: 1 1 320px; max-width: 400px; min-width: 0; display: flex; flex-direction: column; gap: 14px; padding: 18px; border-radius: 12px; background: #12161A; border: 1px solid #2D5068;">
+<div style="display: flex; flex-direction: column; gap: 3px;">
+<span style="font-size: 12px; color: #A3ACB6;">Metric · Range and speed</span>
+<h2 id="ins-title" style="margin: 0; font-size: 18px; font-weight: 600;">{{ins.name}}</h2>
+<span style="font-family: 'IBM Plex Mono', ui-monospace, monospace; font-size: 11px; color: #8A949E;">{{ins.id}}</span>
+</div>
+<div style="display: flex; align-items: baseline; gap: 6px 12px; flex-wrap: wrap; padding: 12px 14px; border-radius: 10px; background: #1A1F25; border: 1px solid #2A3139;">
+<span style="font-family: 'IBM Plex Mono', ui-monospace, monospace; font-size: 26px; font-weight: 500; color: #E7EAEE;">{{ins.v}}</span>
+<span style="padding: 1px 7px; border-radius: 6px; font-size: 11px; color: {{ins.tagC}}; background: {{ins.tagBg}};">{{ins.tag}}</span>
+<span style="font-family: 'IBM Plex Mono', ui-monospace, monospace; font-size: 12px; color: #A3ACB6;">{{ins.ivl}}</span>
+<span style="flex: 1 1 100%; font-size: 12px; color: #8A949E;">{{ins.scope}}</span>
+</div>
+<section style="display: flex; flex-direction: column; gap: 6px;">
+<h3 style="margin: 0; font-size: 13px; font-weight: 600;">What it is</h3>
+<p style="margin: 0; font-size: 13px; line-height: 1.55; color: #CBD2D9;">{{ins.what}}</p>
+</section>
+<section style="display: flex; flex-direction: column; gap: 6px;">
+<h3 style="margin: 0; font-size: 13px; font-weight: 600;">How it is worked out</h3>
+<dl style="margin: 0; display: grid; grid-template-columns: 82px minmax(0, 1fr); gap: 5px 10px; font-size: 12px;">
+<sc-for list="{{ins.how}}" as="h" hint-placeholder-count="5"><dt style="color: #8A949E;">{{h.k}}</dt><dd style="margin: 0; color: #CBD2D9;">{{h.v}}</dd></sc-for>
+</dl>
+</section>
+<section style="display: flex; flex-direction: column; gap: 6px;">
+<h3 style="margin: 0; font-size: 13px; font-weight: 600;">This value</h3>
+<ul style="margin: 0; padding-left: 18px; display: flex; flex-direction: column; gap: 4px; font-size: 13px; line-height: 1.5; color: #CBD2D9;">
+<sc-for list="{{ins.vals}}" as="v" hint-placeholder-count="3"><li>{{v}}</li></sc-for>
+</ul>
+</section>
+<section style="display: flex; flex-direction: column; gap: 8px;">
+<h3 style="margin: 0; font-size: 13px; font-weight: 600;">What moves it</h3>
+<p style="margin: 0; font-size: 13px; line-height: 1.55; color: #CBD2D9;">Weight, air density, wind, the pack’s condition, drag, and the speeds the parameters ask for.</p>
+<div style="display: flex; flex-wrap: wrap; gap: 6px;">
+<sc-for list="{{ins.params}}" as="p" hint-placeholder-count="4"><button type="button" style="padding: 4px 9px; border: 1px solid #2D5068; border-radius: 6px; background: rgba(90,176,232,0.10); font-family: 'IBM Plex Mono', ui-monospace, monospace; font-size: 12px; color: #9BD3F5; cursor: pointer;">{{p}}</button></sc-for>
+</div>
+</section>
+<div style="display: flex; flex-direction: column; gap: 8px; margin-top: auto;">
+<div style="display: flex; gap: 8px; flex-wrap: wrap;">
+<a href="#c1" style="flex: 1 1 auto; display: flex; align-items: center; justify-content: center; min-height: 40px; padding: 0 14px; border-radius: 8px; background: #5AB0E8; color: #06121A; font-size: 13px; font-weight: 600; text-decoration: none;">Open the evidence</a>
+<a href="RangeCard.dc.html" style="flex: 1 1 auto; display: flex; align-items: center; justify-content: center; min-height: 40px; padding: 0 14px; border: 1px solid #333B45; border-radius: 8px; color: #E7EAEE; font-size: 13px; text-decoration: none;">Print the range card</a>
+</div>
+<button type="button" style="min-height: 40px; border: 1px solid #3A3156; border-radius: 8px; background: rgba(169,139,245,0.10); font-size: 13px; color: #CDBBFA; cursor: pointer;">Ask Claude about this value</button>
+<span style="font-size: 11px; line-height: 1.45; color: #6E7883;">Asking sends speeds, powers and weights through the location scrubber. Distances, wind directions and air density stay on this laptop. Explanation v1 · knowledge pack 2026.10</span>
+</div>
+</aside>
+</main>
+</div>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":1440,"height":6200}}'>
+class Component extends DCLogic {
+  renderVals() {
+    const st = Object.assign({ pl: 8, pack: 'type', air: 'usual', wind: 5, trip: 'oab', cmp: false, goal: 'eff', kpi: 'radius' }, this.state || {});
+    const pill = (on) => ({ bd: on ? '#2D5068' : '#262D35', bg: on ? 'rgba(90,176,232,0.14)' : 'transparent', c: on ? '#9BD3F5' : '#A3ACB6' });
+    const group = (key, opts) => opts.map((o) => ({ label: o[1], on: st[key] === o[0], ...pill(st[key] === o[0]), pick: () => this.setState({ [key]: o[0] }) }));
+    const tabNames = [['Trends', 'Trends.dc.html'], ['Parameter history', 'History.dc.html'], ['Range and speed', 'Performance.dc.html'], ['Recovery card', 'RecoveryCard.dc.html'], ['Range card', 'RangeCard.dc.html']];
+    const tabs = tabNames.map((t, i) => ({ label: t[0], href: t[1], c: i === 2 ? '#E7EAEE' : '#A3ACB6', line: i === 2 ? '#5AB0E8' : 'transparent' }));
+    const controls = [
+      { label: 'Payload', items: group('pl', [[0, '0 kg'], [4, '4 kg'], [8, '8 kg · flight 156’s band'], [12, '12 kg, the most it may carry']]) },
+      { label: 'Pack', items: group('pack', [['type', 'Pack type, as new'], ['b12', 'B-12'], ['weak', 'Weakest in service, B-17']]) },
+      { label: 'Air', items: group('air', [['usual', 'This airframe’s usual air'], ['std', 'Standard air']]) },
+      { label: 'Wind', items: group('wind', [[0, '0 m/s'], [5, '5 m/s'], [10, '10 m/s']]) },
+      { label: 'Trip', items: group('trip', [['oab', 'Out and back'], ['drop', 'Out loaded, drop, back light'], ['site', 'Out and back, 5 min at the site']]) },
+      { label: 'Build', items: group('cmp', [[false, 'v4 · KV210, flying'], [true, 'v4 against v5 · KV175, planned']]) },
+      { label: 'Speed goal', items: group('goal', [['eff', 'Efficient'], ['fast', 'Fastest safe']]) }
+    ];
+
+    // ---- Formatting ----
+    const neg = (s) => s.replace(/^-/, '−');
+    const fx = (x, n = 1) => neg(x.toFixed(n));
+    const fk = (x) => neg(Math.round(x).toLocaleString('en-GB'));
+    const sgn = (x, n = 1) => (x > 0 ? '+' : '') + fx(x, n);
+
+    // ---- The model (illustrative, fitted to HL-07's flights) ----
+    // Electrical power at airspeed V (m/s), take-off weight W (kg), air density ratio sig:
+    // rotor power scales with W^1.5 / sqrt(sig) and induced velocity follows Glauert;
+    // body drag is c3 * sig * V^3; avionics are separate.
+    const EMPTY = 22.0, G = 9.81, RHO0 = 1.225;
+    const SIG = st.air === 'usual' ? 0.97 : 1;
+    const BUILD = { v4: { eff: 1, tmax: 72.4, name: 'v4 · KV210' }, v5: { eff: 0.935, tmax: 64.5, name: 'v5 · KV175' } };
+    const PACKS = { type: { cap: 1, r: 1, name: 'pack type, as new' }, b12: { cap: 0.97, r: 1.12, name: 'B-12' }, b14: { cap: 0.94, r: 1.28, name: 'B-14' }, b17: { cap: 0.89, r: 1.70, name: 'B-17' } };
+    const packKey = st.pack === 'weak' ? 'b17' : st.pack;
+    const u = (x) => Math.sqrt((-x * x + Math.sqrt(x ** 4 + 4)) / 2);
+    const mk = (o) => {
+      const b = BUILD[o.build || 'v4'], pk = PACKS[o.pack || packKey], sig = o.sig || SIG;
+      const dragF = o.dragF || 1, Pav = 62 + (o.dAv || 0), capX = o.capX || 1;
+      const P = (V, W) => {
+        const s = W / 30;
+        return b.eff * (Math.pow(s, 1.5) / Math.sqrt(sig) * (2364 * u(V / (3.7 * Math.sqrt(s / sig))) + 2174) + 0.8 * V * V * Math.sqrt(s * sig)) + dragF * sig * V ** 3 + Pav;
+      };
+      const Epack = (load) => 1994 * pk.cap * capX * (1 - 1.3 * load * 0.012 * pk.r / 1936);
+      const land = (W) => 56 / 4600 * P(0, W);
+      const reserve = (load) => Math.max(189 * capX, 0.12 * Epack(load), 0.2 * Epack(load));
+      const Eplan = (load, W) => Epack(load) - reserve(load) - land(W);
+      return { P, Epack, land, reserve, Eplan, sig, dragF, b };
+    };
+    const argmin = (f, a, c, n = 300) => { let bx = a, bv = Infinity; for (let i = 0; i <= n; i++) { const x = a + (c - a) * i / n; const v = f(x); if (v < bv) { bv = v; bx = x; } } return [bx, bv]; };
+    const perf = (o) => {
+      const m = mk(o), W = o.W, sig = m.sig;
+      const ph = m.P(0, W);
+      const [vmp, pmin] = argmin((V) => m.P(V, W), 0, 15);
+      const [vmr] = argmin((V) => m.P(V, W) / V, 3, 22);
+      const pmr = m.P(vmr, W), whkm = pmr / vmr / 3.6;
+      const CdA = 0.99 * m.dragF, rho = RHO0 * sig, leanMax = o.leanMax || 30;
+      const lean = (V) => Math.atan(0.5 * rho * CdA * V * V / (W * G)) * 180 / Math.PI;
+      const vLean = Math.sqrt(Math.tan(leanMax * Math.PI / 180) * W * G / (0.5 * rho * CdA));
+      let vCur = 25; for (let V = 0; V <= 25; V += 0.02) { if (m.P(V, W) / 42 >= 200) { vCur = V; break; } }
+      const tmax = m.b.tmax * sig;
+      let vThr = 25; for (let V = 0; V <= 25; V += 0.02) { if (W / Math.cos(lean(V) * Math.PI / 180) / tmax * 1.18 >= 0.85) { vThr = V; break; } }
+      const lim = [['lean', vLean], ['current', vCur], ['thrust', vThr], ['firmware', 20]].sort((a, c) => a[1] - c[1]);
+      return {
+        m, W, ph, hoverMin: m.Eplan(ph, W) / ph * 60, vmp, pmin, bestMin: m.Eplan(pmin, W) / pmin * 60,
+        vmr, pmr, whkm, rangeKm: m.Eplan(pmr, W) / whkm, vLean, vCur, vThr, vmax: lim[0][1], limiter: lim[0][0], lean, tmax
+      };
+    };
+    // Ground speed along the track; phi is the angle between the track and where the wind comes from (0: straight into it).
+    const vg = (Va, w, phi) => { const c = w * Math.sin(phi); if (Va <= Math.abs(c)) return -1; return -w * Math.cos(phi) + Math.sqrt(Va * Va - c * c); };
+    const legCost = (m, W, w, phi, cap, fixed) => {
+      if (fixed) { const g = vg(fixed, w, phi); return g <= 0.3 ? [Infinity, fixed, g] : [m.P(fixed, W) / g / 3.6, fixed, g]; }
+      let best = [Infinity, 0, 0];
+      for (let Va = 3; Va <= cap + 1e-9; Va += 0.1) { const g = vg(Va, w, phi); if (g <= 0.3) continue; const c = m.P(Va, W) / g / 3.6; if (c < best[0]) best = [c, Va, g]; }
+      return best;
+    };
+
+    // ---- What HL-07 has flown (build v4, flights 137–157) ----
+    const FLOWN = [24.6, 24.9, 25.2, 25.6, 25.9, 26.2, 26.5, 26.8, 27.1, 27.6, 28.4, 29.3, 30.2, 30.9, 31.6, 32.0];
+    const WMIN = 24.6, WMAXF = 32.0;
+    const BANDS = {
+      0: { flown: false, ver: null, cap: 12, maxFlown: 0, n: 0, col: '#CFE9FA' },
+      4: { flown: true, ver: 14, cap: 14, maxFlown: 14.2, n: 10, col: '#9BD3F5' },
+      8: { flown: true, ver: 13, cap: 13, maxFlown: 13.4, n: 6, col: '#5AB0E8' },
+      12: { flown: false, ver: null, cap: 12, maxFlown: 0, n: 0, col: '#2F7FB8' }
+    };
+    const B = BANDS[st.pl];
+    const W = EMPTY + st.pl;
+    const base = { W, sig: SIG, build: 'v4', pack: packKey };
+    const p = perf(base);
+    const p5 = perf(Object.assign({}, base, { build: 'v5' }));
+    const fixedV = st.goal === 'fast' ? B.cap : 0;
+
+    const tripE = (o, pp, trip, w, phi) => {
+      const m = pp.m, Wl = o.W, Wb = trip === 'drop' ? EMPTY + (o.dm || 0) + ((o.capX || 1) - 1) * 11.2 : Wl;
+      const out = legCost(m, Wl, w, phi, B.cap, fixedV), back = legCost(m, Wb, w, phi + Math.PI, B.cap, fixedV);
+      let fixed = (m.P(0, Wl) + Wl * G * 2.5 / 0.6) * 16 / 3600;
+      if (trip === 'drop') fixed += m.P(0, Wl) * 30 / 3600;
+      if (trip === 'site') fixed += m.P(w, Wl) * 5 / 60;
+      const E = m.Eplan(m.P(Math.min(B.cap, pp.vmr), Wl), (Wl + Wb) / 2) - fixed;
+      return { r: Math.max(0, E / (out[0] + back[0])), out, back };
+    };
+    const worstOf = (o, trip, w, step = 10, pp = perf(o)) => {
+      let r = Infinity, at = 0; const by = [];
+      for (let d = 0; d < 360; d += step) { const v = tripE(o, pp, trip, w, d * Math.PI / 180).r; by.push([d, v]); if (v < r) { r = v; at = d; } }
+      // out and back is the same whichever way it goes out: then both ends are the worst
+      const opp = tripE(o, pp, trip, w, (at + 180) * Math.PI / 180).r;
+      return { r, at, by, both: w > 0 && opp <= r * 1.005 };
+    };
+    const wst = worstOf(base, st.trip, st.wind, 5, p);
+
+    // ---- KPI tiles ----
+    const meas = B.flown;
+    const iv = (x, fr) => [x * (1 - fr), x * (1 + fr)];
+    const tag = (m) => ({ tag: m ? 'measured' : 'estimate', tagC: m ? '#9BD3F5' : '#A3ACB6', tagBg: m ? 'rgba(90,176,232,0.12)' : '#1C2229' });
+    const fmGw = (pp) => {
+      const sStd = perf(Object.assign({}, base, { sig: 1, W: pp.W, build: pp === p5 ? 'v5' : 'v4' }));
+      const T = pp.W * G, A = 8 * Math.PI * 0.2794 * 0.2794;
+      const fm = Math.pow(T, 1.5) / Math.sqrt(2 * RHO0 * A) / (sStd.ph - 62 - 20);
+      return { fm, gw: pp.W * 1000 / sStd.ph, ph: sStd.ph };
+    };
+    const e4 = fmGw(p), e5 = fmGw(p5);
+    const limName = { lean: 'lean, ATC_ANGLE_MAX 30°', current: 'current, 200 A at the power module', thrust: 'thrust headroom', firmware: 'the firmware’s 20 m/s' };
+    const wkg = st.pl ? p.whkm / st.pl : 0;
+    const K = {
+      hover: { name: 'Hover endurance', v: fx(p.hoverMin, 1), u: 'min', i: iv(p.hoverMin, meas ? 0.04 : 0.09), d: 1, sub: `at ${fx(p.ph / 1000, 2)} kW`, m: meas, v5: fx(p5.hoverMin, 1) + ' min' },
+      best: { name: 'Best endurance', v: fx(p.bestMin, 1), u: 'min', i: iv(p.bestMin, meas ? 0.06 : 0.11), d: 1, sub: `at ${fx(p.vmp, 1)} m/s`, m: false, v5: fx(p5.bestMin, 1) + ' min' },
+      range: { name: 'Range at best-range speed', v: fx(p.rangeKm, 1), u: 'km', i: iv(p.rangeKm, meas ? 0.06 : 0.12), d: 1, sub: `still air, at ${fx(p.vmr, 1)} m/s`, m: false, v5: fx(p5.rangeKm, 1) + ' km' },
+      radius: { name: 'Radius, worst direction', v: fx(wst.r, 1), u: 'km', i: iv(wst.r, meas ? 0.08 : 0.14), d: 1, sub: `${{ oab: 'out and back', drop: 'drop trip', site: '5 min at the site' }[st.trip]}, ${st.wind} m/s wind`, m: false, v5: '' },
+      vmax: { name: 'Maximum speed', v: fx(p.vmax, 1), u: 'm/s', i: [p.vmax - (meas ? 1 : 1.8), p.vmax + (meas ? 1 : 1.8)], d: 1, sub: `limited by ${{ lean: 'lean', current: 'current', thrust: 'thrust', firmware: 'firmware' }[p.limiter]} · missions: WP_SPD 10`, m: false, v5: fx(p5.vmax, 1) + ' m/s' },
+      vmr: { name: 'Best-range speed', v: fx(p.vmr, 1), u: 'm/s', i: [p.vmr - (meas ? 0.8 : 1.5), p.vmr + (meas ? 0.8 : 1.5)], d: 1, sub: 'tangent from the origin', m: meas, v5: fx(p5.vmr, 1) + ' m/s' },
+      vmp: { name: 'Best-endurance speed', v: fx(p.vmp, 1), u: 'm/s', i: [p.vmp - (meas ? 0.7 : 1.3), p.vmp + (meas ? 0.7 : 1.3)], d: 1, sub: `least power, ${fx(p.pmin / 1000, 2)} kW`, m: meas, v5: fx(p5.vmp, 1) + ' m/s' },
+      fm: { name: 'Hover efficiency', v: fx(e4.fm, 2), u: 'FM', i: [e4.fm - (meas ? 0.02 : 0.04), e4.fm + (meas ? 0.02 : 0.04)], d: 2, sub: `${fx(e4.gw, 2)} g/W · standard air`, m: meas, v5: fx(e5.fm, 2) + ' · ' + fx(e5.gw, 2) + ' g/W' },
+      whkm: { name: 'Energy per km', v: fx(p.whkm, 0), u: 'Wh/km', i: iv(p.whkm, meas ? 0.05 : 0.1), d: 0, sub: `at ${fx(p.vmr, 1)} m/s, still air`, m: meas, v5: fx(p5.whkm, 0) + ' Wh/km' },
+      whkg: { name: 'Energy per payload kg·km', v: st.pl ? fx(wkg, 1) : '—', u: st.pl ? 'Wh/(kg·km)' : '', i: st.pl ? iv(wkg, meas ? 0.05 : 0.1) : null, d: 1, sub: st.pl ? `${st.pl} kg carried at ${fx(p.vmr, 1)} m/s` : 'no payload carried', m: meas, v5: st.pl ? fx(p5.whkm / st.pl, 1) + ' Wh/(kg·km)' : '' }
+    };
+    const kpis = Object.keys(K).map((k) => {
+      const x = K[k];
+      return Object.assign({
+        id: k, name: x.name, v: x.v, u: x.u, sub: x.sub, on: st.kpi === k,
+        bd: st.kpi === k ? '#2D5068' : '#262D35', bg: st.kpi === k ? '#15212B' : '#151A1F',
+        ivl: x.i ? `95%: ${fx(x.i[0], x.d)}–${fx(x.i[1], x.d)}` : 'no interval',
+        hasV5: st.cmp && !!x.v5, v5: x.v5,
+        pick: () => this.setState({ kpi: k })
+      }, tag(x.m));
+    });
+
+    // Reserve rule, at the cruise load
+    const loadR = p.pmr;
+    const ep = p.m.Epack(loadR), res = p.m.reserve(loadR), land = p.m.land(W);
+    const reserve = {
+      rated: '1,954', pack: fk(ep), fs: fk(Math.max(189, 0.12 * ep)), pct: fk(0.2 * ep), land: fk(land), plan: fk(ep - res - land),
+      packName: PACKS[packKey].name
+    };
+
+    // ---- Drawing helpers ----
+    const sc = (d0, d1, r0, r1) => (v) => r0 + (v - d0) / (d1 - d0) * (r1 - r0);
+    const n1 = (v) => v.toFixed(1);
+    const path = (pts) => pts.map((q, i) => (i ? 'L' : 'M') + n1(q[0]) + ' ' + n1(q[1])).join(' ');
+    const area = (up, dn) => path(up) + ' ' + dn.slice().reverse().map((q) => 'L' + n1(q[0]) + ' ' + n1(q[1])).join(' ') + ' Z';
+    const noise = [0.021, -0.034, 0.012, -0.008, 0.029, -0.019, 0.004, -0.027, 0.017, -0.012, 0.025, -0.004, 0.009, -0.023, 0.031, -0.015, 0.006, -0.031, 0.019, -0.002, 0.014, -0.026, 0.023, -0.011];
+    const nz = (i) => noise[i % noise.length];
+    const xt = (vals, sx, y, fmt) => vals.map((v, i) => ({ x: n1(sx(v)), y, l: fmt ? fmt(v, i) : String(v), a: i === vals.length - 1 ? 'end' : i === 0 ? 'start' : 'middle' }));
+    const yt = (vals, sy, x, fmt) => vals.map((v) => ({ y: n1(sy(v) + 4), gy: n1(sy(v)), l: fmt ? fmt(v) : String(v), x }));
+
+    // ---- 1. Payload against range and flight time ----
+    const c1 = (() => {
+      const sx = sc(22, 40, 60, 880), syR = sc(0, 20, 170, 40), syT = sc(0, 40, 340, 210);
+      const Ws = []; for (let w = 22; w <= 40.001; w += 0.5) Ws.push(+w.toFixed(1));
+      const pf = Ws.map((w) => perf(Object.assign({}, base, { W: w })));
+      const fr = (w) => 0.06 + 0.025 * Math.max(0, WMIN - w, w - WMAXF);
+      const seg = (fn, sy) => {
+        const pts = Ws.map((w, i) => [w, fn(pf[i])]);
+        const inF = pts.filter((q) => q[0] >= WMIN - 0.01 && q[0] <= WMAXF + 0.01), lo = pts.filter((q) => q[0] < WMIN), hi = pts.filter((q) => q[0] >= WMAXF - 0.01);
+        const tr = (arr) => arr.map((q) => [sx(q[0]), sy(q[1])]);
+        return {
+          solid: path(tr([[WMIN, fn(perf(Object.assign({}, base, { W: WMIN })))]].concat(inF))), lo: path(tr(lo.concat([[WMIN, fn(perf(Object.assign({}, base, { W: WMIN })))]]))), hi: path(tr(hi)),
+          band: area(pts.map((q) => [sx(q[0]), sy(q[1] * (1 + fr(q[0])))]), pts.map((q) => [sx(q[0]), sy(q[1] * (1 - fr(q[0])))]))
+        };
+      };
+      const range = seg((x) => x.rangeKm, syR), best = seg((x) => x.bestMin, syT), hover = seg((x) => x.hoverMin, syT);
+      const dots = FLOWN.map((w, i) => { const x = perf(Object.assign({}, base, { W: w })); return { x: n1(sx(w)), yr: n1(syR(x.rangeKm * (1 + nz(i)))), yt: n1(syT(x.hoverMin * (1 + nz(i + 5) * 0.7))) }; });
+      let wCur = 40; for (let w = 22; w <= 45; w += 0.05) { const m = mk(Object.assign({}, base)); if ((m.P(0, w) + w * G * 2.5 / 0.6) / 42 >= 200) { wCur = w; break; } }
+      const hovLim = 0.5 * 72.4 * SIG, moLim = 30.5 * SIG / 0.97;
+      const mk1 = (w, row, label, col, anchor) => ({ x: n1(sx(w)), ty: row ? 30 : 16, label, col, a: anchor || 'middle' });
+      const markers = [
+        mk1(22, 0, 'Empty, 22.0', '#8A949E', 'start'), mk1(moLim, 1, '▲ Motor-out target · ' + fx(moLim, 1), '#E8A33D'),
+        mk1(34, 0, 'Setup maximum · 34.0', '#A3ACB6'), mk1(hovLim, 1, 'Hover thrust 50% · ' + fx(hovLim, 1), '#A3ACB6'), mk1(Math.min(wCur, 39.9), 0, 'Current, 200 A · ' + fx(wCur, 1), '#A3ACB6', 'end')
+      ];
+      const sel = { x: n1(sx(W)), yr: n1(syR(p.rangeKm)), yt: n1(syT(p.bestMin)), yh: n1(syT(p.hoverMin)), lr: fx(p.rangeKm, 1) + ' km', lt: fx(p.bestMin, 1) + ' min', lh: fx(p.hoverMin, 1) + ' min hovering', lx: n1(sx(W) + (W > 34 ? -10 : 10)), la: W > 34 ? 'end' : 'start' };
+      return {
+        range, best, hover, dots, markers, sel,
+        exLoW: n1(sx(WMIN) - 60), exHiX: n1(sx(WMAXF)), exHiW: n1(880 - sx(WMAXF)),
+        xt: xt([22, 25, 28, 31, 34, 37, 40], sx, 358), ytR: yt([0, 5, 10, 15, 20], syR, 52), ytT: yt([0, 10, 20, 30, 40], syT, 52),
+        bestLab: { x: n1(sx(23.2)), y: n1(syT(perf(Object.assign({}, base, { W: 23.2 })).bestMin) - 7) }, hovLab: { x: n1(sx(22.3)), y: n1(syT(perf(Object.assign({}, base, { W: 22.3 })).hoverMin) + 16) },
+        aria: `Range at best-range speed falls from ${fx(pf[0].rangeKm, 1)} km empty to ${fx(pf[pf.length - 1].rangeKm, 1)} km at 40 kg; at ${fx(W, 1)} kg it is ${fx(p.rangeKm, 1)} km and ${fx(p.bestMin, 1)} minutes at best-endurance speed. Flown between 24.6 and 32.0 kg; outside that it is extrapolated.`
+      };
+    })();
+
+    // ---- 2. Power against airspeed ----
+    const tiles = (bandKey, Wn, nPts, seed) => {
+      const bd = BANDS[bandKey], m = mk(Object.assign({}, base)), out = [];
+      for (let i = 0; i < nPts; i++) { const V = ((i * 0.61803 + seed) % 1) * bd.maxFlown; out.push([V, m.P(V, Wn) * (1 + nz(i + Math.round(seed * 10)) * 1.3)]); }
+      return out;
+    };
+    const c2 = (() => {
+      const sx = sc(0, 20, 52, 876), sy = sc(0, 10000, 356, 40);
+      const curves = [0, 4, 8, 12].map((pl) => {
+        const o = Object.assign({}, base, { W: EMPTY + pl }), pp = perf(o), bd = BANDS[pl], m = pp.m, top = Math.min(pp.vmax, 20);
+        const pts = []; for (let V = 0; V <= top + 1e-9; V += 0.25) pts.push([V, m.P(V, o.W)]);
+        const cut = bd.flown ? bd.maxFlown : 0;
+        const a = pts.filter((q) => q[0] <= cut + 1e-9), b = pts.filter((q) => q[0] >= cut - 0.25);
+        const on = pl === st.pl;
+        return {
+          solid: a.length > 1 ? path(a.map((q) => [sx(q[0]), sy(q[1])])) : '', dash: path(b.map((q) => [sx(q[0]), sy(q[1])])),
+          col: bd.col, w: on ? 2.6 : 1.4, op: on ? 1 : 0.75, lx: 58, ly: n1(sy(m.P(0, o.W)) - 5), label: pl + ' kg'
+        };
+      });
+      const m = p.m, cut = B.flown ? B.maxFlown : 0, top = Math.min(p.vmax, 20);
+      const up = [], dn = []; for (let V = 0; V <= top + 1e-9; V += 0.25) { const f = 0.05 + 0.015 * Math.max(0, V - cut) + (B.flown ? 0 : 0.04); up.push([sx(V), sy(m.P(V, W) * (1 + f))]); dn.push([sx(V), sy(m.P(V, W) * (1 - f))]); }
+      const pts = [].concat(tiles(4, 26, 26, 0.13).map((q) => ({ x: n1(sx(q[0])), y: n1(sy(q[1])), c: BANDS[4].col })), tiles(8, 30, 20, 0.41).map((q) => ({ x: n1(sx(q[0])), y: n1(sy(q[1])), c: BANDS[8].col })));
+      const k = 1.45, tx = p.vmr * k;
+      const lines = [{ x: n1(sx(10)), l: 'WP_SPD 10', c: '#A3ACB6', dash: '5 4' }];
+      if (B.ver) lines.push({ x: n1(sx(B.ver)), l: 'verified ' + B.ver, c: '#9BD3F5', dash: '2 3' });
+      lines.push({ x: n1(sx(p.vmax)), l: 'maximum ' + fx(p.vmax, 1) + ' · ' + p.limiter, c: '#E7EAEE', dash: '1 3' });
+      const vx = (v) => sx(v);
+      const l0 = { x: n1(vx(10)), l: 'WP_SPD 10' };
+      const l1 = B.ver ? { x: n1(vx(B.ver)), l: 'verified ' + B.ver, c: '#9BD3F5', a: 'middle' } : { x: n1(vx(10) + 44), l: '', c: '#9BD3F5', a: 'start' };
+      const mx = vx(p.vmax);
+      const l2 = { x: n1(mx), y: 30, l: 'maximum ' + fx(p.vmax, 1) + ', ' + p.limiter, a: mx > 820 ? 'end' : 'middle' };
+      return {
+        l0, l1, l2, lbl: B.flown ? `${st.pl} kg flown up to ${B.maxFlown} m/s` : `${st.pl} kg not flown: the model alone`,
+        curves, pts, band: area(up, dn), sel: BANDS[st.pl].col,
+        exX: n1(sx(cut)), exW: n1(876 - sx(cut)), showEx: B.flown,
+        mp: { x: n1(sx(p.vmp)), y: n1(sy(p.pmin)), ly: n1(sy(p.pmin) - 12), l: 'V_mp ' + fx(p.vmp, 1) },
+        mr: { x: n1(sx(p.vmr)), y: n1(sy(p.pmr)), lx: n1(sx(p.vmr) - 8), ly: n1(sy(p.pmr) - 10), l: 'V_mr ' + fx(p.vmr, 1) },
+        tan: { x1: n1(sx(0)), y1: n1(sy(0)), x2: n1(sx(tx)), y2: n1(sy(p.pmr * k)) },
+        lines, xt: xt([0, 5, 10, 15, 20], sx, 374, (v) => v === 20 ? '20 m/s' : String(v)), yt: yt([0, 2000, 4000, 6000, 8000, 10000], sy, 44, (v) => (v / 1000) + (v === 10000 ? ' kW' : '')),
+        aria: `Electrical power against airspeed: at ${st.pl} kg the least power, ${fx(p.pmin / 1000, 2)} kW, is at ${fx(p.vmp, 1)} m/s and the tangent from the origin touches at ${fx(p.vmr, 1)} m/s. Steady tiles from the 4 and 8 kg flights lie within about 4% of their curves.`
+      };
+    })();
+
+    // ---- 3. Energy per km over the ground, and flight time, against airspeed ----
+    const c3 = (() => {
+      const sx = sc(4, 20, 52, 616), sy = sc(0, 400, 160, 20), syT = sc(0, 30, 320, 210), m = p.m;
+      const winds = [[0, '#CFE9FA', 'still air'], [5, '#7CC4F0', '5 m/s headwind'], [10, '#3D93D1', '10 m/s headwind']];
+      const lines = winds.map(([w, col, label]) => {
+        const pts = []; let best = [Infinity, 0];
+        for (let V = 4; V <= Math.min(20, p.vmax) + 1e-9; V += 0.1) { const g = V - w; if (g <= 0.3) continue; const c = m.P(V, W) / g / 3.6; if (c < best[0]) best = [c, V]; if (c <= 400) pts.push([sx(V), sy(c)]); }
+        return { d: path(pts), col, label, bx: n1(sx(best[1])), by: n1(sy(Math.min(best[0], 400))), bl: fx(best[1], 1), lx: n1(sx(best[1]) + 6), ly: n1(sy(Math.min(best[0], 400)) + 16), best };
+      });
+      const cAt = (V, w) => m.P(V, W) / (V - w) / 3.6;
+      const plus2 = (cAt(p.vmr + 2, 0) / cAt(p.vmr, 0) - 1) * 100;
+      const b5 = lines[1].best, cap5 = B.cap < b5[1] ? (cAt(B.cap, 5) / b5[0] - 1) * 100 : 0;
+      const tPts = []; for (let V = 4; V <= Math.min(20, p.vmax) + 1e-9; V += 0.1) { const pw = m.P(V, W); tPts.push([sx(V), syT(m.Eplan(pw, W) / pw * 60)]); }
+      const tAt = (V) => { const pw = m.P(V, W); return m.Eplan(pw, W) / pw * 60; };
+      return {
+        lines, time: path(tPts),
+        tmp: { x: n1(sx(p.vmp)), y: n1(syT(p.bestMin)), l: fx(p.bestMin, 1) + ' min at ' + fx(p.vmp, 1) + ' m/s' },
+        tmr: { x: n1(sx(p.vmr)), y: n1(syT(tAt(p.vmr))), l: fx(tAt(p.vmr), 1) + ' min at ' + fx(p.vmr, 1) },
+        verX: n1(sx(B.cap)), verL: (B.ver ? 'verified ' : 'held to ') + B.cap,
+        note1: `+2 m/s over best range: ${fx(Math.abs(plus2), 0)}% less range`, n1x: n1(sx(p.vmr + 2) + 6), n1y: n1(sy(cAt(p.vmr + 2, 0)) + 22),
+        note2: cap5 > 0 ? `Into 5 m/s, best is ${fx(b5[1], 1)} m/s; held to ${B.cap} it costs ${fx(cap5, 0)}% more` : `Into 5 m/s, best is ${fx(b5[1], 1)} m/s`,
+        xt: xt([4, 8, 12, 16, 20], sx, 338, (v) => v === 20 ? '20 m/s airspeed' : String(v)), yt: yt([0, 100, 200, 300, 400], sy, 44), ytT: yt([0, 10, 20, 30], syT, 44),
+        aria: `Energy per km over the ground: lowest at ${fx(p.vmr, 1)} m/s in still air, ${fx(lines[1].best[1], 1)} m/s into 5 m/s and ${fx(lines[2].best[1], 1)} m/s into 10 m/s of headwind. Flight time is longest, ${fx(p.bestMin, 1)} minutes, at ${fx(p.vmp, 1)} m/s.`,
+        plus2: fx(Math.abs(plus2), 0)
+      };
+    })();
+
+    // ---- 4. Radius against wind, and by direction ----
+    const c4 = (() => {
+      const winds = []; for (let w = 0; w <= 12; w += 1) winds.push(w);
+      const rows = winds.map((w) => { const ws = worstOf(base, st.trip, w, 15, p); return { w, worst: ws.r, head: tripE(base, p, st.trip, w, 0).r, tail: tripE(base, p, st.trip, w, Math.PI).r, cross: tripE(base, p, st.trip, w, Math.PI / 2).r }; });
+      const rMax = Math.max(4, Math.ceil(Math.max.apply(null, rows.map((r) => Math.max(r.head, r.tail, r.cross))) / 2) * 2);
+      const sx = sc(0, 12, 48, 624), sy = sc(0, rMax, 236, 20);
+      const ln = (key) => path(rows.filter((r) => r[key] > 0.02 || r.w === 0).map((r) => [sx(r.w), sy(r[key])]));
+      const asym = rows.some((r) => Math.abs(r.head - r.tail) > 0.05 * Math.max(r.head, 0.1));
+      const series = [{ d: ln('worst'), col: '#5AB0E8', w: 2.4, dash: '0', l: 'Worst direction' }, { d: ln('cross'), col: '#A3ACB6', w: 1.5, dash: '5 4', l: 'Across the wind' }];
+      if (asym) series.push({ d: ln('tail'), col: '#9BD3F5', w: 1.5, dash: '2 3', l: 'Out with the wind' });
+      const cur = rows.find((r) => r.w === st.wind);
+      // polar, at the chosen wind
+      const R = Math.max(2, Math.ceil((Math.max.apply(null, wst.by.map((q) => q[1])) + 0.6) / 2) * 2), cx = 110, cy = 120, rp = 84;
+      const pp2 = wst.by.map(([d, v]) => { const a = d * Math.PI / 180; return [cx + Math.sin(a) * v / R * rp, cy - Math.cos(a) * v / R * rp]; });
+      const wa = wst.at * Math.PI / 180, wr = wst.r / R * rp;
+      series.forEach((s) => { s.glyph = s.dash === '0' ? '━' : s.dash === '5 4' ? '- -' : '┅'; });
+      return {
+        trip: { oab: 'out and back', drop: 'out loaded, drop, back light', site: 'out and back, 5 min at the site' }[st.trip],
+        windL: st.wind ? `${st.wind} m/s of wind` : 'no wind', worstL: st.wind ? (wst.both ? 'along the wind, whichever way it goes out' : wst.at === 0 ? 'out into the wind' : wst.at === 180 ? 'out with the wind' : wst.at + '° off the wind') : 'none, in calm air',
+        series, xt: xt([0, 2, 4, 6, 8, 10, 12], sx, 254, (v) => v === 12 ? '12 m/s' : String(v)), yt: yt(Array.from({ length: rMax / 2 + 1 }, (_, i) => i * 2), sy, 40, (v) => v === rMax ? v + ' km' : String(v)),
+        cur: { x: n1(sx(st.wind)), y: n1(sy(cur.worst)), l: fx(cur.worst, 1) + ' km', lx: n1(sx(st.wind) + (st.wind >= 10 ? -8 : 8)), la: st.wind >= 10 ? 'end' : 'start' },
+        polar: { d: path(pp2) + ' Z', rings: [R / 2, R].map((v) => ({ r: n1(v / R * rp), l: fx(v, 0) + ' km', lx: n1(cx + v / R * rp - 2), ly: n1(cy + 13) })), wx: n1(cx + Math.sin(wa) * wr), wy: n1(cy - Math.cos(wa) * wr), wx2: n1(cx - Math.sin(wa) * wr), wy2: n1(cy + Math.cos(wa) * wr), both: wst.both, calm: st.wind === 0 },
+        aria: `Radius against wind for the ${{ oab: 'out-and-back', drop: 'drop', site: 'five-minutes-at-the-site' }[st.trip]} trip: ${fx(rows[0].worst, 1)} km in calm air, ${fx(rows[5].worst, 1)} km at 5 m/s and ${fx(rows[10].worst, 1)} km at 10 m/s in the worst direction, which is along the wind.`,
+        paria: `Radius by direction of travel relative to the wind at ${st.wind} m/s: shortest along the wind, ${fx(wst.r, 1)} km, longest across it.`
+      };
+    })();
+
+    // ---- 5. The speed to fly into a headwind ----
+    const hwRows = [0, 3, 6, 9].map((w) => {
+      const free = legCost(p.m, W, w, 0, Math.min(p.vmax, 20), 0), held = legCost(p.m, W, w, 0, B.cap, 0);
+      const capped = free[1] > B.cap + 0.05;
+      return {
+        w: w + ' m/s', best: `${fx(free[2], 1)} m/s`, bestAir: `${fx(free[1], 1)} through the air`,
+        fly: `${fx(held[2], 1)} m/s`, flyAir: `${fx(held[1], 1)} through the air`, whkm: fx(held[0], 0) + ' Wh/km',
+        st: capped ? '▲' : '●', stc: capped ? '#E8A33D' : '#3DBE8B', stl: capped ? `held to ${B.ver ? 'the verified' : 'the planning'} ${B.cap} m/s` : 'best speed allowed'
+      };
+    });
+
+    // ---- 6. Batteries ----
+    const c6 = (() => {
+      const sx = sc(2000, 7000, 52, 584), sy = sc(1000, 1700, 216, 20);
+      const packs = [['type', '#A3ACB6', '4 3', 'Pack type, new'], ['b12', '#5AB0E8', '0', 'B-12'], ['b14', '#9FB2C6', '0', 'B-14'], ['b17', '#E8A33D', '0', 'B-17 ▲']];
+      const lines = packs.map(([k, col, dash, l]) => { const m = mk(Object.assign({}, base, { pack: k })); const pts = []; for (let L = 2000; L <= 7000; L += 100) pts.push([sx(L), sy(m.Epack(L) * 0.8)]); return { d: path(pts), col, dash, l, ly: n1(sy(m.Epack(7000) * 0.8) + 4) }; });
+      const hist = {
+        b12: [[8, 99.6, 101], [20, 99.1, 104], [33, 98.4, 106], [47, 97.8, 109], [64, 97.0, 112]],
+        b14: [[12, 99.4, 102], [30, 98.6, 107], [55, 97.2, 113], [80, 95.9, 119], [101, 94.8, 124], [118, 94.0, 128]],
+        b17: [[15, 99.2, 103], [48, 97.6, 112], [90, 95.4, 124], [132, 93.6, 137], [170, 91.8, 149], [205, 90.3, 160], [241, 89.0, 170]]
+      };
+      const cx = sc(0, 300, 40, 248), cyC = sc(85, 100, 116, 14), cyR = sc(90, 190, 116, 14);
+      const small = (idx, cy) => packs.slice(1).map(([k, col]) => ({ col, d: path(hist[k].map((q) => [cx(q[0]), cy(q[idx])])), dots: hist[k].map((q) => ({ x: n1(cx(q[0])), y: n1(cy(q[idx])) })) }));
+      const rowsP = [['b12', 64, 97, 112], ['b14', 118, 94, 128], ['b17', 241, 89, 170]].map(([k, cy, cap, rs]) => {
+        const q = perf(Object.assign({}, base, { pack: k })), warn = rs >= 150;
+        return { n: PACKS[k].name, cy: String(cy), cap: cap + '%', res: rs + '% of new', range: fx(q.rangeKm, 1) + ' km', c: warn ? '#E8A33D' : '#3DBE8B', g: warn ? '▲' : '●', s: warn ? 'Fly it light, or retire it' : 'In service' };
+      });
+      const lastB17 = hist.b17[hist.b17.length - 1];
+      return {
+        rows: rowsP, r150h: n1(cyR(150) - 14), b17x: n1(cx(lastB17[0])), b17y: n1(cyR(lastB17[2])),
+        lines, loadX: n1(sx(p.pmr)), loadL: `best-range cruise at ${st.pl} kg, ${fx(p.pmr / 1000, 1)} kW`, loadA: p.pmr > 5200 ? 'end' : 'start', loadLx: n1(sx(p.pmr) + (p.pmr > 5200 ? -6 : 6)),
+        xt: xt([2000, 3000, 4000, 5000, 6000, 7000], sx, 234, (v) => (v / 1000) + (v === 7000 ? ' kW' : '')), yt: yt([1000, 1200, 1400, 1600], sy, 44, (v) => v.toLocaleString('en-GB')),
+        cap: small(1, cyC), res: small(2, cyR), cxt: xt([0, 100, 200, 300], cx, 134),
+        cyt: yt([85, 90, 95, 100], cyC, 34, (v) => v + '%'), ryt: yt([100, 150, 190], cyR, 34, (v) => v + '%'), r150: n1(cyR(150)),
+        aria: 'Energy each pack pair gives down to the reserve against the average load: B-17 gives the least and falls fastest with load',
+        caria: 'Capacity against charge cycles: B-12 97% at 64 cycles, B-14 94% at 118, B-17 89% at 241',
+        raria: 'Resistance against charge cycles, as a share of new: B-12 112%, B-14 128%, B-17 170%, above the 150% caution line'
+      };
+    })();
+
+    // ---- 7. Efficiency over time ----
+    const c7 = (() => {
+      const F = [126, 127, 128, 130, 131, 133, 134, 135, 136, 137, 138, 140, 141, 143, 144, 146, 147, 149, 150, 152, 153, 154, 156, 157];
+      const sx = sc(125, 158, 76, 856);
+      const val = (f, i) => { const v4 = f >= 137, k = f === 156 ? 0.94 : f === 157 ? 0.95 : 1; const n = nz(i) * 0.35; return { gw: (v4 ? 6.52 : 6.38) * k * (1 + n), fm: (v4 ? 0.51 : 0.499) * k * (1 + n), wh: (v4 ? 111 : 113.6) / k * (1 - n) }; };
+      const vals = F.map(val);
+      const panel = (key, lo, hi, y0, y1, fmt, ticks) => {
+        const sy = sc(lo, hi, y1, y0);
+        return { d: path(F.map((f, i) => [sx(f), sy(vals[i][key])])), dots: F.map((f, i) => ({ x: n1(sx(f)), y: n1(sy(vals[i][key])), c: f >= 156 ? '#E8A33D' : '#E7EAEE' })), yt: ticks.map((t) => ({ y: n1(sy(t) + 4), gy: n1(sy(t)), l: fmt(t) })) };
+      };
+      return {
+        gw: panel('gw', 5.8, 7.0, 18, 88, (t) => fx(t, 1), [6.0, 6.5, 7.0]), fm: panel('fm', 0.46, 0.54, 112, 182, (t) => fx(t, 2), [0.46, 0.5, 0.54]), wh: panel('wh', 104, 122, 206, 276, (t) => fx(t, 0), [105, 115]),
+        fwD: (() => { const x = sx(132); return `M${n1(x)} 289 L${n1(x + 7)} 296 L${n1(x)} 303 L${n1(x - 7)} 296 Z`; })(), bx: n1(sx(137) - 6), btx: n1(sx(136.5) + 6),
+        build: n1(sx(136.5)), params: [129, 141, 151, 156].map((f) => ({ x: n1(sx(f)) })), fw: n1(sx(132)),
+        xt: [126, 130, 135, 140, 145, 150, 155].map((f) => ({ x: n1(sx(f)), l: String(f) })),
+        aria: 'Per flight from 126 to 157: hover grams per watt, figure of merit and energy per km each step about 2% better at flight 137, when props were replaced for build v4, then fall about 6% on flights 156 and 157'
+      };
+    })();
+
+    // ---- 8. What if ----
+    const whatIf = [
+      ['1 kg lighter', { W: W - 1, dm: -1 }, 'measured', 'from the payload bands: power against weight'],
+      ['10% more pack capacity, +1.1 kg', { capX: 1.1, W: W + 1.12 }, 'theory', 'no larger pack flown; weight effect measured'],
+      ['20% less drag area: a payload fairing', { dragF: 0.8 }, 'theory', 'drag area from lean in steady flight; no fairing flown'],
+      ['20 W less for avionics', { dAv: -20 }, 'measured', 'avionics measured: pack power less the ESCs’ input']
+    ].map(([what, mod, tg, why]) => {
+      const q = perf(Object.assign({}, base, mod));
+      const dr = (q.rangeKm / p.rangeKm - 1) * 100, dt = (q.bestMin / p.bestMin - 1) * 100;
+      return {
+        what, why, tag: tg, tagC: tg === 'measured' ? '#9BD3F5' : '#CBD2D9', tagBg: tg === 'measured' ? 'rgba(90,176,232,0.12)' : '#1C2229',
+        dr: `${sgn(q.rangeKm - p.rangeKm, 2)} km`, drp: `${sgn(dr, 1)}%`, dt: `${sgn(q.bestMin - p.bestMin, 1)} min`, dtp: `${sgn(dt, 1)}%`,
+        wr: n1(Math.min(100, Math.abs(dr) / 10 * 100)), wt: n1(Math.min(100, Math.abs(dt) / 10 * 100)), drv: dr
+      };
+    });
+
+    // ---- 9. Range against density altitude (worked out on this laptop) ----
+    const c9 = (() => {
+      const sig = (h) => Math.pow(1 - 2.25577e-5 * h, 4.2559);
+      const hs = []; for (let h = 0; h <= 3000; h += 100) hs.push(h);
+      const pf = hs.map((h) => perf(Object.assign({}, base, { sig: sig(h) })));
+      const r0 = pf[0].rangeKm, h0 = pf[0].hoverMin;
+      const rp = pf.map((q) => (q.rangeKm / r0 - 1) * 100), hp = pf.map((q) => (q.hoverMin / h0 - 1) * 100);
+      const lo = Math.floor(Math.min.apply(null, hp) / 4) * 4;
+      const sx = sc(0, 3000, 52, 876), sy = sc(lo, 2, 170, 18);
+      const ln = (arr, a, b) => path(hs.map((h, i) => [h, i]).filter(([h]) => h >= a && h <= b).map(([h, i]) => [sx(h), sy(arr[i])]));
+      const hU = 262, iU = 3;
+      return {
+        rAll: ln(rp, 0, 3000), rFl: ln(rp, 100, 500), hAll: ln(hp, 0, 3000), hFl: ln(hp, 100, 500),
+        ux: n1(sx(hU)), uyR: n1(sy(rp[iU])), uyH: n1(sy(hp[iU])), fx0: n1(sx(100)), fw: n1(sx(500) - sx(100)),
+        rEnd: { x: n1(sx(3000) - 4), y: n1(sy(rp[30]) - 8), l: `range ${fx(rp[30], 0)}%` }, hEnd: { x: n1(sx(3000) - 4), y: n1(sy(hp[30]) + 16), l: `hover endurance ${fx(hp[30], 0)}%` },
+        r2: fx(pf[20].rangeKm, 1), d2: fx(rp[20], 0), h2: fx(pf[20].hoverMin, 1), dh2: fx(hp[20], 0), zero: n1(sy(0)),
+        xt: xt([0, 500, 1000, 1500, 2000, 2500, 3000], sx, 188, (v) => v === 3000 ? '3,000 m' : v.toLocaleString('en-GB')),
+        yt: yt([lo, lo / 2, 0], sy, 44, (v) => (v > 0 ? '+' : '') + fx(v, 0) + '%'),
+        aria: `Against standard air at sea level: at 2,000 m density altitude the range is ${fx(rp[20], 0)}% and hover endurance ${fx(hp[20], 0)}%`
+      };
+    })();
+
+    // ---- 10. Build A/B ----
+    const c10 = (() => {
+      const sx = sc(0, 20, 44, 430), sy = sc(0, 10000, 176, 14);
+      const pc = (pp) => { const pts = []; for (let V = 0; V <= Math.min(pp.vmax, 20) + 1e-9; V += 0.25) pts.push([sx(V), sy(pp.m.P(V, W))]); return path(pts); };
+      const wx = sc(22, 40, 44, 430), wy = sc(0, 20, 176, 14);
+      const rc = (b) => { const pts = []; for (let w = 22; w <= 40.001; w += 0.5) pts.push([wx(w), wy(perf(Object.assign({}, base, { W: w, build: b })).rangeKm)]); return path(pts); };
+      const hov4 = W / (72.4 * SIG) * 100, hov5 = W / (64.5 * SIG) * 100;
+      const facts = [
+        ['Hover thrust at ' + fx(W, 1) + ' kg', fx(hov4, 1) + '%', fx(hov5, 1) + '%', hov5 > 50 ? '▲' : ''],
+        ['Heaviest take-off meeting the motor-out target', fx(30.5 * SIG / 0.97, 1) + ' kg', fx(30.5 * 64.5 / 72.4 * SIG / 0.97, 1) + ' kg', '▲'],
+        ['Range at best-range speed, ' + st.pl + ' kg', fx(p.rangeKm, 1) + ' km', fx(p5.rangeKm, 1) + ' km', ''],
+        ['Best endurance, ' + st.pl + ' kg', fx(p.bestMin, 1) + ' min', fx(p5.bestMin, 1) + ' min', ''],
+        ['Maximum speed, ' + st.pl + ' kg', fx(p.vmax, 1) + ' m/s', fx(p5.vmax, 1) + ' m/s', '']
+      ].map((f) => ({ n: f[0], a: f[1], b: f[2], warn: f[3] }));
+      return {
+        p4: pc(p), p5: pc(p5), r4: rc('v4'), r5: rc('v5'), facts,
+        pxt: xt([0, 10, 20], sx, 192, (v) => v === 20 ? '20 m/s' : String(v)), pyt: yt([0, 5000, 10000], sy, 38, (v) => (v / 1000) + ' kW'),
+        rxt: xt([22, 31, 40], wx, 192, (v) => v === 40 ? '40 kg' : String(v)), ryt: yt([0, 10, 20], wy, 38, (v) => v + ' km'),
+        aria: `Power against airspeed at ${st.pl} kg: v5 needs about 6% less power at every speed (bench data, not flown)`, raria: 'Range against take-off weight: v5 about 5% further at every weight (bench data, not flown)'
+      };
+    })();
+
+    // ---- 11. Speed build-up ----
+    const c11 = (() => {
+      const ver = B.ver, Vn = ver ? ver + 1 : 10, m = p.m;
+      const leanN = p.lean(Vn), thr = W / Math.cos(leanN * Math.PI / 180) / p.tmax * 1.18 * 100;
+      const pN = m.P(Vn, W), pRef = mk(Object.assign({}, base)).P(13, 30);
+      const esc = 14 + 67 * Math.pow(pN / pRef, 1.2), cur = pN / 42 * 1.15, vib = 19 + 0.6 * (Vn - 8) + (st.pl === 12 ? 2 : 0), att = 1.2 + 0.006 * Vn * Vn;
+      const rows = [
+        ['Lean', fx(leanN, 1) + '° of 30°', leanN / 30],
+        ['Thrust headroom', 'busiest motor ' + fx(thr, 0) + '% of 85%', thr / 85],
+        ['Peak current', fx(cur, 0) + ' A of 200 A', cur / 200],
+        ['ESC 3 temperature', fx(esc, 0) + ' of 90 °C', (esc - 14) / (90 - 14)],
+        ['Vibration', fx(vib, 0) + ' m/s² of 30', vib / 30],
+        ['Attitude tracking error', fx(att, 1) + '° of 4°', att / 4]
+      ].map((r) => ({ n: r[0], v: r[1], f: r[2], w: n1(Math.min(100, r[2] * 100)), c: r[2] >= 1 ? '#F2716E' : r[2] >= 0.88 ? '#E8A33D' : '#4A7FA3' }));
+      const bind = rows.slice().sort((a, b) => b.f - a.f)[0];
+      // what moves the binding limit: the speed at which the same power is reached
+      const pStar = pRef * Math.pow((90 - 14) / 67, 1 / 1.2);
+      const vAt = (mm) => { let v = 0; for (let V = 5; V <= 22; V += 0.02) { if (mm.P(V, W) >= pStar) { v = V; break; } } return v; };
+      const v0 = vAt(m), vDrag = vAt(mk(Object.assign({}, base, { dragF: 0.85 })));
+      const vLean2 = Math.sqrt(Math.tan(32 * Math.PI / 180) * W * G / (0.5 * RHO0 * SIG * 0.99)) - p.vLean;
+      const bands = [[0, '0 kg', 'none: lighter than any flight, so 14 m/s at 4 kg does not carry over (lighter, it leans further)'], [4, '4 kg', '14 m/s · flights 147, 150'], [8, '8 kg', '13 m/s · flights 153, 156'], [12, '12 kg', 'none: never flown this heavy']]
+        .map((b) => ({ l: b[0] === st.pl ? b[1] + ' · chosen' : b[1], t: b[2], c: b[0] === st.pl ? '#9BD3F5' : '#CBD2D9' }));
+      const moLim = 30.5 * SIG / 0.97, moOk = W <= moLim + 0.01;
+      const ready = [
+        ['ok', 'Filters on target; the notch follows ESC RPM, and its range covers the throttle at the top speed'],
+        ['ok', 'Tune check in its zone, flight 157'],
+        ['ok', 'Vibration under 30 m/s², no clipping on the last 5 flights'],
+        ['cau', 'Logging for the test: fast attitude logging is off; the step’s parameter file turns it on'],
+        [packKey === 'b17' ? 'out' : 'cau', packKey === 'b17' ? 'Pack health: B-17 is chosen; fly B-12 or B-14 for a speed step' : 'Pack health: fly B-12 or B-14, not B-17 (170% of new resistance)'],
+        [moOk ? 'ok' : 'out', moOk ? `Motor-out margin: target met at ${fx(W, 1)} kg (up to ${fx(moLim, 1)} kg)` : `Motor-out margin: not met at ${fx(W, 1)} kg, only up to ${fx(moLim, 1)} kg; no speed steps at this weight`],
+        ['ok', 'GNSS health: no jamming or spoofing in the last 10 flights; speed accuracy 0.2 m/s']
+      ].map((x) => ({ g: { ok: '●', cau: '▲', out: '■' }[x[0]], c: { ok: '#3DBE8B', cau: '#E8A33D', out: '#F2716E' }[x[0]], t: x[1] }));
+      return {
+        ready, Vn: fx(Vn, 0), from: ver ? `from the verified ${ver} m/s` : 'the first step: none verified at this weight', rows, bind: bind.n, bindV: bind.v, bands,
+        sols: [
+          ['Payload fairing, 15% less drag area', `+${fx(vDrag - v0, 1)} m/s before ESC 3 reaches its limit`, 'theory'],
+          ['Cool ESC 3: open its air path, check motor 3’s bearing', '+1.0 m/s for each 8 °C taken off', 'measured'],
+          ['ATC_ANGLE_MAX 30 → 32°, inside the thrust headroom', `+${fx(vLean2, 1)} m/s to the lean-limited top speed; the next step is not lean-bound`, 'theory'],
+          ['WP_YAW_BEHAVIOR 2 → 1: nose first on the way home too', '+0.4 m/s at the same power: 6% less drag nose first', 'measured'],
+          ['Higher-C packs, 4 mΩ less per pair', '+0.3 m/s before the current limit', 'theory'],
+          ['Props and KV: build v5 · KV175', '−0.5 m/s top speed, +5% range; motor-out margin falls', 'theory']
+        ].map((s) => ({ t: s[0], g: s[1], tag: s[2], tagC: s[2] === 'measured' ? '#9BD3F5' : '#CBD2D9', tagBg: s[2] === 'measured' ? 'rgba(90,176,232,0.12)' : '#1C2229' }))
+      };
+    })();
+
+    // ---- 12. Data support ----
+    const grid = [[0, [0, 0, 0, 0, 0, 0, 0, 0]], [4, [41, 6, 9, 12, 14, 11, 6, 1]], [8, [28, 4, 6, 8, 9, 7, 3, 0]], [12, [0, 0, 0, 0, 0, 0, 0, 0]]].map(([pl, mins]) => ({
+      l: pl + ' kg', on: pl === st.pl,
+      cells: mins.map((v) => ({ v: v ? String(v) : '·', bg: v ? `rgba(90,176,232,${(0.12 + Math.min(1, v / 30) * 0.5).toFixed(2)})` : '#151A1F', c: v ? '#E7EAEE' : '#4A535D' }))
+    }));
+    const gridHead = ['hover', '2–4', '4–6', '6–8', '8–10', '10–12', '12–14', '14–16'];
+    const sweeps = [
+      ['0 kg', 'not flown: lighter than any flight', 'Plan the sweep', true],
+      ['4 kg', 'flown, flights 141 and 147 · 2–14 m/s', '', false],
+      ['8 kg', 'flown, flight 153 · 2–13 m/s', '', false],
+      ['12 kg', 'not flown at 12 kg', 'Plan the sweep', true]
+    ].map((s) => ({ l: s[0], t: s[1], a: s[2], has: s[3], c: s[3] ? '#E8A33D' : '#3DBE8B', g: s[3] ? '▲' : '●' }));
+
+    // ---- Recommendations ----
+    const pm8 = perf(Object.assign({}, base, { W: 30 }));
+    const rAt = (V) => { const pw = pm8.m.P(V, 30); return pm8.m.Eplan(pw, 30) / (pw / V / 3.6); };
+    const gainWp = (rAt(11.5) / rAt(10) - 1) * 100, shareWp = rAt(11.5) / pm8.rangeKm * 100;
+    const pB17 = perf(Object.assign({}, base, { pack: 'b17' })), pType = perf(Object.assign({}, base, { pack: 'type' }));
+    const recs = [
+      { title: 'Set WP_SPD to 11.5 m/s', p: 'WP_SPD', a: '10', b: '11.5', unit: 'm/s', why: `Best range at 8 kg, within ${fx(100 - shareWp, 1)}% of the peak at ${fx(pm8.vmr, 1)} m/s, and ${fx(gainWp, 1)}% more range than today’s 10 m/s. It is a ground speed, so it leaves 1.5 m/s of headwind before the airspeed passes the verified 13 m/s.`, ev: [['Power against airspeed, 6 flights', '#c2'], ['Speed sweep, flight 153', '#ds']] },
+      { title: 'Set RTL_SPEED_MS to 9.0 m/s', p: 'RTL_SPEED_MS', a: '0, uses WP_SPD', b: '9.0', unit: 'm/s', why: 'Best range home into this airframe’s typical 4 m/s headwind while the airspeed stays within the verified 13 m/s. Today the trip home flies WP_SPD over the ground: 14 m/s through the air into that wind.', ev: [['Speed into a headwind', '#c5'], ['Wind on HL-07’s flights', 'Weather.dc.html']] },
+      { title: 'Set BATT_LOW_MAH to 5600 mAh', p: 'BATT_LOW_MAH', a: '4400', b: '5600', unit: 'mAh', why: 'From the measured return energy: the trip home on the 3 longest flights into headwind, plus 20%. The same change is already in the plan.', ev: [['Return energy, 3 flights', 'Plan.dc.html'], ['Reserve rule', '#reserve']] },
+      { title: 'Pack B-17: resistance 170% of new', p: '', a: '', b: '', unit: '', why: `It gives ${fx((1 - pB17.m.Eplan(pB17.pmr, W) / pType.m.Eplan(pType.pmr, W)) * 100, 0)}% less energy to plan with at ${st.pl} kg than a new pair, ${fx(pType.rangeKm - pB17.rangeKm, 1)} km less range. Fly it light, or retire it.`, ev: [['Pack history, 241 cycles', '#c6']] }
+    ].map((r) => Object.assign(r, { hasP: !!r.p, ev: r.ev.map((e) => ({ t: e[0], href: e[1] })) }));
+
+    // ---- Inspector, for the KPI picked ----
+    const ins = (() => {
+      const k = K[st.kpi];
+      const common = { name: k.name, v: k.v + (k.u && k.u !== 'FM' ? ' ' + k.u : k.u === 'FM' ? ' FM' : ''), tag: k.m ? 'measured' : 'estimate', tagC: k.m ? '#9BD3F5' : '#A3ACB6', tagBg: k.m ? 'rgba(90,176,232,0.12)' : '#1C2229', ivl: k.i ? `95%: ${fx(k.i[0], k.d)}–${fx(k.i[1], k.d)}` : '', scope: `HL-07 · ${st.pl} kg · ${PACKS[packKey].name} · ${st.air === 'usual' ? 'usual air, 0.97' : 'standard air'}` };
+      const D = {
+        radius: {
+          id: 'range.radius_worst · km', what: 'How far out the aircraft can go and still come back with the reserve untouched, if the trip runs in the worst direction relative to the wind.',
+          how: [['Trip', { oab: 'out and back', drop: 'out loaded, drop, back light', site: 'out and back with 5 min hovering at the site' }[st.trip] + '; climb to 40 m included'], ['Wind', `${st.wind} m/s, every direction tried in 5° steps`], ['Speed', st.goal === 'fast' ? `the ${B.ver ? 'verified' : 'planning'} ${B.cap} m/s on each leg` : `on each leg the airspeed with least energy per km over the ground, up to ${B.ver ? 'the verified' : 'the planning'} ${B.cap} m/s`], ['Energy', `${reserve.plan} Wh to plan with, after the reserve`], ['Model', 'power against airspeed and weight, fitted to 16 flights']],
+          vals: [`Worst ${!st.wind ? 'in any direction: no wind' : wst.both ? 'along the wind, out into it or out with it' : 'along the wind: out into it and back with it'}; across the wind it is ${fx(tripE(base, p, st.trip, st.wind, Math.PI / 2).r, 1)} km.`, `In still air the same trip reaches ${fx(worstOf(base, st.trip, 0, 90, p).r, 1)} km.`, B.flown ? `Speeds and weight inside what HL-07 has flown.` : `▲ Not flown at ${W.toFixed(1)} kg: extrapolated.`],
+          params: ['WP_SPD', 'RTL_SPEED_MS', 'BATT_LOW_MAH', 'BATT_CAPACITY']
+        },
+        range: { id: 'range.best_range · km', what: 'The distance the aircraft covers in still air at its best-range speed, using the energy to plan with.', how: [['Speed', `best-range speed, ${fx(p.vmr, 1)} m/s: where a line from the origin touches the power curve`], ['Energy', `${reserve.plan} Wh after the reserve`], ['Model', 'fitted to 16 flights; usable energy from the pack’s logged resistance']], vals: [`${fx(p.whkm, 0)} Wh per km at ${fx(p.vmr, 1)} m/s.`, `At WP_SPD’s 10 m/s: ${fx(p.m.Eplan(p.m.P(10, W), W) / (p.m.P(10, W) / 10 / 3.6), 1)} km.`], params: ['WP_SPD', 'BATT_CAPACITY'] },
+        hover: { id: 'range.hover_endurance · min', what: 'How long the aircraft can hover before it reaches the reserve.', how: [['Power', `${fx(p.ph / 1000, 2)} kW in hover at this weight and air`], ['Energy', `${reserve.plan} Wh to plan with`], ['Measured', B.flown ? 'steady hover on every flight in this band' : 'extrapolated from 24.6–32.0 kg']], vals: [`${fx(p.ph / 60, 0)} Wh per minute.`], params: ['BATT_LOW_MAH', 'BATT_CAPACITY', 'MOT_THST_HOVER'] },
+        best: { id: 'range.best_endurance · min', what: 'The longest flight, flying at the speed that needs least power.', how: [['Speed', `${fx(p.vmp, 1)} m/s, the bottom of the power curve`], ['Power', `${fx(p.pmin / 1000, 2)} kW`]], vals: [`${fx(p.bestMin - p.hoverMin, 1)} min longer than hovering.`], params: ['WP_SPD', 'LOIT_SPEED_MS'] },
+        vmax: { id: 'speed.max · m/s', what: 'The fastest steady speed the airframe can hold, and what stops it going faster.', how: [['Lean', `${fx(p.vLean, 1)} m/s at ATC_ANGLE_MAX 30° (PSC_ANGLE_MAX 0)`], ['Current', `${fx(p.vCur, 1)} m/s at 200 A`], ['Thrust', p.vThr >= 25 ? 'not reached below 25 m/s' : fx(p.vThr, 1) + ' m/s'], ['Firmware', 'WP_SPD can be set to 20 m/s at most'], ['Missions', 'WP_SPD 10 m/s']], vals: [`Limited by ${limName[p.limiter]}.`, B.ver ? `Verified: ${B.ver} m/s. The speed build-up steps toward the maximum 1 m/s at a time.` : 'No speed verified at this weight.'], params: ['ATC_ANGLE_MAX', 'PSC_ANGLE_MAX', 'WP_SPD'] },
+        vmr: { id: 'speed.best_range · m/s', what: 'The airspeed that covers the most distance per watt-hour in still air.', how: [['Found', 'where a line from the origin touches the power-against-airspeed curve'], ['Data', B.flown ? 'the speed sweep in this band' : 'the model, extrapolated']], vals: [`+2 m/s costs ${c3.plus2}% of the range; the curve is flat near the best.`], params: ['WP_SPD', 'RTL_SPEED_MS'] },
+        vmp: { id: 'speed.best_endurance · m/s', what: 'The airspeed that needs least power, so the aircraft stays up longest.', how: [['Found', 'the lowest point of the power-against-airspeed curve'], ['Data', B.flown ? 'the speed sweep in this band' : 'the model, extrapolated']], vals: [`${fx((1 - p.pmin / p.ph) * 100, 0)}% less power than hovering.`], params: ['WP_SPD', 'LOIT_SPEED_MS'] },
+        fm: { id: 'power.hover_fm · ratio', what: 'How close hovering comes to the least power physics allows, for the props, motors and ESCs together. Shown at standard air so flights compare.', how: [['Formula', 'ideal power T^1.5 / √(2ρA) over the ESCs’ input power'], ['Disk area', '8 × 22-inch props; coaxial pairs flagged, the simple sum overstates it'], ['Specific thrust', `${fx(e4.gw, 2)} g/W from the pack`]], vals: ['Flights 156 and 157 read about 6% lower: see the trend.'], params: ['MOT_THST_HOVER', 'MOT_THST_EXPO'] },
+        whkm: { id: 'power.wh_per_km · Wh/km', what: 'Energy per km of still-air cruise at best-range speed.', how: [['Speed', `${fx(p.vmr, 1)} m/s`], ['Power', `${fx(p.pmr / 1000, 2)} kW`]], vals: [`Into 5 m/s of headwind, at best: ${fx(c3.lines[1].best[0], 0)} Wh per km over the ground.`], params: ['WP_SPD'] },
+        whkg: { id: 'power.wh_per_kg_km · Wh/(kg·km)', what: 'Energy per km for each kilogram of payload carried: the cost of the job, not the aircraft.', how: [['Formula', 'energy per km at best-range speed over the payload'], ['Payload', st.pl ? st.pl + ' kg' : 'none']], vals: [st.pl ? `Heavier loads cost less per kilogram: ${fx(perf(Object.assign({}, base, { W: 34 })).whkm / 12, 1)} at 12 kg.` : 'Choose a payload to see it.'], params: [] }
+      };
+      return Object.assign(common, D[st.kpi]);
+    })();
+    ins.how = ins.how.map((h) => ({ k: h[0], v: h[1] }));
+
+    const goalFast = st.goal === 'fast', cmpOn = !!st.cmp;
+    const cruise = goalFast ? `Fastest safe: ${B.ver ? 'the verified' : 'the planning'} ${B.cap} m/s on every leg` : 'Efficient: best-range speed, from the platform’s priority answer (stability)';
+
+    return { tabs, controls, kpis, reserve, c1, c2, c3, c4, hwRows, c6, c7, whatIf, c9, c10, c11, grid, gridHead, sweeps, recs, ins, goalFast, goalEff: !goalFast, cmpOn, cmpOff: !cmpOn, cruise, goFast: () => this.setState({ goal: 'fast' }), goCmp: () => this.setState({ cmp: true }), flown: B.flown, notFlown: !B.flown, plLabel: st.pl + ' kg', wLabel: fx(W, 1) + ' kg', capLabel: (B.ver ? 'verified ' : 'planning cap ') + B.cap + ' m/s' };
+  }
+}
+</script>
+</body>
+</html>
