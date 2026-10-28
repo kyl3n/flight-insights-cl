@@ -1,0 +1,423 @@
+{
+  "about": "The fastest steady flight and how the aircraft held up in it (spec: Power and efficiency analysis, 'Range, endurance and speed', 'The speed build-up'; analyzers/fast.py, rules/energy.json 'fast').",
+  "metrics": {
+    "fast.speed_ms": {
+      "name": {
+        "en": "Speed near the top",
+        "uk": "Швидкість біля максимальної"
+      },
+      "unit": "m/s",
+      "direction": "band",
+      "definition": {
+        "en": "The mean speed of this flight's fast segment: the stretch of steady level flight within 10% of its fastest. Through the air when the flight measures its own drag and wind, else over the ground.",
+        "uk": "Середня швидкість швидкого відрізка цього польоту: усталеного рівного польоту в межах 10% від найбільшої швидкості. Повітряна, коли політ сам вимірює свій опір і вітер, інакше шляхова."
+      },
+      "method": {
+        "en": "Over the fast segment: the flight's level steady 2 s tiles at 90% or more of its fastest level airspeed (ground velocity less the flight's own measured wind; ground speed when it cannot measure its drag). The tiles' speeds averaged by their time.",
+        "uk": "На швидкому відрізку: рівні усталені 2-секундні проміжки польоту на 90% і більше від його найбільшої рівної повітряної швидкості (шляхова швидкість мінус власний виміряний вітер польоту; шляхова швидкість, коли опір виміряти не вдається). Швидкості проміжків, усереднені за їхнім часом."
+      },
+      "messages": [
+        "XKF1"
+      ],
+      "source": {
+        "kind": "baseline",
+        "title": "No universal range: what this airframe flies, read against its verified speed and the speed build-up"
+      }
+    },
+    "fast.seconds": {
+      "name": {
+        "en": "Time near the top speed",
+        "uk": "Час біля максимальної швидкості"
+      },
+      "unit": "s",
+      "direction": "higher",
+      "definition": {
+        "en": "How long this flight held steady level flight within 10% of its fastest. The watched metrics below are read over this time; the longer, the surer.",
+        "uk": "Скільки цей політ утримував усталений рівний політ у межах 10% від найбільшої швидкості. Наведені нижче показники вимірюються за цей час; що довше, то надійніше."
+      },
+      "method": {
+        "en": "Over the fast segment: the flight's level steady 2 s tiles at 90% or more of its fastest level airspeed (ground velocity less the flight's own measured wind; ground speed when it cannot measure its drag). The tiles' total time.",
+        "uk": "На швидкому відрізку: рівні усталені 2-секундні проміжки польоту на 90% і більше від його найбільшої рівної повітряної швидкості (шляхова швидкість мінус власний виміряний вітер польоту; шляхова швидкість, коли опір виміряти не вдається). Загальний час проміжків."
+      },
+      "messages": [
+        "XKF1"
+      ],
+      "source": {
+        "kind": "baseline",
+        "title": "No universal range: the speed build-up's card asks for straight legs of 15 s or more each way"
+      }
+    },
+    "fast.vibe_p95": {
+      "name": {
+        "en": "Vibration near the top speed",
+        "uk": "Вібрація біля максимальної швидкості"
+      },
+      "unit": "m/s/s",
+      "direction": "lower",
+      "zones": {
+        "target": [
+          null,
+          30
+        ],
+        "caution": [
+          30,
+          60
+        ],
+        "out": [
+          60,
+          null
+        ]
+      },
+      "definition": {
+        "en": "How hard the accelerometers shake when the aircraft flies near its fastest. Faster flight spins the propellers harder and adds airflow buffeting, so vibration that is fine in a hover can grow here first.",
+        "uk": "Наскільки сильно трусяться акселерометри, коли апарат летить біля своєї найбільшої швидкості. На більшій швидкості гвинти обертаються швидше й додається трясіння від повітряного потоку, тож вібрація, прийнятна у висінні, може першою зрости саме тут."
+      },
+      "method": {
+        "en": "Over the fast segment: the flight's level steady 2 s tiles at 90% or more of its fastest level airspeed (ground velocity less the flight's own measured wind; ground speed when it cannot measure its drag). VIBE, the 95th percentile of the worst axis of any IMU.",
+        "uk": "На швидкому відрізку: рівні усталені 2-секундні проміжки польоту на 90% і більше від його найбільшої рівної повітряної швидкості (шляхова швидкість мінус власний виміряний вітер польоту; шляхова швидкість, коли опір виміряти не вдається). VIBE, 95-й процентиль найгіршої осі будь-якого IMU."
+      },
+      "messages": [
+        "VIBE"
+      ],
+      "source": {
+        "kind": "ardupilot",
+        "title": "ArduPilot: Measuring vibration (below 30 m/s/s normally fine, above 60 m/s/s nearly always a problem)",
+        "url": "https://ardupilot.org/copter/docs/common-measuring-vibration.html"
+      }
+    },
+    "fast.clips": {
+      "name": {
+        "en": "Accelerometer clipping near the top speed",
+        "uk": "Обмеження акселерометра біля максимальної швидкості"
+      },
+      "unit": "count",
+      "direction": "lower",
+      "zones": {
+        "target": [
+          0,
+          1
+        ],
+        "caution": [
+          1,
+          100
+        ],
+        "out": [
+          100,
+          null
+        ]
+      },
+      "definition": {
+        "en": "How many times the accelerometers hit the end of their range near the top speed. Clipped readings feed wrong accelerations to the estimator, and fast flight is where that is riskiest.",
+        "uk": "Скільки разів акселерометри досягали межі свого діапазону біля максимальної швидкості. Обмежені показання дають оцінювачу хибні прискорення; у швидкому польоті це найнебезпечніше."
+      },
+      "method": {
+        "en": "Over the fast segment: the flight's level steady 2 s tiles at 90% or more of its fastest level airspeed (ground velocity less the flight's own measured wind; ground speed when it cannot measure its drag). VIBE.Clip, the rise in each IMU's count over each span, added up.",
+        "uk": "На швидкому відрізку: рівні усталені 2-секундні проміжки польоту на 90% і більше від його найбільшої рівної повітряної швидкості (шляхова швидкість мінус власний виміряний вітер польоту; шляхова швидкість, коли опір виміряти не вдається). VIBE.Clip, приріст лічильника кожного IMU за кожен проміжок, підсумований."
+      },
+      "messages": [
+        "VIBE"
+      ],
+      "source": {
+        "kind": "ardupilot",
+        "title": "ArduPilot: Measuring vibration (clipping ideally zero, under 100 likely fine, for example from hard landings)",
+        "url": "https://ardupilot.org/copter/docs/common-measuring-vibration.html"
+      }
+    },
+    "fast.output_max": {
+      "name": {
+        "en": "Highest motor output near the top speed",
+        "uk": "Найбільший вихід мотора біля максимальної швидкості"
+      },
+      "unit": "%",
+      "direction": "lower",
+      "zones": {
+        "target": [
+          null,
+          80
+        ],
+        "caution": [
+          80,
+          90
+        ],
+        "out": [
+          90,
+          null
+        ]
+      },
+      "definition": {
+        "en": "How close the busiest motor comes to full output when flying near the top speed, as a share of its output range. A motor near full has little left to steer or hold height with.",
+        "uk": "Наскільки близько до повного виходу підходить найнавантаженіший мотор біля максимальної швидкості, як частка його діапазону виходу. Мотор біля повного виходу майже не має запасу для керування чи утримання висоти."
+      },
+      "method": {
+        "en": "Over the fast segment: the flight's level steady 2 s tiles at 90% or more of its fastest level airspeed (ground velocity less the flight's own measured wind; ground speed when it cannot measure its drag). RCOU on the motor channels, scaled from MOT_PWM_MIN to MOT_PWM_MAX; the 99th percentile of the highest motor.",
+        "uk": "На швидкому відрізку: рівні усталені 2-секундні проміжки польоту на 90% і більше від його найбільшої рівної повітряної швидкості (шляхова швидкість мінус власний виміряний вітер польоту; шляхова швидкість, коли опір виміряти не вдається). RCOU на каналах моторів, масштабований від MOT_PWM_MIN до MOT_PWM_MAX; 99-й процентиль найбільшого мотора."
+      },
+      "messages": [
+        "RCOU"
+      ],
+      "source": {
+        "kind": "app",
+        "title": "Control headroom: ArduPilot's own thrust-loss check treats 90% throttle as all the aircraft has (ArduCopter 4.7.0 crash_check.cpp); 80% keeps a margin for gusts and turns",
+        "url": "https://github.com/ArduPilot/ardupilot/blob/Copter-4.7.0/ArduCopter/crash_check.cpp"
+      }
+    },
+    "fast.saturation_pct": {
+      "name": {
+        "en": "Motors at their top near the top speed",
+        "uk": "Мотори на межі біля максимальної швидкості"
+      },
+      "unit": "%",
+      "direction": "lower",
+      "zones": {
+        "target": [
+          null,
+          1
+        ],
+        "caution": [
+          1,
+          null
+        ]
+      },
+      "definition": {
+        "en": "The share of the fast segment with any motor at its top output (MOT_SPIN_MAX). At its top a motor cannot give more, so the aircraft loses control authority on that side.",
+        "uk": "Частка швидкого відрізка, коли будь-який мотор на верхній межі виходу (MOT_SPIN_MAX). На межі мотор не може дати більше, тож апарат втрачає керованість з того боку."
+      },
+      "method": {
+        "en": "Over the fast segment: the flight's level steady 2 s tiles at 90% or more of its fastest level airspeed (ground velocity less the flight's own measured wind; ground speed when it cannot measure its drag). RCOU on the motor channels, at or within 1% of the range below MOT_SPIN_MAX.",
+        "uk": "На швидкому відрізку: рівні усталені 2-секундні проміжки польоту на 90% і більше від його найбільшої рівної повітряної швидкості (шляхова швидкість мінус власний виміряний вітер польоту; шляхова швидкість, коли опір виміряти не вдається). RCOU на каналах моторів, на рівні MOT_SPIN_MAX або в межах 1% діапазону нижче."
+      },
+      "messages": [
+        "RCOU"
+      ],
+      "source": {
+        "kind": "ardupilot",
+        "title": "ArduPilot: a motor at its maximum output leaves the controllers nothing to steer with; brief saturation in manoeuvres is normal, sustained saturation is not (Copter motor and ESC setup, MOT_SPIN_MAX)",
+        "url": "https://ardupilot.org/copter/docs/set-motor-range.html"
+      }
+    },
+    "fast.lean_share": {
+      "name": {
+        "en": "Lean near the top speed, of the limit",
+        "uk": "Нахил біля максимальної швидкості, від межі"
+      },
+      "unit": "%",
+      "direction": "lower",
+      "zones": {
+        "target": [
+          null,
+          80
+        ],
+        "caution": [
+          80,
+          95
+        ],
+        "out": [
+          95,
+          null
+        ]
+      },
+      "definition": {
+        "en": "How far the aircraft leans near its top speed, as a share of the most the position controller allows (PSC_ANGLE_MAX, else ATC_ANGLE_MAX). Near the limit there is nothing left to fight a gust or brake with.",
+        "uk": "Наскільки апарат нахиляється біля максимальної швидкості, як частка найбільшого нахилу, який дозволяє регулятор положення (PSC_ANGLE_MAX, інакше ATC_ANGLE_MAX). Біля межі не лишається запасу, щоб протидіяти пориву чи загальмувати."
+      },
+      "method": {
+        "en": "Over the fast segment: the flight's level steady 2 s tiles at 90% or more of its fastest level airspeed (ground velocity less the flight's own measured wind; ground speed when it cannot measure its drag). ATT roll and pitch combined into the tilt from level; the 99th percentile over the limit.",
+        "uk": "На швидкому відрізку: рівні усталені 2-секундні проміжки польоту на 90% і більше від його найбільшої рівної повітряної швидкості (шляхова швидкість мінус власний виміряний вітер польоту; шляхова швидкість, коли опір виміряти не вдається). Крен і тангаж ATT, об'єднані в нахил від горизонталі; 99-й процентиль, поділений на межу."
+      },
+      "messages": [
+        "ATT"
+      ],
+      "source": {
+        "kind": "app",
+        "title": "The speed build-up's lean margin: the limit is the position controller's own (ArduCopter 4.7.0 AC_PosControl.cpp); 80% keeps room for gusts and braking"
+      }
+    },
+    "fast.attitude_error_deg": {
+      "name": {
+        "en": "Attitude error near the top speed",
+        "uk": "Похибка положення біля максимальної швидкості"
+      },
+      "unit": "deg",
+      "direction": "lower",
+      "definition": {
+        "en": "How far the attitude strays from what the controllers ask near the top speed. It grows when the aircraft runs out of authority or its tune is too soft for the airflow at speed.",
+        "uk": "Наскільки положення відхиляється від запитаного регуляторами біля максимальної швидкості. Зростає, коли апаратові бракує керованості або налаштування замало жорстке для повітряного потоку на швидкості."
+      },
+      "method": {
+        "en": "Over the fast segment: the flight's level steady 2 s tiles at 90% or more of its fastest level airspeed (ground velocity less the flight's own measured wind; ground speed when it cannot measure its drag). ATT desired against achieved roll and pitch; the root mean square of their difference.",
+        "uk": "На швидкому відрізку: рівні усталені 2-секундні проміжки польоту на 90% і більше від його найбільшої рівної повітряної швидкості (шляхова швидкість мінус власний виміряний вітер польоту; шляхова швидкість, коли опір виміряти не вдається). Бажані та фактичні крен і тангаж з ATT; середньоквадратичне значення їхньої різниці."
+      },
+      "messages": [
+        "ATT"
+      ],
+      "source": {
+        "kind": "baseline",
+        "title": "No universal range: read against the airframe's own fast flights, and against the speed build-up's predicted margin"
+      }
+    },
+    "fast.velocity_error_ms": {
+      "name": {
+        "en": "Velocity error near the top speed",
+        "uk": "Похибка швидкості біля максимальної швидкості"
+      },
+      "unit": "m/s",
+      "direction": "lower",
+      "definition": {
+        "en": "How far the horizontal velocity strays from its target near the top speed. It grows when the position controller cannot hold the speed it is asked for.",
+        "uk": "Наскільки горизонтальна швидкість відхиляється від цільової біля максимальної швидкості. Зростає, коли регулятор положення не може втримати запитану швидкість."
+      },
+      "method": {
+        "en": "Over the fast segment: the flight's level steady 2 s tiles at 90% or more of its fastest level airspeed (ground velocity less the flight's own measured wind; ground speed when it cannot measure its drag). PSCN and PSCE target against achieved velocity (TVN, VN, TVE, VE; never a position); the root mean square of the horizontal difference.",
+        "uk": "На швидкому відрізку: рівні усталені 2-секундні проміжки польоту на 90% і більше від його найбільшої рівної повітряної швидкості (шляхова швидкість мінус власний виміряний вітер польоту; шляхова швидкість, коли опір виміряти не вдається). Цільова та фактична швидкість з PSCN і PSCE (TVN, VN, TVE, VE; ніколи не положення); середньоквадратичне значення горизонтальної різниці."
+      },
+      "messages": [
+        "PSCN",
+        "PSCE"
+      ],
+      "source": {
+        "kind": "baseline",
+        "title": "No universal range: read against the airframe's own fast flights, and against the speed build-up's predicted margin"
+      }
+    },
+    "fast.height_loss_m": {
+      "name": {
+        "en": "Height lost near the top speed",
+        "uk": "Втрата висоти біля максимальної швидкості"
+      },
+      "unit": "m",
+      "direction": "lower",
+      "zones": {
+        "target": [
+          null,
+          1
+        ],
+        "caution": [
+          1,
+          2
+        ],
+        "out": [
+          2,
+          null
+        ]
+      },
+      "definition": {
+        "en": "The most the aircraft fell below its target height near the top speed. Losing height while level and fast means it is short of thrust: the first sign it is being pushed past what it can do.",
+        "uk": "Найбільше, на скільки апарат опускався нижче цільової висоти біля максимальної швидкості. Втрата висоти в рівному швидкому польоті означає нестачу тяги: перша ознака, що апарат женуть понад його можливості."
+      },
+      "method": {
+        "en": "Over the fast segment: the flight's level steady 2 s tiles at 90% or more of its fastest level airspeed (ground velocity less the flight's own measured wind; ground speed when it cannot measure its drag). CTUN target height against height (DAlt, Alt, both above home); the largest shortfall.",
+        "uk": "На швидкому відрізку: рівні усталені 2-секундні проміжки польоту на 90% і більше від його найбільшої рівної повітряної швидкості (шляхова швидкість мінус власний виміряний вітер польоту; шляхова швидкість, коли опір виміряти не вдається). Цільова висота й висота з CTUN (DAlt, Alt, обидві над точкою дому); найбільша нестача."
+      },
+      "messages": [
+        "CTUN"
+      ],
+      "source": {
+        "kind": "app",
+        "title": "The speed build-up card's abort criterion: land and load the undo file on a height loss over 2 m"
+      }
+    },
+    "fast.current_max_a": {
+      "name": {
+        "en": "Peak current near the top speed",
+        "uk": "Найбільший струм біля максимальної швидкості"
+      },
+      "unit": "A",
+      "direction": "lower",
+      "definition": {
+        "en": "The most current the packs gave near the top speed. Read against the packs' continuous rating and MOT_BAT_CURR_MAX: past them the packs heat and sag.",
+        "uk": "Найбільший струм, який дали батареї біля максимальної швидкості. Порівнюється з тривалим струмом батарей і MOT_BAT_CURR_MAX: понад них батареї гріються й просідають."
+      },
+      "method": {
+        "en": "Over the fast segment: the flight's level steady 2 s tiles at 90% or more of its fastest level airspeed (ground velocity less the flight's own measured wind; ground speed when it cannot measure its drag). BAT, the current of every monitor that measures its own pack, summed; the highest.",
+        "uk": "На швидкому відрізку: рівні усталені 2-секундні проміжки польоту на 90% і більше від його найбільшої рівної повітряної швидкості (шляхова швидкість мінус власний виміряний вітер польоту; шляхова швидкість, коли опір виміряти не вдається). BAT, струм кожного монітора, що вимірює власну батарею, підсумований; найбільше значення."
+      },
+      "messages": [
+        "BAT"
+      ],
+      "source": {
+        "kind": "baseline",
+        "title": "No universal range: read against the airframe's own fast flights, and against the speed build-up's predicted margin"
+      }
+    },
+    "fast.sag_v": {
+      "name": {
+        "en": "Voltage sag near the top speed",
+        "uk": "Просідання напруги біля максимальної швидкості"
+      },
+      "unit": "V",
+      "direction": "lower",
+      "definition": {
+        "en": "The most the first pack's voltage sagged under load near the top speed: its estimate at rest less its voltage. Deep sag brings the voltage failsafe and the cells' cutoff closer.",
+        "uk": "Найбільше просідання напруги першої батареї під навантаженням біля максимальної швидкості: її оцінка в спокої мінус фактична напруга. Глибоке просідання наближає аварійний режим за напругою та межу розряду комірок."
+      },
+      "method": {
+        "en": "Over the fast segment: the flight's level steady 2 s tiles at 90% or more of its fastest level airspeed (ground velocity less the flight's own measured wind; ground speed when it cannot measure its drag). BAT VoltR (the firmware's resting estimate) less Volt, for the first counted pack; the largest.",
+        "uk": "На швидкому відрізку: рівні усталені 2-секундні проміжки польоту на 90% і більше від його найбільшої рівної повітряної швидкості (шляхова швидкість мінус власний виміряний вітер польоту; шляхова швидкість, коли опір виміряти не вдається). BAT VoltR (оцінка прошивки в спокої) мінус Volt, для першої врахованої батареї; найбільше значення."
+      },
+      "messages": [
+        "BAT"
+      ],
+      "source": {
+        "kind": "baseline",
+        "title": "No universal range: read against the airframe's own fast flights, and against the speed build-up's predicted margin"
+      }
+    },
+    "fast.esc_temp_max_c": {
+      "name": {
+        "en": "Hottest ESC near the top speed",
+        "uk": "Найгарячіший ESC біля максимальної швидкості"
+      },
+      "unit": "degC",
+      "direction": "lower",
+      "definition": {
+        "en": "The hottest any ESC got near the top speed. Read against the ESCs' rated limit; a longer or faster run heats them further.",
+        "uk": "Найвища температура будь-якого ESC біля максимальної швидкості. Порівнюється з паспортною межею ESC; довший чи швидший проліт нагріє їх ще більше."
+      },
+      "method": {
+        "en": "Over the fast segment: the flight's level steady 2 s tiles at 90% or more of its fastest level airspeed (ground velocity less the flight's own measured wind; ground speed when it cannot measure its drag). ESC telemetry temperature, the highest of any ESC. Not read from ArduPilot's simulator, whose ESC temperatures are placeholders.",
+        "uk": "На швидкому відрізку: рівні усталені 2-секундні проміжки польоту на 90% і більше від його найбільшої рівної повітряної швидкості (шляхова швидкість мінус власний виміряний вітер польоту; шляхова швидкість, коли опір виміряти не вдається). Температура з телеметрії ESC, найвища серед усіх ESC. Не зчитується з симулятора ArduPilot, де температури ESC умовні."
+      },
+      "messages": [
+        "ESC"
+      ],
+      "source": {
+        "kind": "baseline",
+        "title": "No universal range: read against the airframe's own fast flights, and against the speed build-up's predicted margin"
+      }
+    },
+    "fast.thrust_loss": {
+      "name": {
+        "en": "Thrust-loss warnings near the top speed",
+        "uk": "Попередження про втрату тяги біля максимальної швидкості"
+      },
+      "unit": "count",
+      "direction": "lower",
+      "zones": {
+        "target": [
+          0,
+          1
+        ],
+        "out": [
+          1,
+          null
+        ]
+      },
+      "definition": {
+        "en": "How many times the firmware's thrust-loss check fired near the top speed: level, at 90% throttle or more, and still descending. Any is a reason to stop raising the speed.",
+        "uk": "Скільки разів біля максимальної швидкості спрацювала перевірка прошивки на втрату тяги: апарат рівний, газ 90% і більше, а він і далі знижується. Будь-яке спрацювання — причина не підвищувати швидкість."
+      },
+      "method": {
+        "en": "Over the fast segment: the flight's level steady 2 s tiles at 90% or more of its fastest level airspeed (ground velocity less the flight's own measured wind; ground speed when it cannot measure its drag). ERR with the THRUST_LOSS_CHECK subsystem and a non-zero code, inside the fast segment.",
+        "uk": "На швидкому відрізку: рівні усталені 2-секундні проміжки польоту на 90% і більше від його найбільшої рівної повітряної швидкості (шляхова швидкість мінус власний виміряний вітер польоту; шляхова швидкість, коли опір виміряти не вдається). ERR з підсистемою THRUST_LOSS_CHECK і ненульовим кодом у межах швидкого відрізка."
+      },
+      "messages": [
+        "ERR"
+      ],
+      "source": {
+        "kind": "ardupilot",
+        "title": "ArduCopter 4.7.0 crash_check.cpp: the thrust-loss check (level, 90% throttle or more, descending for 1 s) logs ERR THRUST_LOSS_CHECK and boosts the other motors",
+        "url": "https://github.com/ArduPilot/ardupilot/blob/Copter-4.7.0/ArduCopter/crash_check.cpp"
+      }
+    }
+  }
+}
