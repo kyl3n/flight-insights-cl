@@ -1,0 +1,33 @@
+source: sitl
+vehicle: copter
+frame: octo coaxial X8
+firmware: 4.7.0
+ardupilot_commit: 1511f27194f1dcc3728270883047bdf022b3fd53
+scenario: copter-heavylift-discharge
+description: 'The heavy-lift X8 hovering at 10 m in GUIDED on a pack shrunk to 3 Ah
+  (SIM_BATT_CAP_AH; the model''s own is 44 Ah, with 0.024 Ohm and 50.4 V full) until
+  the capacity failsafe at BATT_LOW_MAH 450 switches it to LAND: most of the pack''s
+  discharge curve in a few minutes. The 450 mAh left is too little to land a 32.5
+  kg aircraft from 10 m: the pack runs empty about 5 m up and it falls.'
+parameters_set:
+  LOG_DISARMED: 0
+  SIM_ESC_TELEM: 0
+  LOG_FILE_RATEMAX: 10
+  SIM_BATT_CAP_AH: 3
+  BATT_CAPACITY: 3000
+  BATT_LOW_MAH: 450
+  BATT_LOW_VOLT: 0
+  BATT_CRT_MAH: 0
+  BATT_CRT_VOLT: 0
+  BATT_FS_LOW_ACT: 1
+  SIM_WIND_SPD: 0
+faults: []
+expected:
+- 'GUIDED take-off to 10 m; hover until the low-battery failsafe (capacity: 2551 mAh
+  used of 3000) switches to LAND'
+- 'the pack runs empty about 5 m up in the LAND descent: ''Potential Thrust Loss'',
+  and the aircraft falls and hits the ground at about 8 m/s'
+- streamed messages capped at 10 Hz (LOG_FILE_RATEMAX)
+- 'steady hover windows: 129 s in GUIDED'
+- 'the battery model, fitted before the failsafe: capacity about 3 Ah and resistance
+  about 0.024 Ohm'
