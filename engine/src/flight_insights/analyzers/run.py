@@ -24,6 +24,7 @@ from flight_insights.analyzers.commands import COMMANDS
 from flight_insights.analyzers.energy import ENERGY
 from flight_insights.analyzers.esc_rpm import ESC_RPM
 from flight_insights.analyzers.failsafes import FAILSAFES
+from flight_insights.analyzers.fast import FAST
 from flight_insights.analyzers.filter_model import FILTER_MODEL
 from flight_insights.analyzers.filters import FILTERS
 from flight_insights.analyzers.flight import FlightData
@@ -60,7 +61,7 @@ ANALYZERS: tuple[Analyzer, ...] = (
     LOG_ADEQUACY, SYSTEM, FAILSAFES, LINKS, PRECURSORS, COMMANDS, INCIDENT, GNSS, NO_GNSS,
     NO_GNSS_READINESS, VIBRATION,
     ESC_RPM, FILTER_MODEL, FILTERS, POWER, MOTORS_HEALTH, MOTOR_LAG, BUSES, PAYLOAD, MOTOR_OUT,
-    WIND, ENERGY, TUNE,
+    WIND, ENERGY, FAST, TUNE,
     RATE_TUNE,
     RATE_HEALTH, AUTOTUNE, OPTIONS, PARAMS_AUDIT,
 )  # fmt: skip

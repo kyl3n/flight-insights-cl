@@ -13,6 +13,15 @@
     "max_accel": 0.3,
     "max_turn_deg_s": 5.0
   },
+  "fast": {
+    "about": "The fast segment (analyzers/fast.py): the flight's level steady tiles (phases above) at share or more of its fastest, through the air (each tile's ground velocity less the flight's wind from the drag it measures itself, wind.json; else by ground speed), once the fastest reaches min_top_ms and the segment holds min_seconds. Vibration is the vibe_percentile percentile of the worst axis of any IMU; the motors' highest output the output_percentile percentile of the highest motor; the lean the lean_percentile percentile of the tilt.",
+    "share": 0.9,
+    "min_top_ms": 5.0,
+    "min_seconds": 10.0,
+    "vibe_percentile": 95,
+    "output_percentile": 99,
+    "lean_percentile": 99
+  },
   "flight": {
     "about": "A flight's energy (analyzers/energy.py): the packs' power (rules/batteries.json, every monitor that measures its own pack) and the primary estimator core's horizontal ground speed, each integrated from arming to disarming by the trapezoid rule over every row; the energy split by each steady tile's phase. Energy per km is given once the flight covered at least min_distance_m over the ground, and at cruise once its level tiles did.",
     "min_distance_m": 200.0
