@@ -183,6 +183,54 @@ def usable(
 
 
 @dataclass(frozen=True)
+class Usable:
+    """What a pack gives before its reserve against a steady load: the energy at the
+    terminals at each power on a grid, read between them on a log scale. Below the grid it
+    reads the grid's lightest load (less than the pack would give), above it nothing: both
+    err short."""
+
+    powers: Array  # W, ascending
+    energy_wh: Array  # 0 where the pack cannot give that power
+    stopped_by: tuple[str, ...]
+
+    def at(self, power: float | Array) -> Array:
+        p = np.asarray(power, np.float64)
+        e = np.interp(np.log(np.maximum(p, 1e-9)), np.log(self.powers), self.energy_wh)
+        return np.asarray(np.where(p > self.powers[-1] * (1 + 1e-9), 0.0, e))
+
+    def seconds(self, power: float | Array) -> Array:
+        p = np.asarray(power, np.float64)
+        return np.asarray(self.at(p) * 3600.0 / np.maximum(p, 1e-9))
+
+
+def usable_curve(
+    pack: Pack,
+    start_soc: float,
+    failsafe: Failsafe | None,
+    reserve_share: float,
+    low_w: float,
+    high_w: float,
+    points: int = 24,
+    steps: int = 1000,
+) -> Usable:
+    """`usable` at `points` loads from `low_w` to `high_w`, each discharge in about `steps`
+    steps, and at least five to the voltage failsafe's timer."""
+    powers = np.geomspace(low_w, high_w, points)
+    socs = np.linspace(float(pack.chemistry.soc[0]), start_soc, 64)
+    held_wh = float(np.trapezoid(pack.open_circuit(socs), socs)) * pack.capacity_ah
+    fs = failsafe or Failsafe()
+    finest = fs.timer_s / 5 if fs.low_volt is not None and fs.timer_s > 0 else float("inf")
+    energy: list[float] = []
+    stopped: list[str] = []
+    for p in powers:
+        dt = min(max(held_wh * 3600 / float(p) / steps, 0.05), finest)
+        d = usable(pack, start_soc, float(p), failsafe, reserve_share, dt)
+        energy.append(d.energy_wh)
+        stopped.append(d.stopped_by)
+    return Usable(powers, np.asarray(energy, np.float64), tuple(stopped))
+
+
+@dataclass(frozen=True)
 class PackFit:
     capacity_ah: float | None  # None when the flight used too little of the pack
     resistance: float  # R0, Ohm

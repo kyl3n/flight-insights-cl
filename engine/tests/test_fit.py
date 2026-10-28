@@ -91,6 +91,10 @@ def test_each_flights_energy_is_predicted_without_it(sweep: list[Row]) -> None:
     assert max(abs(e) for e in got.lofo.values()) < 0.04
     lo, hi = got.bootstrap["drag_area"]
     assert lo <= got.model.drag_area <= hi
+    # the bootstrap's own models are kept for the projections' spread
+    assert len(got.replicates) == 20
+    areas = [m.drag_area for m in got.replicates]
+    assert (np.percentile(areas, 2.5), np.percentile(areas, 97.5)) == pytest.approx((lo, hi))
 
 
 def test_with_hovers_alone_the_priors_hold_the_shape() -> None:

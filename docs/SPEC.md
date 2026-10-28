@@ -717,7 +717,7 @@ Added to Phase 2 on 2026-10-27 at the fleet owner's request, and built in steps 
   - hover endurance only, with hovers alone.
 - **Extrapolation** past the speeds and weights flown is drawn dashed and labelled.
 
-**The battery's usable energy** (not yet).
+**The battery's usable energy** (the model, the discharge and the usable energy against load are worked out, `performance/battery.py`; capacity per pack over its cycles is not yet).
 
 - **Model:** an open-circuit voltage curve per chemistry, refined from flights, and the pack's resistance.
 - **Capacity:** measured per pack from the charge used against the change in rest voltage, and trended against cycles.
@@ -727,6 +727,7 @@ Added to Phase 2 on 2026-10-27 at the fleet owner's request, and built in steps 
   - the capacity failsafe as the firmware counts mAh;
   - the cell cutoff;
   - the current limit.
+- **Against load:** the usable energy is worked out at 24 loads, from half the lightest hover to one and a half times the heaviest climb or fastest leg, and read between them on a log scale. A load past the grid reads nothing, so a figure errs short.
 
 **A flight's energy** (measured now, `analyzers/energy.py`).
 
@@ -737,7 +738,7 @@ Added to Phase 2 on 2026-10-27 at the fleet owner's request, and built in steps 
   - at cruise: the level tiles' energy over their own distance.
 - **Where the energy went:** the energy in each steady tile's phase (low, hover, level, climb, descent, manoeuvre), and what fell between tiles. The parts add up to the whole.
 
-**What the user gets** (the speeds and the radius are worked out, `performance/optimize.py` and `radius.py`; the projections, the stored model and the screens are not yet).
+**What the user gets** (the speeds, the radius, the projections, the efficiency figures and the what-ifs are worked out, `performance/optimize.py`, `radius.py` and `project.py`; maximum speed, the stored model and the screens are not yet).
 
 - **Speeds:**
   - best-endurance speed (minimum power);
@@ -760,13 +761,17 @@ Added to Phase 2 on 2026-10-27 at the fleet owner's request, and built in steps 
   - range;
   - radius for the standard trips, by wind speed and direction relative to the wind;
   - all against take-off weight, with the limits marked: maximum take-off, the hover-throttle limit, the motor-out weight and the current limit.
+  - **The pack's energy at each figure's own power.** Flight time and range read it at their steady power. The range speed is the airspeed of most metres per pack, so the pack's sag puts it a little slower than the model's own tangent.
+  - **A trip's energy** is read at the trip's mean power, repeated until the two agree. A varying load loses a fraction of a per cent more to the pack's resistance than a steady one at its mean; that is well inside the model's error.
+  - **Against weight:** nine weights from empty to the heaviest take-off. A weight within 5% of the weights flown is marked measured; the rest are extrapolated. Weights the pack cannot hover are left out.
+  - **How sure:** each figure again for every bootstrap model (once the airframe has 3 flights or more; with fewer, resampling mostly refits one flight alone), each with a zero-mean model error sized by the leave-one-flight-out errors' root mean square. Those errors come from a model fitted on fewer flights, so they size the spread rather than shift it. The 95% interval is shown about the model's own figure, and the card uses the low end.
 - **Maximum speed:** the least of the lean limit (from the measured drag at that weight), thrust headroom and the power or current limit. It is shown beside the configured `WP_SPD`, `LOIT_SPEED_MS` and the firmware's caps.
 - **Efficiency:**
-  - hover figure of merit and g/W at standard air;
-  - Wh/km;
+  - hover figure of merit (the ideal power W·v_h over the packs' power) and g/W at standard air;
+  - Wh/km at the best-range airspeed;
   - Wh per kg-km;
-  - cost of transport.
-- **What-ifs:** less weight, more capacity with its mass, less drag, less avionics draw, and two build versions side by side.
+  - cost of transport, P/(W·V).
+- **What-ifs:** what each figure gains from 5% less weight, 10% less drag, 10 W less avionics draw, and 10% more capacity with 10% more of the pack's mass (the same cells in parallel, so the resistance falls as the capacity grows; left out while the pack's mass is unknown). Two build versions side by side.
 
 **The speed build-up** (when the speed goal is "fastest safe"; not yet).
 
