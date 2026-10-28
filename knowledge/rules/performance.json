@@ -5,13 +5,43 @@
     "descent_share": 0.2,
     "edgewise_share": 1.0
   },
+  "points": {
+    "about": "A flight's points for the power model (performance/points.py): its steady tiles (rules/energy.json 'phases') in the phases named here, leaving out a tile in an excluded mode, one starting within settle_s of a mode change, and one whose power's standard deviation exceeds max_power_cv of its mean. A tile's airspeed is its ground velocity less the wind: each drag window's own wind (from the flight's drag, else its airframe's) as a running median over wind_median_s. Tiles are averaged, weighted by time, per phase, airspeed_bin_ms of airspeed and climb_bin_ms of climb.",
+    "phases": ["hover", "level", "climb", "descent"],
+    "excluded_modes": ["LAND"],
+    "settle_s": 3.0,
+    "max_power_cv": 0.1,
+    "wind_median_s": 30.0,
+    "airspeed_bin_ms": 1.0,
+    "climb_bin_ms": 0.5
+  },
   "priors": {
     "kappa_open": {"mean": 1.15, "spread": 0.08},
     "kappa_coaxial": {"mean": 1.25, "spread": 0.10},
     "efficiency": {"mean": 0.82, "spread": 0.08},
-    "profile_growth_k": {"mean": 4.65, "spread": 1.5}
+    "profile_growth_k": {"mean": 4.65, "spread": 1.5},
+    "profile_coefficient": {"mean": 0.5, "spread": 0.2},
+    "profile_growth_hover": {"mean": 0.03, "spread": 0.02}
+  },
+  "fit": {
+    "about": "The power model's fit (performance/fit.py): for each flat-plate area f (searched between 0 and drag_area_max_m2 in drag_area_steps golden-section steps), the coefficients by weighted least squares on relative errors, each point weighted by its seconds and divided by the noise (starting at noise_start, re-estimated, never under noise_floor), each coefficient drawn to its prior (the avionics' to 0 with a spread of avionics_share of the points' median power), a factor per flight on the power drawn to 1 with a spread of random_effect_spread, and Huber weights at huber times the noise, over irls_steps passes; f where the profile likelihood with the priors is least. At least min_rows points. Level A needs level points spanning airspeed_span_ms at weights at least weight_apart apart (a share); B, level points (at or above moving_ms); C, hovers and climbs alone. The bootstrap resamples flights (bootstrap draws, seed, level).",
+    "min_rows": 3,
+    "drag_area_max_m2": 2.0,
+    "drag_area_steps": 40,
+    "noise_start": 0.03,
+    "noise_floor": 0.003,
+    "avionics_share": 0.1,
+    "random_effect_spread": 0.05,
+    "huber": 1.345,
+    "irls_steps": 6,
+    "bootstrap": 200,
+    "seed": 7,
+    "level": 0.95,
+    "levels": {"moving_ms": 2.0, "airspeed_span_ms": 6.0, "weight_apart": 0.1}
   },
   "sources": [
+    "Profile power's growth without the propellers' speed: K mu^2 with mu = u_p / (Omega R) is K (u_p / v_h)^2 (v_h / Omega R)^2, and (v_h / Omega R)^2 = C_T / 2 for a rotor thrust coefficient C_T of about 0.01 to 0.015 (Leishman 2006, ch. 2), so the growth on (u_p / v_h)^2 is about K C_T / 2, near 0.03 for K = 4.65.",
+    "Profile power in hover over the ideal power, c_p = 1 / FM - kappa: small fixed-pitch propellers have a static figure of merit of about 0.5 to 0.65 (C_T^1.5 / (sqrt(2) C_P) from Brandt and Selig, Propeller Performance Data at Low Reynolds Numbers, AIAA 2011-1255, the UIUC propeller database), so c_p of about 0.35 to 0.85 with kappa near 1.15.",
     "Momentum theory in forward flight and climb, Glauert's induced-velocity equation, and its failure in the vortex-ring and turbulent-wake states of descent: Leishman, Principles of Helicopter Aerodynamics, 2nd ed., Cambridge University Press, 2006, ch. 2 (axial flight, the vortex-ring state between 0 and -2 v_h) and ch. 5 (forward flight, the power required, profile power 1 + K mu^2 with K about 4.5 to 4.7); Johnson, Helicopter Theory, Princeton University Press, 1980, ch. 4 and 5.",
     "The induced-power factor of an open rotor, about 1.15: Leishman 2006, ch. 2 and 3. Of a coaxial pair, higher, as the lower rotor works in the upper's wake: Leishman and Syal, Figure of Merit Definition for Coaxial Rotors, Journal of the American Helicopter Society 53(3), 2008.",
     "Fixed-pitch propellers turn faster to make more thrust, so profile power at a given thrust scales like the induced power (both as T^1.5 / sqrt(rho A) through the tip speed): Bauersfeld and Scaramuzza, Range, Endurance, and Optimal Speed Estimates for Multicopters, IEEE Robotics and Automation Letters 7(2), 2022 (blade-element momentum model with motor and battery, flown to 65 km/h).",
