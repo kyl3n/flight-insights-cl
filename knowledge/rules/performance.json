@@ -1,0 +1,20 @@
+{
+  "about": "The power model's physics and priors (performance/; spec: Power and efficiency analysis, 'Range, endurance and speed'). Momentum theory holds except where the rotor descends into its own wake with little forward speed: a point whose flow through the disc goes upward faster than descent_share of v_h, with less than edgewise_share of v_h along the disc, is marked and left out of a fit. The priors seed the fit and keep it physical where a flight cannot tell two terms apart: the induced-power factor kappa (open rotors, and a coaxial pair working in each other's wake), the motor and ESC efficiency, and the profile-power growth with speed K. Uncalibrated against real aircraft: each is the literature's typical value with a spread, and the fit moves off it as far as the flights show.",
+  "uncalibrated": true,
+  "vortex_ring": {
+    "descent_share": 0.2,
+    "edgewise_share": 1.0
+  },
+  "priors": {
+    "kappa_open": {"mean": 1.15, "spread": 0.08},
+    "kappa_coaxial": {"mean": 1.25, "spread": 0.10},
+    "efficiency": {"mean": 0.82, "spread": 0.08},
+    "profile_growth_k": {"mean": 4.65, "spread": 1.5}
+  },
+  "sources": [
+    "Momentum theory in forward flight and climb, Glauert's induced-velocity equation, and its failure in the vortex-ring and turbulent-wake states of descent: Leishman, Principles of Helicopter Aerodynamics, 2nd ed., Cambridge University Press, 2006, ch. 2 (axial flight, the vortex-ring state between 0 and -2 v_h) and ch. 5 (forward flight, the power required, profile power 1 + K mu^2 with K about 4.5 to 4.7); Johnson, Helicopter Theory, Princeton University Press, 1980, ch. 4 and 5.",
+    "The induced-power factor of an open rotor, about 1.15: Leishman 2006, ch. 2 and 3. Of a coaxial pair, higher, as the lower rotor works in the upper's wake: Leishman and Syal, Figure of Merit Definition for Coaxial Rotors, Journal of the American Helicopter Society 53(3), 2008.",
+    "Fixed-pitch propellers turn faster to make more thrust, so profile power at a given thrust scales like the induced power (both as T^1.5 / sqrt(rho A) through the tip speed): Bauersfeld and Scaramuzza, Range, Endurance, and Optimal Speed Estimates for Multicopters, IEEE Robotics and Automation Letters 7(2), 2022 (blade-element momentum model with motor and battery, flown to 65 km/h).",
+    "Motor and ESC efficiency about 0.75 to 0.9 at cruise loads on multirotor propulsion: makers' bench data (for example T-Motor's published thrust, current and power tables per throttle step), app prior."
+  ]
+}
