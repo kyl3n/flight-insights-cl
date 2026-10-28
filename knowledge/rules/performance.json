@@ -96,6 +96,13 @@
     "home_step_ms": 0.5,
     "raise_up_to_verified": ["WP_SPD", "LOIT_SPEED_MS", "RTL_SPEED_MS"]
   },
+  "return": {
+    "about": "The charge the battery failsafe keeps back for the way home (performance/charge.py): RTL's climb to RTL_ALT_M at WP_SPD_UP, the way back at RTL_SPEED_MS (WP_SPD at 0) from the percentile of the farthest each flight went from where it armed into the same percentile of the measured winds as a headwind, and the descent at WP_SPD_DN at hover power, at the lowest voltage before the failsafe; plus the setup's reserve share of capacity. Rounded up to round_mah. When the return and its reserve come to more than max_share of the packs, no failsafe setting covers it. defaults are ArduCopter 4.7.0's (config.h RTL_ALT_M_DEFAULT 15; mode_rtl.cpp RTL_SPEED_MS 0 uses WP_SPD; AC_WPNav.cpp WP_SPD 10, WP_SPD_UP 2.5, WP_SPD_DN 1.5). Uncalibrated until checked against the airframe's own flights to reserve.",
+    "percentile": 90,
+    "round_mah": 100,
+    "max_share": 0.6,
+    "defaults": {"RTL_ALT_M": 15.0, "RTL_SPEED_MS": 0.0, "WP_SPD": 10.0, "WP_SPD_UP": 2.5, "WP_SPD_DN": 1.5}
+  },
   "report": {
     "about": "What the Range & speed screen and the range card show (performance/report.py): the best airspeed and ground speed into each of headwinds_ms, and on the card the radius out and back with each as the wind, the worst way round.",
     "headwinds_ms": [0.0, 5.0, 10.0]
