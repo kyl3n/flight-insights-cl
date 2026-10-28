@@ -664,7 +664,20 @@ T is the hover thrust (take-off weight scaled by the payload ratio), ρ is air d
 - **Board voltage.** ArduPilot's pre-arm check expects 4.3 to 5.8 V ([pre-arm checks](https://ardupilot.org/copter/docs/common-prearm-safety-checks.html)). The app also flags in-flight dips that line up with servo or payload events, an early brownout sign.
 - **Current sensor calibration.** Logged consumed mAh against the mAh the charger put back (entered after charging) gives the current sensor's scale error, and a corrected scale parameter. A miscalibrated sensor makes every capacity-based failsafe fire at the wrong time.
 - **The battery monitor against the ESCs.** With real ESC telemetry (not the simulator's), the monitor is flagged when the ESCs draw more than 10% more current in hover than it reports (they cannot: the battery feeds them and the avionics), or when its voltage is more than 3% from theirs while at most a fifth of the hover current flows, so the harness drop is negligible. ESC sensors have errors of their own, so the finding proposes no scale. Its procedure calibrates the power module against a multimeter (`BATT_VOLT_MULT`) and the charger (`BATT_AMP_PERVLT`). The same procedure follows an analog power module the platform setup says was never calibrated. These are app rules, uncalibrated.
-- **Return-energy margin.** ArduPilot suggests 20% of capacity as the capacity-based failsafe level ([battery failsafe](https://ardupilot.org/copter/docs/failsafe-battery.html)). The app replaces that rule of thumb with the measured energy needed to return from typical mission distances at RTL speed, plus a reserve, and proposes `BATT_LOW_MAH` from it. The return is the farthest the airframe usually flies (the 90th percentile, kept on the laptop) at `RTL_SPEED_MS` into its usual headwind, plus the climb to `RTL_ALT_M`, the landing and the reserve, with the energy from the power model below (not yet).
+- **Return-energy margin.** ArduPilot suggests 20% of capacity as the capacity-based failsafe level ([battery failsafe](https://ardupilot.org/copter/docs/failsafe-battery.html)). The app replaces that rule of thumb with the measured energy needed to return from typical mission distances at RTL speed, plus a reserve, and proposes `BATT_LOW_MAH` from it. The return is worked out from the power model below (`performance/charge.py`):
+  - **The way home** RTL flies, from the farthest the airframe went on 9 flights in 10 (the 90th percentile of each flight's farthest from where it armed, kept on the laptop):
+    - the climb to `RTL_ALT_M` at `WP_SPD_UP` from the ground (the most it can take);
+    - the flight back at `RTL_SPEED_MS` (`WP_SPD` where that is 0), into the 90th percentile of the airframe's measured winds as a headwind;
+    - the descent at `WP_SPD_DN` at hover power.
+
+    A setting the flight does not hold is ArduCopter 4.7.0's default.
+  - **Its charge** is each part's power over the lowest voltage the pack reaches before its failsafe, so the current errs high.
+  - **The reserve** is on top: the setup's reserve share of the pack's capacity (20% unanswered), left when it lands.
+  - **Parallel packs,** each with its own monitor: each pack's failsafe keeps the return's share in proportion to its capacity, plus its own reserve.
+  - **The proposal** is rounded up to 100 mAh. It is a safety finding, offered whatever the stage, and only ever a raise (`BATT_LOW_MAH` is never lowered).
+  - **A way home the packs can't cover:** when the return and its reserve come to more than 60% of the packs, no failsafe setting covers it, and a finding says so (`performance.return_short`).
+  - **Low confidence** until checked against the airframe's own flights to reserve.
+  - **The distance itself** stays out of the findings, which are kept with the airframe's synced recommendations. Only the charge it takes is shown.
 - **Cold-weather derating.** Pack datasheets limit current at low temperature; one Tattu high-voltage pack allows at most 0.2C below 0 °C, 0.5C from 0 to 10 °C, and 5C above 10 °C ([pack listing](https://www.gensace.de/tattu-3-0-10500mah-53-2v-25c-14s1p-high-voltage-lipo-battery-pack-with-as150u-f-plug.html)). With pack temperature logged or entered, the app flags flights that exceeded the derated current for the pack in the build profile.
 
 ### Range, endurance and speed
@@ -852,7 +865,7 @@ Added to Phase 2 on 2026-10-27 at the fleet owner's request, and built in steps 
   - **The heavy lifter's sweep:** tops at 12 m/s in still air.
   - **The quad's sweep:** holds its ground speed both ways in a 1.5 m/s wind, so it reads 9.5 m/s through the air on its upwind legs.
 
-**Recommendations** (the cruise and home speeds are worked out, `performance/advice.py`; the rest are not yet).
+**Recommendations** (the cruise and home speeds and `BATT_LOW_MAH` are worked out, `performance/advice.py` and `charge.py`; the rest are not yet).
 
 - **Cruise speed:** `WP_SPD` set to the speed the Priority answer calls for.
   - **For endurance:** the airspeed of least power.
@@ -864,7 +877,7 @@ Added to Phase 2 on 2026-10-27 at the fleet owner's request, and built in steps 
   - **Lowering** is always proposed.
   - **Raising** goes only up to the verified speed less the typical wind, so the airspeed a headwind adds stays within what was verified. When the best cruise speed lies past that, a finding says so (`performance.cruise_unverified`): flying faster at this weight, held steady with everything in target, verifies more.
   - **Low confidence** until the model is checked against the airframe's own flights to reserve. Each rests on the flight's own energy.
-- **`BATT_LOW_MAH`:** from the measured return energy (see "Return-energy margin" above).
+- **`BATT_LOW_MAH`:** from the measured return energy (see "Return-energy margin" above; `performance/charge.py`).
 - **Battery and electrical:** `BATT_CAPACITY` against the measured pack, pack ageing, avionics draw.
 - **Payload drag and hover efficiency** against the airframe's own baseline.
 - **Energy anomaly:** a flight whose power departs from the model.

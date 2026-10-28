@@ -33,6 +33,28 @@
         "en": "Set RTL_SPEED_MS to {proposed_ms} m/s ({gain_pct}% less charge per metre home; the best is {best_ms} m/s at {mass_kg} kg): the ground speed of least energy per metre into the airframe's typical wind, so a return home takes the least charge. A raise goes no further than the verified speed less that wind.",
         "uk": "Встановіть RTL_SPEED_MS на {proposed_ms} м/с (на {gain_pct}% менше заряду на метр додому; найкраща — {best_ms} м/с при {mass_kg} кг): шляхова швидкість найменшої енергії на метр проти типового вітру апарата, щоб повернення додому забирало найменше заряду. Підвищення не йде далі за підтверджену швидкість мінус цей вітер."
       }
+    },
+    "performance.low_mah": {
+      "stage": "operations",
+      "title": {
+        "en": "{param} keeps back {current_mah} mAh; the way home from the farthest this airframe usually flies takes {pack_return_mah} mAh of this pack, and the {reserve_pct}% reserve more",
+        "uk": "{param} залишає {current_mah} мА·год; дорога додому з найдальшої точки, куди зазвичай літає цей апарат, забирає {pack_return_mah} мА·год цього пакета, і ще {reserve_pct}% резерву"
+      },
+      "action": {
+        "en": "Set {param} to {proposed_mah} mAh of its {capacity_mah}, so the battery failsafe acts while there is enough charge to climb to RTL_ALT_M, fly home and land, and still keep {reserve_pct}%. The way home is from the farthest the airframe went on 9 flights in 10 of its {flights}, into 9 winds in 10 of those measured ({wind_ms} m/s), at {airspeed_ms} m/s through the air, worked out from the power model at {mass_kg} kg and the lowest voltage before the failsafe. It replaces ArduPilot's rule of thumb of 20% of capacity. The fastest it has flown is {top_ms} m/s; past that the power is the model's extrapolation.",
+        "uk": "Встановіть {param} на {proposed_mah} мА·год із {capacity_mah}, щоб аварійний режим батареї спрацьовував, поки заряду ще вистачає набрати RTL_ALT_M, долетіти додому й сісти, зберігши {reserve_pct}%. Дорогу додому пораховано від найдальшої точки, куди апарат відлітав у 9 польотах із 10 (з {flights}), проти вітру, не слабшого за 9 із 10 виміряних ({wind_ms} м/с), на повітряній швидкості {airspeed_ms} м/с, за моделлю потужності при {mass_kg} кг і найнижчій напрузі перед аварійним режимом. Це замінює емпіричне правило ArduPilot — 20% ємності. Найбільша швидкість, з якою він літав, — {top_ms} м/с; понад неї потужність — це екстраполяція моделі."
+      }
+    },
+    "performance.return_short": {
+      "stage": "operations",
+      "title": {
+        "en": "The way home from the farthest this airframe usually flies, with the {reserve_pct}% reserve, takes {share_pct}% of its packs",
+        "uk": "Дорога додому з найдальшої точки, куди зазвичай літає цей апарат, разом із {reserve_pct}% резерву забирає {share_pct}% його пакетів"
+      },
+      "action": {
+        "en": "That is more than a battery failsafe can sensibly keep back ({max_pct}% of {capacity_mah} mAh): on those trips the failsafe would act too late to bring it home with its reserve. Fly less far on these packs, carry more capacity, or fly lighter; the range card shows the radius each weight allows. Worked out from the power model at {mass_kg} kg: {return_mah} mAh home at {airspeed_ms} m/s through the air into {wind_ms} m/s. The fastest it has flown is {top_ms} m/s.",
+        "uk": "Це більше, ніж аварійний режим батареї може розумно залишити ({max_pct}% від {capacity_mah} мА·год): у таких рейсах він спрацює надто пізно, щоб повернути апарат додому з резервом. Літайте ближче на цих пакетах, беріть більшу ємність або летіть легше; картка дальності показує радіус для кожної ваги. Пораховано за моделлю потужності при {mass_kg} кг: {return_mah} мА·год додому на повітряній швидкості {airspeed_ms} м/с проти вітру {wind_ms} м/с. Найбільша швидкість, з якою він літав, — {top_ms} м/с."
+      }
     }
   }
 }
