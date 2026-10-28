@@ -117,9 +117,14 @@ CHECKS: Mapping[str, tuple[str, ...]] = {
     # with the change, the heaviest band's value within max_ratio times, or max_above
     # over, the lightest band's
     "metric_vs_lightest": ("metric",),
+    # the metric reaching at least `share` of the value the recommendation proposed
+    "reaches_proposed": ("metric", "share"),
+    # every metric with zones in the segment in its target zone
+    "in_target": ("segment",),
 }
 METRIC_CHECKS = (
     "metric", "has_metric", "metric_improves", "metric_not_worse", "metric_vs_lightest",
+    "reaches_proposed",
 )  # fmt: skip
 PARAM_NAME = re.compile(r"[A-Z][A-Z0-9_]{0,15}")
 

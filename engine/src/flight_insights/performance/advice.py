@@ -21,6 +21,8 @@ Priority calls for, and the speed to fly home.
   what was verified. The same limit lets the plan's never-raise rule pass a raise of
   `WP_SPD`, `LOIT_SPEED_MS` or `RTL_SPEED_MS` up to it. When the best cruise speed lies
   past it, a finding says so: flying faster at this weight verifies more.
+- **While the speed goal is "fastest safe"** the cruise speed is the speed build-up's
+  (`performance/buildup.py`), not the Priority's; the home speed still follows its wind.
 - Each finding is low confidence until the model is checked against the airframe's own
   flights to reserve (spec: Testing, "Range and speed").
 - They rest on the flight's own energy (`energy:flight`).
@@ -199,7 +201,8 @@ def speeds(ctx: Context, params: Mapping[str, float]) -> Advice:
         return climate(model, w, density, rules, ctx.winds, g, cells)
 
     cruise = params.get("WP_SPD")
-    if cruise is not None:
+    building = ctx.inputs.answers.get("speed_goal") == "fastest"  # the build-up sets it
+    if cruise is not None and not building:
         ch = choose(cruise_cost, top, cruise, rules, float(spec["cruise_step_ms"]), limit)
         if ch is not None and ch.unverified:
             out.findings.append(_finding(flight_id, UNVERIFIED, common | {

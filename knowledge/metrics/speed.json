@@ -1,0 +1,148 @@
+{
+  "about": "Findings of the speed build-up, raised by the recommendation engine when the setup's speed goal is 'fastest safe' (performance/buildup.py; spec: Power and efficiency analysis, 'The speed build-up'): where to start, the next step and its predicted margins, a prediction missing, or the limit that binds and what moves it. Low confidence until the models are checked against the airframe's own fast flights.",
+  "findings": {
+    "speed.build_up_start": {
+      "stage": "navigation",
+      "title": {
+        "en": "No speed has been verified at {mass_kg} kg to build up from",
+        "uk": "Немає підтвердженої швидкості при {mass_kg} кг, від якої нарощувати"
+      },
+      "action": {
+        "en": "Fly the speed card at this weight. Its fastest legs, held steady for 10 s or more with vibration, motors, temperatures and tracking in target, verify the first speed. Each step after it goes 1 m/s or 10% faster, whichever is smaller, once the models predict every margin holds there.",
+        "uk": "Виконайте картку розгону за цієї ваги. Її найшвидші відрізки, витримані рівно 10 с або довше з вібрацією, моторами, температурами й відстеженням у цільовій зоні, підтвердять першу швидкість. Кожен наступний крок — на 1 м/с або на 10% швидше, що менше, коли моделі передбачають, що там зберігаються всі запаси."
+      }
+    },
+    "speed.build_up_step": {
+      "stage": "navigation",
+      "title": {
+        "en": "Speed build-up: {verified_ms} m/s is verified at {mass_kg} kg, and the next step is {proposed_ms} m/s",
+        "uk": "Нарощування швидкості: {verified_ms} м/с підтверджено при {mass_kg} кг, наступний крок — {proposed_ms} м/с"
+      },
+      "action": {
+        "en": "Set WP_SPD to {proposed_ms} m/s and fly the step's card. At {next_ms} m/s the models predict a lean of {lean_value}% of the lean limit (target under {lean_limit}%), {thrust_value}° of the {thrust_limit}° the thrust allows, and {current_value} A of the {current_limit} A the packs and MOT_BAT_CURR_MAX allow. If anything on the card's abort list happens, slow down, land and load the undo file.",
+        "uk": "Встановіть WP_SPD на {proposed_ms} м/с і виконайте картку кроку. На {next_ms} м/с моделі передбачають нахил {lean_value}% від межі нахилу (ціль — до {lean_limit}%), {thrust_value}° із {thrust_limit}°, які дозволяє тяга, і {current_value} А із {current_limit} А, які дозволяють батареї й MOT_BAT_CURR_MAX. Якщо станеться щось зі списку переривання на картці, зменште швидкість, сідайте й завантажте файл скасування."
+      }
+    },
+    "speed.build_up_missing_lean": {
+      "stage": "navigation",
+      "title": {
+        "en": "The speed build-up needs the airframe's own drag to predict its lean at {mass_kg} kg",
+        "uk": "Для нарощування швидкості потрібен власний опір апарата, щоб передбачити його нахил при {mass_kg} кг"
+      },
+      "action": {
+        "en": "Fly a flight that changes speed and heading, such as the speed card, so the wind analyzer measures the airframe's own drag. The lean each step needs comes from it.",
+        "uk": "Виконайте політ зі зміною швидкості й курсу, наприклад картку розгону, щоб аналізатор вітру виміряв власний опір апарата. З нього береться нахил, потрібний для кожного кроку."
+      }
+    },
+    "speed.build_up_missing_thrust": {
+      "stage": "navigation",
+      "title": {
+        "en": "The speed build-up needs the hover throttle measured at a known weight",
+        "uk": "Для нарощування швидкості потрібен газ зависання, виміряний за відомої ваги"
+      },
+      "action": {
+        "en": "Weigh a flight at import and hover it steadily for a minute in light wind, so the thrust headroom at speed can be predicted at {mass_kg} kg.",
+        "uk": "Зважте політ під час імпорту й зависніть рівно хвилину за слабкого вітру, щоб можна було передбачити запас тяги на швидкості при {mass_kg} кг."
+      }
+    },
+    "speed.build_up_missing_current": {
+      "stage": "navigation",
+      "title": {
+        "en": "The speed build-up needs the packs' current limit and size",
+        "uk": "Для нарощування швидкості потрібні межа струму та розмір батарей"
+      },
+      "action": {
+        "en": "Enter the packs' continuous current rating (maximum current), cells and capacity in the setup, or set MOT_BAT_CURR_MAX, so the current at the next step can be checked against it at {mass_kg} kg.",
+        "uk": "Введіть у налаштуваннях тривалий струм батарей (максимальний струм), кількість елементів і ємність або встановіть MOT_BAT_CURR_MAX, щоб струм на наступному кроці можна було перевірити при {mass_kg} кг."
+      }
+    },
+    "speed.limited_by_lean": {
+      "stage": "navigation",
+      "title": {
+        "en": "The speed build-up stops at {verified_ms} m/s at {mass_kg} kg: at {next_ms} m/s it would lean {value}% of its lean limit, past the {limit}% target",
+        "uk": "Нарощування швидкості зупиняється на {verified_ms} м/с при {mass_kg} кг: на {next_ms} м/с він нахилявся б на {value}% від межі нахилу, понад ціль {limit}%"
+      },
+      "action": {
+        "en": "Lean is what speed costs against drag, so less drag moves it: a fairing or a slimmer payload, a smaller frontal area, or less weight. Raising ATC_ANGLE_MAX or PSC_ANGLE_MAX helps only within the thrust headroom, and is not proposed automatically.",
+        "uk": "Нахил — це ціна швидкості проти опору, тож його зменшує менший опір: обтічник або тонший вантаж, менша лобова площа чи менша вага. Підвищення ATC_ANGLE_MAX або PSC_ANGLE_MAX допомагає лише в межах запасу тяги і автоматично не пропонується."
+      }
+    },
+    "speed.limited_by_thrust": {
+      "stage": "navigation",
+      "title": {
+        "en": "The speed build-up stops at {verified_ms} m/s at {mass_kg} kg: at {next_ms} m/s the lean it needs, {value}°, is past the {limit}° its thrust allows",
+        "uk": "Нарощування швидкості зупиняється на {verified_ms} м/с при {mass_kg} кг: на {next_ms} м/с потрібний нахил, {value}°, перевищує {limit}°, які дозволяє його тяга"
+      },
+      "action": {
+        "en": "More thrust headroom moves it: larger or higher-pitch propellers, higher-KV motors or a higher voltage, or less weight. A lower hover throttle at this weight leaves more lean before the motors saturate.",
+        "uk": "Його зсуває більший запас тяги: більші пропелери чи з більшим кроком, мотори з вищим KV або вища напруга, чи менша вага. Нижчий газ зависання за цієї ваги залишає більше нахилу до насичення моторів."
+      }
+    },
+    "speed.limited_by_current": {
+      "stage": "navigation",
+      "title": {
+        "en": "The speed build-up stops at {verified_ms} m/s at {mass_kg} kg: at {next_ms} m/s the packs would give {value} A, past the {limit} A they and MOT_BAT_CURR_MAX allow",
+        "uk": "Нарощування швидкості зупиняється на {verified_ms} м/с при {mass_kg} кг: на {next_ms} м/с батареї віддавали б {value} А, понад {limit} А, які дозволяють вони й MOT_BAT_CURR_MAX"
+      },
+      "action": {
+        "en": "Packs with a higher continuous rating, more packs in parallel, or a higher voltage for the same power move it; less drag or weight lowers the power the speed takes.",
+        "uk": "Його зсувають батареї з вищим тривалим струмом, більше батарей паралельно або вища напруга для тієї ж потужності; менший опір чи вага знижують потужність, якої потребує швидкість."
+      }
+    },
+    "speed.limited_by_esc_temp": {
+      "stage": "navigation",
+      "title": {
+        "en": "The speed build-up stops at {verified_ms} m/s at {mass_kg} kg: at {next_ms} m/s the hottest ESC would settle at {value} °C, past {limit} °C (its protection less 10 °C)",
+        "uk": "Нарощування швидкості зупиняється на {verified_ms} м/с при {mass_kg} кг: на {next_ms} м/с найгарячіший ESC усталився б на {value} °C, понад {limit} °C (його захист мінус 10 °C)"
+      },
+      "action": {
+        "en": "Cool the ESCs (airflow, heatsinks, mounting away from the battery's heat), or fit ESCs with more current headroom.",
+        "uk": "Охолодіть ESC (обдув, радіатори, монтаж подалі від тепла батареї) або встановіть ESC з більшим запасом струму."
+      }
+    },
+    "speed.limited_by_output": {
+      "stage": "navigation",
+      "title": {
+        "en": "The speed build-up stops at {verified_ms} m/s at {mass_kg} kg: at {next_ms} m/s the motors' highest output would reach {value}%, past the {limit}% target",
+        "uk": "Нарощування швидкості зупиняється на {verified_ms} м/с при {mass_kg} кг: на {next_ms} м/с найбільший вихід моторів досяг би {value}%, понад ціль {limit}%"
+      },
+      "action": {
+        "en": "At full output the controller has nothing left to hold the attitude. More thrust headroom (propellers, motors, voltage) or less weight moves it.",
+        "uk": "На повному виході регулятору нічим утримувати положення. Його зсуває більший запас тяги (пропелери, мотори, напруга) або менша вага."
+      }
+    },
+    "speed.limited_by_vibration": {
+      "stage": "navigation",
+      "title": {
+        "en": "The speed build-up stops at {verified_ms} m/s at {mass_kg} kg: at {next_ms} m/s vibration would reach {value} m/s/s, past the {limit} m/s/s target",
+        "uk": "Нарощування швидкості зупиняється на {verified_ms} м/с при {mass_kg} кг: на {next_ms} м/с вібрація досягла б {value} м/с², понад ціль {limit} м/с²"
+      },
+      "action": {
+        "en": "Balance or replace the propellers, check the motor mounts and bearings, isolate the flight controller, and check the harmonic notch covers the motor frequency at that throttle.",
+        "uk": "Збалансуйте або замініть пропелери, перевірте кріплення й підшипники моторів, ізолюйте польотний контролер і перевірте, що гармонічний режекторний фільтр покриває частоту моторів на цьому газі."
+      }
+    },
+    "speed.limited_by_attitude": {
+      "stage": "navigation",
+      "title": {
+        "en": "The speed build-up stops at {verified_ms} m/s at {mass_kg} kg: at {next_ms} m/s the attitude tracking error would reach {value}°, past {limit}° (1.5 times what the verified speed showed)",
+        "uk": "Нарощування швидкості зупиняється на {verified_ms} м/с при {mass_kg} кг: на {next_ms} м/с похибка відстеження положення досягла б {value}°, понад {limit}° (у 1,5 раза більше, ніж на підтвердженій швидкості)"
+      },
+      "action": {
+        "en": "Check the rate tune at speed: fly the tune-check card, and run AutoTune again if the error grows with speed.",
+        "uk": "Перевірте налаштування швидкостей обертання на швидкості: виконайте картку перевірки налаштування й повторіть AutoTune, якщо похибка зростає зі швидкістю."
+      }
+    },
+    "speed.limited_by_velocity": {
+      "stage": "navigation",
+      "title": {
+        "en": "The speed build-up stops at {verified_ms} m/s at {mass_kg} kg: at {next_ms} m/s the velocity tracking error would reach {value} m/s, past {limit} m/s (1.5 times what the verified speed showed)",
+        "uk": "Нарощування швидкості зупиняється на {verified_ms} м/с при {mass_kg} кг: на {next_ms} м/с похибка відстеження швидкості досягла б {value} м/с, понад {limit} м/с (у 1,5 раза більше, ніж на підтвердженій швидкості)"
+      },
+      "action": {
+        "en": "Retune the position controller's velocity loop for speed (PSC_NE_VEL_P and PSC_NE_VEL_I), and check the lean is not at its limit on the upwind legs.",
+        "uk": "Переналаштуйте контур швидкості регулятора положення для швидкості (PSC_NE_VEL_P і PSC_NE_VEL_I) і перевірте, що нахил не впирається в межу на відрізках проти вітру."
+      }
+    }
+  }
+}

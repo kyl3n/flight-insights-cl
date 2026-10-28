@@ -225,6 +225,7 @@ def _check(
     analysis: Mapping[str, Any],
     params: Mapping[str, float],
     messages: Collection[str] | None,
+    proposed: float | None = None,
 ) -> bool | None:
     """One of a procedure's checks against the later flight; None when it cannot say."""
     kind = check.get("check")
@@ -246,6 +247,16 @@ def _check(
         if "below" in check:
             return all(v < float(check["below"]) for v in values)
         return all(v > float(check["above"]) for v in values) if "above" in check else None
+    if kind == "reaches_proposed":  # the speed a step proposed, flown
+        reached = [float(m["value"]) for m in analysis.get("metrics", ())
+                   if m["metric"] == check["metric"] and m["value"] is not None]  # fmt: skip
+        if not reached or proposed is None:
+            return None
+        return max(reached) >= float(check["share"]) * proposed
+    if kind == "in_target":  # everything watched in the segment within its target
+        zones = [m["zone"] for m in analysis.get("metrics", ())
+                 if m["segment"] == check["segment"] and m.get("zone") is not None]  # fmt: skip
+        return None if not zones else all(z == "target" for z in zones)
     if kind == "has_metric":  # measured at all: a metric needs enough data to be given
         return any(m["metric"] == check["metric"] for m in analysis.get("metrics", ()))
     if kind == "param_is":
@@ -358,7 +369,8 @@ def grade_flight(
                             passed, info = measured.judge(store, pack, reg, rec, flight_id, c)
                             checks.append(dict(c) | info | {"passed": passed})
                         else:
-                            passed = _check(c, cleared, analysis, params, messages)
+                            passed = _check(c, cleared, analysis, params, messages,
+                                            rec["proposed_value"])  # fmt: skip
                             checks.append(dict(c) | {"passed": passed})
                 by_checks = rec["detail"].get("graded_by") == "checks"
                 if any(c.get("worse") for c in checks):
