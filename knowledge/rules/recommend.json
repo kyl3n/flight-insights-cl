@@ -19,9 +19,10 @@
     },
     "raise": {
       "names": ["ATC_ANGLE_MAX", "PSC_ANGLE_MAX", "LOIT_ANG_MAX", "ATC_RATE_*_MAX", "ATC_ACC_*_MAX", "PILOT_SPD_*", "PILOT_ACC_Z", "WP_SPD*", "WP_ACC*", "LOIT_SPEED_MS", "LOIT_ACC_MAX_M", "RTL_SPEED_MS", "FENCE_ALT_MAX", "FENCE_RADIUS", "MOT_SPIN_MAX"],
-      "zero_means_unlimited": ["ATC_RATE_*_MAX", "ATC_ACC_*_MAX", "PSC_ANGLE_MAX", "LOIT_ANG_MAX"],
-      "zero_means": {"RTL_SPEED_MS": "WP_SPD"},
-      "why": "A limit is never raised past what the airframe has shown it can do. The one exception: WP_SPD, LOIT_SPEED_MS and RTL_SPEED_MS may rise up to the airframe's verified speed less its typical wind (performance/advice.py), the fastest it has held at the flight's weight or heavier with every watched metric in target. RTL_SPEED_MS at 0 flies at WP_SPD."
+      "zero_means_unlimited": ["ATC_RATE_*_MAX", "ATC_ACC_*_MAX"],
+      "zero_means": {"RTL_SPEED_MS": "WP_SPD", "PSC_ANGLE_MAX": "ATC_ANGLE_MAX", "LOIT_ANG_MAX": {"of": ["ATC_ANGLE_MAX", "PSC_ANGLE_MAX"], "share": 0.6667}},
+      "zero_means_about": "What a 0 flies at, from ArduCopter 4.7.0: RTL_SPEED_MS at WP_SPD (mode_rtl.cpp); PSC_ANGLE_MAX at ATC_ANGLE_MAX (AC_PosControl.cpp get_lean_angle_max_rad); LOIT_ANG_MAX at 2/3 of the smaller of the two (AC_Loiter.cpp get_angle_max_rad). A rate or acceleration limit at 0 is unlimited.",
+      "why": "A limit is never raised past what the airframe has shown it can do. The one exception: WP_SPD, LOIT_SPEED_MS and RTL_SPEED_MS may rise up to the airframe's verified speed less its typical wind (performance/advice.py), the fastest it has held at the flight's weight or heavier with every watched metric in target. RTL_SPEED_MS at 0 flies at WP_SPD. The other: inside the speed build-up, PSC_ANGLE_MAX may rise up to its step's lean limit (performance/buildup.py), at most 2 degrees and within the lean the thrust allows."
     },
     "lower": {
       "names": ["BATT*_LOW_MAH", "BATT*_CRT_MAH"],

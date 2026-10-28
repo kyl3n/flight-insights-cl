@@ -154,6 +154,17 @@
         "en": "Each of these matters more the faster the aircraft flies at {mass_kg} kg: the step is flown on GNSS speed and position, it leans further into what a lost motor leaves, it draws more current from the packs and their failsafe, and ESCs, motors and vibration are what fail first at higher power. Clear them (each has its own place in this plan), fly again, and the step is offered with its margins checked again.",
         "uk": "Кожне з них важить тим більше, чим швидше летить апарат при {mass_kg} кг: крок виконується за швидкістю й положенням від GNSS, апарат нахиляється сильніше, наближаючись до того, що лишається після втрати мотора, бере більший струм від батарей і їхнього аварійного режиму, а ESC, мотори й вібрація першими відмовляють на більшій потужності. Усуньте їх (кожне має своє місце в цьому плані), виконайте політ знову, і крок буде запропоновано з повторно перевіреними запасами."
       }
+    },
+    "speed.build_up_lean": {
+      "stage": "navigation",
+      "title": {
+        "en": "For the step to {proposed_ms} m/s, raise {param} from {from_deg}° to {to_deg}°",
+        "uk": "Для кроку до {proposed_ms} м/с підвищте {param} з {from_deg}° до {to_deg}°"
+      },
+      "action": {
+        "en": "At {next_ms} m/s and {mass_kg} kg the measured drag needs {lean_deg}° of lean, past {share_pct}% of the {from_deg}° limit, while the thrust left at that weight allows {thrust_deg}°. {param} is the automatic modes' lean limit (AUTO, Guided, RTL, and Loiter's base); the pilot's ATC_ANGLE_MAX stays as it is. It rises at most 2° at a time, inside the speed build-up only, and the next flight's fast segment checks the lean, thrust, vibration and tracking at it like every step. Load the undo file if any abort criterion is met.",
+        "uk": "При {next_ms} м/с і {mass_kg} кг виміряний опір потребує нахилу {lean_deg}°, що перевищує {share_pct}% межі {from_deg}°, тоді як запас тяги за цієї ваги дозволяє {thrust_deg}°. {param} — межа нахилу автоматичних режимів (AUTO, Guided, RTL і основа Loiter); пілотська ATC_ANGLE_MAX лишається як є. Вона підвищується щонайбільше на 2° за раз, лише в межах нарощування швидкості, і швидкий сегмент наступного польоту перевіряє на ній нахил, тягу, вібрацію й відстеження, як і кожен крок. Завантажте файл скасування, якщо спрацює будь-який критерій переривання."
+      }
     }
   }
 }
