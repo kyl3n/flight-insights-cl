@@ -1,3 +1,7 @@
+e5e99d11f7650a79333b3308eedbd68059050bf967fa5b59c944f8d4084a1d22  sitl/4.7.0/copter-heavylift-discharge.bin
+2d02f114a4068b0e35d1b23c50f96b9603200d98f8b3cfd4a6d18f684fe36566  sitl/4.7.0/copter-heavylift-discharge.param
+4d195f3dd53d943b89bfba3ca6b846a1cc8849ba1be52713a18c035eaf8c2626  sitl/4.7.0/copter-heavylift-discharge.params
+cf54a7bac9575ca201b05fb966edbc727527cd5f460ea5e5ab3f1c3e4307e2ba  sitl/4.7.0/copter-heavylift-discharge.tlog
 5946f48790f6dda3e46d5a7d8554c3d1b45a1f186a3bfdd8cb5826f6aa098e7d  sitl/4.7.0/copter-heavylift-light.bin
 265c757bfeab79c72d59eeacf5fd4c4ef9c331a78377c774aa76635e713883dc  sitl/4.7.0/copter-heavylift-light.param
 babfc18423359981aa3983a3cc35504f3f90bba113e749cb49f5d906906ffd50  sitl/4.7.0/copter-heavylift-light.params
@@ -6,6 +10,14 @@ e3d23e3710853835a7aa2d53d7a0011004d29a14c579ebbc43db46fb064c4bc1  sitl/4.7.0/cop
 d194e34c7c3dc607141f18e78abfc8756ee38b3ce036e112f325a17d844cbb60  sitl/4.7.0/copter-heavylift-loaded.param
 d8d59de013940a5ab11cbffb54a0d311dd7775f601b0053060d4fbbc74dd27b1  sitl/4.7.0/copter-heavylift-loaded.params
 d53376baf0db3d8de6558e3c2448cd161d983cd74db5ac3243c4418a90ec7799  sitl/4.7.0/copter-heavylift-loaded.tlog
+d1e62453ac8b46ff0dc15621c4cfb925ebeffc13ad92790b560b1b36ccc7035b  sitl/4.7.0/copter-heavylift-sweep-loaded.bin
+bc1e93da1968cbe8fa83048d94716508f4f3440788ea39e5bad4afe54ca1b066  sitl/4.7.0/copter-heavylift-sweep-loaded.param
+b0a1870a54a55273ea05338148d904f49dd6886c4ad243587e131f977674acef  sitl/4.7.0/copter-heavylift-sweep-loaded.params
+144071aff73bc34980629e6b087fce81cd641eab974c799cd660869f19e171b5  sitl/4.7.0/copter-heavylift-sweep-loaded.tlog
+71d02ac8d65f6fc6262151bc81754afd7eb8355e88b2af09887c9bb25fc9b29d  sitl/4.7.0/copter-heavylift-sweep.bin
+8c1ee0741d1a04d8b5791ac26b132e824e412bb45bbfdcdfeeae249d764db16f  sitl/4.7.0/copter-heavylift-sweep.param
+7625ee2c8a94cbd719307171c33a8c4fe4ca06d2f811b65b509fe0957628db90  sitl/4.7.0/copter-heavylift-sweep.params
+c7839f606cf29348461c34332971a1ea200436d21ae2c6fa5452d5f58b27330f  sitl/4.7.0/copter-heavylift-sweep.tlog
 ed12313377e1d15ef930f36a56664d8f2ad6c295a646e7b010664c78e9814f40  sitl/4.7.0/copter-heavylift-tune.bin
 8e9314495c4f729dec3c647c77dd42650167087a9cc6682870d72a9140748a65  sitl/4.7.0/copter-heavylift-tune.param
 2707d57f4982ec0bfce68ea333d5b4c0678662fe6d93affcf9c93ea47aee9dd3  sitl/4.7.0/copter-heavylift-tune.params

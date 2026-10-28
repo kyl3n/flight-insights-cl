@@ -513,21 +513,41 @@ def wind_hover(v: Vehicle) -> None:
     land_and_disarm(v)
 
 
-def speed_sweep(v: Vehicle) -> None:
-    """The speed-sweep card, shortened to keep the file small: take off to 15 m, hover 20 s,
-    then legs east and back west, nose first, at 2, 4, 6 and 8 m/s, each long enough to
-    hold its speed at least 10 s after the turn, and land. The default quad leans to its
-    limit at about 10 m/s of airspeed, so the fastest leg into the wind stays under it."""
+def speed_sweep(speeds: tuple[float, ...], altitude: float = 15) -> Callable[[Vehicle], None]:
+    """The speed-sweep card, shortened to keep the file small: take off to `altitude`, hover
+    20 s, then legs east and back west, nose first, at each speed, each long enough to
+    hold its speed at least 10 s after the turn, and land."""
+
+    def fly(v: Vehicle) -> None:
+        v.mode("GUIDED")
+        v.arm()
+        v.command(ML.MAV_CMD_NAV_TAKEOFF, 0, 0, 0, 0, 0, 0, altitude)
+        v.wait_altitude(altitude - 0.5)
+        guided_velocity(v, 0, 0, 90, 20)
+        for speed in speeds:
+            hold = 12 + 0.8 * speed
+            guided_velocity(v, 0, speed, 90, hold)
+            guided_velocity(v, 0, -speed, 270, hold)
+        land_and_disarm(v)
+
+    return fly
+
+
+def hover_to_failsafe(v: Vehicle) -> None:
+    """Take off to 10 m and hover until the battery failsafe takes the aircraft out of
+    GUIDED, then wait for it to disarm."""
     v.mode("GUIDED")
+    guided = v.conn.mode_mapping()["GUIDED"]
     v.arm()
-    v.command(ML.MAV_CMD_NAV_TAKEOFF, 0, 0, 0, 0, 0, 0, 15)
-    v.wait_altitude(14.5)
-    guided_velocity(v, 0, 0, 90, 20)
-    for speed in (2.0, 4.0, 6.0, 8.0):
-        hold = 12 + 0.8 * speed
-        guided_velocity(v, 0, speed, 90, hold)
-        guided_velocity(v, 0, -speed, 270, hold)
-    land_and_disarm(v)
+    v.command(ML.MAV_CMD_NAV_TAKEOFF, 0, 0, 0, 0, 0, 0, 10)
+    v.wait_altitude(9.5)
+    v.wait(
+        "the battery failsafe",
+        lambda m: m.custom_mode != guided,  # type: ignore[attr-defined]
+        "HEARTBEAT",
+        900,
+    )
+    v.wait_disarmed(300)
 
 
 COPTER = dict(binary="arducopter", model="+", defaults=["default_params/copter.parm"])
@@ -901,6 +921,83 @@ SCENARIOS: dict[str, Scenario] = {
             **CALLISTO,  # type: ignore[arg-type]
         ),
         Scenario(
+            name="copter-heavylift-sweep",
+            vehicle="copter",
+            frame="octo coaxial X8",
+            description=(
+                "The speed-sweep card on the heavy-lift X8 without payload, shortened: a 20 s"
+                " hover at 15 m, then legs east and back west, nose first, at 3, 6, 9 and"
+                " 12 m/s in GUIDED, in still air."
+            ),
+            expected=[
+                "GUIDED take-off to 15 m; 20 s hover; legs east and back west at 3, 6, 9"
+                " and 12 m/s, each holding its speed at least 10 s; LAND",
+                "streamed messages capped at 10 Hz (LOG_FILE_RATEMAX): XKF1 at 10 Hz a core",
+                "the energy analyzer: 4 speeds flown both ways, the fastest about 12 m/s",
+                "the simulator draws power in proportion to thrust: no drop at moderate speed",
+                "steady hover windows: 30 s in GUIDED",
+            ],
+            fly=speed_sweep((3.0, 6.0, 9.0, 12.0)),
+            params={"SIM_WIND_SPD": 0},
+            boot_params=FAILSAFE_LOGGING,
+            **CALLISTO,  # type: ignore[arg-type]
+        ),
+        Scenario(
+            name="copter-heavylift-sweep-loaded",
+            vehicle="copter",
+            frame="octo coaxial X8",
+            description="The same sweep with the X8 carrying 8 kg more (40.5 kg in all).",
+            expected=[
+                "GUIDED take-off to 15 m; 20 s hover; legs east and back west at 3, 6, 9"
+                " and 12 m/s, each holding its speed at least 10 s; LAND",
+                "streamed messages capped at 10 Hz (LOG_FILE_RATEMAX): XKF1 at 10 Hz a core",
+                "the energy analyzer: 4 speeds flown both ways, the fastest about 12 m/s",
+                "more power at every speed than the light sweep",
+                "steady hover windows: 30 s in GUIDED",
+            ],
+            fly=speed_sweep((3.0, 6.0, 9.0, 12.0)),
+            params={"SIM_WIND_SPD": 0},
+            boot_params=FAILSAFE_LOGGING,
+            payload_kg=8.0,
+            **CALLISTO,  # type: ignore[arg-type]
+        ),
+        Scenario(
+            name="copter-heavylift-discharge",
+            vehicle="copter",
+            frame="octo coaxial X8",
+            description=(
+                "The heavy-lift X8 hovering at 10 m in GUIDED on a pack shrunk to 3 Ah"
+                " (SIM_BATT_CAP_AH; the model's own is 44 Ah, with 0.024 Ohm and 50.4 V"
+                " full) until the capacity failsafe at BATT_LOW_MAH 450 switches it to LAND:"
+                " most of the pack's discharge curve in a few minutes. The 450 mAh left is"
+                " too little to land a 32.5 kg aircraft from 10 m: the pack runs empty about"
+                " 5 m up and it falls."
+            ),
+            expected=[
+                "GUIDED take-off to 10 m; hover until the low-battery failsafe (capacity:"
+                " 2551 mAh used of 3000) switches to LAND",
+                "the pack runs empty about 5 m up in the LAND descent: 'Potential Thrust"
+                " Loss', and the aircraft falls and hits the ground at about 8 m/s",
+                "streamed messages capped at 10 Hz (LOG_FILE_RATEMAX)",
+                "steady hover windows: 129 s in GUIDED",
+                "the battery model, fitted before the failsafe: capacity about 3 Ah and"
+                " resistance about 0.024 Ohm",
+            ],
+            fly=hover_to_failsafe,
+            params={"SIM_WIND_SPD": 0},
+            boot_params={
+                **FAILSAFE_LOGGING,
+                "SIM_BATT_CAP_AH": 3,
+                "BATT_CAPACITY": 3000,
+                "BATT_LOW_MAH": 450,
+                "BATT_LOW_VOLT": 0,
+                "BATT_CRT_MAH": 0,
+                "BATT_CRT_VOLT": 0,
+                "BATT_FS_LOW_ACT": 1,
+            },
+            **CALLISTO,  # type: ignore[arg-type]
+        ),
+        Scenario(
             name="copter-heavylift-tune",
             vehicle="copter",
             frame="octo coaxial X8",
@@ -1244,7 +1341,7 @@ SCENARIOS: dict[str, Scenario] = {
                 "the energy analyzer: 4 speeds flown both ways, the fastest about 8 m/s",
                 "steady hover windows: 30 s in GUIDED",
             ],
-            fly=speed_sweep,
+            fly=speed_sweep((2.0, 4.0, 6.0, 8.0)),
             params=LIGHT_WIND,
             boot_params=FAILSAFE_LOGGING,
             **COPTER,  # type: ignore[arg-type]
