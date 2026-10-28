@@ -861,11 +861,12 @@ mod tests {
             *RecoveryKey::from_words(&words.to_uppercase()).unwrap().0,
             *key.0
         );
-        let mut swapped: Vec<&str> = words.split(' ').collect();
+        // two words out of order: on the published vector, whose checksum this swap breaks
+        // (a random key's 8-bit checksum lets one swap in 256 through, so not on that)
+        let known_words = known.words();
+        let mut swapped: Vec<&str> = known_words.split(' ').collect();
         swapped.swap(3, 4);
-        if swapped[3] != swapped[4] {
-            assert!(RecoveryKey::from_words(&swapped.join(" ")).is_err());
-        }
+        assert!(RecoveryKey::from_words(&swapped.join(" ")).is_err());
         assert!(RecoveryKey::from_words("legal winner").is_err());
         let typo = words.replacen(words.split(' ').next().unwrap(), "zzzz", 1);
         assert!(RecoveryKey::from_words(&typo).is_err());
