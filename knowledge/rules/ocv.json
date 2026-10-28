@@ -1,0 +1,28 @@
+{
+  "about": "Open-circuit voltage against state of charge per chemistry, per cell (performance/battery.py; spec: Power and efficiency analysis, 'Range, endurance and speed'). LiPo is a measured curve; the other chemistries take its shape between their own empty and full voltages ('shape' and 'full_v', 'empty_v'), an approximation marked as such and refined by each pack's own flights. cutoff_v is the lowest cell voltage under load the discharge simulation flies to: below it the pack is spent whatever the failsafes say. LiFePO4 is so flat in its middle that its charge cannot be read from voltage; its capacity is the rated one.",
+  "uncalibrated": true,
+  "chemistries": {
+    "LiPo": {
+      "soc": [0.015, 0.02, 0.0385, 0.0769, 0.1154, 0.1538, 0.1923, 0.2308, 0.2692, 0.3077, 0.3462, 0.3846, 0.4231, 0.4615, 0.5, 0.5385, 0.5769, 0.6154, 0.6538, 0.6923, 0.7308, 0.7692, 0.8077, 0.8462, 0.8846, 0.9231, 0.9615, 1.0],
+      "volts": [2.8, 2.977, 3.091, 3.165, 3.218, 3.296, 3.379, 3.462, 3.503, 3.543, 3.588, 3.636, 3.679, 3.715, 3.742, 3.783, 3.801, 3.833, 3.854, 3.887, 3.908, 3.943, 3.987, 4.039, 4.071, 4.085, 4.112, 4.173],
+      "cutoff_v": 3.0,
+      "measured_shape": true
+    },
+    "LiHV": {"shape": "LiPo", "full_v": 4.35, "empty_v": 2.8, "cutoff_v": 3.0, "measured_shape": false},
+    "Li-ion": {"shape": "LiPo", "full_v": 4.2, "empty_v": 2.5, "cutoff_v": 2.8, "measured_shape": false},
+    "LiFePO4": {"shape": "LiPo", "full_v": 3.65, "empty_v": 2.5, "cutoff_v": 2.6, "measured_shape": false, "charge_from_voltage": false}
+  },
+  "fit": {
+    "about": "A pack's capacity and resistance from one flight: its terminal voltage modelled as cells x OCV(z0 - charge used / Q) - R0 I - R1 (I low-passed with tau_s), z0 read from the voltage at rest before arming; R0 and R1 by least squares for each Q, Q searched within capacity_range of the rated capacity with a prior of capacity_spread. A flight that uses less than min_soc_span of the pack gives its resistance only.",
+    "tau_s": 20.0,
+    "capacity_range": [0.5, 1.5],
+    "capacity_spread": 0.15,
+    "min_soc_span": 0.3,
+    "rest_samples": 20
+  },
+  "sources": [
+    "LiPo open-circuit voltage against state of charge: ArduPilot's simulator battery table (libraries/SITL/SIM_Battery.cpp at Copter-4.7.0, soc_table), from a measured LiPo cell discharge.",
+    "Full and empty cell voltages by chemistry: ArduPilot wiki, Battery Monitors and the Initial Parameter Setup (LiPo 4.2 V full; LiHV 4.35 V; Li-ion about 4.2 to 2.5 V; LiFePO4 3.65 V full), and Mission Planner's ConfigInitialParams.cs cell values.",
+    "The equivalent-circuit model (open-circuit voltage, series resistance, one RC branch for the slow sag): Plett, Battery Management Systems, Volume I: Battery Modeling, Artech House, 2015, ch. 2; the same graybox form predicts multicopter pack voltage within about 1.3% (Bauersfeld and Scaramuzza, IEEE Robotics and Automation Letters 7(2), 2022)."
+  ]
+}

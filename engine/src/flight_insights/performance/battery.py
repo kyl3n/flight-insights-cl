@@ -1,0 +1,266 @@
+"""A flight pack's usable energy, and its capacity and resistance from flights (spec: Power
+and efficiency analysis, "Range, endurance and speed"; rules in `knowledge/rules/ocv.json`).
+
+- **The pack.** Its cells' open-circuit voltage against state of charge (per chemistry),
+  its capacity and its series resistance: at a power P it draws
+  `I = (E - sqrt(E^2 - 4 R P)) / 2R` from an open-circuit voltage E, and its terminals
+  sag to `E - I R`. More power sags it further, so a pack delivers less energy the
+  harder it is worked.
+- **The discharge.** Flown at a power (constant, or a function of time), step by step,
+  until the first of: the cell cutoff, the pack empty, the current or power it can give, the
+  firmware's own battery failsafes as it judges them (the voltage it watches under
+  `BATT_LOW_VOLT` for `BATT_LOW_TIMER`; the charge it counts from zero at start-up
+  reaching `BATT_CAPACITY - BATT_LOW_MAH`), or an energy reserve.
+- **The reserve** (the fleet owner's rule, 2026-10-28): the larger of the failsafe's own
+  reserve and a share of the energy the pack could give to its cutoff at that power,
+  so the discharge stops at whichever comes first.
+- **A pack from a flight.** The voltage at rest before arming gives the starting charge;
+  the terminal voltage through the flight is fitted as
+  `cells x OCV(z0 - charge used / Q) - R0 I - R1 (I low-passed)`, R0 and R1 by least
+  squares for each capacity Q, Q searched near the rated capacity with a prior. A flight
+  that used little of the pack gives its resistance only.
+"""
+
+from __future__ import annotations
+
+from collections.abc import Callable, Mapping
+from dataclasses import dataclass
+from typing import Any
+
+import numpy as np
+
+Array = np.ndarray[Any, Any]
+
+
+@dataclass(frozen=True)
+class Chemistry:
+    name: str
+    soc: Array  # ascending, 0..1
+    volts: Array  # per cell, ascending with soc
+    cutoff: float  # lowest cell voltage under load, V
+    measured_shape: bool
+    charge_from_voltage: bool
+
+    def ocv(self, soc: float | Array) -> Array:
+        return np.asarray(np.interp(soc, self.soc, self.volts))
+
+    def soc_at(self, volts_per_cell: float | Array) -> Array:
+        return np.asarray(np.interp(volts_per_cell, self.volts, self.soc))
+
+
+def chemistry(rules: Mapping[str, Any], name: str) -> Chemistry:
+    """A chemistry's curve: measured, or the measured shape between its own voltages."""
+    table: Mapping[str, Any] = rules["chemistries"]
+    spec = table.get(name) or table["LiPo"]
+    if "shape" in spec:
+        base = chemistry(rules, str(spec["shape"]))
+        lo, hi = float(base.volts[0]), float(base.volts[-1])
+        scale = (float(spec["full_v"]) - float(spec["empty_v"])) / (hi - lo)
+        volts = float(spec["empty_v"]) + (base.volts - lo) * scale
+        soc = base.soc
+    else:
+        volts = np.asarray(spec["volts"], np.float64)
+        soc = np.asarray(spec["soc"], np.float64)
+    return Chemistry(
+        name=name if name in table else "LiPo",
+        soc=soc,
+        volts=volts,
+        cutoff=float(spec["cutoff_v"]),
+        measured_shape=bool(spec.get("measured_shape", False)),
+        charge_from_voltage=bool(spec.get("charge_from_voltage", True)),
+    )
+
+
+@dataclass(frozen=True)
+class Pack:
+    chemistry: Chemistry
+    cells: int
+    capacity_ah: float
+    resistance: float  # whole pack, Ohm
+
+    def open_circuit(self, soc: float | Array) -> Array:
+        return self.cells * self.chemistry.ocv(soc)
+
+
+@dataclass(frozen=True)
+class Failsafe:
+    """The firmware's battery failsafe as configured; None where off."""
+
+    low_volt: float | None = None
+    timer_s: float = 10.0
+    resting: bool = False  # BATT_FS_VOLTSRC 1: the sag-compensated voltage
+    capacity_mah: float | None = None  # BATT_CAPACITY, as the firmware counts down from it
+    low_mah: float | None = None
+    current_limit_a: float | None = None
+
+
+@dataclass(frozen=True)
+class Discharge:
+    seconds: float
+    energy_wh: float  # delivered at the terminals
+    charge_ah: float
+    end_soc: float
+    # cutoff, empty, voltage_failsafe, capacity_failsafe, reserve, current, power, time
+    stopped_by: str
+
+
+def discharge(
+    pack: Pack,
+    start_soc: float,
+    power: float | Callable[[float], float],
+    failsafe: Failsafe | None = None,
+    stop_energy_wh: float | None = None,
+    dt: float = 1.0,
+    max_s: float = 6 * 3600.0,
+) -> Discharge:
+    """The pack flown at `power` W (or `power(t)`) from `start_soc` until something stops it."""
+    fs = failsafe or Failsafe()
+    soc, t, energy, charge = float(start_soc), 0.0, 0.0, 0.0
+    low_since: float | None = None
+    budget_ah = (
+        (fs.capacity_mah - fs.low_mah) / 1000.0
+        if fs.capacity_mah is not None and fs.low_mah is not None
+        else None
+    )
+    stopped = "time"
+    while t < max_s:
+        if soc <= float(pack.chemistry.soc[0]):
+            stopped = "empty"
+            break
+        p = float(power(t)) if callable(power) else float(power)
+        e = float(pack.open_circuit(soc))
+        r = pack.resistance
+        if r > 0:
+            disc = e * e - 4 * r * p
+            if disc < 0:
+                stopped = "power"
+                break
+            amps = (e - np.sqrt(disc)) / (2 * r)
+        else:
+            amps = p / e
+        volts = e - amps * r
+        if fs.current_limit_a is not None and amps > fs.current_limit_a:
+            stopped = "current"
+            break
+        if volts / pack.cells < pack.chemistry.cutoff:
+            stopped = "cutoff"
+            break
+        if fs.low_volt is not None:
+            watched = volts + amps * r if fs.resting else volts
+            if watched < fs.low_volt:
+                low_since = t if low_since is None else low_since
+                if t - low_since >= fs.timer_s:
+                    stopped = "voltage_failsafe"
+                    break
+            else:
+                low_since = None
+        if budget_ah is not None and charge >= budget_ah:
+            stopped = "capacity_failsafe"
+            break
+        if stop_energy_wh is not None and energy >= stop_energy_wh:
+            stopped = "reserve"
+            break
+        energy += volts * amps * dt / 3600.0
+        charge += amps * dt / 3600.0
+        soc -= amps * dt / 3600.0 / pack.capacity_ah
+        t += dt
+    return Discharge(t, energy, charge, soc, stopped)
+
+
+def usable(
+    pack: Pack,
+    start_soc: float,
+    power: float | Callable[[float], float],
+    failsafe: Failsafe | None,
+    reserve_share: float,
+    dt: float = 1.0,
+) -> Discharge:
+    """What the pack gives before the reserve: the larger of the failsafe's own reserve and
+    `reserve_share` of the energy it could give to its cutoff at this power."""
+    to_cutoff = discharge(pack, start_soc, power, None, None, dt)
+    keep = (1.0 - min(max(reserve_share, 0.0), 0.9)) * to_cutoff.energy_wh
+    return discharge(pack, start_soc, power, failsafe, keep, dt)
+
+
+@dataclass(frozen=True)
+class PackFit:
+    capacity_ah: float | None  # None when the flight used too little of the pack
+    resistance: float  # R0, Ohm
+    slow_resistance: float  # R1, Ohm (the RC branch)
+    start_soc: float
+    end_soc: float
+    used_ah: float
+    rms_v: float
+
+
+def lowpass(t: Array, x: Array, tau: float) -> Array:
+    """First-order low-pass over irregular times, exact for a held input."""
+    out = np.empty_like(x)
+    out[0] = x[0]
+    for k in range(1, len(x)):
+        a = np.exp(-(t[k] - t[k - 1]) / tau)
+        out[k] = a * out[k - 1] + (1 - a) * x[k]
+    return out
+
+
+def fit_pack(
+    t_s: Array,
+    volts: Array,
+    amps: Array,
+    rest_volts: float,
+    rest_amps: float,
+    cells: int,
+    chem: Chemistry,
+    rated_ah: float,
+    rules: Mapping[str, Any],
+) -> PackFit:
+    """A pack's capacity and resistance from one flight's terminal voltage and current
+    (every sample), starting from the voltage at rest before arming."""
+    spec: Mapping[str, Any] = rules["fit"]
+    t = np.asarray(t_s, np.float64)
+    v = np.asarray(volts, np.float64)
+    i = np.asarray(amps, np.float64)
+    used = np.concatenate([[0.0], np.cumsum(np.diff(t) * (i[1:] + i[:-1]) / 2)]) / 3600.0
+    slow = lowpass(t, i, float(spec["tau_s"]))
+
+    def solve(q: float, z0: float) -> tuple[float, float, float]:
+        e = cells * chem.ocv(z0 - used / q)
+        a = np.stack([i, slow], axis=1)
+        coef, *_ = np.linalg.lstsq(a, e - v, rcond=None)
+        r0, r1 = (max(float(c), 0.0) for c in coef)
+        resid = e - r0 * i - r1 * slow - v
+        return float(np.sum(resid**2)), r0, r1
+
+    # the resting voltage reads the open-circuit voltage less the avionics' small draw;
+    # one pass with the flight's resistance corrects it
+    z0 = float(chem.soc_at(rest_volts / cells))
+    lo, hi = (float(x) * rated_ah for x in spec["capacity_range"])
+    sigma = float(spec["capacity_spread"]) * rated_ah
+    n = len(t)
+    _, r0, _ = solve(rated_ah, z0)
+    z0 = float(chem.soc_at((rest_volts + rest_amps * r0) / cells))
+
+    def cost(q: float) -> float:
+        sse = solve(q, z0)[0]
+        # the residual variance per sample against the capacity prior, as a log-likelihood
+        return n * np.log(max(sse / n, 1e-12)) + ((q - rated_ah) / sigma) ** 2
+
+    span = float(used[-1]) / rated_ah
+    if span >= float(spec["min_soc_span"]) and chem.charge_from_voltage:
+        golden = (np.sqrt(5) - 1) / 2
+        a, b = lo, hi
+        c, d = b - golden * (b - a), a + golden * (b - a)
+        for _ in range(80):
+            if cost(c) < cost(d):
+                b = d
+            else:
+                a = c
+            c, d = b - golden * (b - a), a + golden * (b - a)
+        best = (a + b) / 2
+        sse, r0, r1 = solve(best, z0)
+        q: float | None = best
+    else:
+        q = None
+        sse, r0, r1 = solve(rated_ah, z0)
+    end = z0 - float(used[-1]) / (q or rated_ah)
+    return PackFit(q, r0, r1, z0, end, float(used[-1]), float(np.sqrt(sse / n)))
