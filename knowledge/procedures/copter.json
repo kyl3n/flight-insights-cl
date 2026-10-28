@@ -1499,6 +1499,51 @@
           }
         }
       ]
+    },
+    "followup.speed_sweep": {
+      "graded_by": "checks",
+      "steps": [
+        {
+          "kind": "ground_check",
+          "text": {
+            "en": "Choose calm air (wind under 3 m/s) over open ground with a clear straight run of about 400 m. Use the payload and battery type this sweep is for, with a full pack. In the ground station, plan an out-and-back line between two waypoints at one height of 20 to 40 m, flown nose-first, and set its speed for each pass (DO_CHANGE_SPEED, or the waypoint speed in QGroundControl): 4, 6, 8, 10, 12 and 14 m/s. Keep Loiter on the flight-mode switch to take over.",
+            "uk": "Оберіть тиху погоду (вітер до 3 м/с) над відкритою місцевістю з вільною прямою ділянкою близько 400 м. Використайте вантаж і тип батареї, для яких робите розгін, з повністю зарядженою батареєю. У наземній станції сплануйте лінію туди й назад між двома точками маршруту на одній висоті 20–40 м, з польотом носом уперед, і задайте швидкість для кожного проходу (DO_CHANGE_SPEED або швидкість точки маршруту в QGroundControl): 4, 6, 8, 10, 12 і 14 м/с. Тримайте Loiter на перемикачі режимів, щоб перебрати керування."
+          }
+        },
+        {
+          "kind": "fly",
+          "text": {
+            "en": "Take off, climb to the line's height and hover hands-off for 60 s. Then fly the line in AUTO, one speed at a time from slow to fast: at each speed, at least 20 s steady each way, out and back, with no turns or height changes on the straight. Stop adding speeds once the aircraft leans more than about 80% of its lean limit or no longer holds the speed set. If the pack allows, finish with three straight climbs of about 20 m at 1, 2 and 3 m/s, then land.",
+            "uk": "Злетіть, наберіть висоту лінії й зависніть без стіків на 60 с. Потім пройдіть лінію в AUTO, по одній швидкості від повільної до швидкої: на кожній щонайменше 20 с усталеного польоту в кожен бік, туди й назад, без поворотів і змін висоти на прямій. Не додавайте швидкостей, коли апарат нахиляється більш ніж приблизно на 80% своєї межі нахилу або вже не тримає задану швидкість. Якщо батарея дозволяє, наостанок виконайте три прямі підйоми приблизно на 20 м зі швидкістю 1, 2 і 3 м/с, потім сідайте."
+          }
+        },
+        {
+          "kind": "abort",
+          "text": {
+            "en": "Switch to Loiter, slow down and land if the aircraft oscillates, a thrust-loss or ESC temperature warning shows, the battery reaches its caution level, it cannot hold the speed or height, or the wind picks up beyond 3 m/s.",
+            "uk": "Перейдіть у Loiter, зменште швидкість і сідайте, якщо апарат розгойдується, з'являється попередження про втрату тяги чи температуру ESC, батарея досягає рівня попередження, апарат не тримає швидкість чи висоту або вітер посилюється понад 3 м/с."
+          }
+        },
+        {
+          "kind": "verify",
+          "checks": [
+            {
+              "check": "has_metric",
+              "metric": "energy.sweep_levels",
+              "required": true
+            },
+            {
+              "check": "metric",
+              "metric": "energy.sweep_levels",
+              "above": 3.5
+            }
+          ],
+          "text": {
+            "en": "The next log shows at least four speeds flown both ways on straight legs. With the battery's power on each leg, they give the airframe's power at each airspeed and payload: its best-endurance and best-range speeds, flight time, range and radius.",
+            "uk": "Наступний журнал показує щонайменше чотири швидкості, пройдені в обидва боки на прямих відрізках. Разом із потужністю батареї на кожному відрізку вони дають потужність апарата на кожній повітряній швидкості й навантаженні: його швидкості найбільшої тривалості й найбільшої дальності, тривалість польоту, дальність і радіус."
+          }
+        }
+      ]
     }
   }
 }

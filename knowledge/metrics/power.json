@@ -13,8 +13,8 @@
         "uk": "Електрична потужність, яку батарея віддає в стабільному зависанні. Вона визначає тривалість польоту, а порівняно з історією апарата показує зміни пропелерів, моторів чи ваги."
       },
       "method": {
-        "en": "BAT.Volt times BAT.Curr of the first battery, median over the steady-hover windows (the whole armed flight when it never hovered steadily).",
-        "uk": "BAT.Volt помножене на BAT.Curr першої батареї, медіана у вікнах стабільного зависання (увесь політ, якщо стабільного зависання не було)."
+        "en": "BAT.Volt times BAT.Curr summed over every monitor that measures its own pack (a sum or ESC monitor only when none does; rules/batteries.json), median over the steady-hover windows (the whole armed flight when it never hovered steadily).",
+        "uk": "BAT.Volt помножене на BAT.Curr, підсумоване за всіма моніторами, що вимірюють власну батарею (монітор суми чи ESC — лише коли такого немає; rules/batteries.json), медіана у вікнах стабільного зависання (увесь політ, якщо стабільного зависання не було)."
       },
       "messages": [
         "BAT"
@@ -59,8 +59,8 @@
         "uk": "Найбільший струм батареї під час польоту."
       },
       "method": {
-        "en": "Maximum of BAT.Curr between arming and disarming.",
-        "uk": "Максимум BAT.Curr між взведенням і зняттям зі зброї."
+        "en": "Maximum of the summed BAT.Curr of the packs between arming and disarming.",
+        "uk": "Максимум підсумованого BAT.Curr батарей між взведенням і зняттям зі зброї."
       },
       "messages": [
         "BAT"
@@ -106,8 +106,8 @@
         "uk": "Потужність, що перетворюється на тепло всередині батареї в зависанні: квадрат струму, помножений на її опір."
       },
       "method": {
-        "en": "Median hover BAT.Curr squared times BAT.Res.",
-        "uk": "Квадрат медіанного BAT.Curr у зависанні, помножений на BAT.Res."
+        "en": "For each pack, its median hover BAT.Curr squared times its BAT.Res, summed over the packs.",
+        "uk": "Для кожної батареї — квадрат її медіанного BAT.Curr у зависанні, помножений на її BAT.Res, підсумовано за батареями."
       },
       "messages": [
         "BAT"

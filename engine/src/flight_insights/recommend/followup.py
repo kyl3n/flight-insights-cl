@@ -8,6 +8,7 @@ Recommendation engine, "Procedures" and "Closing the loop").
   not proposed again while the filter settings and the airframe's build are the same
   as on a flight that was checked with raw gyro data.
 - A GNSS-off drill is offered while none has been measured on the airframe.
+- A speed sweep is offered while none has been flown at the flight's payload.
 """
 
 from __future__ import annotations
@@ -27,6 +28,7 @@ from flight_insights.store.db import Store
 
 RECENT = 20  # earlier flights looked at for a filter check
 DRILL = "followup.gnss_drill"
+SWEEP = "followup.speed_sweep"
 FALLBACK_AREA = "no_gnss:readiness:pilot_fallback"  # the drill switch, as the review found it
 
 
@@ -51,6 +53,42 @@ def drill_findings(
         "id": f"followup:drill:{flight_id}", "analyzer": "followup", "code": DRILL,
         "severity": "info", "confidence": "high", "params": {}, "evidence": [FALLBACK_AREA],
         "changes": [], "stage": reg.findings[DRILL].stage, "origin": "measured",
+    }]  # fmt: skip
+
+
+def sweep_findings(
+    store: Store, reg: Registry, flight_id: str, analysis: Mapping[str, Any]
+) -> list[dict[str, Any]]:
+    """The speed sweep, offered while none has been flown at this flight's payload (spec:
+    Power and efficiency analysis, "Range, endurance and speed"): for a multirotor flight
+    whose speed legs were looked for and whose battery current was logged, when no flight
+    of its airframe in the same payload group, flown no later, held enough speeds both
+    ways. Power against airspeed needs both: the legs and the power on them."""
+    from flight_insights.trends import grouped_flights, metric_of  # trends plans flights
+
+    flight = store.get("flight", flight_id)
+    if flight is None or flight["airframe_id"] is None:
+        return []
+    ids = {e["id"] for e in analysis.get("evidence", ())}
+    if "energy:sweep" not in ids or "power:battery" not in ids:
+        return []
+    needed = float(reg.rules["energy"]["sweep"]["min_levels"])
+    grouped = grouped_flights(store, reg, flight["airframe_id"])
+    group = next((g for f, g in grouped if f.id == flight_id), None)
+    for other, g in grouped:
+        if g != group or other.run_id is None:
+            continue
+        row = store.get("flight", other.id)
+        if row is None or not (row["id"] == flight_id or flew_before(row, flight)):
+            continue
+        found = metric_of(store, other.run_id, "energy.sweep_levels", "flight")
+        if found is not None and found[0] >= needed:
+            return []
+    return [{
+        "id": f"followup:sweep:{flight_id}", "analyzer": "followup", "code": SWEEP,
+        "severity": "info", "confidence": "high", "params": {"min_levels": int(needed)},
+        "evidence": ["energy:sweep"], "changes": [], "stage": reg.findings[SWEEP].stage,
+        "origin": "measured",
     }]  # fmt: skip
 
 

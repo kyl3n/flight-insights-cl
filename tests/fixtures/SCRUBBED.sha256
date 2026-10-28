@@ -66,6 +66,10 @@ f348f80e13475a6e33ea3dd630d486852bd048dbc276627dfabd664cb367437b  sitl/4.7.0/cop
 d71e7af90d7991bd59327bab1d1d0c57910e234ec1b1a5c7f5aaaaacd3d3733b  sitl/4.7.0/copter-quad-rawimu.param
 ca554bcce8c55b6e9a283f618b5dbebc77af7e8271821f24c841282efa7069c7  sitl/4.7.0/copter-quad-rawimu.params
 bdf786c366a52b3ab75a0f343b704340c1bbeb1906dd1d551ba89b9cf0c316aa  sitl/4.7.0/copter-quad-rawimu.tlog
+7c4e84a18b607320f907344fb22ac2d98a6b2aeccb657f8332a5782d7f51ba32  sitl/4.7.0/copter-quad-sweep.bin
+46156b65a6e558ff5983e7b91da2b4d0dc9267da36150786fe6fa21741f4d954  sitl/4.7.0/copter-quad-sweep.param
+4f96575df7d0efe6b4b411f8a629dfa7aa831b9b0cadc742f952b054dec5cf83  sitl/4.7.0/copter-quad-sweep.params
+b1a3a733c6fa2f4c656c2f866e437a8cf6965dea77ad366c8d259ff1f2555943  sitl/4.7.0/copter-quad-sweep.tlog
 1954e70f61ee6477cc6b96f1bc8900050f6fecc20e4d394652d400e7a477af33  sitl/4.7.0/copter-quad-tune-ab.bin
 598d3cf02e308d0b12bdda9a1816db743f0b8fcd31dc449146778f5c5e73755f  sitl/4.7.0/copter-quad-tune-ab.param
 404d19ab707fd7c8c85f2af3b188582d795325826eb69cb5eef08bd61b6b912b  sitl/4.7.0/copter-quad-tune-ab.params

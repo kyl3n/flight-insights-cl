@@ -1,0 +1,62 @@
+{
+  "about": "Energy, range and speed (spec: Power and efficiency analysis, 'Range, endurance and speed'; analyzers/energy.py, rules/energy.json).",
+  "metrics": {
+    "energy.sweep_levels": {
+      "name": {
+        "en": "Speeds flown both ways",
+        "uk": "Швидкості, пройдені в обидва боки"
+      },
+      "unit": "count",
+      "direction": "higher",
+      "zones": {
+        "target": [
+          4,
+          null
+        ],
+        "caution": [
+          null,
+          4
+        ]
+      },
+      "definition": {
+        "en": "How many steady speeds this flight held on straight legs flown both ways: the speed sweep that gives the airframe's power against airspeed, its best cruise speed, range and flight time. Four or more measure the sweep.",
+        "uk": "Скільки усталених швидкостей цей політ утримав на прямих відрізках, пройдених в обидва боки: розгін за швидкістю, з якого виходить залежність потужності апарата від повітряної швидкості, його найкраща крейсерська швидкість, дальність і тривалість польоту. Чотири й більше дають вимір розгону."
+      },
+      "method": {
+        "en": "2 s tiles of the primary estimator core (XKF1 velocity and height), kept when level and steady: at least 5 m up, at least 1 m/s, accelerating under 0.3 m/s/s, climbing under 0.3 m/s, turning under 5 deg/s. Back-to-back tiles within 0.75 m/s of their mean and 15 deg of the first make a leg of at least 10 s. A leg and the next, starting within 60 s, heading within 30 deg of the opposite way and within 6 m/s of its speed, are one speed flown both ways, at the mean of the two; these split into speeds where the next is more than 1.5 m/s faster.",
+        "uk": "2-секундні проміжки основного ядра оцінювача (швидкість і висота XKF1), що лишаються, коли політ рівний і усталений: щонайменше 5 м висоти, щонайменше 1 м/с, прискорення до 0,3 м/с², набір висоти до 0,3 м/с, поворот до 5 град/с. Послідовні проміжки в межах 0,75 м/с від їхнього середнього і 15 град від першого утворюють відрізок щонайменше 10 с. Відрізок і наступний, що починається протягом 60 с, напрямлений у межах 30 град від протилежного й відрізняється за швидкістю не більш ніж на 6 м/с, — це одна швидкість, пройдена в обидва боки, рівна середньому з двох; такі швидкості розділяються там, де наступна більша понад 1,5 м/с."
+      },
+      "messages": [
+        "XKF1"
+      ],
+      "source": {
+        "kind": "research",
+        "title": "Leishman, Principles of Helicopter Aerodynamics, 2nd ed., 2006, ch. 5 (power against airspeed from level flight); reciprocal legs cancel the wind along them (FAA AC 23-8C, ground-course method)"
+      }
+    },
+    "energy.sweep_fastest_ms": {
+      "name": {
+        "en": "Fastest speed flown both ways",
+        "uk": "Найбільша швидкість, пройдена в обидва боки"
+      },
+      "unit": "m/s",
+      "direction": "band",
+      "definition": {
+        "en": "The highest steady speed this flight held on straight legs flown both ways. Flown both ways, the wind along the legs cancels, so it reads as an airspeed.",
+        "uk": "Найбільша усталена швидкість, яку цей політ утримав на прямих відрізках, пройдених в обидва боки. Коли відрізки пройдено в обидва боки, вітер уздовж них взаємно компенсується, тож це повітряна швидкість."
+      },
+      "method": {
+        "en": "The mean of the pairs of legs at the fastest speed counted in 'Speeds flown both ways', each pair the mean of its two ground speeds.",
+        "uk": "Середнє пар відрізків на найбільшій швидкості, зарахованій у 'Швидкостях, пройдених в обидва боки'; кожна пара — середнє двох її шляхових швидкостей."
+      },
+      "messages": [
+        "XKF1"
+      ],
+      "source": {
+        "kind": "baseline",
+        "title": "No universal range: what this airframe has flown, read against its history and the speed card"
+      }
+    }
+  },
+  "findings": {}
+}
