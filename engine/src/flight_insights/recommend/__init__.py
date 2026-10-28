@@ -21,7 +21,14 @@ from flight_insights.recommend.export import (
     export_step,
     export_undo,
 )
-from flight_insights.recommend.plan import Plan, Recommendation, Source, build_plan, to_json
+from flight_insights.recommend.plan import (
+    Plan,
+    Recommendation,
+    Source,
+    build_plan,
+    plan_keeping_tests,
+    to_json,
+)
 from flight_insights.recommend.records import (
     RecommendationConflict,
     RecommendationError,
@@ -105,7 +112,9 @@ def flight_plan(
             findings = [f for f in findings if f not in audit]
     # the speed build-up's step waits while a finding that matters at speed is open
     findings, limits = buildup.gate(findings, limits, reg)
-    plan = build_plan(flight_id, findings, params, dialect, reg, limits)
+    # a test-flight setting the plan tests with again stays on between its tests
+    plan, again = plan_keeping_tests(flight_id, findings, params, dialect, reg, limits)
+    held += again
     plan.held_back = held
     return plan
 

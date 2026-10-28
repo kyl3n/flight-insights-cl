@@ -2,11 +2,12 @@
 next step on ArduPilot's simulator flying Callisto's speed card (12 m/s verified, 13 next,
 every margin holding), each limit binding alone, each prediction missing, where to start,
 the cruise advice yielding to it, the plan letting this one raise through, and the checks
-the next flight is graded by."""
+the next flight is graded by, though no analyzer made the step's finding."""
 
 from __future__ import annotations
 
 from dataclasses import replace
+from pathlib import Path
 from typing import Any
 
 import pytest
@@ -16,6 +17,7 @@ from test_perf_store import PACK, airframe, flown
 from flight_insights.analyzers import Registry
 from flight_insights.analyzers.registry import LANGUAGES, PLACEHOLDER
 from flight_insights.analyzers.run import run_analysis
+from flight_insights.history import save_snapshot
 from flight_insights.history.persist import load_snapshot
 from flight_insights.params import Dialect
 from flight_insights.performance import advice
@@ -29,8 +31,13 @@ from flight_insights.performance.buildup import (
     buildup,
     gate,
 )
-from flight_insights.recommend import build_plan
-from flight_insights.recommend.plan import _never  # pyright: ignore[reportPrivateUsage]
+from flight_insights.recommend import build_plan, grade_flight, history, record_plan, to_json
+from flight_insights.recommend.plan import (
+    REVERT,
+    _never,  # pyright: ignore[reportPrivateUsage]
+    needed_again,
+    plan_keeping_tests,
+)
 from flight_insights.recommend.records import _check  # pyright: ignore[reportPrivateUsage]
 from flight_insights.store.cache import ColumnCache
 from flight_insights.store.db import open_store
@@ -165,6 +172,10 @@ def test_the_next_flight_is_graded_on_its_fast_segment() -> None:
     assert _check(reached, False, flown_fast, {}, None, 12.9) is True  # 12.8 >= 0.97 x 12.9
     assert _check(reached, False, flown_fast, {}, None, 13.5) is False
     assert _check(reached, False, flown_fast, {}, None, None) is None
+    # the step's test-flight logging is graded on the WP_SPD flown, not its own value
+    flown_at = reached | {"param": "WP_SPD"}
+    assert _check(flown_at, False, flown_fast, {"WP_SPD": 12.9}, None, 180223.0) is True
+    assert _check(flown_at, False, flown_fast, {"WP_SPD": 13.5}, None, 180223.0) is False
     assert _check(target, False, flown_fast, {}, None) is True  # the flight's own zones aside
     hot = {"metrics": [*flown_fast["metrics"], metric("fast.esc_temp_max_c", 95.0, "caution")]}
     assert _check(target, False, hot, {}, None) is False
@@ -264,3 +275,75 @@ def test_a_zero_is_read_as_what_it_flies_at(param: str, current: float, value: f
               "RTL_SPEED_MS": 0.0, param: current}  # fmt: skip
     note = _never(REG.rules["recommend"], param, current, value, params)
     assert (note is not None and note.reason == "never_raise") == raised
+
+
+def test_the_step_and_its_lean_raise_are_graded_by_their_checks(tmp_path: Path) -> None:
+    """The plan makes the step's finding from the airframe's models, so no analyzer judges
+    the next flight for it: its own checks grade it. The loaded card flown with the step
+    and the lean raise holds 12 m/s, short of a 13 m/s step (no effect), while the lean
+    raise's checks, the fast segment measured and in target, pass (confirmed)."""
+    keys = StoreKeys.generate()
+    store = open_store(tmp_path / "g.db", keys, "e" * 32)
+    cache = ColumnCache(tmp_path / "cache", keys)
+    af = airframe(store, "Callisto", SETUP | {"speed_goal": "fastest"})
+    flight = flown(store, cache, "copter-heavylift-sweep", af, 32.5)
+    later = flown(store, cache, "copter-heavylift-sweep-loaded", af, 40.5)
+    ctx = advice.context(store, cache, PACK, REG, flight, run_analysis(store, cache, PACK, flight))
+    assert ctx is not None
+    row = store.get("flight", flight)
+    assert row is not None
+    snap = load_snapshot(store, str(row["param_snapshot_id"]))
+    params = dict(snap.dialect(PACK).to_canonical(snap.values).values) | {"WP_SPD": 10.0}
+    [step] = buildup(ctx, params, REG).findings
+    params["PSC_ANGLE_MAX"] = round(step["params"]["thrust_value"] / 0.8) - 1.0  # just short
+    got = buildup(ctx, params, REG)
+    dialect = Dialect(REG.pack, "copter", "4.7.0")
+    plan = build_plan(flight, got.findings, params, dialect, REG, got.raise_limits)
+    record_plan(store, to_json(plan, REG))
+    proposed = {r.native: r.native_value for r in plan.offered()}
+    assert set(proposed) == {"WP_SPD", "PSC_ANGLE_MAX"}
+    # the later flight, as if flown with both
+    later_row = store.get("flight", later)
+    assert later_row is not None
+    old = load_snapshot(store, str(later_row["param_snapshot_id"]))
+    new = save_snapshot(store, replace(old, values=old.values | proposed), PACK)
+    store.update("flight", later, later_row["version"], {"param_snapshot_id": new})
+    graded = grade_flight(store, PACK, later, run_analysis(store, cache, PACK, later))
+    status = {g["param"]: g["status"] for g in graded}
+    assert status == {"WP_SPD": "no effect", "PSC_ANGLE_MAX": "confirmed"}
+    rows = {h["param"]: h for h in history(store, af)}
+    checks = {c["check"]: c["passed"] for c in rows["WP_SPD"]["detail"]["grade"]["checks"]}
+    assert checks == {"has_metric": True, "reaches_proposed": False, "in_target": True}
+
+
+def test_the_steps_test_logging_stays_on_between_steps(light: Any) -> None:
+    """The step's test-flight logging is not taken out while the next step is on offer and
+    would set it straight back: no revert, then the same bit again, between steps. A bit
+    the step does not log comes out at once, and with no step on offer it all comes out."""
+    ctx, params = light
+    on = int(params["LOG_BITMASK"]) | 1 << 5  # as the last step's test flight left it
+    base = params | {"WP_SPD": 10.0, "LOG_BITMASK": float(on)}
+
+    def revert(bit: int) -> dict[str, Any]:
+        return {"id": f"followup:r{bit}", "analyzer": "followup", "code": REVERT,
+                "severity": "info", "confidence": "high",
+                "params": {"param": "LOG_BITMASK", "recommendation": "r", "flight": "f0"},
+                "evidence": [], "stage": "evidence", "origin": "measured",
+                "changes": [{"param": "LOG_BITMASK", "proposed": float(on & ~(1 << bit)),
+                             "stage": "evidence"}]}  # fmt: skip
+
+    got = buildup(ctx, base, REG)
+    dialect = Dialect(REG.pack, "copter", "4.7.0")
+    assert needed_again([*got.findings, revert(5)], REG) == {"followup:r5": STEP}
+    plan, held = plan_keeping_tests("fl", [*got.findings, revert(5)], base, dialect, REG,
+                                    got.raise_limits)  # fmt: skip
+    assert [r.param for r in plan.offered()] == ["WP_SPD"]  # bit 5 on already: nothing to set
+    assert held == [{"code": REVERT, "flight": "f0", "param": "LOG_BITMASK", "by": STEP,
+                     "reason": "needed_again"}]  # fmt: skip
+    # bit 3 (PM) is none of the step's: its revert comes with the step
+    assert needed_again([*got.findings, revert(3)], REG) == {}
+    # no step on offer (held back, not ready): nothing sets it again, so it comes out
+    out, limits = gate([*got.findings, planted("gnss.jamming", "caution")], got.raise_limits,
+                       REG)  # fmt: skip
+    plan, held = plan_keeping_tests("fl", [*out, revert(5)], base, dialect, REG, limits)
+    assert held == [] and any(r.lead.code == REVERT for r in plan.offered())

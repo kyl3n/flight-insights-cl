@@ -280,20 +280,77 @@ def _test_flight_changes(
     if not changes:  # nothing proposed: nothing to test
         return changes
     for add in procedure.get("add_temporary", ()):
-        current = params.get(add["param"])
-        if "set_bits" in add or "clear_bits" in add:
-            on = sum(1 << int(b) for b in add.get("set_bits", ()))
-            off = sum(1 << int(b) for b in add.get("clear_bits", ()))
-            value = float((int(current or 0) | on) & ~off)
-        elif current is None:
+        value = _added(add, params.get(add["param"]))
+        if value is None:
             continue  # a value the flight does not show: nothing to set, nothing to go back to
-        else:
-            value = float(add["value"])
         stage = f.get("stage") or "evidence"
         changes.append(
             {"param": add["param"], "proposed": value, "stage": stage, "temporary": True}
         )
     return changes
+
+
+def _added(add: Mapping[str, Any], current: float | None) -> float | None:
+    """The value a procedure's test-flight setting gives a parameter now at `current`."""
+    if "set_bits" in add or "clear_bits" in add:
+        on = sum(1 << int(b) for b in add.get("set_bits", ()))
+        off = sum(1 << int(b) for b in add.get("clear_bits", ()))
+        return float((int(current or 0) | on) & ~off)
+    return None if current is None else float(add["value"])
+
+
+REVERT = "followup.revert_test_settings"
+
+
+def needed_again(findings: Sequence[Mapping[str, Any]], reg: Registry) -> dict[str, str]:
+    """The reverts of test-flight settings that another of the flight's findings, with a
+    change to test, would set straight back for its own test flight (the speed build-up's
+    next step, with the same logging), by id, with the finding that sets each again. Only
+    the settings a procedure adds for its test flight count: a finding's own changes are
+    worked out from what the flight already has."""
+    out: dict[str, str] = {}
+    for f in findings:
+        changes = f.get("changes") or ()
+        if f["code"] != REVERT or not changes:
+            continue
+        name, back = changes[0]["param"], float(changes[0]["proposed"])
+        for g in findings:
+            if g["code"] == REVERT or not g.get("changes"):
+                continue
+            for add in reg.procedures.get(g["code"], {}).get("add_temporary", ()):
+                if add["param"] == name and _added(add, back) not in (None, back):
+                    out.setdefault(str(f["id"]), str(g["code"]))
+    return out
+
+
+def plan_keeping_tests(
+    flight: str,
+    findings: Sequence[Mapping[str, Any]],
+    params: Mapping[str, float],
+    dialect: Dialect,
+    reg: Registry,
+    raise_limits: Mapping[str, float] | None = None,
+) -> tuple[Plan, list[dict[str, Any]]]:
+    """`build_plan`, with a test-flight setting kept on rather than taken out when the plan
+    tests with it again (the speed build-up's steps, one after another): its revert is held
+    back when, without it, the plan offers the finding that sets it again. Otherwise (that
+    finding waiting for its stage) the revert is offered as before. Returns the plan and
+    what was held back."""
+    again = needed_again(findings, reg)
+    if not again:
+        return build_plan(flight, findings, params, dialect, reg, raise_limits), []
+    plan = build_plan(flight, [f for f in findings if f["id"] not in again], params, dialect,
+                      reg, raise_limits)  # fmt: skip
+    offered = {s.code for r in plan.offered() for s in r.sources}
+    reverts = [f for f in findings if f["id"] in again]
+    if any(again[f["id"]] not in offered for f in reverts):
+        return build_plan(flight, findings, params, dialect, reg, raise_limits), []
+    held = [
+        {"code": REVERT, "flight": f["params"]["flight"], "param": f["params"]["param"],
+         "by": again[f["id"]], "reason": "needed_again"}
+        for f in reverts
+    ]  # fmt: skip
+    return plan, held
 
 
 def _set_bits(current: float | None, group: Iterable[_Candidate]) -> int:
