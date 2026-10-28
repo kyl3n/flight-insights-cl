@@ -39,6 +39,21 @@
     "level": 0.95,
     "levels": {"moving_ms": 2.0, "airspeed_span_ms": 6.0, "weight_apart": 0.1}
   },
+  "speeds": {
+    "about": "The speeds to fly from the power model (performance/optimize.py): airspeeds searched every step_ms up to a cap; best endurance at least power, best range at least energy per metre through the air (from the cells when the pack's resistance is given); long-range cruise the fastest airspeed keeping long_range_share of the best range; each speed's band the airspeeds within band_share of its best.",
+    "step_ms": 0.05,
+    "long_range_share": 0.99,
+    "band_share": 0.02
+  },
+  "trips": {
+    "about": "The standard trips (performance/radius.py; the fleet owner's decision of 2026-10-27, fixed trip types, never a route): climb to height_m at climb_ms, out, a hover at the site (drop_hover_s on a drop, site_minutes on the site trip), back, descend at descent_ms at hover power. The climb and descent rates are the flight's own WP_SPD_UP and WP_SPD_DN where known; these are ArduPilot 4.7's defaults. The worst direction is searched every direction_step_deg relative to the wind.",
+    "height_m": 40.0,
+    "climb_ms": 2.5,
+    "descent_ms": 1.5,
+    "drop_hover_s": 30.0,
+    "site_minutes": 5.0,
+    "direction_step_deg": 5.0
+  },
   "sources": [
     "Profile power's growth without the propellers' speed: K mu^2 with mu = u_p / (Omega R) is K (u_p / v_h)^2 (v_h / Omega R)^2, and (v_h / Omega R)^2 = C_T / 2 for a rotor thrust coefficient C_T of about 0.01 to 0.015 (Leishman 2006, ch. 2), so the growth on (u_p / v_h)^2 is about K C_T / 2, near 0.03 for K = 4.65.",
     "Profile power in hover over the ideal power, c_p = 1 / FM - kappa: small fixed-pitch propellers have a static figure of merit of about 0.5 to 0.65 (C_T^1.5 / (sqrt(2) C_P) from Brandt and Selig, Propeller Performance Data at Low Reynolds Numbers, AIAA 2011-1255, the UIUC propeller database), so c_p of about 0.35 to 0.85 with kappa near 1.15.",
