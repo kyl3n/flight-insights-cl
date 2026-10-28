@@ -18,6 +18,10 @@ flight's weight, as a raise of `WP_SPD` the plan may propose, or what holds it b
   ways to move it. For the limits the models predict (lean, thrust, current, ESC
   temperature), also the airspeed it allows now and how much faster each of the rules'
   solutions would let it fly (`envelope.gains`).
+- **Ready first** (`gate`, rules "readiness"): the step is held back, with what holds it,
+  while the flight has a finding open that matters at speed and that staging would not hold
+  it behind (GNSS, the motor-out margin, the packs and their failsafe), or one of the
+  earlier stages' that fails first at higher power (ESCs, motors, vibration).
 - While the goal is fastest, the cruise speed no longer follows the Priority
   (`advice.speeds`); the home speed and the battery failsafe's charge still do.
 """
@@ -25,7 +29,7 @@ flight's weight, as a raise of `WP_SPD` the plan may propose, or what holds it b
 from __future__ import annotations
 
 import math
-from collections.abc import Mapping
+from collections.abc import Mapping, Sequence
 from typing import Any
 
 from flight_insights.analyzers.registry import Registry
@@ -39,6 +43,7 @@ START = "speed.build_up_start"
 STEP = "speed.build_up_step"
 MISSING = "speed.build_up_missing_"  # + lean, thrust or current
 LIMITED = "speed.limited_by_"  # + the check that binds
+NOT_READY = "speed.build_up_not_ready"
 MODELLED = ("lean", "thrust", "current", "esc_temp")  # the models can say what moves them
 
 
@@ -99,3 +104,39 @@ def buildup(ctx: Context, params: Mapping[str, float], reg: Registry) -> Advice:
             limited[f"{name}_gain_ms"] = round(gain, 1)
             limited[f"{name}_pct"] = round(100 * abs(share - 1.0))
     return Advice([_finding(ctx, LIMITED + binding, limited, [])])
+
+
+def blocking(findings: Sequence[Mapping[str, Any]], reg: Registry) -> list[str]:
+    """The codes of the open findings the step waits for (rules "readiness")."""
+    spec: Mapping[str, Any] = reg.rules["performance"]["readiness"]
+    names: tuple[str, ...] = tuple(spec["codes"])
+    severities = set(spec["severities"])
+
+    def named(code: str) -> bool:
+        return any(code.startswith(n) if n.endswith(".") else code == n for n in names)
+
+    return sorted({str(f["code"]) for f in findings
+                   if f.get("severity") in severities and named(str(f["code"]))})  # fmt: skip
+
+
+def gate(findings: Sequence[Mapping[str, Any]], limits: Mapping[str, float], reg: Registry
+         ) -> tuple[list[dict[str, Any]], dict[str, float]]:  # fmt: skip
+    """The plan's findings and raise limits with the build-up's step held back, and what
+    holds it said, while a finding that matters at speed is open."""
+    out = [dict(f) for f in findings]
+    if not any(f["code"] == STEP for f in out):
+        return out, dict(limits)
+    held = blocking(out, reg)
+    if not held:
+        return out, dict(limits)
+    for k, f in enumerate(out):
+        if f["code"] != STEP:
+            continue
+        p = f["params"]
+        out[k] = f | {
+            "id": str(f["id"]).replace(STEP.split(".")[1], NOT_READY.split(".")[1]),
+            "code": NOT_READY, "severity": "caution", "changes": [],
+            "params": {key: p[key] for key in ("mass_kg", "verified_ms", "next_ms", "proposed_ms")}
+            | {"blocking": ", ".join(held), "count": len(held)},
+        }  # fmt: skip
+    return out, {name: v for name, v in limits.items() if name != "WP_SPD"}

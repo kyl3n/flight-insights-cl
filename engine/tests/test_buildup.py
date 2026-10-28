@@ -19,7 +19,15 @@ from flight_insights.analyzers.run import run_analysis
 from flight_insights.history.persist import load_snapshot
 from flight_insights.params import Dialect
 from flight_insights.performance import advice
-from flight_insights.performance.buildup import LIMITED, MISSING, START, STEP, buildup
+from flight_insights.performance.buildup import (
+    LIMITED,
+    MISSING,
+    NOT_READY,
+    START,
+    STEP,
+    buildup,
+    gate,
+)
 from flight_insights.recommend import build_plan
 from flight_insights.recommend.records import _check  # pyright: ignore[reportPrivateUsage]
 from flight_insights.store.cache import ColumnCache
@@ -160,3 +168,45 @@ def test_the_next_flight_is_graded_on_its_fast_segment() -> None:
     assert _check(target, False, hot, {}, None) is False
     assert _check(target, False, {"metrics": []}, {}, None) is None
     assert _check(reached, False, {"metrics": []}, {}, None, 12.9) is None
+
+
+def planted(code: str, severity: str) -> dict[str, Any]:
+    return {"id": f"x:{code}", "analyzer": code.split(".")[0], "code": code,
+            "severity": severity, "confidence": "high", "params": {}, "evidence": [],
+            "changes": [], "stage": REG.findings[code].stage, "origin": "measured"}  # fmt: skip
+
+
+AT_SPEED = ["gnss.jamming", "motor_out.short", "performance.pack_worn",
+            "performance.capacity_setting", "esc.hot", "vibration.high"]  # fmt: skip
+
+
+@pytest.mark.parametrize("code", AT_SPEED)
+def test_the_step_waits_while_a_finding_that_matters_at_speed_is_open(
+    light: Any, code: str
+) -> None:
+    ctx, params = light
+    got = buildup(ctx, params | {"WP_SPD": 10.0}, REG)
+    findings = [*got.findings, planted(code, "caution"), planted("link.fade_margin", "caution")]
+    out, limits = gate(findings, got.raise_limits, REG)
+    [held] = [f for f in out if f["code"] == NOT_READY]
+    assert not any(f["code"] == STEP for f in out) and held["changes"] == []
+    assert held["params"]["blocking"] == code and held["params"]["count"] == 1
+    assert held["severity"] == "caution" and "WP_SPD" not in limits
+    texts_filled(held)
+    # with it held, the plan raises nothing past the verified speed
+    dialect = Dialect(REG.pack, "copter", "4.7.0")
+    plan = build_plan("fl", out, params | {"WP_SPD": 10.0}, dialect, REG, limits)
+    assert not [r for r in plan.offered() if r.param == "WP_SPD" and r.proposed and r.proposed > 10]
+
+
+def test_an_info_finding_or_one_that_does_not_matter_at_speed_holds_nothing(light: Any) -> None:
+    ctx, params = light
+    got = buildup(ctx, params | {"WP_SPD": 10.0}, REG)
+    findings = [*got.findings, planted("gnss.yaw_reset", "info"),
+                planted("link.fade_margin", "caution")]  # fmt: skip
+    out, limits = gate(findings, got.raise_limits, REG)
+    assert [f["code"] for f in out if f["code"].startswith("speed.")] == [STEP]
+    assert limits == got.raise_limits
+    # nothing to hold without a step
+    assert gate([planted("gnss.jamming", "caution")], {}, REG) == (
+        [planted("gnss.jamming", "caution")], {})  # fmt: skip

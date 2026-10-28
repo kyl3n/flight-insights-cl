@@ -835,7 +835,7 @@ Added to Phase 2 on 2026-10-27 at the fleet owner's request, and built in steps 
     The card also gives what it is good for: the weights and speeds flown, the air, the reserve and the latest flight's parameters.
   - An unknown airframe is refused as bad input.
 
-**The speed build-up** (when the speed goal is "fastest safe"; the verified speed, the step and its predicted margins are worked out, `performance/envelope.py` and `thermal.py`, and given to the plan with the step's procedure and what each solution to a binding limit would gain, `performance/buildup.py`; the readiness checks and the lean-limit raises are not yet).
+**The speed build-up** (when the speed goal is "fastest safe"; the verified speed, the step and its predicted margins are worked out, `performance/envelope.py` and `thermal.py`, and given to the plan with the step's procedure and what each solution to a binding limit would gain, `performance/buildup.py`, held back until the flight is ready; the notch's reach at the step's throttle and the lean-limit raises are not yet).
 
 - **Verified speed:** the fastest fast segment (below) the airframe held for 10 s or more at the same weight or heavier (within 3%), with every watched metric that has zones in its target zone. A flight with anything outside its target verifies nothing.
 - **Each step:**
@@ -863,6 +863,14 @@ Added to Phase 2 on 2026-10-27 at the fleet owner's request, and built in steps 
   - **A margin failing** (`speed.limited_by_<margin>`): its predicted value and limit, and what moves it.
   - **While the goal is fastest,** `WP_SPD` follows the build-up, not the Priority answer. The home speed and the battery failsafe's charge still follow their own rules.
 - **Staging:** at Navigation, so it waits for the mechanical, filter and tune stages.
+- **Ready first** (`buildup.gate`, rules `rules/performance.json` "readiness"):
+  - **When:** the step is held back while the flight has a finding open, at caution or worse, that matters at speed.
+  - **Which findings:**
+    - those staging would offer it alongside or ahead of: GNSS (`gnss.*`); the motor-out margin (`motor_out.short`); the packs and their failsafe (`performance.pack_worn`, `pack_resistance`, `capacity_setting`, `low_mah`, `return_short`, `failsafe.battery_near_miss`);
+    - the earlier stages' findings that fail first at higher power, named so the reason shows: `power.board_voltage`, `esc.*`, `motors.saturation`, `vibration.*`.
+  - **Why:** the step is flown on GNSS speed and position; it leans further into what a lost motor leaves; it draws more current from the packs.
+  - **Shown as:** `speed.build_up_not_ready`, with the codes it waits for and no change. Its raise limit is dropped, so nothing passes the verified speed.
+  - **An app rule, uncalibrated.**
 - **The procedure** (`speed.build_up_step`):
   - **The card:** light air (under 3 m/s), open ground with a straight run of about 400 m, at 30 m or higher, at the weight it is for. Fly out and back in AUTO, 15 s or more steady each way.
   - **The test-flight logging:** `LOG_BITMASK` bits 1, 4, 5, 7, 9, 10 and 17, which log attitude, control, navigation, vibration, battery, outputs and motors (ArduCopter 4.7.0 `Copter.cpp` and `Log.cpp`; ESC telemetry logs whenever logging is on).
@@ -878,7 +886,7 @@ Added to Phase 2 on 2026-10-27 at the fleet owner's request, and built in steps 
 
     Less drag area scales the frame's own drag and the power model's drag area, not the rotors' in-plane force.
 - **Not yet:**
-  - the build-up's own readiness checks, among them the notch's tracking range covering the motor frequency at top-speed throttle;
+  - the notch's reach at the step's throttle. In throttle and ESC-RPM tracking the notch follows the motors with no upper clamp but 48% of the sample rate (ArduPilot 4.7.0 `AP_Vehicle::update_dynamic_notch`), so only FFT tracking can fall short, past `FFT_MAXHZ`. The motor frequency rises with the square root of thrust, so only 5-14% above hover at the step's lean;
   - raising the lean limits within the thrust headroom.
 
 **The fast segment** (measured now, `analyzers/fast.py`; what the build-up's checks read).

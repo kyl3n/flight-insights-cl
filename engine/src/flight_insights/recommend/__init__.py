@@ -96,6 +96,8 @@ def flight_plan(
         if audit:
             held.append(h)
             findings = [f for f in findings if f not in audit]
+    # the speed build-up's step waits while a finding that matters at speed is open
+    findings, limits = buildup.gate(findings, limits, reg)
     plan = build_plan(flight_id, findings, params, dialect, reg, limits)
     plan.held_back = held
     return plan
