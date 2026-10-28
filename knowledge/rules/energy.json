@@ -1,6 +1,18 @@
 {
   "about": "Energy, range and speed (spec: Power and efficiency analysis, 'Range, endurance and speed'; analyzers/energy.py). Uncalibrated against real aircraft: checked on synthetic flights and in ArduPilot's simulator.",
   "uncalibrated": true,
+  "phases": {
+    "about": "Each steady tile's flight phase (analyzers/steady.py), from the primary estimator core's ground velocity in tile_s tiles of at least min_samples rows (the same tiles the wind analyzer and the sweep read): low when under min_height_m above take-off, whatever it does; a climb or descent at climb_ms or more up or down; else a hover under hover_speed_ms of ground speed; else level at level_speed_ms or more while it climbs or descends under level_climb_ms, accelerates under max_accel m/s/s and turns its track under max_turn_deg_s; anything else a manoeuvre. The power model's points and the energy breakdown are read by phase.",
+    "tile_s": 2.0,
+    "min_samples": 10,
+    "min_height_m": 5.0,
+    "climb_ms": 0.5,
+    "hover_speed_ms": 1.0,
+    "level_speed_ms": 2.0,
+    "level_climb_ms": 0.3,
+    "max_accel": 0.3,
+    "max_turn_deg_s": 5.0
+  },
   "sweep": {
     "about": "The speed sweep (procedure followup.speed_sweep): straight legs held at steady speeds, each flown both ways. The flight is cut into tile_s tiles of the primary estimator core (XKF1); a tile is level and steady when it holds at least min_samples rows, flies at least min_height_m above take-off, at a ground speed of at least min_speed_ms, accelerating under max_accel m/s/s, climbing or descending under max_climb m/s, and turning its track under max_turn_deg_s. Back-to-back steady tiles whose ground speed stays within leg_speed_ms of the leg's mean and whose track stays within leg_track_deg of its first tile make a leg; legs of at least min_leg_s count. A leg and the next one make a pair, flown both ways, when the next starts within pair_gap_s, heads within reciprocal_deg of the opposite way, and differs in ground speed by at most pair_speed_ms (twice the strongest wind the card allows, for a pilot holding the airspeed; ArduPilot holding WP_SPD keeps the two alike). A pair's speed is the mean of its two, which cancels the wind along the legs. Pairs sorted by speed split into levels where the next is more than level_gap_ms faster. The sweep is measured once min_levels levels are flown; the follow-up offers the card until a flight of the airframe in the same payload group has.",
     "tile_s": 2.0,

@@ -139,6 +139,7 @@ def test_a_turning_track_is_no_leg() -> None:
     e["VN"] = 6.0 * np.cos(rate * k)
     e["VE"] = 6.0 * np.sin(rate * k)
     e["VD"] = np.zeros_like(k)
+    e["Roll"] = e["Pitch"] = np.zeros_like(k)
     e["PD"] = np.full_like(k, -20.0)
     e["PD"][0] = 0.0  # take-off height
     found = tiles(e, ARM, int(e["t"][-1]), RULES)
