@@ -1,7 +1,8 @@
 """Power and electrical health (spec: Power and efficiency analysis; Electrical system
 health; Reference range library, "Propulsion and power").
 
-From the battery monitor (BAT), the board's own supply (POWR) and ESC telemetry:
+From the battery monitors (BAT: every monitor that measures a pack, summed, as
+`battery_power.py` picks them), the board's own supply (POWR) and ESC telemetry:
 
 - hover power and energy per minute, the baseline every efficiency figure starts from;
 - where the power goes in hover: battery loss (current squared times the resistance
@@ -27,6 +28,7 @@ from typing import Any
 import numpy as np
 import pyarrow as pa
 
+from flight_insights.analyzers.battery_power import supply
 from flight_insights.analyzers.flight import FlightData
 from flight_insights.analyzers.model import (
     SEVERITY_OF_ZONE,
@@ -77,33 +79,25 @@ def _spans(flight: FlightData) -> tuple[str, list[tuple[int, int]]]:
 def _battery(
     flight: FlightData, reg: Registry, kind: str, spans: list[tuple[int, int]], out: Result
 ) -> None:
-    bat = flight.table("BAT")
-    if bat is None or bat.num_rows == 0 or not {"Volt", "Curr"} <= set(bat.column_names):
+    packs = supply(flight, reg.rules["batteries"])
+    if packs is None:
         return
-    t = _times(bat)
-    inst = (
-        np.asarray(bat.column("Inst").to_numpy(), np.int64)
-        if "Inst" in bat.column_names
-        else np.zeros(len(t), np.int64)
-    )
-    first = int(np.min(inst))
-    primary = inst == first  # the battery the failsafes watch
-    volt, curr = si.values(bat, "Volt"), si.values(bat, "Curr")
-    armed = (t >= flight.arm_us) & (t <= flight.disarm_us) & primary
-    held = _inside(t, spans) & primary
+    t, volt, curr, power = packs.t, packs.volt, packs.current, packs.power
+    first, counted = packs.instances[0], len(packs.instances)
+    armed = (t >= flight.arm_us) & (t <= flight.disarm_us)
+    held = _inside(t, spans)
     if not held.any() or not armed.any():
         return
-    power = volt * curr
     hover_w = float(np.median(power[held]))
     hover_a = float(np.median(curr[held]))
-    res = si.values(bat, "Res") if "Res" in bat.column_names else np.full(len(t), np.nan)
-    armed_res = res[armed]
-    resistance = (
-        float(armed_res[np.isfinite(armed_res) & (armed_res > 0)][-1])
-        if (np.isfinite(armed_res) & (armed_res > 0)).any()
-        else None
-    )
-    rested = volt[(t < flight.arm_us) & primary]
+    # the first pack's resistance (the one the failsafes watch); the loss in every pack
+    resistance = float(packs.resistance[0]) if np.isfinite(packs.resistance[0]) else None
+    losses = [
+        float(np.median(a[held])) ** 2 * r
+        for a, r in zip(packs.currents, packs.resistance, strict=True)
+        if np.isfinite(r)
+    ]
+    rested = volt[t < flight.arm_us]
     resting_v = float(np.median(rested[-20:])) if len(rested) else None
     peak = int(np.argmax(np.where(armed, curr, -np.inf)))
     sag_v = resting_v - float(volt[peak]) if resting_v is not None else None
@@ -113,6 +107,7 @@ def _battery(
         kind="metric",
         summary=(
             f"{hover_w:.0f} W at {hover_a:.1f} A in {kind} over {seconds:.1f} s"
+            + (f" from {counted} packs" if counted > 1 else "")
             + (f"; battery resistance {resistance * 1000:.1f} mOhm" if resistance else "")
             + (
                 f"; sag {sag_v:.2f} V at the {float(curr[peak]):.0f} A peak"
@@ -133,6 +128,8 @@ def _battery(
             "sag_v": None if sag_v is None else round(sag_v, 3),
             "seconds": round(seconds, 1),
             "battery": first,
+            "batteries": list(packs.instances),
+            "read_from": packs.how,
         },
     )
     out.evidence.append(ev)
@@ -143,9 +140,8 @@ def _battery(
         out.metrics.append(
             MetricValue("power.battery_resistance", "flight", resistance * 1000, None, ev.id)
         )
-        out.metrics.append(
-            MetricValue("power.battery_loss", kind, hover_a**2 * resistance, None, ev.id)
-        )
+    if losses:
+        out.metrics.append(MetricValue("power.battery_loss", kind, sum(losses), None, ev.id))
     if not flight.simulated:
         _escs(flight, kind, spans, hover_w, float(np.median(volt[held])), hover_a, out)
 
@@ -379,7 +375,7 @@ def _power(flight: FlightData, reg: Registry) -> Result:
 
 POWER = Analyzer(
     name="power",
-    version=3,
+    version=4,
     run=_power,
     metrics=(
         "power.hover_power", "power.energy_per_minute", "power.peak_current",

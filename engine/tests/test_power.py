@@ -11,6 +11,7 @@ import pytest
 from flight_builder import ARM, DISARM, hover_flight, table
 
 from flight_insights.analyzers import Registry, run_analysis
+from flight_insights.analyzers.battery_power import energy_wh, supply
 from flight_insights.analyzers.power import POWER
 from flight_insights.imports import Decision, commit, propose, scan
 from flight_insights.knowledge import load_pack
@@ -44,6 +45,72 @@ def battery(resting: float = 50.0, hover_a: float = 40.0, ohm: float = 0.02) -> 
         },
         {"Volt": V, "Curr": A, "Res": OHM},
     )
+
+
+def monitors(*packs: tuple[int, float, float, float]) -> pa.Table:
+    """BAT rows for several monitors at 10 Hz, interleaved as the firmware logs them: each
+    (instance, resting volts, hover amps, ohms)."""
+    t = np.arange(0, DISARM, 100_000)
+    rows: list[tuple[int, int, float, float, float]] = []
+    for x in t:
+        for inst, resting, hover_a, ohm in packs:
+            amps = 0.0 if x < ARM else hover_a
+            rows.append((int(x) + 1000 * inst, inst, resting - amps * ohm, amps, ohm))
+    return table(
+        [r[0] for r in rows],
+        {
+            "Inst": (pa.uint8(), [r[1] for r in rows]),
+            "Volt": (pa.float32(), [r[2] for r in rows]),
+            "Curr": (pa.float32(), [r[3] for r in rows]),
+            "Res": (pa.float32(), [r[4] for r in rows]),
+        },
+        {"Volt": V, "Curr": A, "Res": OHM},
+    )
+
+
+def test_parallel_packs_each_with_a_monitor_are_summed(reg: Registry) -> None:
+    """Two packs sharing the load, each on its own monitor (BATT_ and BATT2_ type 4): the
+    first alone would read half the power."""
+    tables = {"BAT": monitors((0, 50.0, 20.0, 0.04), (1, 50.0, 20.0, 0.04))}
+    params: dict[str, float] = {"BATT_MONITOR": 4, "BATT2_MONITOR": 4}
+    r = POWER.run(hover_flight(tables, params), reg)
+    got = metrics(r)
+    pack_w = (50 - 20 * 0.04) * 20
+    assert got["power.hover_power"][0] == pytest.approx(2 * pack_w, rel=1e-5)
+    assert got["power.peak_current"][0] == pytest.approx(40.0, rel=1e-5)
+    assert got["power.battery_loss"][0] == pytest.approx(2 * 20**2 * 0.04, rel=1e-4)
+    assert got["power.battery_resistance"][0] == pytest.approx(40.0, rel=1e-4)  # the first's
+    [ev] = [e for e in r.evidence if e.id == "power:battery"]
+    assert ev.values["batteries"] == [0, 1] and ev.values["read_from"] == "packs"
+
+
+@pytest.mark.parametrize(
+    ("kinds", "used", "how"),
+    [({"BATT_MONITOR": 4, "BATT2_MONITOR": 4, "BATT3_MONITOR": 10}, (0, 1), "packs"),
+     ({"BATT_MONITOR": 10, "BATT2_MONITOR": 4, "BATT3_MONITOR": 4}, (1, 2), "packs"),
+     ({"BATT_MONITOR": 9, "BATT2_MONITOR": 4, "BATT3_MONITOR": 3}, (1,), "packs"),
+     ({"BATT_MONITOR": 10, "BATT2_MONITOR": 9, "BATT3_MONITOR": 3}, (0,), "sum"),
+     ({"BATT_MONITOR": 3, "BATT2_MONITOR": 9, "BATT3_MONITOR": 11}, (1,), "esc"),
+     ({}, (0, 1, 2), "packs")],
+)  # fmt: skip
+def test_nothing_is_counted_twice(
+    reg: Registry, kinds: dict[str, float], used: tuple[int, ...], how: str
+) -> None:
+    """A sum monitor (10) or ESC monitor (9) repeats packs already counted; a voltage-only
+    (3) or fuel (11) monitor measures no pack's current. Unnamed monitors count."""
+    tables = {"BAT": monitors((0, 50.0, 20.0, 0.04), (1, 50.0, 20.0, 0.04),
+                              (2, 50.0, 20.0, 0.04))}  # fmt: skip
+    s = supply(hover_flight(tables, kinds), reg.rules["batteries"])
+    assert s is not None and (s.instances, s.how) == (used, how)
+
+
+def test_energy_is_the_trapezoid_over_every_sample() -> None:
+    t = np.array([0, 1_000_000, 2_000_000, 5_000_000, 6_000_000], np.int64)
+    p = np.array([100.0, 200.0, 200.0, 500.0, 500.0])
+    wh, bridged = energy_wh(t, p, 0, 6_000_000, 1.0)
+    assert wh == pytest.approx((150 + 200 + 3 * 350 + 500) / 3600)
+    assert bridged == pytest.approx(3.0)  # the 3 s with no row
+    assert energy_wh(t, p, 1_000_000, 2_000_000, 1.0) == (pytest.approx(200 / 3600), 0.0)
 
 
 def board(vcc: list[float]) -> pa.Table:

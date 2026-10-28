@@ -596,7 +596,7 @@ Every watt the battery delivers is traced to where it went (lift, forward motion
 
 | Bucket | How it is measured | What it reveals |
 | --- | --- | --- |
-| Total electrical power | Battery volts times amps | The baseline for everything else |
+| Total electrical power | Battery volts times amps, summed over every monitor that measures its own pack (parallel packs each on a monitor); a sum or ESC monitor stands in only when no pack monitor is logged, so nothing counts twice (`rules/batteries.json`) | The baseline for everything else |
 | Propulsion | Sum of ESC input power, where ESC telemetry reports current | The share that reaches the motors |
 | Avionics and payload | Total minus propulsion | Companion computers, video, payload loads; often larger than expected |
 | Battery internal loss | Current squared times the battery resistance ArduPilot logs | Heat in the pack; rises with age and cold |
