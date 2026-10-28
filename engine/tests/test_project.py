@@ -9,6 +9,7 @@ what it should and nothing else."""
 from __future__ import annotations
 
 import math
+from dataclasses import replace
 from typing import Any
 
 import numpy as np
@@ -141,11 +142,11 @@ def test_a_pack_that_cannot_hold_the_hover_gives_nothing() -> None:
     assert against_weight(FULL, RULES, curve, 25.0, 45.0, RHO, 25.0) == []
 
 
-def fitted(lofo: dict[str, float], copies: int = 40) -> Fitted:
-    return Fitted(DRAG, "A", 100, len(lofo), lofo, {}, 0, (DRAG,) * copies)
+def fitted(lofo: dict[str, float], replicates: tuple[Model, ...] = ()) -> Fitted:
+    return Fitted(DRAG, "A", 100, len(lofo), lofo, {}, 0, replicates)
 
 
-def test_the_spread_is_the_models_and_the_flights_own_errors() -> None:
+def test_the_spread_is_about_the_models_own_figure() -> None:
     curve = steady_curve()
     f = figures(DRAG, RULES, curve, 30.0, 30.0, RHO, 30.0)
     assert f is not None
@@ -153,11 +154,31 @@ def test_the_spread_is_the_models_and_the_flights_own_errors() -> None:
     assert exact["hover_s"].low == pytest.approx(f.hover_s)
     assert exact["range_m"].high == pytest.approx(f.range_m)
     assert exact["radius_m"].median == pytest.approx(f.radius_m["out_and_back"])
-    # a flight predicted 5% high flew on 5% less power than the model gives: 5% longer
+    # flights predicted 5% off either way: a model error of 5% each way at one sigma, so
+    # about 10% either side at 95%, about the model's own figure
     wide = spread(fitted({"a": 0.05, "b": -0.05}), RULES, curve, 30.0, 30.0, RHO, 30.0)
-    assert wide["hover_s"].low < f.hover_s < wide["hover_s"].high
-    assert wide["hover_s"].high == pytest.approx(f.hover_s * 1.05, rel=3e-3)
-    assert wide["hover_s"].low == pytest.approx(f.hover_s * 0.95, rel=3e-3)
+    assert wide["hover_s"].median == pytest.approx(f.hover_s)
+    assert 0.06 < wide["hover_s"].high / f.hover_s - 1 < 0.14
+    assert 0.06 < 1 - wide["hover_s"].low / f.hover_s < 0.12
+    # both flights over-predicted by 11% (each from a model fitted on the other alone): that
+    # sizes the spread, it does not move it
+    biased = spread(fitted({"a": 0.11, "b": 0.11}), RULES, curve, 30.0, 30.0, RHO, 30.0)
+    assert biased["hover_s"].low < f.hover_s == pytest.approx(biased["hover_s"].median)
+    assert f.hover_s < biased["hover_s"].high
+
+
+def test_the_bootstrap_counts_once_there_are_enough_flights() -> None:
+    curve = steady_curve()
+    f = figures(DRAG, RULES, curve, 30.0, 30.0, RHO, 30.0)
+    assert f is not None
+    # bootstrap models 10% lighter or heavier on power, no model error
+    models = tuple(replace(DRAG, avionics=A_W * k) for k in np.linspace(0.9, 1.1, 41))
+    three = spread(fitted({"a": 0.0, "b": 0.0, "c": 0.0}, models), RULES, curve, 30.0, 30.0,
+                   RHO, 30.0)  # fmt: skip
+    assert three["hover_s"].median == pytest.approx(f.hover_s)
+    assert three["hover_s"].high / f.hover_s - 1 == pytest.approx(1 / 0.9 - 1, abs=0.02)
+    two = spread(fitted({"a": 0.0, "b": 0.0}, models), RULES, curve, 30.0, 30.0, RHO, 30.0)
+    assert two["hover_s"].low == pytest.approx(f.hover_s) == pytest.approx(two["hover_s"].high)
 
 
 def test_each_what_if_moves_what_it_should() -> None:

@@ -55,7 +55,7 @@
     "direction_step_deg": 5.0
   },
   "projections": {
-    "about": "Flight time, range and radius against take-off weight (performance/project.py). The pack's usable energy is worked out at load_points loads from low_load times the lightest hover to high_load times the heaviest climb or fastest leg, each discharge in about discharge_steps steps. A trip's energy is read at its mean power, repeated up to budget_rounds times until it moves less than budget_tolerance. Against weight: weight_steps weights from empty to the heaviest take-off; measured within measured_margin of the weights flown. The spread is the bootstrap's models with leave-one-flight-out errors, at level. What-ifs: the weight by mass_share, the drag area by drag_share, the avionics by avionics_w W less, the capacity by capacity_share with its share of the pack's mass.",
+    "about": "Flight time, range and radius against take-off weight (performance/project.py). The pack's usable energy is worked out at load_points loads from low_load times the lightest hover to high_load times the heaviest climb or fastest leg, each discharge in about discharge_steps steps. A trip's energy is read at its mean power, repeated up to budget_rounds times until it moves less than budget_tolerance. Against weight: weight_steps weights from empty to the heaviest take-off; measured within measured_margin of the weights flown. The spread is about the model's own figure: the bootstrap's models (once there are bootstrap_min_flights flights; with fewer the model itself) each with a zero-mean normal model error of the leave-one-flight-out errors' root mean square, at level. What-ifs: the weight by mass_share, the drag area by drag_share, the avionics by avionics_w W less, the capacity by capacity_share with its share of the pack's mass.",
     "load_points": 24,
     "low_load": 0.5,
     "high_load": 1.5,
@@ -65,6 +65,7 @@
     "weight_steps": 9,
     "measured_margin": 0.05,
     "level": 0.95,
+    "bootstrap_min_flights": 3,
     "what_ifs": {"mass_share": -0.05, "drag_share": -0.1, "avionics_w": 10.0, "capacity_share": 0.1}
   },
   "top_speed": {
