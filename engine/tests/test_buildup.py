@@ -92,14 +92,19 @@ def test_only_with_the_fastest_goal(light: Any) -> None:
 
 
 @pytest.mark.parametrize(("binds", "planted"), [
-    ("current", {"MOT_BAT_CURR_MAX": 50.0}),
+    ("current", {"MOT_BAT_CURR_MAX": 88.0}),  # 89.6 A at the step, 87.1 A at 12 m/s
     ("lean", {"PSC_ANGLE_MAX": 3.0}),
 ])  # fmt: skip
 def test_a_margin_failing_binds(light: Any, binds: str, planted: dict[str, float]) -> None:
     ctx, params = light
     [f] = buildup(ctx, params | planted, REG).findings
     assert f["code"] == LIMITED + binds and f["changes"] == []
-    assert f["params"]["value"] > f["params"]["limit"]
+    p = f["params"]
+    assert p["value"] > p["limit"]
+    # what the limit allows now falls short of the step; each solution moves it on
+    assert 0 < p["allows_ms"] < p["next_ms"]
+    gained = {k: v for k, v in p.items() if k.endswith("_gain_ms")}
+    assert gained and all(v > 0 for v in gained.values())
     texts_filled(f)
 
 

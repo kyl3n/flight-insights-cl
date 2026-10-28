@@ -15,7 +15,9 @@ flight's weight, as a raise of `WP_SPD` the plan may propose, or what holds it b
 - **A prediction the step needs is missing** (`speed.build_up_missing_<what>`): what to
   enter or fly for the lean, the thrust or the current.
 - **A margin fails** (`speed.limited_by_<check>`): its predicted value and limit, and the
-  ways to move it.
+  ways to move it. For the limits the models predict (lean, thrust, current, ESC
+  temperature), also the airspeed it allows now and how much faster each of the rules'
+  solutions would let it fly (`envelope.gains`).
 - While the goal is fastest, the cruise speed no longer follows the Priority
   (`advice.speeds`); the home speed and the battery failsafe's charge still do.
 """
@@ -29,6 +31,7 @@ from typing import Any
 from flight_insights.analyzers.registry import Registry
 from flight_insights.performance.advice import EVIDENCE, Advice, Context
 from flight_insights.performance.envelope import Inputs as EnvelopeInputs
+from flight_insights.performance.envelope import gains
 from flight_insights.performance.envelope import step as next_step
 from flight_insights.performance.top_speed import lowest_volts
 
@@ -36,6 +39,7 @@ START = "speed.build_up_start"
 STEP = "speed.build_up_step"
 MISSING = "speed.build_up_missing_"  # + lean, thrust or current
 LIMITED = "speed.limited_by_"  # + the check that binds
+MODELLED = ("lean", "thrust", "current", "esc_temp")  # the models can say what moves them
 
 
 def fastest(ctx: Context) -> bool:
@@ -84,5 +88,14 @@ def buildup(ctx: Context, params: Mapping[str, float], reg: Registry) -> Advice:
     if binding not in by:  # a prediction the step needs is missing
         return Advice([_finding(ctx, MISSING + binding, common, [])])
     c = by[binding]
-    return Advice([_finding(ctx, LIMITED + binding, common | {
-        "value": round(c.value, 1), "limit": round(c.limit, 1)}, [])])  # fmt: skip
+    limited = common | {"value": round(c.value, 1), "limit": round(c.limit, 1)}
+    if binding in MODELLED:  # what it allows now, and what each solution would add
+        now, more = gains(binding, env, ctx.mass_kg, ctx.density, reg)
+        sizes = {str(x["name"]): x for x in reg.rules["performance"]["envelope"]["solutions"][
+            binding]}  # fmt: skip
+        limited["allows_ms"] = round(now, 1)
+        for name, gain in more.items():
+            share = next(float(v) for k, v in sizes[name].items() if k.endswith("_share"))
+            limited[f"{name}_gain_ms"] = round(gain, 1)
+            limited[f"{name}_pct"] = round(100 * abs(share - 1.0))
+    return Advice([_finding(ctx, LIMITED + binding, limited, [])])

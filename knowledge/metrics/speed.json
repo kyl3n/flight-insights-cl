@@ -63,8 +63,8 @@
         "uk": "Нарощування швидкості зупиняється на {verified_ms} м/с при {mass_kg} кг: на {next_ms} м/с він нахилявся б на {value}% від межі нахилу, понад ціль {limit}%"
       },
       "action": {
-        "en": "Lean is what speed costs against drag, so less drag moves it: a fairing or a slimmer payload, a smaller frontal area, or less weight. Raising ATC_ANGLE_MAX or PSC_ANGLE_MAX helps only within the thrust headroom, and is not proposed automatically.",
-        "uk": "Нахил — це ціна швидкості проти опору, тож його зменшує менший опір: обтічник або тонший вантаж, менша лобова площа чи менша вага. Підвищення ATC_ANGLE_MAX або PSC_ANGLE_MAX допомагає лише в межах запасу тяги і автоматично не пропонується."
+        "en": "Lean is what speed costs against drag, so less drag moves it: a fairing or a slimmer payload, a smaller frontal area, or less weight. Raising ATC_ANGLE_MAX or PSC_ANGLE_MAX helps only within the thrust headroom, and is not proposed automatically. At {mass_kg} kg the lean allows {allows_ms} m/s; {drag_pct}% less drag area would allow about {drag_gain_ms} m/s more.",
+        "uk": "Нахил — це ціна швидкості проти опору, тож його зменшує менший опір: обтічник або тонший вантаж, менша лобова площа чи менша вага. Підвищення ATC_ANGLE_MAX або PSC_ANGLE_MAX допомагає лише в межах запасу тяги і автоматично не пропонується. При {mass_kg} кг нахил дозволяє {allows_ms} м/с; на {drag_pct}% менша площа опору дозволила б приблизно на {drag_gain_ms} м/с більше."
       }
     },
     "speed.limited_by_thrust": {
@@ -74,8 +74,8 @@
         "uk": "Нарощування швидкості зупиняється на {verified_ms} м/с при {mass_kg} кг: на {next_ms} м/с потрібний нахил, {value}°, перевищує {limit}°, які дозволяє його тяга"
       },
       "action": {
-        "en": "More thrust headroom moves it: larger or higher-pitch propellers, higher-KV motors or a higher voltage, or less weight. A lower hover throttle at this weight leaves more lean before the motors saturate.",
-        "uk": "Його зсуває більший запас тяги: більші пропелери чи з більшим кроком, мотори з вищим KV або вища напруга, чи менша вага. Нижчий газ зависання за цієї ваги залишає більше нахилу до насичення моторів."
+        "en": "More thrust headroom moves it: larger or higher-pitch propellers, higher-KV motors or a higher voltage, or less weight. A lower hover throttle at this weight leaves more lean before the motors saturate. The thrust allows {allows_ms} m/s: {thrust_pct}% more thrust would allow about {thrust_gain_ms} m/s more, and {weight_pct}% less weight about {weight_gain_ms} m/s.",
+        "uk": "Його зсуває більший запас тяги: більші пропелери чи з більшим кроком, мотори з вищим KV або вища напруга, чи менша вага. Нижчий газ зависання за цієї ваги залишає більше нахилу до насичення моторів. Тяга дозволяє {allows_ms} м/с: на {thrust_pct}% більша тяга дозволила б приблизно на {thrust_gain_ms} м/с більше, а на {weight_pct}% менша вага — приблизно на {weight_gain_ms} м/с."
       }
     },
     "speed.limited_by_current": {
@@ -85,8 +85,8 @@
         "uk": "Нарощування швидкості зупиняється на {verified_ms} м/с при {mass_kg} кг: на {next_ms} м/с батареї віддавали б {value} А, понад {limit} А, які дозволяють вони й MOT_BAT_CURR_MAX"
       },
       "action": {
-        "en": "Packs with a higher continuous rating, more packs in parallel, or a higher voltage for the same power move it; less drag or weight lowers the power the speed takes.",
-        "uk": "Його зсувають батареї з вищим тривалим струмом, більше батарей паралельно або вища напруга для тієї ж потужності; менший опір чи вага знижують потужність, якої потребує швидкість."
+        "en": "Packs with a higher continuous rating, more packs in parallel, or a higher voltage for the same power move it; less drag or weight lowers the power the speed takes. The current allows {allows_ms} m/s: packs rated {rating_pct}% higher would allow about {rating_gain_ms} m/s more, and {drag_pct}% less drag area about {drag_gain_ms} m/s.",
+        "uk": "Його зсувають батареї з вищим тривалим струмом, більше батарей паралельно або вища напруга для тієї ж потужності; менший опір чи вага знижують потужність, якої потребує швидкість. Струм дозволяє {allows_ms} м/с: батареї з на {rating_pct}% вищим струмом дозволили б приблизно на {rating_gain_ms} м/с більше, а на {drag_pct}% менша площа опору — приблизно на {drag_gain_ms} м/с."
       }
     },
     "speed.limited_by_esc_temp": {
@@ -96,8 +96,8 @@
         "uk": "Нарощування швидкості зупиняється на {verified_ms} м/с при {mass_kg} кг: на {next_ms} м/с найгарячіший ESC усталився б на {value} °C, понад {limit} °C (його захист мінус 10 °C)"
       },
       "action": {
-        "en": "Cool the ESCs (airflow, heatsinks, mounting away from the battery's heat), or fit ESCs with more current headroom.",
-        "uk": "Охолодіть ESC (обдув, радіатори, монтаж подалі від тепла батареї) або встановіть ESC з більшим запасом струму."
+        "en": "Cool the ESCs (airflow, heatsinks, mounting away from the battery's heat), or fit ESCs with more current headroom. The ESCs' temperature allows {allows_ms} m/s: cooling that cuts their heating by {cooling_pct}% would allow about {cooling_gain_ms} m/s more, and {drag_pct}% less drag area about {drag_gain_ms} m/s.",
+        "uk": "Охолодіть ESC (обдув, радіатори, монтаж подалі від тепла батареї) або встановіть ESC з більшим запасом струму. Температура ESC дозволяє {allows_ms} м/с: охолодження, що зменшує їх нагрів на {cooling_pct}%, дозволило б приблизно на {cooling_gain_ms} м/с більше, а на {drag_pct}% менша площа опору — приблизно на {drag_gain_ms} м/с."
       }
     },
     "speed.limited_by_output": {
