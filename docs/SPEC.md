@@ -764,7 +764,7 @@ Added to Phase 2 on 2026-10-27 at the fleet owner's request, and built in steps 
   - **The pack's energy at each figure's own power.** Flight time and range read it at their steady power. The range speed is the airspeed of most metres per pack, so the pack's sag puts it a little slower than the model's own tangent.
   - **A trip's energy** is read at the trip's mean power, repeated until the two agree. A varying load loses a fraction of a per cent more to the pack's resistance than a steady one at its mean; that is well inside the model's error.
   - **Against weight:** nine weights from empty to the heaviest take-off. A weight within 5% of the weights flown is marked measured; the rest are extrapolated. Weights the pack cannot hover are left out.
-  - **How sure:** each figure again for every bootstrap model, each with a model error drawn from the leave-one-flight-out errors. The 95% interval and the median are shown, and the card uses the low end.
+  - **How sure:** each figure again for every bootstrap model (once the airframe has 3 flights or more; with fewer, resampling mostly refits one flight alone), each with a zero-mean model error sized by the leave-one-flight-out errors' root mean square. Those errors come from a model fitted on fewer flights, so they size the spread rather than shift it. The 95% interval is shown about the model's own figure, and the card uses the low end.
 - **Maximum speed:** the least of the lean limit (from the measured drag at that weight), thrust headroom and the power or current limit. It is shown beside the configured `WP_SPD`, `LOIT_SPEED_MS` and the firmware's caps.
 - **Efficiency:**
   - hover figure of merit (the ideal power W·v_h over the packs' power) and g/W at standard air;
