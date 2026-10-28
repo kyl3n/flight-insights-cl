@@ -8,10 +8,11 @@ steady flight the forward and sideways specific force in the body frame is the d
 The estimator gives it without trusting the accelerometers' level: its attitude applied
 to its velocity's change, less gravity.
 
-- **Windows.** The flight is cut into 2 s windows of the primary estimator core (XKF1),
-  each kept when it is steady: well above take-off, hardly accelerating or climbing, and
-  not leaning hard. In each, the drag is the mean body-frame specific force, and the
-  ground velocity is taken into the body frame with the window's own attitude.
+- **Windows.** The flight's 2 s tiles of the primary estimator core (XKF1,
+  `analyzers/steady.py`), each kept when it is steady: well above take-off, hardly
+  accelerating or climbing, and not leaning hard. In each, the drag is the mean
+  body-frame specific force, and the ground velocity is taken into the body frame with
+  the window's own attitude.
 - **The model, per body axis:** drag = -k1 v - k2 v|v| + b, where v is the airspeed
   (ground velocity less the wind) and b the lean the aircraft needs in still air (its
   centre of gravity, the accelerometers' level).
@@ -52,6 +53,7 @@ from typing import Any
 
 import numpy as np
 
+from flight_insights.analyzers import steady
 from flight_insights.analyzers.flight import FlightData
 from flight_insights.analyzers.model import (
     Analyzer,
@@ -146,47 +148,31 @@ def _empty() -> Windows:
 
 def windows(e: Mapping[str, Array], arm_us: int, disarm_us: int, rules: Mapping[str, Any]
             ) -> Windows:  # fmt: skip
-    t = e["t"]
-    flown = (t >= arm_us) & (t <= disarm_us)
-    if not flown.any():
+    found = steady.tiles(e, arm_us, disarm_us, float(rules["window_s"]), int(rules["min_samples"]))
+    keep = (
+        (found.height >= float(rules["min_height_m"]))
+        & (found.horizontal_accel <= float(rules["max_accel"]))
+        & (np.abs(found.velocity[:, 2]) <= float(rules["max_climb"]))
+        & (found.tilt <= float(rules["max_tilt_deg"]))
+    )
+    if not keep.any():
         return _empty()
-    ground_pd = float(e["PD"][np.argmax(flown)])
-    step = int(float(rules["window_s"]) * 1e6)
-    edges = np.arange(arm_us, disarm_us - step + 1, step)
+    found = found.take(keep)
     roll, pitch, yaw = (np.radians(e[n]) for n in ("Roll", "Pitch", "Yaw"))
     bx, by = body_rows(roll, pitch, yaw)
-    rows: list[tuple[int, int, Array, Array, Array, float]] = []
-    lo = np.searchsorted(t, edges, side="left")
-    hi = np.searchsorted(t, edges + step, side="left")
-    for start, a, b in zip(edges, lo, hi, strict=True):
-        if b - a < int(rules["min_samples"]):
-            continue
+    drag: list[Array] = []
+    ground: list[Array] = []
+    turn: list[Array] = []
+    for a, b, acc in zip(found.lo, found.hi, found.accel, strict=True):
         s = slice(a, b)
-        tt = (t[s] - t[s].mean()) / 1e6
-        if np.ptp(tt) <= 0:
-            continue
-        acc = np.array([np.polyfit(tt, e[n][s], 1)[0] for n in ("VN", "VE", "VD")])
         vel = np.stack([e["VN"][s], e["VE"][s], e["VD"][s]], axis=-1)
-        height = -(float(np.mean(e["PD"][s])) - ground_pd)
-        tilt = np.degrees(np.arccos(np.clip(np.cos(roll[s]) * np.cos(pitch[s]), -1, 1)))
-        if (height < float(rules["min_height_m"])
-                or math.hypot(acc[0], acc[1]) > float(rules["max_accel"])
-                or abs(float(np.mean(vel[:, 2]))) > float(rules["max_climb"])
-                or float(np.max(tilt)) > float(rules["max_tilt_deg"])):  # fmt: skip
-            continue
-        force = acc - np.array([0.0, 0.0, G])
-        drag = np.array([np.mean(bx[s] @ force), np.mean(by[s] @ force)])
-        ground = np.array([np.mean(np.sum(bx[s] * vel, axis=1)),
-                           np.mean(np.sum(by[s] * vel, axis=1))])  # fmt: skip
-        turn = np.array([np.mean(bx[s][:, :2], axis=0), np.mean(by[s][:, :2], axis=0)])
-        rows.append((int(start), int(start + step), drag, ground, turn, height))
-    if not rows:
-        return _empty()
-    return Windows(
-        np.array([r[0] for r in rows], np.int64), np.array([r[1] for r in rows], np.int64),
-        np.array([r[2] for r in rows]), np.array([r[3] for r in rows]),
-        np.array([r[4] for r in rows]), np.array([r[5] for r in rows]),
-    )  # fmt: skip
+        force: Array = np.asarray(acc) - np.array([0.0, 0.0, G])
+        drag.append(np.array([np.mean(bx[s] @ force), np.mean(by[s] @ force)]))
+        ground.append(np.array([np.mean(np.sum(bx[s] * vel, axis=1)),
+                                np.mean(np.sum(by[s] * vel, axis=1))]))  # fmt: skip
+        turn.append(np.array([np.mean(bx[s][:, :2], axis=0), np.mean(by[s][:, :2], axis=0)]))
+    return Windows(found.start_us, found.end_us, np.array(drag), np.array(ground),
+                   np.array(turn), found.height)  # fmt: skip
 
 
 def _airspeed(w: Windows, wind: Array) -> Array:

@@ -5,9 +5,9 @@ So far it measures the speed sweep: the flight that gives the airframe's power a
 airspeed, which ArduPilot's simulator cannot show (its motors draw power in proportion
 to thrust, with no drop at moderate forward speed).
 
-- **Tiles.** The flight is cut into 2 s tiles of the primary estimator core (XKF1). A
-  tile is level and steady when it flies well above take-off at a real ground speed,
-  hardly accelerating, climbing or turning its track.
+- **Tiles.** The flight's 2 s tiles of the primary estimator core (XKF1,
+  `analyzers/steady.py`). A tile is level and steady when it flies well above take-off
+  at a real ground speed, hardly accelerating, climbing or turning its track.
 - **Legs.** Back-to-back steady tiles holding one speed and one track make a leg; a leg
   counts once it is long enough to read power at that speed.
 - **Pairs.** A leg and the next one, heading the opposite way soon after, are one speed
@@ -20,13 +20,13 @@ Only ground velocity is read (never a position), and only counts and speeds leav
 
 from __future__ import annotations
 
-import math
 from collections.abc import Mapping, Sequence
 from dataclasses import dataclass
 from typing import Any
 
 import numpy as np
 
+from flight_insights.analyzers import steady
 from flight_insights.analyzers.flight import FlightData
 from flight_insights.analyzers.model import Analyzer, Evidence, MetricValue, Result, Segment
 from flight_insights.analyzers.registry import Registry
@@ -87,38 +87,19 @@ def _turn(a: float, b: float) -> float:
 def tiles(e: Mapping[str, Array], arm_us: int, disarm_us: int, rules: Mapping[str, Any]
           ) -> list[Tile]:  # fmt: skip
     """The level, steady tiles between arming and disarming."""
-    t = e["t"]
-    flown = (t >= arm_us) & (t <= disarm_us)
-    if not flown.any():
-        return []
-    ground_pd = float(e["PD"][np.argmax(flown)])
-    step = int(float(rules["tile_s"]) * 1e6)
-    edges = np.arange(arm_us, disarm_us - step + 1, step)
-    lo = np.searchsorted(t, edges, side="left")
-    hi = np.searchsorted(t, edges + step, side="left")
-    out: list[Tile] = []
-    for start, a, b in zip(edges, lo, hi, strict=True):
-        if b - a < int(rules["min_samples"]):
-            continue
-        s = slice(a, b)
-        tt = (t[s] - t[s].mean()) / 1e6
-        if np.ptp(tt) <= 0:
-            continue
-        vn, ve, vd = e["VN"][s], e["VE"][s], e["VD"][s]
-        speed = float(np.hypot(np.mean(vn), np.mean(ve)))
-        height = -(float(np.mean(e["PD"][s])) - ground_pd)
-        accel = math.hypot(np.polyfit(tt, vn, 1)[0], np.polyfit(tt, ve, 1)[0])
-        heading = np.unwrap(np.arctan2(ve, vn))
-        turn = abs(math.degrees(float(np.polyfit(tt, heading, 1)[0])))
-        if (height < float(rules["min_height_m"])
-                or speed < float(rules["min_speed_ms"])
-                or accel > float(rules["max_accel"])
-                or abs(float(np.mean(vd))) > float(rules["max_climb"])
-                or turn > float(rules["max_turn_deg_s"])):  # fmt: skip
-            continue
-        track = math.degrees(math.atan2(float(np.mean(ve)), float(np.mean(vn)))) % 360.0
-        out.append(Tile(int(start), int(start + step), speed, track))
-    return out
+    found = steady.tiles(e, arm_us, disarm_us, float(rules["tile_s"]), int(rules["min_samples"]))
+    keep = (
+        (found.height >= float(rules["min_height_m"]))
+        & (found.speed >= float(rules["min_speed_ms"]))
+        & (found.horizontal_accel <= float(rules["max_accel"]))
+        & (np.abs(found.velocity[:, 2]) <= float(rules["max_climb"]))
+        & (found.track_rate <= float(rules["max_turn_deg_s"]))
+    )
+    level = found.take(keep)
+    return [
+        Tile(int(a), int(b), float(v), float(k))
+        for a, b, v, k in zip(level.start_us, level.end_us, level.speed, level.track, strict=True)
+    ]
 
 
 def legs(found: Sequence[Tile], rules: Mapping[str, Any]) -> list[Leg]:

@@ -682,6 +682,14 @@ Added to Phase 2 on 2026-10-27 at the fleet owner's request, and built in steps 
 **The power model** (`performance/`, not yet). It is fitted per airframe and build version, with weight as a variable.
 
 - **What is fitted:** the battery's terminal power (volts times amps, summed over the pack monitors), in steady 2 s tiles of level flight, hover, climb and descent.
+- **Steady tiles and phases** (measured now, `analyzers/steady.py`, rules in `rules/energy.json`):
+  - The flight is cut once into 2 s tiles of the primary estimator core. The wind analyzer's drag windows and the speed sweep's legs are read from the same tiles, each with its own rules.
+  - Each tile gets a phase from its ground velocity:
+    - low: under 5 m above take-off, whatever it does;
+    - climb or descent: 0.5 m/s or more up or down;
+    - hover: under 1 m/s;
+    - level: 2 m/s or more, holding its speed, height and track;
+    - anything else a manoeuvre.
 - **Momentum theory with Glauert's inflow:**
   - Thrust and the rotor's tilt come from the force balance against the airframe's parasite drag, whose flat-plate area comes from the wind analyzer's square-law drag.
   - The rotor's in-plane drag costs no extra power, so it is not counted as parasite power.
