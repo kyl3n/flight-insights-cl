@@ -825,7 +825,7 @@ Added to Phase 2 on 2026-10-27 at the fleet owner's request, and built in steps 
     The card also gives what it is good for: the weights and speeds flown, the air, the reserve and the latest flight's parameters.
   - An unknown airframe is refused as bad input.
 
-**The speed build-up** (when the speed goal is "fastest safe"; the verified speed, the step and its predicted margins are worked out, `performance/envelope.py` and `thermal.py`; the procedure, the readiness checks and the staging are not yet).
+**The speed build-up** (when the speed goal is "fastest safe"; the verified speed, the step and its predicted margins are worked out, `performance/envelope.py` and `thermal.py`, and given to the plan with the step's procedure, `performance/buildup.py`; the readiness checks, the gains each solution would bring and the lean-limit raises are not yet).
 
 - **Verified speed:** the fastest fast segment (below) the airframe held for 10 s or more at the same weight or heavier (within 3%), with every watched metric that has zones in its target zone. A flight with anything outside its target verifies nothing.
 - **Each step:**
@@ -843,10 +843,25 @@ Added to Phase 2 on 2026-10-27 at the fleet owner's request, and built in steps 
   - It is fitted by output error: the model's temperature from the flight's current is compared with the logged temperature, so the telemetry's whole-degree steps do not bias it. For each τ it is linear in the start temperature, the air's and k; τ is searched and refined.
   - A flight whose current hardly changes gives no model.
   - Not on the simulator, whose ESC temperatures are placeholders.
-  - It is staged at Navigation, so it waits for the mechanical, filter and tune stages.
-  - It also needs its own readiness checks, among them the notch's tracking range covering the motor frequency at top-speed throttle.
-- **The procedure:** parameter file, temporary logging, card, abort criteria, verify checks on the flight's fast segment, and the undo file.
-- **When a limit binds:** the app says which one, with the solutions and the gain the models predict for each.
+- **In the plan** (`performance/buildup.py`), with the speed goal "fastest safe", at the flight's weight:
+  - **No verified speed:** fly the speed card at this weight (`speed.build_up_start`).
+  - **The step offered:** `WP_SPD` is set to the step speed, rounded down to 0.1 m/s (`speed.build_up_step`). It is lowered to it when set faster still, so the next flight flies the step and no more. This is the one raise past the verified speed the never-raise rule lets through.
+  - **A required prediction missing** (`speed.build_up_missing_<what>`) says what to get:
+    - **lean:** the airframe's own drag, from a flight that changes speed and heading;
+    - **thrust:** the hover throttle at a known weight;
+    - **current:** the packs' rating and size, or `MOT_BAT_CURR_MAX`.
+  - **A margin failing** (`speed.limited_by_<margin>`): its predicted value and limit, and what moves it.
+  - **While the goal is fastest,** `WP_SPD` follows the build-up, not the Priority answer. The home speed and the battery failsafe's charge still follow their own rules.
+- **Staging:** at Navigation, so it waits for the mechanical, filter and tune stages.
+- **The procedure** (`speed.build_up_step`):
+  - **The card:** light air (under 3 m/s), open ground with a straight run of about 400 m, at 30 m or higher, at the weight it is for. Fly out and back in AUTO, 15 s or more steady each way.
+  - **The test-flight logging:** `LOG_BITMASK` bits 1, 4, 5, 7, 9, 10 and 17, which log attitude, control, navigation, vibration, battery, outputs and motors (ArduCopter 4.7.0 `Copter.cpp` and `Log.cpp`; ESC telemetry logs whenever logging is on).
+  - **Abort criteria,** with the undo file.
+  - **The next flight's checks** (graded by its checks alone): its fast segment reaches 97% of the step speed (`reaches_proposed`), and every watched metric with zones is in target (`in_target`). The step is then the verified speed.
+- **When a limit binds:** the app says which one and what moves it. The gain the models predict for each solution is not yet given.
+- **Not yet:**
+  - the build-up's own readiness checks, among them the notch's tracking range covering the motor frequency at top-speed throttle;
+  - raising the lean limits within the thrust headroom.
 
 **The fast segment** (measured now, `analyzers/fast.py`; what the build-up's checks read).
 
@@ -1795,7 +1810,7 @@ The numbers above are illustrative. `expected_effect` comes from simulation wher
 - Step limits: gain changes larger than the rule pack's per-flight limit are split across flights. The limit starts at a quarter of the current value, uncalibrated, for rate, angle and position gains.
 - Never proposed automatically:
   - disabling arming checks or failsafes: setting `ARMING_SKIPCHK` or `FS_OPTIONS` bits, or zeroing a failsafe enable or action;
-  - raising limits past what the log shows the airframe can do. A listed limit is never raised; for some limits, 0 means unlimited. The exception is speed. `WP_SPD`, `RTL_SPEED_MS` and `LOIT_SPEED_MS` may rise up to the airframe's verified speed less its typical wind, measured for the flight's weight (`performance/advice.py`). With the platform's speed goal "fastest safe", the speed build-up may raise them, and the lean limits within measured thrust headroom, one predicted, gated step at a time (Power and efficiency analysis, "Range, endurance and speed"; not yet). `BATT_LOW_MAH` and `BATT_CRT_MAH` are never lowered.
+  - raising limits past what the log shows the airframe can do. A listed limit is never raised; for some limits, 0 means unlimited. The exception is speed. `WP_SPD`, `RTL_SPEED_MS` and `LOIT_SPEED_MS` may rise up to the airframe's verified speed less its typical wind, measured for the flight's weight (`performance/advice.py`). With the platform's speed goal "fastest safe", the speed build-up raises `WP_SPD` one predicted, gated step at a time past it (`performance/buildup.py`; Power and efficiency analysis, "Range, endurance and speed"). Raising the lean limits within measured thrust headroom is not yet. `BATT_LOW_MAH` and `BATT_CRT_MAH` are never lowered.
 
   The lists are in the rule pack.
 
@@ -1870,6 +1885,8 @@ The numbers above are illustrative. `expected_effect` comes from simulation wher
   - `metric_improves {metric, by}`: every band flown before the change is flown again with it, and there the metric is better by at least `by` (a share of its value before), with the two 95% intervals apart where the metric has them. A band worse by the same margin, intervals apart, marks the check worse.
   - `metric_not_worse {metric, by}`: the same bands, flown again with it, none worse by `by` with the intervals apart. A guard on what the change is not meant to improve; one band clearly worse fails it at once.
   - `no_shift_worse`: no metric shifted worse after the change beyond the airframe's spread (change attribution, below).
+  - `reaches_proposed {metric, share}`: the later flight's metric reaches at least `share` of the value the recommendation proposed (the speed build-up's step: its fast segment at 97% of the step speed).
+  - `in_target {segment}`: every metric with zones in that segment is in its target zone (the speed build-up's watched metrics). A flight with none measured there leaves it unjudged.
   - `metric_vs_lightest {metric, max_ratio | max_above}`: with the change, the heaviest band's value is at most `max_ratio` times the lightest's, or at most `max_above` over it. ArduPilot tunes light, and the same gains may fly a heavier aircraft slower, but not less stable.
 - **Required checks.** A check marked `required` that cannot judge yet (a band not flown again, a metric not measured) keeps the grade pending: the recommendation stays applied, with what was measured so far kept beside it. A band already flown again that is worse is graded regressed at once, without waiting for the others: no loaded test flight is needed on gains a light one already showed worse. A check that is not required and cannot judge does not hold the grade back.
 - **Graded by its checks.** Some findings are offers that a later flight raises again whatever happened (AutoTune can always be run). A procedure marked `graded_by: checks` is graded on its checks alone: worse in any band is **regressed**, a failed check is **no effect**, and all checks passed is **confirmed**.

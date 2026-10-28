@@ -1104,7 +1104,11 @@
         },
         {
           "kind": "verify",
-          "checks": [{"check": "finding_clears"}],
+          "checks": [
+            {
+              "check": "finding_clears"
+            }
+          ],
           "text": {
             "en": "The next log holds FS_DR_TIMEOUT as set. The drill shows the estimator dead-reckoning from about 10 s and keeping a position all through, and, once GNSS came back, how long its estimate takes to be 10 m off. That time grows with the cube of the time flown, so it shows how far from home a long return on dead reckoning may land.",
             "uk": "Наступний журнал містить FS_DR_TIMEOUT із заданим значенням. Тренування показує, що оцінювач перейшов на навігацію за рахунком приблизно з 10 с і весь час утримував позицію, а після повернення GNSS — за скільки його оцінка відійде на 10 м. Цей відхід зростає пропорційно кубу часу польоту, тож видно, наскільки далеко від дому може сісти апарат після довгого повернення за рахунком."
@@ -1541,6 +1545,71 @@
           "text": {
             "en": "The next log shows at least four speeds flown both ways on straight legs. With the battery's power on each leg, they give the airframe's power at each airspeed and payload: its best-endurance and best-range speeds, flight time, range and radius.",
             "uk": "Наступний журнал показує щонайменше чотири швидкості, пройдені в обидва боки на прямих відрізках. Разом із потужністю батареї на кожному відрізку вони дають потужність апарата на кожній повітряній швидкості й навантаженні: його швидкості найбільшої тривалості й найбільшої дальності, тривалість польоту, дальність і радіус."
+          }
+        }
+      ]
+    },
+    "speed.build_up_step": {
+      "graded_by": "checks",
+      "add_temporary": [
+        {
+          "param": "LOG_BITMASK",
+          "set_bits": [
+            1,
+            4,
+            5,
+            7,
+            9,
+            10,
+            17
+          ]
+        }
+      ],
+      "steps": [
+        {
+          "kind": "ground_check",
+          "text": {
+            "en": "Choose light air (wind under 3 m/s) over open ground with a clear straight run of about 400 m and nothing below the line. Fly at the weight this step is for (the payload and pack type as before), with a full pack. In the ground station, plan an out-and-back line between two waypoints at one height of 30 m or more, flown nose-first. The step's file sets WP_SPD; the test-flight settings make sure the attitude, control, navigation, vibration, battery, motor and output logs the checks read are on. Keep Loiter on the flight-mode switch to take over.",
+            "uk": "Оберіть слабкий вітер (до 3 м/с) над відкритою місцевістю з вільною прямою ділянкою близько 400 м і нічим під лінією. Летіть із вагою, для якої цей крок (той самий вантаж і тип батареї), з повністю зарядженою батареєю. У наземній станції сплануйте лінію туди й назад між двома точками маршруту на одній висоті 30 м або більше, з польотом носом уперед. Файл кроку встановлює WP_SPD; налаштування тестового польоту вмикають журнали положення, керування, навігації, вібрації, батареї, моторів і виходів, які читають перевірки. Тримайте Loiter на перемикачі режимів, щоб перебрати керування."
+          }
+        },
+        {
+          "kind": "fly",
+          "text": {
+            "en": "Take off, climb to the line's height and hover for 30 s. Fly the line in AUTO at the new speed: out and back, at least 15 s steady each way on the straight, with no turns or height changes. Two passes each way are better than one. Then land.",
+            "uk": "Злетіть, наберіть висоту лінії й зависніть на 30 с. Пройдіть лінію в AUTO на новій швидкості: туди й назад, щонайменше 15 с рівного польоту в кожен бік на прямій, без поворотів і змін висоти. Два проходи в кожен бік кращі за один. Потім сідайте."
+          }
+        },
+        {
+          "kind": "abort",
+          "text": {
+            "en": "Switch to Loiter, slow down and land, then load the undo file, if the aircraft oscillates or vibrates hard, a vibration clipping, thrust-loss or ESC temperature warning shows, an ESC nears its protection temperature less 10 °C, the motors saturate, it loses more than 2 m of height, it cannot hold the speed or the line, the battery reaches its caution level, or the wind picks up beyond 3 m/s.",
+            "uk": "Перейдіть у Loiter, зменште швидкість і сідайте, потім завантажте файл скасування, якщо апарат розгойдується чи сильно вібрує, з'являється попередження про обмеження вібрації, втрату тяги чи температуру ESC, ESC наближається до своєї температури захисту мінус 10 °C, мотори насичуються, апарат втрачає понад 2 м висоти, не тримає швидкість чи лінію, батарея досягає рівня попередження або вітер посилюється понад 3 м/с."
+          }
+        },
+        {
+          "kind": "verify",
+          "checks": [
+            {
+              "check": "has_metric",
+              "metric": "fast.speed_ms",
+              "required": true
+            },
+            {
+              "check": "reaches_proposed",
+              "metric": "fast.speed_ms",
+              "share": 0.97,
+              "required": true
+            },
+            {
+              "check": "in_target",
+              "segment": "fast",
+              "required": true
+            }
+          ],
+          "text": {
+            "en": "The next log's fast segment holds within 3% of the new speed for 10 s or more, with vibration, motor output, lean, attitude and velocity tracking, height, battery sag, ESC temperatures and thrust-loss checks all in target. The step is then the airframe's verified speed at this weight, and the next one is offered when the models predict it holds.",
+            "uk": "Швидкісний відрізок наступного журналу тримається в межах 3% від нової швидкості 10 с або довше, з вібрацією, виходом моторів, нахилом, відстеженням положення й швидкості, висотою, просіданням батареї, температурами ESC і перевірками втрати тяги в цільовій зоні. Тоді цей крок стає підтвердженою швидкістю апарата за цієї ваги, а наступний пропонується, коли моделі передбачать, що він тримається."
           }
         }
       ]

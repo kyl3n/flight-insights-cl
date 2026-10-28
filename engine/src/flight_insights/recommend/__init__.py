@@ -75,16 +75,19 @@ def flight_plan(
     findings += followup.revert_findings(store, flight_id, dialect, params)
     findings += followup.drill_findings(store, reg, flight_id, analysis)
     findings += followup.sweep_findings(store, reg, flight_id, analysis)
-    from flight_insights.performance import advice, charge  # trends plans flights too
+    from flight_insights.performance import advice, buildup, charge  # trends plans too
 
     ctx = (
         advice.context(store, cache, pack, reg, flight_id, analysis) if cache is not None else None
     )
-    speed = advice.speeds(ctx, params) if ctx is not None else advice.Advice()
-    findings += speed.findings
+    limits: dict[str, float] = {}
     if ctx is not None:
+        for got in (advice.speeds(ctx, params), buildup.buildup(ctx, params, reg)):
+            findings += got.findings
+            for name, value in got.raise_limits.items():
+                limits[name] = max(value, limits.get(name, value))
         findings += charge.charge_findings(ctx, store, reg, params, analysis)
-    plan = build_plan(flight_id, findings, params, dialect, reg, speed.raise_limits)
+    plan = build_plan(flight_id, findings, params, dialect, reg, limits)
     plan.held_back = held
     return plan
 
