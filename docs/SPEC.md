@@ -906,7 +906,7 @@ Added to Phase 2 on 2026-10-27 at the fleet owner's request, and built in steps 
   - **The heavy lifter's sweep:** tops at 12 m/s in still air.
   - **The quad's sweep:** holds its ground speed both ways in a 1.5 m/s wind, so it reads 9.5 m/s through the air on its upwind legs.
 
-**Recommendations** (the cruise and home speeds, `BATT_LOW_MAH`, `BATT_CAPACITY` and pack ageing are worked out, `performance/advice.py`, `charge.py` and `packs.py`; the rest are not yet).
+**Recommendations** (the cruise and home speeds, `BATT_LOW_MAH`, `BATT_CAPACITY`, pack ageing and the energy anomaly are worked out, `performance/advice.py`, `charge.py`, `packs.py` and `efficiency.py`; the rest are not yet).
 
 - **Cruise speed:** `WP_SPD` set to the speed the Priority answer calls for.
   - **For endurance:** the airspeed of least power.
@@ -929,8 +929,14 @@ Added to Phase 2 on 2026-10-27 at the fleet owner's request, and built in steps 
   - **Worn** (`performance.pack_worn`): its capacity, from at least 2 measuring flights, under 80% of its rated capacity (the pack's own record, else the setup's). USABC's test manual and GB/Z 18333.1 end life at 80%.
   - **Resistance risen** (`performance.pack_resistance`): the median of its latest 3 flights at twice the median of its first 3. 200% of initial is the convention the power metrics already cite. A cold pack reads high too, so it says to compare at a similar temperature.
 - **Avionics draw:** not yet.
-- **Payload drag and hover efficiency** against the airframe's own baseline.
-- **Energy anomaly:** a flight whose power departs from the model.
+- **Payload drag:** not yet.
+- **Energy anomaly, and hover efficiency against the airframe's own baseline** (`performance/efficiency.py`, rules `rules/performance.json` "anomaly"):
+  - **What is compared:** the flight's hover points and its level points, each over at least 20 s, against the airframe's power model fitted without the flight, at each point's weight, airspeed, climb and air.
+  - **When it is flagged:** the power drawn exceeds the prediction by more than the larger of 8% and three times the spread between the airframe's other flights. The spread is how far each other flight's energy sits from that same model (1.4826 times the median absolute deviation), so the flight judged never widens it. It needs 3 flights with points.
+  - **What it says** (caution, low confidence, no change):
+    - **hover** (`performance.energy_hover`): the propulsion (a damaged, loose or different propeller, a motor or ESC working harder, a pack sagging more) or a take-off weight entered wrong;
+    - **level** (`performance.energy_level`): drag (something added, hanging or loose, a payload's shape), or a gusty flight.
+  - **On the simulator:** Callisto's loaded speed card (40.5 kg) entered at 32.5 kg reads 34% over in hover and 42% in level flight, against a threshold of 8%. Four flights entered at their own weights are not flagged.
 
 **Privacy.**
 

@@ -88,6 +88,28 @@
         "en": "{end_ratio} times its first flights' resistance is the usual end-of-life mark: the pack sags more under load, gives less of its energy at high power and runs hotter. Retire it, or keep it for light work. A cold pack also reads high, so compare at a similar temperature first. The median of its latest {compared} flights against its first {compared}, of {flights} flown alone on one monitor.",
         "uk": "Опір, у {end_ratio} раза більший за опір у перших польотах, — звичайна межа ресурсу: батарея сильніше просідає під навантаженням, віддає менше енергії на великій потужності й більше гріється. Виведіть її з експлуатації або залиште для легкої роботи. Холодна батарея теж показує високий опір, тож спершу порівняйте за подібної температури. Медіана останніх {compared} польотів проти перших {compared} з {flights}, коли вона була єдиною на одному моніторі."
       }
+    },
+    "performance.energy_hover": {
+      "stage": "operations",
+      "title": {
+        "en": "This flight's hover drew {excess_pct}% more power than the airframe's other flights predict at {mass_kg} kg",
+        "uk": "Під час зависання цей політ спожив на {excess_pct}% більше потужності, ніж передбачають інші польоти апарата при {mass_kg} кг"
+      },
+      "action": {
+        "en": "In hover the power goes to lifting the weight, so more of it points at the propulsion or the weight: check that the take-off weight entered is right; that no propeller is damaged, loose or of another size or pitch; that the motors spin freely and no ESC runs hotter or draws more current at the same RPM (the ESC and motor health pages); and that the pack sags no more than usual. {seconds} s of hover at {drawn_w} W, against the power model fitted without this flight; flagged above {threshold_pct}%, from how closely the other {flights} flights match it.",
+        "uk": "Під час зависання потужність іде на утримання ваги, тож надлишок вказує на силову установку або вагу: перевірте, чи правильно введено злітну вагу; чи не пошкоджено, не ослаблено гвинт і чи він того самого розміру й кроку; чи вільно обертаються мотори і чи жоден ESC не гріється сильніше або не бере більший струм на тих самих обертах (сторінки стану ESC і моторів); і чи просідає батарея не більше, ніж зазвичай. {seconds} с зависання при {drawn_w} Вт проти моделі потужності, побудованої без цього польоту; позначається понад {threshold_pct}%, з огляду на те, наскільки точно їй відповідають інші {flights} польоти."
+      }
+    },
+    "performance.energy_level": {
+      "stage": "operations",
+      "title": {
+        "en": "This flight's level flight drew {excess_pct}% more power than the airframe's other flights predict at {mass_kg} kg",
+        "uk": "Під час горизонтального польоту цей політ спожив на {excess_pct}% більше потужності, ніж передбачають інші польоти апарата при {mass_kg} кг"
+      },
+      "action": {
+        "en": "In level flight more power with a normal hover points at drag: something added, hanging or loose (a cable, a cover, a payload or its mount), or a payload with more frontal area than the others. A payload's own drag is measured from the flights that carry it. Wind also costs power, so a gusty flight reads high too. {seconds} s of level flight at {drawn_w} W, against the power model fitted without this flight; flagged above {threshold_pct}%, from how closely the other {flights} flights match it.",
+        "uk": "Якщо в горизонтальному польоті потужність більша, а зависання звичайне, це вказує на опір повітря: щось додане, звисає або ослаблене (кабель, кришка, вантаж чи його кріплення), або вантаж із більшою лобовою площею, ніж інші. Власний опір вантажу вимірюється з польотів, що його несуть. Вітер теж забирає потужність, тож пориви також дають підвищене значення. {seconds} с горизонтального польоту при {drawn_w} Вт проти моделі потужності, побудованої без цього польоту; позначається понад {threshold_pct}%, з огляду на те, наскільки точно їй відповідають інші {flights} польоти."
+      }
     }
   }
 }
