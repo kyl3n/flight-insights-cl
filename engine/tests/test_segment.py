@@ -300,6 +300,9 @@ def test_every_fixture_is_one_flight_with_the_modes_its_scenario_flew(
         "copter-heavylift-light": ["GUIDED", "LAND"],
         "copter-heavylift-loaded": ["GUIDED", "LAND"],
         "copter-heavylift-tune": ["GUIDED", "ALT_HOLD", "LAND"],
+        "copter-heavylift-sweep": ["GUIDED", "LAND"],
+        "copter-heavylift-sweep-loaded": ["GUIDED", "LAND"],
+        "copter-heavylift-discharge": ["GUIDED", "LAND"],  # LAND by the battery failsafe
         "heli-hover": ["GUIDED", "LAND"],
         "plane-circuit": ["AUTO", "RTL"],
         "quadplane-hover": ["QLOITER", "QLAND"],

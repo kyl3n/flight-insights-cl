@@ -1,8 +1,9 @@
-"""The speed sweep on ArduCopter 4.7.0 SITL flights (tests/fixtures/sitl/4.7.0/
-copter-quad-sweep): the card flown in GUIDED, legs east and back west at 2, 4, 6 and
-8 m/s in a gusting 1.5 m/s wind along them, counts its four speeds; the wind analyzer's
-6 s legs are too short to read power on; and the card is offered on the airframe's
-flights until one at the same payload has flown it."""
+"""The speed sweep on ArduCopter 4.7.0 SITL flights (tests/fixtures/sitl/4.7.0): the
+card flown in GUIDED counts its four speeds, on the quad at 2 to 8 m/s in a gusting 1.5 m/s
+wind along the legs (copter-quad-sweep) and on the heavy-lift X8 at 3 to 12 m/s in still air,
+light and loaded (copter-heavylift-sweep, -sweep-loaded); the wind analyzer's 6 s legs are
+too short to read power on; and the card is offered on the airframe's flights until one at
+the same payload has flown it."""
 
 from __future__ import annotations
 
@@ -37,10 +38,12 @@ def flown(tmp_path_factory: pytest.TempPathFactory) -> dict[str, Any]:
     store = open_store(folder / "sweep.db", keys, "e" * 32)
     cache = ColumnCache(folder / "cache", keys)
     ids: dict[str, str] = {}
+    frames: dict[str, str] = {}
     for name, frame in (("copter-quad-hover", "Q"), ("copter-quad-sweep", "Q"),
-                        ("copter-quad-wind", "W")):  # fmt: skip
+                        ("copter-quad-wind", "W"), ("copter-heavylift-sweep", "H"),
+                        ("copter-heavylift-sweep-loaded", "H")):  # fmt: skip
         batch = scan(store, pack, bytes(32), [FIXTURES / f"{name}.bin"])
-        af = airframe(store, pack, frame)
+        af = frames.setdefault(frame, airframe(store, pack, frame))
         [res] = commit(store, pack, cache, batch, propose(store, pack, batch),
                        [Decision(batch[0].id, airframe_id=af)])  # fmt: skip
         ids[name] = res.flights[0]
@@ -58,6 +61,19 @@ def test_the_simulator_flying_the_card_counts_its_four_speeds(flown: dict[str, A
     assert m["energy.sweep_fastest_ms"] == pytest.approx(8.0, abs=0.3)
     [ev] = r.evidence
     assert ev.values["slowest_ms"] == pytest.approx(2.0, abs=0.3)
+
+
+@pytest.mark.parametrize("name", ["copter-heavylift-sweep", "copter-heavylift-sweep-loaded"])
+def test_the_heavy_lift_flying_the_card_light_and_loaded_counts_its_four_speeds(
+    flown: dict[str, Any], name: str
+) -> None:
+    """The 32.5 kg X8 at 3, 6, 9 and 12 m/s in still air, and again 8 kg heavier."""
+    r = ENERGY.run(data(flown, name), Registry.load(flown["pack"]))
+    m = {x.metric: x.value for x in r.metrics}
+    assert m["energy.sweep_levels"] == 4
+    assert m["energy.sweep_fastest_ms"] == pytest.approx(12.0, abs=0.3)
+    [ev] = r.evidence
+    assert ev.values["slowest_ms"] == pytest.approx(3.0, abs=0.3)
 
 
 def test_short_legs_on_many_courses_are_no_sweep(flown: dict[str, Any]) -> None:
