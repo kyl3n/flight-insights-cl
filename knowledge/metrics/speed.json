@@ -143,6 +143,17 @@
         "en": "Retune the position controller's velocity loop for speed (PSC_NE_VEL_P and PSC_NE_VEL_I), and check the lean is not at its limit on the upwind legs.",
         "uk": "Переналаштуйте контур швидкості регулятора положення для швидкості (PSC_NE_VEL_P і PSC_NE_VEL_I) і перевірте, що нахил не впирається в межу на відрізках проти вітру."
       }
+    },
+    "speed.build_up_not_ready": {
+      "stage": "navigation",
+      "title": {
+        "en": "The speed build-up's next step, {proposed_ms} m/s past the verified {verified_ms} m/s, waits for: {blocking}",
+        "uk": "Наступний крок нарощування швидкості, {proposed_ms} м/с після підтверджених {verified_ms} м/с, чекає на: {blocking}"
+      },
+      "action": {
+        "en": "Each of these matters more the faster the aircraft flies at {mass_kg} kg: the step is flown on GNSS speed and position, it leans further into what a lost motor leaves, it draws more current from the packs and their failsafe, and ESCs, motors and vibration are what fail first at higher power. Clear them (each has its own place in this plan), fly again, and the step is offered with its margins checked again.",
+        "uk": "Кожне з них важить тим більше, чим швидше летить апарат при {mass_kg} кг: крок виконується за швидкістю й положенням від GNSS, апарат нахиляється сильніше, наближаючись до того, що лишається після втрати мотора, бере більший струм від батарей і їхнього аварійного режиму, а ESC, мотори й вібрація першими відмовляють на більшій потужності. Усуньте їх (кожне має своє місце в цьому плані), виконайте політ знову, і крок буде запропоновано з повторно перевіреними запасами."
+      }
     }
   }
 }
