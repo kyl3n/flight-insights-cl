@@ -679,7 +679,7 @@ Added to Phase 2 on 2026-10-27 at the fleet owner's request, and built in steps 
 - **The speed goal is the user's choice.** It is "efficient" (the default) or "fastest safe". With "fastest safe", the app helps push the airframe to the most speed it can safely hold. It watches vibration, motor and ESC temperatures and every other metric that guards against losing the aircraft. It makes sure the tune, filters and settings are right first, and it names what would let it go faster.
 - **Phase 2, now.** It is flown alongside the HL1 gate flights. The Phase 2 gate is unchanged.
 
-**The power model** (`performance/`, not yet). It is fitted per airframe and build version, with weight as a variable.
+**The power model** (`performance/`: the points and the fit are built; the airframe's stored model and what it shows are not yet). It is fitted per airframe and build version, with weight as a variable.
 
 - **What is fitted:** the battery's terminal power (volts times amps, summed over the pack monitors), in steady 2 s tiles of level flight, hover, climb and descent.
 - **Steady tiles and phases** (measured now, `analyzers/steady.py`, rules in `rules/energy.json`):
@@ -690,12 +690,25 @@ Added to Phase 2 on 2026-10-27 at the fleet owner's request, and built in steps 
     - hover: under 1 m/s;
     - level: 2 m/s or more, holding its speed, height and track;
     - anything else a manoeuvre.
+- **Points** (measured now, `performance/points.py`, rules in `rules/performance.json` "points"): each flight's steady tiles in hover, level flight, climb and descent, averaged per phase, 1 m/s of airspeed and 0.5 m/s of climb, weighted by time.
+  - **Airspeed:** the ground velocity less the wind. The wind is each drag window's own, from the drag the flight measured, else its airframe's in the same payload band and build, as a 30 s running median. With no drag to read it from, the air is taken as calm and the points say so.
+  - **Power:** the packs' mean power over the tile.
+  - **Air density:** from the barometer's pressure, at the weather record's air temperature, else at the barometer's own.
+  - **Weight:** the flight's take-off weight as weighed, else from the payload bands, else the setup's typical take-off weight.
+  - **Left out:** a landing, the 3 s after a mode change, and tiles whose power wanders by more than 10%.
+  - **Kept local:** the points stay on the laptop.
 - **Momentum theory with Glauert's inflow:**
   - Thrust and the rotor's tilt come from the force balance against the airframe's parasite drag, whose flat-plate area comes from the wind analyzer's square-law drag.
   - The rotor's in-plane drag costs no extra power, so it is not counted as parasite power.
   - Climb and parasite power come out of the inflow, not as added terms.
   - Profile power for fixed-pitch props scales like induced power without ESC RPM, and from RPM with it.
 - **Electrical layer:** the power is divided by a fitted efficiency, plus the avionics' draw. That draw is measured where ESC telemetry exists.
+- **The fit** (`performance/fit.py`):
+  - For each flat-plate area, the model is linear in its five coefficients (avionics, induced, climb and parasite, profile, and the profile's growth with speed). They come from weighted least squares on relative errors, each point weighted by its seconds and each coefficient drawn to its prior.
+  - A factor per flight takes up a weight a little off, a sensor's scale or a pack's state. It is drawn to 1, and the factors average 1.
+  - Huber weights handle outliers.
+  - The flat-plate area is found by a one-dimensional search.
+  - Without the propellers' speed, profile power grows with the square of the in-plane speed over the hover induced velocity, at about K·C_T/2 (prior 0.03).
 - **Priors:** from the literature, marked uncalibrated (induced-power factor, motor and ESC efficiency, profile coefficient). Fitted with numpy alone.
 - **Uncertainty:** from a bootstrap over flights, plus model error drawn from leave-one-flight-out prediction of each flight's energy.
 - **The model is shown at the level its data supports:**
