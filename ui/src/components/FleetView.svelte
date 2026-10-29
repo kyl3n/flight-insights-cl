@@ -7,13 +7,16 @@
   import {
     byUrgency,
     findingCount,
+    inTeam,
     keep,
     stagePosition,
     statusLook,
+    teamsOf,
     type AirframeHealth,
     type Attention,
     type FleetOverview,
     type Filter,
+    type TeamFilter,
   } from "../lib/fleet";
   import type { MessageKey } from "../lib/i18n";
   import {
@@ -50,6 +53,10 @@
   let newName = $state("");
   let newVehicle: "copter" | "plane" = $state("copter");
   let newAirframe: Record<string, string> = $state({});
+  let newTeam: Record<string, string> = $state({});
+  let teamFilter: TeamFilter = $state({ kind: "all" });
+  let editingTeam: string | null = $state(null); // the airframe whose team is being edited
+  let teamDraft = $state("");
   let error = $state("");
   const ready = $derived(app.shell.engine === "ready");
 
@@ -81,8 +88,25 @@
 
   async function addAirframe(platformId: string) {
     try {
-      await engineCall("airframe.create", { platform_id: platformId, name: newAirframe[platformId] ?? "" });
+      const team = (newTeam[platformId] ?? "").trim();
+      await engineCall("airframe.create", { platform_id: platformId, name: newAirframe[platformId] ?? "", ...(team ? { team } : {}) });
       newAirframe[platformId] = "";
+      newTeam[platformId] = "";
+      await load();
+    } catch (e) {
+      error = String(e);
+    }
+  }
+
+  function editTeam(a: AirframeView) {
+    editingTeam = a.id;
+    teamDraft = a.team ?? "";
+  }
+
+  async function saveTeam(a: AirframeView) {
+    try {
+      await engineCall("airframe.update", { id: a.id, version: a.version, team: teamDraft.trim() || null });
+      editingTeam = null;
       await load();
     } catch (e) {
       error = String(e);
@@ -126,13 +150,16 @@
   const itemArea = (item: Attention) =>
     subsystemName(item.kind === "drift" ? subsystem(item.metric) : item.analyzer, app.locale);
 
+  const named = $derived(teamsOf(airframes));
+  const teamOf = (id: string) => airframes.find((a) => a.id === id)?.team ?? null;
   const needing = $derived(airframes.filter((a) => keep("attention", fleet.airframes[a.id])).length);
   const shownAirframes = (platformId: string) =>
     byUrgency(
-      airframes.filter((a) => a.platform.id === platformId && keep(filter, fleet.airframes[a.id])),
+      airframes.filter((a) => a.platform.id === platformId && keep(filter, fleet.airframes[a.id]) && inTeam(a.team, teamFilter)),
       fleet.airframes,
     );
-  const shown = $derived(platforms.filter((p) => filter === "all" || shownAirframes(p.id).length > 0));
+  const shown = $derived(platforms.filter((p) => (filter === "all" && teamFilter.kind === "all") || shownAirframes(p.id).length > 0));
+  const attention = $derived(fleet.attention.filter((item) => inTeam(teamOf(item.airframe_id), teamFilter)));
 </script>
 
 <main>
@@ -146,6 +173,17 @@
         <button type="button" aria-pressed={filter === id} onclick={() => (filter = id)}>{t(label)}</button>
       {/each}
     </div>
+    {#if named.teams.length}
+      <div role="group" aria-label={t("team.filter")} class="filters">
+        <button type="button" aria-pressed={teamFilter.kind === "all"} onclick={() => (teamFilter = { kind: "all" })}>{t("team.all")}</button>
+        {#each named.teams as team (team)}
+          <button type="button" aria-pressed={teamFilter.kind === "team" && teamFilter.team === team} onclick={() => (teamFilter = { kind: "team", team })}>{team}</button>
+        {/each}
+        {#if named.unnamed}
+          <button type="button" aria-pressed={teamFilter.kind === "none"} onclick={() => (teamFilter = { kind: "none" })}>{t("team.none")}</button>
+        {/if}
+      </div>
+    {/if}
     {#if error}<p class="error">{error}</p>{/if}
     {#if !ready}
       <p class="faint">{t("setup.unavailable")}</p>
@@ -196,6 +234,17 @@
                   </button>
                   <StatusBadge status={look.status} label={t(look.label)} />
                 </div>
+                {#if editingTeam === a.id}
+                  <form class="team-edit" onsubmit={(e) => { e.preventDefault(); saveTeam(a); }}>
+                    <input type="text" list="fleet-teams" maxlength="60" aria-label={t("team.label")} placeholder={t("team.none")} bind:value={teamDraft} />
+                    <button type="submit">{t("team.save")}</button>
+                    <button type="button" class="link" onclick={() => (editingTeam = null)}>{t("team.cancel")}</button>
+                  </form>
+                {:else}
+                  <button type="button" class="link team" onclick={() => editTeam(a)}>
+                    {a.team ? t("team.of", { team: a.team }) : t("team.set")}
+                  </button>
+                {/if}
                 <span class="faint">
                   {t("fleet.airframe.build", { number: a.build.number })}{#if a.differs_from_reference.length}
                     · {t("fleet.airframe.differs", { count: a.differs_from_reference.length })}{/if}
@@ -242,6 +291,7 @@
             {/each}
             <form class="add" onsubmit={(e) => { e.preventDefault(); addAirframe(p.id); }}>
               <input type="text" placeholder={t("fleet.airframe.name")} bind:value={newAirframe[p.id]} />
+              <input type="text" list="fleet-teams" maxlength="60" placeholder={t("team.optional")} aria-label={t("team.label")} bind:value={newTeam[p.id]} />
               <button type="submit" disabled={!(newAirframe[p.id] ?? "").trim()}>{t("fleet.airframe.add")}</button>
             </form>
           </div>
@@ -301,12 +351,13 @@
         <h2 id="attention-title">{t("attention.title")}</h2>
         <span class="faint">{t("attention.order")}</span>
       </div>
-      {#each fleet.attention as item, i (i)}
+      {#each attention as item, i (i)}
         {@const look = severityLook(item.severity)}
         <button type="button" class="item" onclick={() => openItem(item)}>
           <span class="row">
             <StatusBadge status={look.status} label={t(look.label)} />
             <span class="mono who">{item.airframe}</span>
+            {#if item.team}<span class="faint">{item.team}</span>{/if}
           </span>
           <span class="text">{itemText(item)}</span>
           <span class="faint">{formatTakeoff(item.utc_us, app.locale) ?? "–"} · {itemArea(item)}</span>
@@ -317,6 +368,10 @@
     </section>
   </aside>
 </main>
+
+<datalist id="fleet-teams">
+  {#each named.teams as team (team)}<option value={team}></option>{/each}
+</datalist>
 
 <style>
   main {
@@ -435,6 +490,20 @@
   }
   .name {
     font-size: 17px;
+  }
+  .link.team {
+    padding: 2px 8px;
+    font-size: 12px;
+  }
+  .team-edit {
+    display: flex;
+    gap: 6px;
+    flex-wrap: wrap;
+    align-items: center;
+  }
+  .team-edit input {
+    flex: 1 1 120px;
+    min-width: 0;
   }
   .plain {
     background: none;

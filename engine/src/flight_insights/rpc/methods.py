@@ -107,6 +107,13 @@ class EngineState:
         return self.store
 
 
+def _team(params: dict[str, Any]) -> str | None:
+    team = params.get("team")
+    if team is not None and not isinstance(team, str):
+        raise RpcError(INVALID_PARAMS, "team must be a string")
+    return team
+
+
 def _str(params: dict[str, Any], name: str) -> str:
     value = params.get(name)
     if not isinstance(value, str) or not value:
@@ -360,7 +367,8 @@ def build_server(out: IO[str], pack: Pack | None = None) -> Server:
     @guarded
     def airframe_create(_ctx: Context, params: dict[str, Any]) -> dict[str, Any]:
         store = state.require_store()
-        aid = platforms.create_airframe(store, _str(params, "platform_id"), _str(params, "name"))
+        aid = platforms.create_airframe(store, _str(params, "platform_id"), _str(params, "name"),
+                                        _team(params))  # fmt: skip
         return platforms.airframe_view(store, schema, aid)
 
     @server.method("airframe.list")
@@ -369,7 +377,30 @@ def build_server(out: IO[str], pack: Pack | None = None) -> Server:
         platform_id = params.get("platform_id")
         if platform_id is not None and not isinstance(platform_id, str):
             raise RpcError(INVALID_PARAMS, "platform_id must be a string")
-        return platforms.list_airframes(state.require_store(), schema, platform_id)
+        return platforms.list_airframes(state.require_store(), schema, platform_id,
+                                        _team(params))  # fmt: skip
+
+    @server.method("airframe.update")
+    @guarded
+    def airframe_update(_ctx: Context, params: dict[str, Any]) -> dict[str, Any]:
+        version = params.get("version")
+        if not isinstance(version, int) or isinstance(version, bool):
+            raise RpcError(INVALID_PARAMS, "version must be the airframe's version as read")
+        name = params.get("name")
+        if name is not None and not isinstance(name, str):
+            raise RpcError(INVALID_PARAMS, "name must be a string")
+        clear = "team" in params and params["team"] in (None, "")
+        try:
+            return platforms.update_airframe(state.require_store(), schema, _str(params, "id"),
+                                             version, name, None if clear else _team(params),
+                                             clear)  # fmt: skip
+        except StoreError as e:
+            raise RpcError(CONFLICT, str(e)) from None
+
+    @server.method("airframe.teams")
+    @guarded
+    def airframe_teams(_ctx: Context, _params: dict[str, Any]) -> list[str]:
+        return platforms.teams(state.require_store())
 
     @server.method("airframe.get")
     @guarded

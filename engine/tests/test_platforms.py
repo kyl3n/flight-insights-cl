@@ -23,6 +23,8 @@ from flight_insights.platforms import (
     platform_view,
     record_change,
     save_answers,
+    teams,
+    update_airframe,
 )
 from flight_insights.store import Store, StoreError, StoreKeys, open_store
 
@@ -237,6 +239,29 @@ def test_airframes_inherit_the_reference_and_record_changes(store: Store, schema
     assert airframe_view(store, schema, aid)["history"][1]["changed"] == ["prop_diameter_in"]
 
 
+def test_airframes_carry_the_team_that_flies_them(store: Store, schema: Schema) -> None:
+    platform = create_platform(store, schema, "HL", "copter")
+    ours = create_airframe(store, platform, "HL1", "  Team   A ")
+    theirs = create_airframe(store, platform, "HL B-01", "Team B")
+    bare = create_airframe(store, platform, "HL spare")
+    # names are kept tidy, and an airframe with no team has none
+    assert airframe_view(store, schema, ours)["team"] == "Team A"
+    assert airframe_view(store, schema, bare)["team"] is None
+    assert teams(store) == ["Team A", "Team B"]
+    assert [a["name"] for a in list_airframes(store, schema, team="Team B")] == ["HL B-01"]
+    assert [a["name"] for a in list_airframes(store, schema, platform, "Team A")] == ["HL1"]
+    # set, rename and clear, each from the version read
+    v = airframe_view(store, schema, bare)["version"]
+    got = update_airframe(store, schema, bare, v, name="HL3", team="Team B")
+    assert got["name"] == "HL3" and got["team"] == "Team B"
+    with pytest.raises(StoreError):  # someone changed it since: not overwritten
+        update_airframe(store, schema, bare, v, team="Team A")
+    got = update_airframe(store, schema, bare, got["version"], clear_team=True)
+    assert got["team"] is None and teams(store) == ["Team A", "Team B"]
+    assert len(list_airframes(store, schema, platform)) == 3
+    del theirs
+
+
 def test_bad_changes_are_refused(store: Store, schema: Schema) -> None:
     pid = create_platform(store, schema, "Quad", "copter")
     aid = create_airframe(store, pid, "Q-1")
@@ -287,4 +312,19 @@ def test_setup_over_rpc(tmp_path: Path, pack: Pack) -> None:
     listed = call(server, out, 10, "platform.list")["result"]
     assert [p["airframes"] for p in listed] == [1]
     json.dumps(listed)  # plain JSON all the way through
-    call(server, out, 11, "engine.shutdown")
+    # the team: set with the version read, listed, filtered on, cleared
+    version = changed["version"]
+    team = call(server, out, 11, "airframe.update", id=aid, version=version, team="Team B")
+    assert team["result"]["team"] == "Team B"
+    stale = call(server, out, 12, "airframe.update", id=aid, version=version, team="Team C")
+    assert stale["error"]["code"] == -32004
+    assert call(server, out, 13, "airframe.teams")["result"] == ["Team B"]
+    other = call(server, out, 14, "airframe.create", platform_id=platform["id"], name="Q-2",
+                 team="Team C")["result"]  # fmt: skip
+    assert other["team"] == "Team C"
+    only = call(server, out, 15, "airframe.list", team="Team B")["result"]
+    assert [a["name"] for a in only] == ["Q-1"]
+    cleared = call(server, out, 16, "airframe.update", id=aid,
+                   version=team["result"]["version"], team=None)["result"]  # fmt: skip
+    assert cleared["team"] is None
+    call(server, out, 17, "engine.shutdown")

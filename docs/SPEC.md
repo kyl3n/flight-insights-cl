@@ -209,7 +209,7 @@ Every airframe has a build profile listing its components. It is set up once whe
 **Three levels**
 
 - **Platform:** a drone model the team builds or flies, with a reference build (bill of materials) and shared ideal ranges. Example: a heavy-lift octocopter design.
-- **Airframe:** one physical aircraft of that platform, with its own name or tail number and its actual current build, which may differ from the reference.
+- **Airframe:** one physical aircraft of that platform, with its own name or tail number and its actual current build, which may differ from the reference. It may also name the **team** (operator) that flies it, so aircraft of one platform flown by different teams stay apart in the fleet, trends and fleet evidence. Aircraft of the same build share a platform whatever team flies them; a team whose build differs (props, motors, ESCs, packs, payload mount) gets its own platform, because the power model fits per airframe and build. The team syncs like the airframe's other fields; a laptop on an older app waits for the update before applying it.
 - **Flight:** always records the build version and the parameter snapshot it flew with.
 
 | Component | Recorded | Detectable from logs |
@@ -257,7 +257,7 @@ Each step can start from a template or another platform, and pre-fills from a pa
 
 **Every import asks which airframe and what changed.** One dialog covers a whole batch of logs:
 
-1. **Airframe.** The app proposes an airframe for each log from the board's ID and the parameters, with its confidence. The user confirms it, picks another, or creates a new airframe, which opens setup from its platform.
+1. **Airframe.** The app proposes an airframe for each log from the board's ID and the parameters, with its confidence. The user confirms it, picks another, or creates a new airframe, which opens setup from its platform. A new airframe can name its team, offered from the teams already named.
 2. **Changes.** "Has anything changed since this airframe's last flight?" Detected changes, such as a new board, IMU or compass, different firmware or CAN nodes, a shift in motor noise frequency or a step in battery resistance, are listed with their evidence for confirmation, followed by a checklist of every part category for anything else. Each confirmed change creates a new build version.
 3. **Batteries and payload** and the ground station for each flight, as quick picks, with the take-off weight in kilograms where the aircraft was weighed before the flight (above 0 and up to 1000 kg; a decimal comma is read as a point). The ground station fills in automatically when logs are imported on the ground station computer itself.
 
@@ -2144,7 +2144,7 @@ Rules that keep decisions easy:
 
 | View | Shows | Interactions |
 | --- | --- | --- |
-| Fleet | Platforms and their airframes, each airframe's status, tuning stage and key metrics; what needs attention; imports and sync | Filter by status; open an airframe or a finding |
+| Fleet | Platforms and their airframes, each airframe's status, team, tuning stage and key metrics; what needs attention, with each item's team; imports and sync | Filter by status and by team; set an airframe's team; open an airframe or a finding |
 | Platform setup | A guided walkthrough of every part of the aircraft, with a completeness check that says what each gap prevents | Start from a template or a parameter file; fill each step; check the first parameter file |
 | Ground stations | Each station's computer, software, radios and antennas, its version history, and link performance by station | Detect this computer; read radio settings; record a change; compare stations |
 | Import | The proposed airframe for each log, detected hardware changes with their evidence, batteries, payload and ground station | Confirm or change the airframe; confirm changes; pick packs and station |
@@ -2951,7 +2951,7 @@ The AI layer can propose links the map lacks; those are shown as hypotheses unti
 
 **Fleet evidence.** When the same parameter change is made on several airframes of a platform, their before-and-after results are pooled. A change that consistently moves a metric across airframes is ranked higher everywhere it appears, and the platform's parameter map gains a confirmed link.
 
-- **Measured now** (`history/fleet.py`; numbers in `rules/attribution.json` "fleet", uncalibrated). Each of the platform's other airframes votes once per parameter, the way it was changed and metric, with the way the metric moved. An airframe's own shifts never count towards its own ranking.
+- **Measured now** (`history/fleet.py`; numbers in `rules/attribution.json` "fleet", uncalibrated). Each confirmed link names the teams its agreeing airframes fly for, so a link seen by more than one team reads as more than one team's habit. Each of the platform's other airframes votes once per parameter, the way it was changed and metric, with the way the metric moved. An airframe's own shifts never count towards its own ranking.
 - **What counts as a vote.** A shift, not inconclusive, gives one when either:
   - its top-ranked candidate is tied to the metric by the map and the shift is at medium or high confidence;
   - or the change was the only one at that boundary, tied or not, since nothing else changed with it.

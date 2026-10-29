@@ -133,6 +133,10 @@ describe("decisions for import.commit", () => {
     expect(out[1]).toEqual({ log: "f2", action: "import" });
     expect(out[2]).toMatchObject({ new_airframe: { platform_id: "p-1", name: "HL-10" } });
     expect(out[3]).toEqual({ log: "f4", action: "import" });
+    // a team named for the new airframe travels with it; a blank one is left out
+    expect(out[2]!.new_airframe).toEqual({ platform_id: "p-1", name: "HL-10" });
+    c.f3!.choice = { kind: "new", platform_id: "p-1", name: "HL B-01", team: " Team B " };
+    expect(decisions(files, c, partKey, null)[2]!.new_airframe).toEqual({ platform_id: "p-1", name: "HL B-01", team: "Team B" });
   });
 
   it("records ticked parts under their stable key, not the label shown", () => {

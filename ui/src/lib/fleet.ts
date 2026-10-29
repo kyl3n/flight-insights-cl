@@ -20,6 +20,7 @@ export interface KeyMetric {
 export interface AirframeHealth {
   status: AirframeStatus;
   flights: number;
+  team?: string | null;
   stage?: string | null; // the stage on offer; null when nothing is left to do
   planned?: boolean; // false: the flight had no parameters, so no plan and no stage
   counts?: Partial<Record<Severity, number>>;
@@ -31,6 +32,7 @@ export interface AirframeHealth {
 interface AttentionBase {
   airframe_id: string;
   airframe: string;
+  team?: string | null;
   flight: string;
   utc_us: number | null;
   severity: "safety" | "out" | "caution";
@@ -61,6 +63,21 @@ export interface FleetOverview {
 }
 
 export type Filter = "all" | "attention" | "tuning" | "healthy";
+
+/** The team filter: every team, the airframes with no team, or one team by name. */
+export type TeamFilter = { kind: "all" } | { kind: "none" } | { kind: "team"; team: string };
+
+export function inTeam(team: string | null | undefined, f: TeamFilter): boolean {
+  if (f.kind === "all") return true;
+  if (f.kind === "none") return !team;
+  return team === f.team;
+}
+
+/** The teams the airframes name, in order, and whether any airframe names none. */
+export function teamsOf(airframes: { team?: string | null }[]): { teams: string[]; unnamed: boolean } {
+  const teams = [...new Set(airframes.map((a) => a.team).filter((t): t is string => !!t))].sort((a, b) => a.localeCompare(b));
+  return { teams, unnamed: airframes.some((a) => !a.team) };
+}
 
 /** The status shape and word an airframe is shown with. */
 export function statusLook(status: AirframeStatus): { status: Status; label: MessageKey } {

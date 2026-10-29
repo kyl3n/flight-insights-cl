@@ -11,6 +11,8 @@ from flight_insights.platforms.records import (
     platform_view,
     record_change,
     save_answers,
+    teams,
+    update_airframe,
 )
 from flight_insights.platforms.schema import Field, Schema, SetupError, check_value, load_schema
 
@@ -32,4 +34,6 @@ __all__ = [
     "platform_view",
     "record_change",
     "save_answers",
+    "teams",
+    "update_airframe",
 ]

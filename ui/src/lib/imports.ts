@@ -65,7 +65,7 @@ export interface CommitResult {
 /** What a person chose for one file. */
 export type Choice =
   | { kind: "airframe"; airframe_id: string }
-  | { kind: "new"; platform_id: string; name: string }
+  | { kind: "new"; platform_id: string; name: string; team?: string }
   | { kind: "hold" }
   | { kind: "skip" }
   | { kind: "import" } // tlogs and parameter files: store them
@@ -160,7 +160,7 @@ export interface Decision {
   log: string;
   action: "import" | "skip";
   airframe_id?: string;
-  new_airframe?: { platform_id: string; name: string };
+  new_airframe?: { platform_id: string; name: string; team?: string };
   changes?: { part: string; reason_kind: ChangeKind; reason: string }[];
   packs?: string[];
   payload?: string;
@@ -182,7 +182,11 @@ export function decisions(
     const d: Decision = { log: f.id, action: "import" };
     if (stationVersion) d.station_version_id = stationVersion;
     if (c.choice.kind === "airframe") d.airframe_id = c.choice.airframe_id;
-    if (c.choice.kind === "new") d.new_airframe = { platform_id: c.choice.platform_id, name: c.choice.name.trim() };
+    if (c.choice.kind === "new") {
+      d.new_airframe = { platform_id: c.choice.platform_id, name: c.choice.name.trim() };
+      const team = c.choice.team?.trim();
+      if (team) d.new_airframe.team = team;
+    }
     if (f.kind === "dataflash" && (c.choice.kind === "airframe" || c.choice.kind === "new")) {
       const detected = (detectedApplies(f, c.choice) ? f.proposal.changes : [])
         .filter((x) => c.confirmed[x.part])
