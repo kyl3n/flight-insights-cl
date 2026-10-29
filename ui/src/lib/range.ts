@@ -151,6 +151,7 @@ export interface Battery {
   loads: Record<"hover" | "endurance" | "range", number>;
   aged_capacity: number; // share of rated at end of life
   aged_resistance: number; // multiple of new at end of life
+  caution_resistance?: number; // multiple of new for the early caution
   packs: PackHistory[];
 }
 

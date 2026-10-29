@@ -176,12 +176,16 @@ def test_a_pack_ages_past_the_end_of_life_conventions() -> None:
     [(code, p)] = aging(risen, 3000.0, SPEC)
     assert code == packs.WORN_RESISTANCE and p["ratio"] == pytest.approx(41.0 / 20.0, abs=0.01)
     assert p["compared"] == 3
+    # up the early caution, short of end of life: a caution to watch it
+    rising = fits([None] * 6, [20.0, 21.0, 20.0, 31.0, 32.0, 30.0])
+    [(code, p)] = aging(rising, 3000.0, SPEC)
+    assert code == packs.RISING and p["ratio"] == pytest.approx(31.0 / 20.0, abs=0.01)
+    assert p["caution_ratio"] == 1.5 and p["end_ratio"] == 2.0
     # within the conventions, no rating, or too few flights: nothing
-    assert aging(fits([2900.0] * 4, [20.0, 20.0, 29.0, 30.0]), 3000.0, SPEC) == []
+    assert aging(fits([2900.0] * 4, [20.0, 20.0, 29.0, 29.5]), 3000.0, SPEC) == []
     assert aging(fits([2000.0] * 4, [20.0] * 4), None, SPEC) == []
     assert aging(fits([2000.0], [20.0]), 3000.0, SPEC) == []
-    for code in (packs.WORN, packs.WORN_RESISTANCE):
-        params = {"pack": "P1", "flights": 7} | dict(
-            aging(worn if code == packs.WORN else risen, 3000.0, SPEC)
-        )[code]
+    cases = {packs.WORN: worn, packs.WORN_RESISTANCE: risen, packs.RISING: rising}
+    for code, got in cases.items():
+        params = {"pack": "P1", "flights": 7} | dict(aging(got, 3000.0, SPEC))[code]
         texts_filled({"code": code, "params": params})
