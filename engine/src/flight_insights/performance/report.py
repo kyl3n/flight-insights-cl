@@ -24,6 +24,10 @@ from, and what the power model gives with them.
 - **The batteries:** the pack's usable energy against load, with the loads the figures fly
   at, and each of the airframe's packs' capacity and resistance across the flights it flew
   alone (`packs.history`), against the end-of-life conventions.
+- **The air:** range and hover endurance against density altitude, in the standard
+  atmosphere's air at each, with the density altitudes the flights flew; all on the laptop.
+- **The data behind it:** the minutes of steady hover and level flight by weight and
+  airspeed, and each flight's energy predicted without it (leave one flight out).
 - **The what-ifs:** each lever alone; the weight's is measured when the flights span more
   than one weight, every other lever is the model's alone until a flight with the change
   confirms it.
@@ -73,6 +77,7 @@ from flight_insights.performance.project import (
 from flight_insights.performance.radius import standard
 from flight_insights.performance.thermal import Thermal, from_flight
 from flight_insights.performance.top_speed import Basis, lowest_volts, top_speed
+from flight_insights.sim.export import isa_density
 from flight_insights.store.cache import CacheError, ColumnCache
 from flight_insights.store.db import Store
 from flight_insights.trends import Flight, analysed_flights, metric_of
@@ -336,6 +341,65 @@ def _battery(store: Store, reg: Registry, airframe_id: str, flights: Sequence[Fl
     return out
 
 
+def density_altitude(density: float) -> float:
+    """The standard atmosphere's altitude with this air density, m (the US National Weather
+    Service's fit, as `weather/record.py` uses)."""
+    return 1000.0 * (44.3308 - 42.2665 * density**0.234969)
+
+
+def _density(model: Model, rules: Mapping[str, Any], i: Inputs, mass: float,
+             top: float) -> dict[str, Any]:  # fmt: skip
+    """Range and hover endurance at the weight in the standard atmosphere's air at each of
+    the rules' density altitudes, with the airframe's usual and the span flown."""
+    assert i.pack is not None
+    rows: list[dict[str, Any]] = []
+    for h in (float(x) for x in rules["report"]["density_altitudes_m"]):
+        rho = isa_density(h)
+        curve = pack_curve(model, rules, i.pack, 1.0, i.failsafe, i.reserve_share, [mass], rho,
+                           top)  # fmt: skip
+        f = figures(model, rules, curve, mass, i.empty_kg or mass, rho, top, trips=())
+        rows.append({"altitude_m": h, "density": rho, "range_m": f.range_m if f else None,
+                     "hover_s": f.hover_s if f else None})  # fmt: skip
+    densities = [p.density for fp in i.model.flights for p in fp.points]
+    return {
+        "rows": rows,
+        "usual_m": density_altitude(i.usual_density) if i.usual_density else None,
+        "flown_m": [density_altitude(max(densities)), density_altitude(min(densities))]
+        if densities else None,
+    }  # fmt: skip
+
+
+def _data(model: perf.AirframeModel, rules: Mapping[str, Any]) -> dict[str, Any]:
+    """What the model rests on: minutes of steady hover (airspeed 0) and level flight by
+    weight and 1 m/s of airspeed; climbs and descents; each flight's energy predicted
+    without it; and the flights that gave nothing, with why."""
+    cells: dict[tuple[float | None, int], float] = {}
+    sloped = 0.0
+    for fp in model.flights:
+        kg = round(fp.mass_kg * 2) / 2 if fp.mass_kg is not None else None
+        for p in fp.points:
+            if p.phase in ("climb", "descent"):
+                sloped += p.seconds / 60
+            elif p.phase in ("hover", "level"):
+                key = (kg, 0 if p.phase == "hover" else round(p.airspeed))
+                cells[key] = cells.get(key, 0.0) + p.seconds / 60
+    fitted = model.fitted
+    errors = [abs(e) for e in fitted.lofo.values()] if fitted else []
+    spec = rules["report"]
+    return {
+        "grid": [{"mass_kg": k, "airspeed_ms": v, "minutes": m}
+                 for (k, v), m in sorted(cells.items(), key=lambda x: (x[0][0] or 0, x[0][1]))],
+        "sloped_minutes": sloped,
+        "lofo": [{"flight_id": f, "error": e} for f, e in (fitted.lofo.items() if fitted else ())],
+        "lofo_median": float(np.median(errors)) if errors else None,
+        "lofo_p90": float(np.percentile(errors, 90)) if errors else None,
+        "targets": {"median": float(spec["lofo_median"]), "p90": float(spec["lofo_p90"])},
+        "level": fitted.level if fitted else None,
+        "rows": fitted.rows if fitted else 0, "flights": fitted.flights if fitted else 0,
+        "left_out": fitted.left_out if fitted else 0, "skipped": dict(model.skipped),
+    }  # fmt: skip
+
+
 def _curves(fitted: Fitted, am_flights: Sequence[FlightPoints], rules: Mapping[str, Any],
             curve: Usable, masses: Sequence[float], mass: float, density: float, top: float,
             ) -> dict[str, Any]:  # fmt: skip
@@ -440,6 +504,8 @@ def report(store: Store, cache: ColumnCache, pack: KnowledgePack, airframe_id: s
     }
     out["ends"] = {k: curve.stopped(v) for k, v in loads.items()}
     out["battery"] = _battery(store, reg, airframe_id, i.flights, curve, loads)
+    out["density"] = _density(model, rules, i, mass, top)
+    out["data"] = _data(i.model, rules)
     out["spread"] = {k: asdict(v) for k, v in
                      spread(i.model.fitted, rules, curve, mass, i.empty_kg or mass, density,
                             top).items()}  # fmt: skip
