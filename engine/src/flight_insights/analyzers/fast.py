@@ -33,6 +33,7 @@ readings are read; speeds, shares and counts leave.
 from __future__ import annotations
 
 from collections.abc import Mapping
+from dataclasses import dataclass
 from typing import Any
 
 import numpy as np
@@ -80,6 +81,43 @@ def flight_wind(e: Mapping[str, Array], flight: FlightData, rules: Mapping[str, 
     return None if m is None else np.mean(m.winds, axis=0)
 
 
+@dataclass(frozen=True)
+class Fast:
+    """The flight's fast segment."""
+
+    spans: Spans  # log times, µs, of back-to-back fast tiles
+    tiles: int
+    seconds: float
+    speed: float  # m/s, the time-weighted mean through the air (or over the ground)
+    top: float  # m/s, the fastest level tile
+    air: bool  # through the air, from the flight's own wind; else over the ground
+    wind: Array | None  # the flight's mean wind, north and east, m/s
+
+
+def segment(flight: FlightData, reg: Registry, e: Mapping[str, Array]) -> Fast | str:
+    """The fast segment, or why the flight has none."""
+    rules: Mapping[str, Any] = reg.rules["energy"]["fast"]
+    phase_rules: Mapping[str, Any] = reg.rules["energy"]["phases"]
+    found = steady.tiles(e, flight.arm_us, flight.disarm_us, float(phase_rules["tile_s"]),
+                         int(phase_rules["min_samples"]))  # fmt: skip
+    level = found.take(steady.phases(found, phase_rules) == "level")
+    if not len(level):
+        return "the flight holds no level steady flight"
+    blowing = flight_wind(e, flight, reg.rules["wind"])
+    through = level.velocity[:, :2] - (blowing if blowing is not None else np.zeros(2))
+    speed = np.hypot(through[:, 0], through[:, 1])
+    top = float(np.max(speed))
+    if top < float(rules["min_top_ms"]):
+        return f"the flight's fastest level flight is under {rules['min_top_ms']} m/s"
+    fast = speed >= float(rules["share"]) * top
+    seconds = float(np.sum(level.end_us[fast] - level.start_us[fast])) / 1e6
+    if seconds < float(rules["min_seconds"]):
+        return f"under {rules['min_seconds']} s of flight near its fastest"
+    mean = float(np.average(speed[fast], weights=(level.end_us - level.start_us)[fast]))
+    return Fast(_merge(level.start_us[fast], level.end_us[fast]), int(np.count_nonzero(fast)),
+                seconds, mean, top, blowing is not None, blowing)  # fmt: skip
+
+
 def _fast(flight: FlightData, reg: Registry) -> Result:
     rules: Mapping[str, Any] = reg.rules["energy"]["fast"]
     if flight.vehicle != "copter" or flight.fingerprint.get("vehicle_class") not in (
@@ -89,25 +127,10 @@ def _fast(flight: FlightData, reg: Registry) -> Result:
     e = wind.ekf(flight)
     if e is None:
         return Result(skipped="no estimator velocity (XKF1) in the log")
-    phase_rules: Mapping[str, Any] = reg.rules["energy"]["phases"]
-    found = steady.tiles(e, flight.arm_us, flight.disarm_us, float(phase_rules["tile_s"]),
-                         int(phase_rules["min_samples"]))  # fmt: skip
-    level = found.take(steady.phases(found, phase_rules) == "level")
-    if not len(level):
-        return Result(skipped="the flight holds no level steady flight")
-    blowing = flight_wind(e, flight, reg.rules["wind"])
-    through = level.velocity[:, :2] - (blowing if blowing is not None else np.zeros(2))
-    speed = np.hypot(through[:, 0], through[:, 1])
-    top = float(np.max(speed))
-    if top < float(rules["min_top_ms"]):
-        return Result(
-            skipped=f"the flight's fastest level flight is under {rules['min_top_ms']} m/s"
-        )
-    fast = speed >= float(rules["share"]) * top
-    spans = _merge(level.start_us[fast], level.end_us[fast])
-    seconds = float(np.sum(level.end_us[fast] - level.start_us[fast])) / 1e6
-    if seconds < float(rules["min_seconds"]):
-        return Result(skipped=f"under {rules['min_seconds']} s of flight near its fastest")
+    got = segment(flight, reg, e)
+    if isinstance(got, str):
+        return Result(skipped=got)
+    spans, seconds, air, blowing = got.spans, got.seconds, got.air, got.wind
     seg = Segment("fast", spans[0][0], spans[-1][1])
     out = Result()
 
@@ -117,13 +140,12 @@ def _fast(flight: FlightData, reg: Registry) -> Result:
         for mid, v in metrics.items():
             out.metrics.append(MetricValue(mid, "fast", v, reg.metrics[mid].zone(v), eid))
 
-    air = blowing is not None
-    mean = float(np.average(speed[fast], weights=(level.end_us - level.start_us)[fast]))
+    mean, top = got.speed, got.top
     add("fast:segment",
         f"{seconds:.0f} s at {mean:.1f} m/s {'airspeed' if air else 'ground speed'}, within"
         f" {100 * (1 - float(rules['share'])):.0f}% of the fastest level flight ({top:.1f} m/s)",
         ("XKF1",), wind.EKF_FIELDS,
-        {"tiles": int(np.count_nonzero(fast)), "spans": len(spans), "seconds": round(seconds, 1),
+        {"tiles": got.tiles, "spans": len(spans), "seconds": round(seconds, 1),
          "speed_ms": round(mean, 2), "top_ms": round(top, 2),
          "speed_from": "air" if air else "ground",
          "wind_ms": round(float(np.hypot(*blowing)), 2) if blowing is not None else None},

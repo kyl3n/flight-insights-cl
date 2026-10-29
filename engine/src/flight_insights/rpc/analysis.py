@@ -24,6 +24,7 @@
 | flight.tlogs | A flight's tlog sessions: each station clock against the vehicle's, and loss |
 | flight.links | A flight's links over time, and the failsafe settings for them, for display |
 | flight.tune | A flight's tune against one of its payload group's, and the plan's verdict |
+| flight.energy | A flight's energy: where it went, power over time, on the airframe's curve |
 | flight.navigation | A flight's GNSS events, outages, coping, readiness and ranked mitigations |
 | flight.ab | Each parameter change made in flight, with the flight's two sides compared |
 | trend.revert_test | The single-change test flights that settle a shift, with what each showed |
@@ -50,6 +51,7 @@ from typing import TYPE_CHECKING, Any, cast
 
 from flight_insights import (
     analyzers,
+    energy_view,
     links_view,
     margin_view,
     navigation_view,
@@ -363,6 +365,19 @@ def add_analysis_methods(server: Server, state: EngineState, guarded: Callable[[
                 _flight(params), _open, axis, compare, group,
             )  # fmt: skip
         except (analyzers.FlightError, tune_view.TuneViewError) as e:
+            raise RpcError(BAD_INPUT, str(e)) from None
+
+    @server.method("flight.energy")
+    @guarded
+    def flight_energy(_ctx: Context, params: dict[str, Any]) -> dict[str, Any]:
+        """The Propulsion view's Energy section: no position, and drawn on the laptop."""
+        store, cache = state.require_store(), state.cache
+        assert cache is not None
+        try:
+            return energy_view.energy(store, cache, state.pack,
+                                      analyzers.Registry.load(state.pack), _flight(params),
+                                      _open)  # fmt: skip
+        except (analyzers.FlightError, energy_view.EnergyViewError) as e:
             raise RpcError(BAD_INPUT, str(e)) from None
 
     @server.method("flight.navigation")

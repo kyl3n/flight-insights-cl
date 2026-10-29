@@ -48,5 +48,16 @@
       "Reciprocal legs: flying a leg both ways at one setpoint and averaging cancels the wind along it, the standard way to measure airspeed performance without an air-data sensor (FAA Advisory Circular 23-8C, Flight Test Guide, 2011, 'Airspeed calibration' ground-course method).",
       "ArduPilot's simulator draws power in proportion to thrust (libraries/SITL/SIM_Motor.cpp at Copter-4.7.0: current = power_factor * |thrust| / voltage), so it shows no drop in power at moderate forward speed: the sweep has to be flown on the aircraft."
     ]
+  },
+  "view": {
+    "about": "The Energy section of a flight's Propulsion view (energy_view.py), drawn on the laptop only. The breakdown splits the packs' energy into the ESCs' input by flight phase, the harness (the pack's voltage less the ESCs' median voltage, times the pack's current) and the avionics (what is left), only when every motor's ESC reports its voltage and current over the whole armed flight, never on the simulator (whose ESC current and voltage are placeholders), and only when the ESCs report no more than the packs give, within max_esc_excess of the energy used. Battery heat is each counted pack's current squared times its logged resistance. Climb energy per metre needs min_climb_m climbed in climb tiles. The airframe's curve is drawn at the flight's weight and mean air from 0 to the larger of curve_top_ms and its fastest point plus curve_margin_ms, every curve_step_ms, with the 95% band of the bootstrap's models once there are at least min_replicates; the flight's excess over the model fitted without it gets a 95% interval from interval_draws resamples of its points, seeded.",
+    "max_esc_excess": 0.02,
+    "min_climb_m": 10.0,
+    "curve_top_ms": 16.0,
+    "curve_margin_ms": 2.0,
+    "curve_step_ms": 0.5,
+    "min_replicates": 20,
+    "interval_draws": 200,
+    "seed": 15
   }
 }
