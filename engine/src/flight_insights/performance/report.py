@@ -352,7 +352,8 @@ def _builds(store: Store, airframe_id: str, i: Inputs, model: Model,
     row = store.get("airframe", airframe_id)
     assert row is not None
     tables = bench.benches(store, str(row["platform_id"]))
-    out: dict[str, Any] = {"tables": [b.view() for b in tables], "motors": i.motors}
+    out: dict[str, Any] = {"platform_id": str(row["platform_id"]),
+                           "tables": [b.view() for b in tables], "motors": i.motors}  # fmt: skip
     found: dict[str, bench.Bench] = {}
     for b in tables:
         found.setdefault(b.role, b)

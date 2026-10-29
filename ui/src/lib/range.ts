@@ -5,6 +5,7 @@
 // only laid out.
 
 import { axis, type Axis, type Frame } from "./energy";
+import type { Builds } from "./bench";
 import { engineCall } from "./shell";
 
 export type Air = "usual" | "standard";
@@ -137,6 +138,7 @@ export interface Performance {
   failsafe?: Failsafe;
   battery?: Battery;
   what_ifs?: WhatIf[];
+  builds?: Builds;
 }
 
 /** One of the airframe's packs on the flights it flew alone, in flight order. */
@@ -306,8 +308,8 @@ export interface Plot {
 }
 
 /** Round axes over the values, and the frame's scales for them. */
-export function plot(xs: number[], ys: number[], f: Frame, yFloor: number | null = 0): Plot {
-  const x = axis(xs, 5, 0);
+export function plot(xs: number[], ys: number[], f: Frame, yFloor: number | null = 0, xFloor: number | null = 0): Plot {
+  const x = axis(xs, 5, xFloor);
   const y = axis(ys.filter(Number.isFinite), 4, yFloor);
   return {
     x,

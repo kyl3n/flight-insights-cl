@@ -23,6 +23,7 @@
   } from "../lib/range";
   import { formatNumber, unitText } from "../lib/report";
   import BatteryPanel from "./BatteryPanel.svelte";
+  import BuildsPanel from "./BuildsPanel.svelte";
   import BuildUpPanel from "./BuildUpPanel.svelte";
   import SpeedPanel from "./SpeedPanel.svelte";
   import WhatIfPanel from "./WhatIfPanel.svelte";
@@ -226,6 +227,7 @@
       <WindPanel {view} />
       <BatteryPanel {view} />
       <WhatIfPanel {view} />
+      {#if view.builds}<BuildsPanel {view} onchange={() => (reloads += 1)} />{/if}
     {/if}
 
     {#if rangeChart && timeChart}
