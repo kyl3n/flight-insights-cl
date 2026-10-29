@@ -27,6 +27,7 @@
   import BuildUpPanel from "./BuildUpPanel.svelte";
   import DataPanel from "./DataPanel.svelte";
   import DensityPanel from "./DensityPanel.svelte";
+  import OverTimePanel from "./OverTimePanel.svelte";
   import SpeedPanel from "./SpeedPanel.svelte";
   import WhatIfPanel from "./WhatIfPanel.svelte";
   import WindPanel from "./WindPanel.svelte";
@@ -231,6 +232,7 @@
       <WhatIfPanel {view} />
       {#if view.builds}<BuildsPanel {view} onchange={() => (reloads += 1)} />{/if}
       <DensityPanel {view} />
+      {#if view.over_time}<OverTimePanel {view} />{/if}
     {/if}
 
     {#if rangeChart && timeChart}

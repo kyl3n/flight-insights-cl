@@ -11,6 +11,12 @@
 - **How much is too much:** the larger of a fixed share and a multiple of how far the
   airframe's other flights sit from that same model (a robust spread), so an airframe
   whose flights agree closely flags less, and the flight judged never widens it.
+- **Over time** (`over_time`): each flight's power against the airframe's model at its own
+  points, hover and level apart, turns the model's hover g/W and figure of merit and its
+  energy per km at one weight in standard air into the flight's own, so flights flown at
+  other weights, in other air and at other speeds line up on one scale. The same rule
+  marks the flights that drew too much; the model there includes the flight (one fit for
+  all), which can only hide part of an excess, never make one.
 """
 
 from __future__ import annotations
@@ -88,6 +94,80 @@ def excess(a: Against, points: Sequence[Point], rules: Mapping[str, Any]) -> flo
     seconds = np.array([p.seconds for p in points])
     drawn = float(np.sum(np.array([p.power for p in points]) * seconds))
     return drawn / float(np.sum(a.predicted(points, rules) * seconds)) - 1.0
+
+
+def ratio(model: Model, mass_kg: float, points: Sequence[Point],
+          rules: Mapping[str, Any]) -> float:  # fmt: skip
+    """The power the points drew over what the model predicts for them at this weight."""
+    seconds = np.array([p.seconds for p in points])
+    drawn = float(np.sum(np.array([p.power for p in points]) * seconds))
+    predicted = model.power(
+        np.full(len(points), mass_kg * G), np.array([p.airspeed for p in points]),
+        np.array([p.climb for p in points]), np.array([p.density for p in points]), rules,
+    )  # fmt: skip
+    return drawn / float(np.sum(predicted * seconds))
+
+
+@dataclass(frozen=True)
+class OverTime:
+    """One flight on the airframe's scale: its hover and level power over the model's, and
+    the efficiency figures those make at the reference weight in standard air."""
+
+    flight_id: str
+    hover: float | None  # power drawn over predicted, hovering
+    level: float | None  # the same in level flight
+    grams_per_watt: float | None
+    figure_of_merit: float | None
+    wh_per_km: float | None
+    flagged: tuple[str, ...]  # the phases it drew too much in
+
+
+Thresholds = dict[str, float | None]
+
+
+def over_time(model: Model, flights: Sequence[FlightPoints], rules: Mapping[str, Any],
+              hover_gw: float, hover_fm: float,
+              wh_per_km: float | None) -> tuple[list[OverTime], Thresholds]:  # fmt: skip
+    """Each flight with a weight and enough of a phase, in the order given, and each phase's
+    threshold where enough flights judge it (the anomaly rule's)."""
+    spec: Mapping[str, Any] = rules["anomaly"]
+    least = float(spec["min_seconds"])
+    ratios: dict[str, dict[str, float]] = {"hover": {}, "level": {}}
+    for f in flights:
+        if f.mass_kg is None:
+            continue
+        for phase in ratios:
+            pts = [p for p in f.points if p.phase == phase]
+            if pts and sum(p.seconds for p in pts) >= least:
+                ratios[phase][f.flight_id] = ratio(model, f.mass_kg, pts, rules)
+    flagged: dict[str, set[str]] = {"hover": set(), "level": set()}
+    thresholds: dict[str, float | None] = {}
+    for phase, got in ratios.items():
+        thresholds[phase] = None
+        if len(got) < int(spec["min_flights"]):
+            continue
+        for fid, r in got.items():
+            others = [v - 1.0 for k, v in got.items() if k != fid]
+            limit = max(float(spec["min_excess"]), float(spec["sigmas"]) * spread(others))
+            if r - 1.0 > limit:
+                flagged[phase].add(fid)
+        # the line the screen draws: judged from every flight's spread
+        thresholds[phase] = max(
+            float(spec["min_excess"]),
+            float(spec["sigmas"]) * spread([v - 1.0 for v in got.values()]),
+        )
+    out: list[OverTime] = []
+    for f in flights:
+        h, lv = ratios["hover"].get(f.flight_id), ratios["level"].get(f.flight_id)
+        if h is None and lv is None:
+            continue
+        out.append(OverTime(
+            f.flight_id, h, lv,
+            hover_gw / h if h else None, hover_fm / h if h else None,
+            wh_per_km * lv if lv and wh_per_km is not None else None,
+            tuple(p for p in ("hover", "level") if f.flight_id in flagged[p]),
+        ))  # fmt: skip
+    return out, thresholds
 
 
 def anomaly(flight_id: str, am: AirframeModel, rules: Mapping[str, Any],

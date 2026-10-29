@@ -139,6 +139,7 @@ export interface Performance {
   battery?: Battery;
   what_ifs?: WhatIf[];
   builds?: Builds;
+  over_time?: OverTime;
   density?: DensityAltitude;
   data?: DataBehind;
 }
@@ -423,4 +424,49 @@ export function least(xs: number[], ys: (number | null)[], top: number): { v: nu
     if (x <= top + 1e-9 && y !== null && y !== undefined && Number.isFinite(y) && (!best || y < best.y)) best = { v: x, y };
   });
   return best;
+}
+
+/** Each flight on one scale: the airframe's efficiency at the weight picked in standard air,
+ * scaled by how far that flight's power sat from the model (hover and level apart). */
+export interface OverTimeFlight {
+  flight_id: string;
+  n: number; // its place in the airframe's flying order, from 1
+  hover: number | null; // power drawn over predicted, hovering
+  level: number | null;
+  grams_per_watt: number | null;
+  figure_of_merit: number | null;
+  wh_per_km: number | null;
+  flagged: ("hover" | "level")[];
+}
+
+export interface OverTimeChange {
+  kind: string; // "parameter change", "build change", "ground station change", "build", "firmware"
+  n: number;
+  number?: number;
+  reason?: string | null;
+  origin?: string;
+  params?: string[];
+  from?: string;
+  to?: string;
+}
+
+export interface OverTime {
+  mass_kg: number;
+  density: number;
+  airspeed_ms: number | null;
+  flights: OverTimeFlight[];
+  thresholds: { hover: number | null; level: number | null };
+  changes: OverTimeChange[];
+  count: number; // the airframe's flights, those without power or weight included
+}
+
+export type OverTimeKey = "grams_per_watt" | "figure_of_merit" | "wh_per_km";
+
+/** One figure's points in flying order, each marked when the phase it comes from drew too
+ * much: g/W and FM from hovering, energy per km from level flight. */
+export function overTimeSeries(ot: OverTime, key: OverTimeKey): { n: number; v: number; flagged: boolean }[] {
+  const phase = key === "wh_per_km" ? "level" : "hover";
+  return ot.flights
+    .filter((f): f is OverTimeFlight & Record<OverTimeKey, number> => f[key] !== null && Number.isFinite(f[key]))
+    .map((f) => ({ n: f.n, v: f[key], flagged: f.flagged.includes(phase) }));
 }
