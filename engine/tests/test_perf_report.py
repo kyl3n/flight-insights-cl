@@ -157,6 +157,7 @@ def test_the_pack_against_load_and_each_pack_over_its_flights(got: dict[str, Any
     assert all(powers[0] <= v <= powers[-1] for v in b["loads"].values())
     assert b["loads"]["endurance"] <= b["loads"]["hover"]
     assert b["aged_capacity"] == 0.8 and b["aged_resistance"] == 2.0
+    assert b["caution_resistance"] == 1.5
     # the one pack flew both sweeps alone: its resistance on each, its rated capacity
     [p] = b["packs"]
     assert p["code"] == "P1" and p["rated_mah"] == 30000

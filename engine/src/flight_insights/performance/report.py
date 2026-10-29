@@ -314,7 +314,8 @@ def _battery(store: Store, reg: Registry, airframe_id: str, flights: Sequence[Fl
         "usable": [{"power_w": float(p), "energy_wh": float(e), "ends": s} for p, e, s
                    in zip(curve.powers, curve.energy_wh, curve.stopped_by, strict=True)],
         "loads": dict(loads), "aged_capacity": float(spec["aged_capacity"]),
-        "aged_resistance": float(spec["aged_resistance"]), "packs": [],
+        "aged_resistance": float(spec["aged_resistance"]),
+        "caution_resistance": float(spec["caution_resistance"]), "packs": [],
     }  # fmt: skip
     rows = store.conn.execute(
         "SELECT DISTINCT bp.id, bp.pack_code, bp.capacity_mah FROM battery_pack bp "
