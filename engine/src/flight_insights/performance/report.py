@@ -674,8 +674,11 @@ def report(store: Store, cache: ColumnCache, pack: KnowledgePack, airframe_id: s
     return _round(out)
 
 
-def range_card(store: Store, cache: ColumnCache, pack: KnowledgePack,
-               airframe_id: str) -> dict[str, Any]:  # fmt: skip
+CARD_PARAMS = ("WP_SPD", "RTL_SPEED_MS", "BATT_LOW_MAH", "BATT_LOW_VOLT", "BATT_CAPACITY")
+
+
+def range_card(store: Store, cache: ColumnCache, pack: KnowledgePack, airframe_id: str,
+               air: str = "usual") -> dict[str, Any]:  # fmt: skip
     """The printable card: a row for each of the empty, typical and heaviest take-off
     weights, each figure at the low end of its interval; the cruise speed the setup's
     Priority calls for (best endurance for endurance, else best range); the radius out and
@@ -683,7 +686,13 @@ def range_card(store: Store, cache: ColumnCache, pack: KnowledgePack,
     what limits it; the best ground speed into each headwind; and what it is good for:
     the weights and speeds flown, and the latest flight's parameters. The radius in each
     wind is the model's; in still air also its low end. An airframe that has only hovered
-    gets the hover time alone."""
+    gets the hover time alone.
+
+    For the printed card it also gives the radius for each of the standard trips (the
+    drop trip leaving the row's payload, its weight over the empty), the energy to plan
+    with at the cruise load, the parameters it was worked out with, the setup it rests on,
+    and how well the model predicts each flight without it. `air` is the airframe's usual
+    or standard air."""
     reg = Registry.load(pack)
     rules: Mapping[str, Any] = reg.rules["performance"]
     i = gather(store, cache, pack, airframe_id)
@@ -693,7 +702,7 @@ def range_card(store: Store, cache: ColumnCache, pack: KnowledgePack,
     if fit is None or i.pack is None:
         out["missing"].setdefault("model", i.model.why or "no power model yet")
         return _round(out)
-    density = i.usual_density or STANDARD_DENSITY
+    density = STANDARD_DENSITY if air == "standard" else (i.usual_density or STANDARD_DENSITY)
     weights = sorted({m for m in (i.empty_kg, i.typical_kg, i.max_kg) if m is not None})
     if not weights and i.flown_kg is not None:
         weights = sorted(set(i.flown_kg))
@@ -734,6 +743,15 @@ def range_card(store: Store, cache: ColumnCache, pack: KnowledgePack,
                          for h in winds],
         }  # fmt: skip
         row["radius_still_low_km"] = low["radius_m"].low / 1000
+        payload = max(kg - (i.empty_kg or kg), 0.0)
+        row["radius_trips_km"] = {
+            kind: {str(h): worst_trip(fit.model, rules, curve, kg, density,
+                                      standard(kind, rules, payload), h, top)[0] / 1000
+                   for h in winds}
+            for kind in TRIPS
+        }  # fmt: skip
+        cruise_w = float(fit.model.power(w, row["cruise_ms"], 0.0, density, rules))
+        row["plan_wh"] = float(curve.at(cruise_w))
         if i.basis is not None:
             ts = top_speed(fit.model, rules, reg.rules["wind"]["envelope"], i.params, i.basis,
                            kg, density, volts, i.current_a, top)  # fmt: skip
@@ -744,4 +762,13 @@ def range_card(store: Store, cache: ColumnCache, pack: KnowledgePack,
     out["valid"] = {"flown_kg": i.flown_kg, "top_ms": top, "density": density,
                     "reserve_share": i.reserve_share,
                     "params_flight": i.latest_flight}  # fmt: skip
+    data = _data(i.model, rules)
+    out["card"] = {
+        "air": air, "density": density, "empty_kg": i.empty_kg,
+        "priority": i.answers.get("priority"), "failsafe": asdict(i.failsafe),
+        "params": {k: i.params.get(k) for k in CARD_PARAMS},
+        "model": {k: data[k] for k in ("level", "flights", "lofo_median", "lofo_p90",
+                                       "targets")},
+        "trips": list(TRIPS), "winds": list(rules["report"]["headwinds_ms"]),
+    }  # fmt: skip
     return _round(out)

@@ -268,6 +268,25 @@ def test_the_range_card(fleet: dict[str, Any]) -> None:
     assert light["radius_still_low_km"] <= light["radius_km"]["0.0"]
     assert light["verified_ms"] == pytest.approx(12.0, abs=0.3)
     assert card["valid"]["flown_kg"] == [32.5, 40.5]
+    # for the printed card: every standard trip, the energy to plan with, what it rests on
+    c = card["card"]
+    assert c["trips"] == ["out_and_back", "drop", "site"] and c["air"] == "usual"
+    assert c["density"] == pytest.approx(card["valid"]["density"])
+    for r in rows:
+        trips = r["radius_trips_km"]
+        assert trips["out_and_back"] == pytest.approx(r["radius_km"], rel=1e-6)
+        # five minutes hovering at the site costs radius in every wind
+        assert all(trips["site"][h] < trips["out_and_back"][h] for h in ("0.0", "5.0"))
+        assert r["plan_wh"] > 0
+    # 12.5 kg left at the site: the way back is lighter, so the drop trip reaches further
+    assert heavy["radius_trips_km"]["drop"]["0.0"] > heavy["radius_trips_km"]["out_and_back"]["0.0"]
+    assert heavy["plan_wh"] <= light["plan_wh"]  # a heavier load loses more in the pack
+    assert set(c["params"]) == {"WP_SPD", "RTL_SPEED_MS", "BATT_LOW_MAH", "BATT_LOW_VOLT",
+                                "BATT_CAPACITY"}  # fmt: skip
+    assert c["model"]["level"] == "A" and c["model"]["lofo_median"] is not None
+    assert c["failsafe"] and c["empty_kg"] == 32.5
+    std = range_card(fleet["store"], fleet["cache"], PACK, fleet["airframe"], air="standard")
+    assert std["card"]["air"] == "standard" and std["card"]["density"] == pytest.approx(1.225)
 
 
 def test_two_builds_side_by_side(fleet: dict[str, Any], got: dict[str, Any]) -> None:
@@ -330,6 +349,8 @@ def test_over_rpc(fleet: dict[str, Any], tmp_path: Path) -> None:
                              {"wind_ms": 99})):  # fmt: skip
         e = call(server, out, 10 + n, "airframe.performance", airframe_id="x", **bad)
         assert e["error"]["code"] == -32602
+    e = call(server, out, 14, "airframe.range_card", airframe_id="x", air="thin")
+    assert e["error"]["code"] == -32602
     for n, method in enumerate(("airframe.performance", "airframe.range_card")):
         e = call(server, out, 15 + n, method, airframe_id="none")
         assert e["error"]["code"] == -32003 and "no such airframe" in e["error"]["message"]

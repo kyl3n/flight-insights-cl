@@ -37,6 +37,7 @@ export const app = $state({
   trendCard: null as string | null, // the metric@segment the Trends view opens on
   trendsTab: "metrics" as "metrics" | "history" | "range", // the Trends view's metrics or parameter history
   recoveryCard: null as string | null, // the airframe whose recovery card is open
+  rangeCard: null as string | null, // the airframe whose range card is open
   settingsSection: null as string | null, // the Settings section to bring into view
   ai: null as AiStatus | null, // the AI layer's status; null outside the desktop app
   sync: null as WorkerState | null, // the sync worker's last round; null outside the desktop app
