@@ -8,6 +8,7 @@
   import Header from "./components/Header.svelte";
   import PlanView from "./components/PlanView.svelte";
   import RecoveryCardView from "./components/RecoveryCardView.svelte";
+  import RangeCardView from "./components/RangeCardView.svelte";
   import Rail from "./components/Rail.svelte";
   import AskView from "./components/AskView.svelte";
   import SettingsView from "./components/SettingsView.svelte";
@@ -121,6 +122,8 @@
     <Header onTheme={toggleTheme} />
     {#if app.recoveryCard}
       <RecoveryCardView airframeId={app.recoveryCard} />
+    {:else if app.rangeCard}
+      <RangeCardView airframeId={app.rangeCard} />
     {:else if app.view === "fleet" && setup}
       <SetupView schema={setup.schema} platform={setup.platform} />
     {:else if app.view === "fleet"}

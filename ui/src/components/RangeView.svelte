@@ -126,6 +126,7 @@
       <span>{inputs ? t("range.inputs", { kg: num(kg), from: inputs.mass_from, ratio: num(inputs.density / 1.225, 2) }) : ""}</span>
       <span>{t("range.private")}</span>
     </p>
+    <button type="button" class="card-link" onclick={() => (app.rangeCard = airframeId)}>{t("card.open")}</button>
   </section>
 
   {#if error}<p class="error">{error}</p>{/if}
@@ -457,6 +458,16 @@
   }
   .callout .kicker {
     color: var(--caution);
+  }
+  .card-link {
+    align-self: flex-start;
+    padding: 6px 10px;
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    background: transparent;
+    color: var(--link);
+    font-size: 13px;
+    cursor: pointer;
   }
   .reserve {
     padding: 12px 14px;

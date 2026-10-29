@@ -137,11 +137,14 @@ def add_performance_methods(server: Server, state: EngineState,
     @server.method("airframe.range_card")
     @guarded
     def range_card(ctx: Context, params: dict[str, Any]) -> dict[str, Any]:
+        air = params.get("air", "usual")
+        if air not in ("usual", "standard"):
+            raise RpcError(INVALID_PARAMS, "air must be 'usual' or 'standard'")
         store, cache = state.require_store(), state.cache
         assert cache is not None
         ctx.progress(0.0, "working out the card")
         try:
-            out = perf_report.range_card(store, cache, state.pack, _airframe(params))
+            out = perf_report.range_card(store, cache, state.pack, _airframe(params), air)
         except perf.PerformanceError as e:
             raise RpcError(BAD_INPUT, str(e)) from None
         ctx.progress(1.0, "done")
