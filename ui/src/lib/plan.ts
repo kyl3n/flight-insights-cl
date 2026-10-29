@@ -239,3 +239,13 @@ export function outcomes(history: HistoryRow[], limit = 5): HistoryRow[] {
     .sort((a, b) => (a.updated_hlc < b.updated_hlc ? 1 : -1))
     .slice(0, limit);
 }
+
+/** The plan's recommendations about range, flight time and speed: those whose findings
+ * come from the power model (`performance.*`) or the speed build-up (`speed.*`), and the
+ * speed-sweep card the model is measured with, in the plan's order, for the Range and
+ * speed screen to point at. */
+const RANGE_PREFIXES = ["performance.", "speed."];
+const RANGE_CODES = new Set(["followup.speed_sweep"]);
+export function rangeRecs(plan: Plan): PlanRec[] {
+  return plan.recommendations.filter((r) => r.sources.some((s) => RANGE_CODES.has(s.code) || RANGE_PREFIXES.some((p) => s.code.startsWith(p))));
+}
