@@ -12,8 +12,10 @@ and efficiency analysis, "The battery's usable energy"; rules in
   (`params.battery_capacity` is held back).
 - **A pack aged:** its measured capacity under the end-of-life share of its rated capacity
   (`performance.pack_worn`), or its resistance up to the end-of-life multiple of its first
-  flights' (`performance.pack_resistance`). Only flights where the pack flew alone, on one
-  monitor, count: the import does not record which monitor read which of several packs.
+  flights' (`performance.pack_resistance`). Before that, its resistance up the early caution
+  multiple (`performance.pack_resistance_rising`), so the pack is watched before it ends.
+  Only flights where the pack flew alone, on one monitor, count: the import does not record
+  which monitor read which of several packs.
 """
 
 from __future__ import annotations
@@ -34,6 +36,7 @@ from flight_insights.trends import Flight, analysed_flights
 CAPACITY = "performance.capacity_setting"
 WORN = "performance.pack_worn"  # its capacity under the end-of-life share
 WORN_RESISTANCE = "performance.pack_resistance"  # its resistance up the end-of-life multiple
+RISING = "performance.pack_resistance_rising"  # up the early caution multiple, short of it
 AUDIT = "params.battery_capacity"  # the setup's rated capacity, from the parameter audit
 
 
@@ -187,6 +190,7 @@ def aging(got: Sequence[Fit], rated: float | None, spec: Mapping[str, Any]
     first = float(np.median(ohms[:n])) if n >= least else None
     last = float(np.median(ohms[-n:])) if n >= least else None
     end_share, end_ratio = float(spec["aged_capacity"]), float(spec["aged_resistance"])
+    caution = float(spec["caution_resistance"])
     out: list[tuple[str, dict[str, Any]]] = []
     if capacity is not None and rated and capacity < end_share * rated:
         out.append((WORN, {
@@ -194,10 +198,11 @@ def aging(got: Sequence[Fit], rated: float | None, spec: Mapping[str, Any]
             "capacity_pct": round(100 * capacity / rated), "end_pct": round(100 * end_share),
             "measured": len(latest),
         }))  # fmt: skip
-    if first is not None and last is not None and last >= end_ratio * first:
-        out.append((WORN_RESISTANCE, {
+    if first is not None and last is not None and last >= caution * first:
+        out.append((WORN_RESISTANCE if last >= end_ratio * first else RISING, {
             "resistance_mohm": round(last, 1), "first_mohm": round(first, 1),
-            "ratio": round(last / first, 2), "end_ratio": end_ratio, "compared": n,
+            "ratio": round(last / first, 2), "end_ratio": end_ratio,
+            "caution_ratio": caution, "compared": n,
         }))  # fmt: skip
     return out
 

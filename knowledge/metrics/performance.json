@@ -89,6 +89,17 @@
         "uk": "Опір, у {end_ratio} раза більший за опір у перших польотах, — звичайна межа ресурсу: батарея сильніше просідає під навантаженням, віддає менше енергії на великій потужності й більше гріється. Виведіть її з експлуатації або залиште для легкої роботи. Холодна батарея теж показує високий опір, тож спершу порівняйте за подібної температури. Медіана останніх {compared} польотів проти перших {compared} з {flights}, коли вона була єдиною на одному моніторі."
       }
     },
+    "performance.pack_resistance_rising": {
+      "stage": "operations",
+      "title": {
+        "en": "Pack {pack}'s resistance has risen to {resistance_mohm} mOhm, {ratio} times its first flights' {first_mohm} mOhm",
+        "uk": "Опір батареї {pack} зріс до {resistance_mohm} мОм, у {ratio} раза більше, ніж {first_mohm} мОм у перших польотах"
+      },
+      "action": {
+        "en": "An early caution at {caution_ratio} times its first flights' resistance, short of the {end_ratio} times that usually ends a pack's life: it sags more under load and gives less of its energy at high power. Keep using it, watch it on the Batteries panel, and keep it off the heaviest and fastest flights if it keeps rising. A cold pack also reads high, so compare at a similar temperature first. The median of its latest {compared} flights against its first {compared}, of {flights} flown alone on one monitor; the 150% mark is an app rule, not yet checked on real packs.",
+        "uk": "Рання пересторога при опорі, у {caution_ratio} раза більшому за опір у перших польотах, — ще до {end_ratio}, що зазвичай означає кінець ресурсу батареї: вона сильніше просідає під навантаженням і віддає менше енергії на великій потужності. Користуйтеся нею далі, стежте за нею на панелі «Акумулятори» і не ставте її на найважчі та найшвидші польоти, якщо опір і далі зростатиме. Холодна батарея теж показує високий опір, тож спершу порівняйте за подібної температури. Медіана останніх {compared} польотів проти перших {compared} з {flights}, коли вона була єдиною на одному моніторі; межа 150% — правило застосунку, ще не перевірене на справжніх батареях."
+      }
+    },
     "performance.energy_hover": {
       "stage": "operations",
       "title": {
