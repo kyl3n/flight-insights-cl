@@ -22,7 +22,7 @@ from flight_insights.imports.propose import propose
 from flight_insights.imports.scan import scan
 from flight_insights.performance import airframe as perf
 from flight_insights.performance.airframe import AirframeModel, rows
-from flight_insights.performance.efficiency import HOVER, LEVEL, anomaly, spread
+from flight_insights.performance.efficiency import HOVER, LEVEL, anomaly, over_time, spread
 from flight_insights.performance.fit import G, Model, fitted
 from flight_insights.performance.points import FlightPoints, Point
 from flight_insights.store.cache import ColumnCache
@@ -84,6 +84,33 @@ def test_too_few_flights_or_no_weight_flags_nothing() -> None:
     two = model_of([flight("a", 30.0, 1), flight("b", 36.0, 2, hover=1.5)])
     assert anomaly("b", two, RULES, {}) == []
     assert spread([]) == 0.0 and spread([0.01, 0.01, 0.01]) == 0.0
+
+
+def test_each_flight_on_one_scale() -> None:
+    """The airframe's figures at one weight, scaled by how far each flight's power sat from
+    the model: a flight that drew 20% more hovering shows 20% fewer grams per watt, one
+    that drew 25% more in level flight 25% more energy per km, at whatever weight each
+    flew; the rest sit on the airframe's own within their scatter."""
+    clean = [flight(f"c{k}", kg, k) for k, kg in enumerate((28.0, 32.0, 36.0, 40.0))]
+    prop, drag = flight("prop", 34.0, 9, hover=1.2), flight("drag", 30.0, 8, level=1.25)
+    unweighed = FlightPoints("x", prop.points, None, "none", "flight", "baro")
+    order = [clean[0], prop, clean[1], drag, unweighed, clean[2], clean[3]]
+    got, thresholds = over_time(TRUE, order, RULES, 8.0, 0.6, 100.0)
+    assert [o.flight_id for o in got] == ["c0", "prop", "c1", "drag", "c2", "c3"]
+    by = {o.flight_id: o for o in got}
+    assert by["prop"].flagged == ("hover",) and by["drag"].flagged == ("level",)
+    assert by["prop"].grams_per_watt == pytest.approx(8.0 / 1.2, rel=0.03)
+    assert by["prop"].figure_of_merit == pytest.approx(0.6 / 1.2, rel=0.03)
+    assert by["drag"].wh_per_km == pytest.approx(125.0, rel=0.03)
+    for c in clean:
+        o = by[c.flight_id]
+        assert o.flagged == () and o.hover == pytest.approx(1.0, abs=0.04)
+        assert o.wh_per_km == pytest.approx(100.0 * (o.level or 0), rel=1e-12)
+    assert thresholds["hover"] == pytest.approx(RULES["anomaly"]["min_excess"])
+    # without a cruise speed, no energy per km; with two flights, no threshold to judge by
+    few, none = over_time(TRUE, order[:2], RULES, 8.0, 0.6, None)
+    assert all(o.wh_per_km is None for o in few) and few[1].flagged == ()
+    assert none == {"hover": None, "level": None}
 
 
 def fly(store: Store, cache: ColumnCache, name: str, af: str, kg: float) -> str:

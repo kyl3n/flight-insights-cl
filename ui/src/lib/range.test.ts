@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { againstSeaLevel, at, band, earlyEnds, flownSpan, interval, least, measuredAt, minutesGrid, packShares, plot, polar, split, used, weightChart, weights, whatIfShares, type Figures, type Inputs } from "./range";
+import { againstSeaLevel, at, band, overTimeSeries, earlyEnds, flownSpan, interval, least, measuredAt, minutesGrid, packShares, plot, polar, split, used, weightChart, weights, whatIfShares, type Figures, type Inputs } from "./range";
 
 const inputs = (over: Partial<Inputs> = {}): Inputs => ({
   mass_kg: 32.5,
@@ -205,5 +205,37 @@ describe("the air and the data behind", () => {
     expect(got.rows.map((r) => r.mass_kg)).toEqual([32.5, 40.5, null]);
     expect(got.rows[0]!.cells).toEqual([1, null, null, 2]);
     expect(got.rows[2]!.cells).toEqual([null, null, 0.2, null]);
+  });
+});
+
+describe("over time", () => {
+  it("takes each figure's points in order, marked by the phase they come from", () => {
+    const f = (n: number, hover: number | null, level: number | null, flagged: ("hover" | "level")[] = []) => ({
+      flight_id: `f${n}`,
+      n,
+      hover,
+      level,
+      grams_per_watt: hover === null ? null : 8 / hover,
+      figure_of_merit: hover === null ? null : 0.6 / hover,
+      wh_per_km: level === null ? null : 100 * level,
+      flagged,
+    });
+    const ot = {
+      mass_kg: 32.5,
+      density: 1.225,
+      airspeed_ms: 9,
+      flights: [f(1, 1, 1), f(3, 1.2, null, ["hover"]), f(4, null, 1.25, ["level"])],
+      thresholds: { hover: 0.08, level: 0.08 },
+      changes: [],
+      count: 4,
+    };
+    expect(overTimeSeries(ot, "grams_per_watt")).toEqual([
+      { n: 1, v: 8, flagged: false },
+      { n: 3, v: 8 / 1.2, flagged: true },
+    ]);
+    expect(overTimeSeries(ot, "wh_per_km")).toEqual([
+      { n: 1, v: 100, flagged: false },
+      { n: 4, v: 125, flagged: true },
+    ]);
   });
 });

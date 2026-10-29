@@ -32,6 +32,10 @@ from, and what the power model gives with them.
   atmosphere's air at each, with the density altitudes the flights flew; all on the laptop.
 - **The data behind it:** the minutes of steady hover and level flight by weight and
   airspeed, and each flight's energy predicted without it (leave one flight out).
+- **Over time:** each flight's hover g/W and figure of merit and its energy per km, on one
+  scale: the airframe's own at the weight picked in standard air, times how far the flight's
+  power sat from the model (`efficiency.over_time`); with the changes between flights and
+  the flights that drew too much.
 - **The what-ifs:** each lever alone; the weight's is measured when the flights span more
   than one weight, every other lever is the model's alone until a flight with the change
   confirms it.
@@ -58,6 +62,7 @@ from flight_insights.knowledge import Pack as KnowledgePack
 from flight_insights.performance import airframe as perf
 from flight_insights.performance import bench, packs
 from flight_insights.performance.battery import Failsafe, Pack, Usable, chemistry
+from flight_insights.performance.efficiency import over_time
 from flight_insights.performance.envelope import Fast, verified
 from flight_insights.performance.envelope import Inputs as EnvelopeInputs
 from flight_insights.performance.envelope import step as next_step
@@ -69,6 +74,7 @@ from flight_insights.performance.project import (
     TRIPS,
     against_weight,
     draws,
+    efficiency,
     figures,
     hover_spread,
     measured,
@@ -84,7 +90,7 @@ from flight_insights.performance.top_speed import Basis, lowest_volts, top_speed
 from flight_insights.sim.export import isa_density
 from flight_insights.store.cache import CacheError, ColumnCache
 from flight_insights.store.db import Store
-from flight_insights.trends import Flight, analysed_flights, metric_of
+from flight_insights.trends import Flight, analysed_flights, events, metric_of
 from flight_insights.weather.measured import drag
 
 FAST_METRICS = (
@@ -424,6 +430,28 @@ def _builds(store: Store, airframe_id: str, i: Inputs, model: Model,
     return out
 
 
+def _over_time(store: Store, airframe_id: str, i: Inputs, model: Model,
+               rules: Mapping[str, Any], mass: float,
+               airspeed: float | None) -> dict[str, Any]:  # fmt: skip
+    """Each flight on one scale, in flying order, with what changed between them."""
+    e = efficiency(model, rules, mass, STANDARD_DENSITY, airspeed or 0.0)
+    order = {f.id: n for n, f in enumerate(i.flights, start=1)}
+    flown = sorted(i.model.flights, key=lambda f: order.get(f.flight_id, len(order) + 1))
+    got, thresholds = over_time(model, flown, rules, e.grams_per_watt, e.figure_of_merit,
+                                e.wh_per_km if airspeed else None)  # fmt: skip
+    changes = [
+        {k: v for k, v in ev.items() if k in ("kind", "number", "reason", "origin", "params",
+                                               "from", "to")} | {"n": order[ev["flight"]]}
+        for ev in events(store, airframe_id)
+        if ev.get("flight") in order and ev["kind"] != "recommendation"
+    ]  # fmt: skip
+    return {
+        "mass_kg": mass, "density": STANDARD_DENSITY, "airspeed_ms": airspeed,
+        "flights": [asdict(o) | {"n": order.get(o.flight_id)} for o in got],
+        "thresholds": thresholds, "changes": changes, "count": len(order),
+    }  # fmt: skip
+
+
 def density_altitude(density: float) -> float:
     """The standard atmosphere's altitude with this air density, m (the US National Weather
     Service's fit, as `weather/record.py` uses)."""
@@ -562,6 +590,7 @@ def report(store: Store, cache: ColumnCache, pack: KnowledgePack, airframe_id: s
                 "mass_kg": mass, "measured": measured(rules, i.flown_kg, mass),
                 "hover_s": asdict(hover_spread(i.model.fitted, rules, curve, mass, density)),
             }  # fmt: skip
+        out["over_time"] = _over_time(store, airframe_id, i, model, rules, mass, None)
         return _round(out)
     top = i.top_ms
     w = mass * G
@@ -590,6 +619,7 @@ def report(store: Store, cache: ColumnCache, pack: KnowledgePack, airframe_id: s
     out["builds"] = _builds(store, airframe_id, i, model, rules, mass, density, top, f)
     out["density"] = _density(model, rules, i, mass, top)
     out["data"] = _data(i.model, rules)
+    out["over_time"] = _over_time(store, airframe_id, i, model, rules, mass, f.range_ms)
     out["spread"] = {k: asdict(v) for k, v in
                      spread(i.model.fitted, rules, curve, mass, i.empty_kg or mass, density,
                             top).items()}  # fmt: skip

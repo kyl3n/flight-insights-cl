@@ -240,6 +240,21 @@ def test_a_hover_only_airframe_gets_its_hover_time(fleet: dict[str, Any]) -> Non
     assert "cruise_ms" not in row and "radius_km" not in row
 
 
+def test_each_flight_over_time(got: dict[str, Any]) -> None:
+    """The two sweeps on one scale, at the weight picked in standard air: each near the
+    model they were fitted to, in flying order, with nothing flagged from two flights."""
+    ot = got["over_time"]
+    assert ot["mass_kg"] == 32.5 and ot["density"] == pytest.approx(1.225)
+    assert ot["airspeed_ms"] == pytest.approx(got["figures"]["range_ms"])
+    assert ot["count"] == 2 and [f["n"] for f in ot["flights"]] == [1, 2]
+    eff = got["figures"]["efficiency"]
+    for f in ot["flights"]:
+        assert f["hover"] == pytest.approx(1.0, abs=0.1) and f["flagged"] == []
+        assert f["grams_per_watt"] == pytest.approx(eff["grams_per_watt"] / f["hover"], rel=0.01)
+        assert f["level"] is not None and f["wh_per_km"] > 0
+    assert ot["thresholds"] == {"hover": None, "level": None}
+
+
 def test_the_range_card(fleet: dict[str, Any]) -> None:
     card = range_card(fleet["store"], fleet["cache"], PACK, fleet["airframe"])
     rows = card["rows"]
