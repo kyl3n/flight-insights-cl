@@ -44,12 +44,20 @@
   const capValues = $derived(shares.flatMap((s) => s.capacity.filter((v): v is number => v !== null).map((v) => v * 100)));
   const capPlot = $derived(plot(flightsAxis, [...capValues, 100, (b?.aged_capacity ?? 0.8) * 100 - 5], S, null));
   const resPlot = $derived(plot(flightsAxis, [...shares.flatMap((s) => s.resistance.map((v) => v * 100)), 100, (b?.aged_resistance ?? 2) * 100], S, null));
+  const latest = (s: { capacity: (number | null)[]; resistance: number[] }) => ({
+    capacity: s.capacity.filter((v): v is number => v !== null).at(-1),
+    resistance: s.resistance.length > 1 ? s.resistance.at(-1) : undefined,
+  });
   const anyCapacity = $derived(capValues.length > 0);
+  // the plan's findings judge on the median of the latest flights; this marks the latest
   const worn = $derived(shares.filter((s) => {
-    const c = s.capacity.filter((v): v is number => v !== null);
-    const last = c[c.length - 1];
-    const r = s.resistance[s.resistance.length - 1];
-    return (last !== undefined && last < (b?.aged_capacity ?? 0.8)) || (r !== undefined && s.resistance.length > 1 && r >= (b?.aged_resistance ?? 2));
+    const l = latest(s);
+    return (l.capacity !== undefined && l.capacity < (b?.aged_capacity ?? 0.8)) || (l.resistance !== undefined && l.resistance >= (b?.aged_resistance ?? 2));
+  }));
+  const rising = $derived(shares.filter((s) => {
+    const r = latest(s).resistance;
+    const c = b?.caution_resistance;
+    return !worn.includes(s) && c !== undefined && r !== undefined && r >= c;
   }));
 </script>
 
@@ -138,6 +146,9 @@
               <text class="tick" x={resPlot.px(v)} y={S.height - S.bottom + 16} text-anchor="middle">{num(v, 0)}</text>
             {/each}
             <line class="limit" x1={S.left} x2={S.width - S.right} y1={resPlot.py(b.aged_resistance * 100)} y2={resPlot.py(b.aged_resistance * 100)} />
+            {#if b.caution_resistance}
+              <line class="limit early" x1={S.left} x2={S.width - S.right} y1={resPlot.py(b.caution_resistance * 100)} y2={resPlot.py(b.caution_resistance * 100)} />
+            {/if}
             {#each shares as s, i (s.pack.code)}
               <path class="line" style:stroke={tone(i)} d={split(flightsAxis.slice(0, s.resistance.length), s.resistance.map((v) => v * 100), Infinity, resPlot).solid} />
               {#each s.resistance as v, j (j)}
@@ -159,10 +170,14 @@
           </ul>
           <p class="faint">
             {t("battery.limits", { cap: num(b.aged_capacity * 100, 0), res: num(b.aged_resistance * 100, 0) })}
+            {#if b.caution_resistance}{t("battery.limits.caution", { res: num(b.caution_resistance * 100, 0) })}{/if}
             {#if !anyCapacity}{t("battery.noCapacity")}{/if}
           </p>
           {#if worn.length}
             <p class="worn">{t("battery.worn", { packs: worn.map((s) => s.pack.code).join(", ") })}</p>
+          {/if}
+          {#if rising.length}
+            <p class="worn">{t("battery.rising", { packs: rising.map((s) => s.pack.code).join(", ") })}</p>
           {/if}
         </div>
       </div>
@@ -306,9 +321,13 @@
     stroke-width: 1;
   }
   .limit {
-    stroke: var(--caution);
+    stroke: var(--out);
     stroke-dasharray: 4 4;
     stroke-opacity: 0.8;
+  }
+  .limit.early {
+    stroke: var(--caution);
+    stroke-dasharray: 2 4;
   }
   .worn {
     color: var(--caution);
