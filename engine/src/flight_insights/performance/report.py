@@ -358,6 +358,7 @@ def report(store: Store, cache: ColumnCache, pack: KnowledgePack, airframe_id: s
         "mass_kg": mass, "mass_from": mass_from, "density": density, "air": air,
         "empty_kg": i.empty_kg, "max_kg": i.max_kg, "flown_kg": i.flown_kg, "top_ms": i.top_ms,
         "reserve_share": i.reserve_share, "trip": trip, "wind_ms": wind_ms,
+        "speed_goal": i.answers.get("speed_goal") or "efficient",
     }  # fmt: skip
     if model is None or mass is None:
         if mass is None:
@@ -411,6 +412,13 @@ def report(store: Store, cache: ColumnCache, pack: KnowledgePack, airframe_id: s
                  max(mass - (i.empty_kg or mass), 0.0))  # fmt: skip
     least, by = worst_trip(model, rules, curve, mass, density, t, wind_ms, top)
     out["radius"] = {"trip": t.kind, "wind_ms": wind_ms, "worst_m": least, "by_direction": by}
+    # the radius against wind speed: the worst way round, and with the wind across
+    radius_wind: list[dict[str, Any]] = []
+    for wind in (float(x) for x in rules["report"]["radius_winds_ms"]):
+        worst, around = worst_trip(model, rules, curve, mass, density, t, wind, top)
+        across = next((m for d, m in around if abs(d - 90.0) < 1e-6), None)
+        radius_wind.append({"wind_ms": wind, "worst_m": worst, "across_m": across})
+    out["radius_wind"] = radius_wind
     out["headwind"] = [_headwind(model, w, density, rules, top, h)
                        for h in rules["report"]["headwinds_ms"]]  # fmt: skip
     out["what_ifs"] = [asdict(x) for x in what_ifs(

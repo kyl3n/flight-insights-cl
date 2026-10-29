@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { at, band, earlyEnds, flownSpan, interval, least, measuredAt, plot, split, weightChart, weights, type Figures, type Inputs } from "./range";
+import { at, band, earlyEnds, flownSpan, interval, least, measuredAt, plot, polar, split, used, weightChart, weights, type Figures, type Inputs } from "./range";
 
 const inputs = (over: Partial<Inputs> = {}): Inputs => ({
   mass_kg: 32.5,
@@ -116,5 +116,22 @@ describe("the speed charts", () => {
     expect(b.startsWith("M")).toBe(true);
     expect(b.endsWith("Z")).toBe(true);
     expect(b.match(/L/g)).toHaveLength(3);
+  });
+});
+
+describe("wind and the build-up", () => {
+  it("draws the polar with out into the wind at the top", () => {
+    // the engine's 0 is out with the wind behind; its 180, out into the wind
+    const d = polar([[0, 1000], [90, 1500], [180, 1000], [270, 1500]], 100, 100, 50, 1500);
+    const pts = d.replace(/[MZ]/g, "").split(" L").map((p) => p.trim().split(" ").map(Number));
+    expect(pts[2]![1]!).toBeLessThan(100); // 180: up
+    expect(pts[0]![1]!).toBeGreaterThan(100); // 0: down
+    expect(pts[1]![0]!).toBeCloseTo(50); // 90: the full radius across, on the left
+    expect(polar([], 0, 0, 1, 1)).toBe("");
+  });
+
+  it("gives each check's share of its limit", () => {
+    expect(used({ name: "lean", value: 20, limit: 80, holds: true, how: "model" })).toBe(0.25);
+    expect(used({ name: "current", value: 5, limit: 0, holds: false, how: "model" })).toBe(1);
   });
 });

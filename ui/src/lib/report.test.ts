@@ -108,3 +108,10 @@ describe("report", () => {
     expect(groups.map(([k, v]) => [k, v.length])).toEqual([["vibration", 1]]);
   });
 });
+
+describe("angles", () => {
+  it("writes degrees as a sign with no space", () => {
+    expect(formatValue(11.2, "deg", "en")).toBe("11.2°");
+    expect(formatValue(11.2, "deg", "uk")).toBe("11,2°");
+  });
+});
