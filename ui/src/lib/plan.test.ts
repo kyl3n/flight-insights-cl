@@ -5,6 +5,7 @@ import {
   groupDecision,
   outcomes,
   partition,
+  rangeRecs,
   recFor,
   stageStates,
   checksPassed,
@@ -137,5 +138,24 @@ describe("plan", () => {
     expect(groupDecision(groups[0]!)).toBe("mixed");
     expect(groupDecision(groups[2]!)).toBe("proposed");
     expect(groupDecision(groups[1]!)).toBe("none");
+  });
+});
+
+describe("range and speed recommendations", () => {
+  it("keeps what the power model and the speed build-up propose, in the plan's order", () => {
+    const src = (code: string) => [{ finding: code, analyzer: "performance", code, severity: "info" as const, why: t("w") }];
+    const plan: Plan = {
+      ...PLAN,
+      recommendations: [
+        rec({ param: "WP_SPD", sources: src("performance.cruise_speed") }),
+        rec({ param: "INS_GYRO_FILTER" }),
+        rec({ param: "ATC_ANGLE_MAX", sources: src("speed.build_up_lean") }),
+        rec({ param: null, sources: src("performance.pack_worn") }),
+        rec({ param: null, finding: "sweep", sources: src("followup.speed_sweep") }),
+        rec({ param: null, finding: "drill", sources: src("followup.gnss_drill") }),
+      ],
+    };
+    expect(rangeRecs(plan).map((r) => r.param ?? r.finding)).toEqual(["WP_SPD", "ATC_ANGLE_MAX", "f1", "sweep"]);
+    expect(rangeRecs(PLAN)).toEqual([]);
   });
 });

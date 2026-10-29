@@ -28,6 +28,7 @@
   import DataPanel from "./DataPanel.svelte";
   import DensityPanel from "./DensityPanel.svelte";
   import OverTimePanel from "./OverTimePanel.svelte";
+  import RecommendationsPanel from "./RecommendationsPanel.svelte";
   import SpeedPanel from "./SpeedPanel.svelte";
   import WhatIfPanel from "./WhatIfPanel.svelte";
   import WindPanel from "./WindPanel.svelte";
@@ -147,6 +148,8 @@
         </ul>
       </section>
     {/if}
+
+    <RecommendationsPanel {airframeId} />
 
     {#if view.hover && !f}
       <section class="panel" aria-labelledby="kpi-title">
