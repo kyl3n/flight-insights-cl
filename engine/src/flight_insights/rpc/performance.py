@@ -1,6 +1,7 @@
 """RPC for the airframe's power model (spec: Power and efficiency analysis, "Range,
 endurance and speed"; Engine protocol): its fit, and its points for the power against
-airspeed chart as an Arrow IPC file. The points carry airspeed, climb, power, air density,
+airspeed chart as an Arrow IPC file; and the makers' bench tables a person enters for a
+platform (`bench.list`, `bench.save`). The points carry airspeed, climb, power, air density,
 weight and phase only: no time, no heading, nothing about where."""
 
 from __future__ import annotations
@@ -8,11 +9,12 @@ from __future__ import annotations
 import math
 import uuid
 from collections.abc import Callable
-from typing import TYPE_CHECKING, Any
+from typing import TYPE_CHECKING, Any, cast
 
 import pyarrow as pa
 
 from flight_insights.performance import airframe as perf
+from flight_insights.performance import bench
 from flight_insights.performance import report as perf_report
 from flight_insights.performance.fit import NAMES
 from flight_insights.rpc.server import BAD_INPUT, INVALID_PARAMS, Context, RpcError, Server
@@ -25,6 +27,13 @@ def _airframe(params: dict[str, Any]) -> str:
     value = params.get("airframe_id")
     if not isinstance(value, str) or not value:
         raise RpcError(INVALID_PARAMS, "airframe_id must be an airframe's id")
+    return value
+
+
+def _platform(params: dict[str, Any]) -> str:
+    value = params.get("platform_id")
+    if not isinstance(value, str) or not value:
+        raise RpcError(INVALID_PARAMS, "platform_id must be a platform's id")
     return value
 
 
@@ -137,3 +146,26 @@ def add_performance_methods(server: Server, state: EngineState,
             raise RpcError(BAD_INPUT, str(e)) from None
         ctx.progress(1.0, "done")
         return out
+
+    @server.method("bench.list")
+    @guarded
+    def bench_list(_ctx: Context, params: dict[str, Any]) -> list[dict[str, Any]]:
+        return [b.view() for b in bench.benches(state.require_store(), _platform(params))]
+
+    @server.method("bench.save")
+    @guarded
+    def bench_save(_ctx: Context, params: dict[str, Any]) -> dict[str, Any]:
+        values = params.get("values")
+        if not isinstance(values, dict):
+            raise RpcError(INVALID_PARAMS, "values must be an object")
+        bench_id, version = params.get("id"), params.get("version")
+        if bench_id is not None and not isinstance(bench_id, str):
+            raise RpcError(INVALID_PARAMS, "id must be a bench table's id")
+        if version is not None and (isinstance(version, bool) or not isinstance(version, int)):
+            raise RpcError(INVALID_PARAMS, "version must be the table's version as read")
+        try:
+            got = bench.save(state.require_store(), _platform(params),
+                             cast(dict[str, Any], values), bench_id, version)  # fmt: skip
+        except bench.BenchError as e:
+            raise RpcError(BAD_INPUT, str(e)) from None
+        return got.view()

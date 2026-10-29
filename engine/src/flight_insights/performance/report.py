@@ -24,6 +24,10 @@ from, and what the power model gives with them.
 - **The batteries:** the pack's usable energy against load, with the loads the figures fly
   at, and each of the airframe's packs' capacity and resistance across the flights it flew
   alone (`packs.history`), against the end-of-life conventions.
+- **Builds side by side:** the platform's current parts against a candidate set, from
+  the makers' bench tables a person entered (`performance/bench.py`): the candidate is
+  the airframe's own model with its propulsion power scaled by the tables' ratio at the
+  hover thrust per motor; every candidate figure is an estimate, not flown.
 - **The air:** range and hover endurance against density altitude, in the standard
   atmosphere's air at each, with the density altitudes the flights flew; all on the laptop.
 - **The data behind it:** the minutes of steady hover and level flight by weight and
@@ -52,7 +56,7 @@ from flight_insights.analyzers.flight import FlightError
 from flight_insights.analyzers.motors_health import motors
 from flight_insights.knowledge import Pack as KnowledgePack
 from flight_insights.performance import airframe as perf
-from flight_insights.performance import packs
+from flight_insights.performance import bench, packs
 from flight_insights.performance.battery import Failsafe, Pack, Usable, chemistry
 from flight_insights.performance.envelope import Fast, verified
 from flight_insights.performance.envelope import Inputs as EnvelopeInputs
@@ -341,6 +345,85 @@ def _battery(store: Store, reg: Registry, airframe_id: str, flights: Sequence[Fl
     return out
 
 
+def _builds(store: Store, airframe_id: str, i: Inputs, model: Model,
+            rules: Mapping[str, Any], mass: float, density: float, top: float,
+            f: Any) -> dict[str, Any]:  # fmt: skip
+    """The platform's current parts against its candidate set, from the bench tables a
+    person entered: the tables, the flown hover power against the current table, and
+    the candidate's figures, power curve and range against weight beside the flown
+    build's. Left at the tables while either set is missing or a hover thrust runs past
+    a table."""
+    assert i.pack is not None
+    row = store.get("airframe", airframe_id)
+    assert row is not None
+    tables = bench.benches(store, str(row["platform_id"]))
+    out: dict[str, Any] = {"platform_id": str(row["platform_id"]),
+                           "tables": [b.view() for b in tables], "motors": i.motors}  # fmt: skip
+    found: dict[str, bench.Bench] = {}
+    for b in tables:
+        found.setdefault(b.role, b)
+    current, candidate = found.get("current"), found.get("candidate")
+
+    def per_motor(kg: float) -> float:
+        return kg * 1000.0 / i.motors
+
+    if current is not None:
+        # flown hover power per motor against the bench at the same thrust
+        flown = float(model.power(mass * G, 0.0, 0.0, density, rules)[()]) - model.avionics
+        at = current.power_in(per_motor(mass), density)
+        out["flown_vs_bench"] = {"thrust_g": per_motor(mass), "flown_w": flown / i.motors,
+                                 "bench_w": at,
+                                 "share": flown / i.motors / at if at else None,
+                                 "same_air": current.ambient_c is not None}  # fmt: skip
+    if current is None or candidate is None:
+        out["missing"] = "current" if current is None else "candidate"
+        return out
+    delta = (i.motors * (candidate.motor_mass_g - current.motor_mass_g) / 1000.0
+             if candidate.motor_mass_g and current.motor_mass_g else 0.0)  # fmt: skip
+    heavy, empty = mass + delta, (i.empty_kg or mass) + delta
+    c = bench.compare(current, candidate, per_motor(heavy), density)
+    out["compare"] = c | {"mass_kg": heavy, "delta_kg": delta}
+    out["headroom"] = {
+        "current": current.max_thrust_g * i.motors / (mass * 1000.0),
+        "candidate": candidate.max_thrust_g * i.motors / (heavy * 1000.0),
+    }
+    if c["share"] is None:
+        return out
+    other = bench.propulsion(model, float(c["share"]))
+    curve_b = pack_curve(other, rules, i.pack, 1.0, i.failsafe, i.reserve_share,
+                         [empty, heavy, (i.max_kg or mass) + delta], density, top)  # fmt: skip
+    g = figures(other, rules, curve_b, heavy, empty, density, top, None)
+    step = float(rules["report"]["curve_step_ms"])
+    v = np.arange(0.0, top + step / 2, step)
+    zeros = np.zeros_like(v)
+    out["figures"] = {"current": asdict(f), "candidate": asdict(g) if g else None}
+    out["power"] = {
+        "airspeed_ms": v.tolist(),
+        "current_w": np.asarray(model.power(np.full(len(v), mass * G), v, zeros, density,
+                                            rules)).tolist(),
+        "candidate_w": np.asarray(other.power(np.full(len(v), heavy * G), v, zeros, density,
+                                              rules)).tolist(),
+    }  # fmt: skip
+    if i.empty_kg is not None and i.max_kg is not None:
+        rows: list[dict[str, Any]] = []
+        for kg in np.linspace(i.empty_kg, i.max_kg, int(rules["projections"]["weight_steps"])):
+            share = bench.compare(current, candidate, per_motor(float(kg) + delta), density)[
+                "share"
+            ]
+            got = (figures(bench.propulsion(model, float(share)), rules, curve_b,
+                           float(kg) + delta, empty, density, top, None, trips=())
+                   if share is not None else None)  # fmt: skip
+            rows.append(
+                {
+                    "mass_kg": float(kg),
+                    "range_m": got.range_m if got else None,
+                    "endurance_s": got.endurance_s if got else None,
+                }
+            )
+        out["against_weight"] = rows
+    return out
+
+
 def density_altitude(density: float) -> float:
     """The standard atmosphere's altitude with this air density, m (the US National Weather
     Service's fit, as `weather/record.py` uses)."""
@@ -504,6 +587,7 @@ def report(store: Store, cache: ColumnCache, pack: KnowledgePack, airframe_id: s
     }
     out["ends"] = {k: curve.stopped(v) for k, v in loads.items()}
     out["battery"] = _battery(store, reg, airframe_id, i.flights, curve, loads)
+    out["builds"] = _builds(store, airframe_id, i, model, rules, mass, density, top, f)
     out["density"] = _density(model, rules, i, mass, top)
     out["data"] = _data(i.model, rules)
     out["spread"] = {k: asdict(v) for k, v in
