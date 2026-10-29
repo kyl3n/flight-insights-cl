@@ -42,16 +42,18 @@ from flight_insights.analyzers.motors_health import motors
 from flight_insights.knowledge import Pack as KnowledgePack
 from flight_insights.performance import airframe as perf
 from flight_insights.performance import packs
-from flight_insights.performance.battery import Failsafe, Pack, chemistry
+from flight_insights.performance.battery import Failsafe, Pack, Usable, chemistry
 from flight_insights.performance.envelope import Fast, verified
 from flight_insights.performance.envelope import Inputs as EnvelopeInputs
 from flight_insights.performance.envelope import step as next_step
-from flight_insights.performance.fit import G, Model
+from flight_insights.performance.fit import Fitted, G, Model
 from flight_insights.performance.optimize import Cells, best, leg, terminals
+from flight_insights.performance.points import FlightPoints
 from flight_insights.performance.project import (
     STANDARD_DENSITY,
     TRIPS,
     against_weight,
+    draws,
     figures,
     hover_spread,
     measured,
@@ -292,6 +294,50 @@ def _headwind(model: Model, weight: float, density: float, rules: Mapping[str, A
     return {"wind_ms": wind_ms, **(asdict(x) if x else {"airspeed": None})}
 
 
+def _curves(fitted: Fitted, am_flights: Sequence[FlightPoints], rules: Mapping[str, Any],
+            curve: Usable, masses: Sequence[float], mass: float, density: float, top: float,
+            ) -> dict[str, Any]:  # fmt: skip
+    """What the power and speed charts draw: the power against airspeed at each weight with
+    its 95% band, and at the chosen weight the energy per km over the ground into each
+    headwind and the flight time; the curves reach past the fastest level airspeed flown,
+    which the screen marks. With the flights' hover and level points (airspeed, power,
+    weight and seconds only)."""
+    spec: Mapping[str, Any] = rules["report"]
+    end = max(top * float(spec["curve_beyond"]), top + float(spec["curve_beyond_ms"]))
+    v = np.arange(0.0, end + 1e-9, float(spec["curve_step_ms"]))
+    zeros = np.zeros(len(v))
+    models = draws(fitted, rules)
+    tail = (1.0 - float(rules["projections"]["level"])) / 2 * 100
+    power: list[dict[str, Any]] = []
+    for kg in masses:
+        w = np.full(len(v), kg * G)
+        mid = np.asarray(fitted.model.power(w, v, zeros, density, rules))
+        drawn = np.array([np.asarray(m.power(w, v, zeros, density, rules)) for m in models])
+        # the band laid about the model's own curve, as the figures' intervals are
+        low = mid + np.percentile(drawn, tail, axis=0) - np.median(drawn, axis=0)
+        high = mid + np.percentile(drawn, 100 - tail, axis=0) - np.median(drawn, axis=0)
+        power.append({"mass_kg": kg, "power_w": mid.tolist(), "low_w": low.tolist(),
+                      "high_w": high.tolist()})  # fmt: skip
+    at = np.asarray(fitted.model.power(np.full(len(v), mass * G), v, zeros, density, rules))
+    # over the ground: none where the headwind leaves no way to make
+    per_km = {
+        str(h): [float(p / (s - h) / 3.6) if s - h > 0.5 else None
+                 for s, p in zip(v, at, strict=True)]
+        for h in (float(x) for x in spec["headwinds_ms"])
+    }  # fmt: skip
+    points = [
+        {"flight": k, "mass_kg": f.mass_kg, "phase": p.phase, "airspeed_ms": p.airspeed,
+         "power_w": p.power, "seconds": p.seconds}
+        for k, f in enumerate(am_flights) if f.mass_kg is not None
+        for p in f.points if p.phase in ("hover", "level")
+    ]  # fmt: skip
+    return {
+        "airspeed_ms": v.tolist(), "top_ms": top, "power": power,
+        "wh_per_km": per_km, "flight_s": np.asarray(curve.seconds(at)).tolist(),
+        "points": points,
+    }  # fmt: skip
+
+
 def report(store: Store, cache: ColumnCache, pack: KnowledgePack, airframe_id: str,
            mass_kg: float | None = None, air: str = "usual", trip: str = "out_and_back",
            wind_ms: float = 0.0) -> dict[str, Any]:  # fmt: skip
@@ -352,6 +398,10 @@ def report(store: Store, cache: ColumnCache, pack: KnowledgePack, airframe_id: s
     out["spread"] = {k: asdict(v) for k, v in
                      spread(i.model.fitted, rules, curve, mass, i.empty_kg or mass, density,
                             top).items()}  # fmt: skip
+    out["curves"] = _curves(i.model.fitted, i.model.flights, rules, curve,
+                            sorted(set(masses)), mass, density, top)  # fmt: skip
+    cruise = i.params.get("WP_SPD")
+    out["wp_spd_ms"] = float(cruise) if cruise else None
     if i.empty_kg is not None and i.max_kg is not None:
         out["against_weight"] = [asdict(x) for x in against_weight(
             model, rules, curve, i.empty_kg, i.max_kg, density, top, i.flown_kg)]  # fmt: skip

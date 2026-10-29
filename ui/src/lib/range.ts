@@ -81,6 +81,9 @@ export interface Performance {
   hover?: { mass_kg: number; measured: boolean; hover_s: Spread };
   top_speed?: TopSpeed;
   ends?: Record<"hover" | "endurance" | "range", End>;
+  curves?: Curves;
+  wp_spd_ms?: number | null;
+  build_up?: { verified_ms: number | null; next_ms: number | null; binding: string | null; offered: boolean };
   failsafe?: Failsafe;
 }
 
@@ -180,4 +183,92 @@ export function interval(s: Spread | undefined, scale: (v: number) => string): s
  * outside it extrapolated. */
 export function measuredAt(kg: number | null | undefined, span: [number, number] | null): boolean {
   return kg !== null && kg !== undefined && span !== null && kg >= span[0] - 0.05 && kg <= span[1] + 0.05;
+}
+
+export interface PowerCurve {
+  mass_kg: number;
+  power_w: number[];
+  low_w: number[];
+  high_w: number[];
+}
+
+export interface Curves {
+  airspeed_ms: number[];
+  top_ms: number;
+  power: PowerCurve[];
+  wh_per_km: Record<string, (number | null)[]>;
+  flight_s: number[];
+  points: { flight: number; mass_kg: number; phase: string; airspeed_ms: number; power_w: number; seconds: number }[];
+}
+
+export interface Plot {
+  x: Axis;
+  y: Axis;
+  px: (v: number) => number;
+  py: (v: number) => number;
+}
+
+/** Round axes over the values, and the frame's scales for them. */
+export function plot(xs: number[], ys: number[], f: Frame, yFloor: number | null = 0): Plot {
+  const x = axis(xs, 5, 0);
+  const y = axis(ys.filter(Number.isFinite), 4, yFloor);
+  return {
+    x,
+    y,
+    px: (v) => f.left + ((v - x.lo) / (x.hi - x.lo)) * (f.width - f.left - f.right),
+    py: (v) => f.height - f.bottom - ((v - y.lo) / (y.hi - y.lo)) * (f.height - f.top - f.bottom),
+  };
+}
+
+/** A line split where it passes the speeds flown: solid up to `top`, dashed beyond. Gaps
+ * (nulls) break it. */
+export function split(xs: number[], ys: (number | null)[], top: number, p: Plot): { solid: string; beyond: string } {
+  const parts = { solid: [] as string[], beyond: [] as string[] };
+  let prev: string | null = null;
+  let prevKind: "solid" | "beyond" | null = null;
+  xs.forEach((x, i) => {
+    const y = ys[i];
+    if (y === null || y === undefined || !Number.isFinite(y)) {
+      prev = null;
+      prevKind = null;
+      return;
+    }
+    const pt = `${p.px(x).toFixed(1)} ${p.py(y).toFixed(1)}`;
+    const kind = x <= top + 1e-9 ? "solid" : "beyond";
+    if (prev !== null && prevKind === kind) parts[kind].push(`L${pt}`);
+    else parts[kind].push(prev !== null ? `M${prev} L${pt}` : `M${pt}`);
+    prev = pt;
+    prevKind = kind;
+  });
+  return { solid: parts.solid.join(" "), beyond: parts.beyond.join(" ") };
+}
+
+/** A band between two lines, closed. */
+export function band(xs: number[], low: number[], high: number[], p: Plot): string {
+  const up = xs.map((x, i) => `${i ? "L" : "M"}${p.px(x).toFixed(1)} ${p.py(high[i]!).toFixed(1)}`);
+  const down = xs.map((x, i) => `L${p.px(x).toFixed(1)} ${p.py(low[i]!).toFixed(1)}`).reverse();
+  return `${up.join(" ")} ${down.join(" ")} Z`;
+}
+
+/** The value of a curve at a speed, read between its grid points. */
+export function at(xs: number[], ys: (number | null)[], v: number): number | null {
+  for (let i = 1; i < xs.length; i++) {
+    if (v <= xs[i]!) {
+      const a = ys[i - 1], b = ys[i];
+      if (a === null || a === undefined || b === null || b === undefined) return null;
+      const t = (v - xs[i - 1]!) / (xs[i]! - xs[i - 1]!);
+      return a + t * (b - a);
+    }
+  }
+  return null;
+}
+
+/** The speed of least value along a curve, within the speeds flown. */
+export function least(xs: number[], ys: (number | null)[], top: number): { v: number; y: number } | null {
+  let best: { v: number; y: number } | null = null;
+  xs.forEach((x, i) => {
+    const y = ys[i];
+    if (x <= top + 1e-9 && y !== null && y !== undefined && Number.isFinite(y) && (!best || y < best.y)) best = { v: x, y };
+  });
+  return best;
 }

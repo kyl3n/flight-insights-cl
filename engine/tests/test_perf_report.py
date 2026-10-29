@@ -79,6 +79,41 @@ def test_each_figure_says_what_ends_it(got: dict[str, Any]) -> None:
     assert got["failsafe"]["capacity_mah"] == 44000 and got["failsafe"]["low_mah"] is None
 
 
+def test_the_curves_for_the_power_and_speed_charts(got: dict[str, Any]) -> None:
+    c, f = got["curves"], got["figures"]
+    v = c["airspeed_ms"]
+    assert v[0] == 0 and v[-1] >= got["inputs"]["top_ms"] * 1.3 - 0.5
+    assert [p["mass_kg"] for p in c["power"]] == [32.5, 45.0]  # empty (the typical) and heaviest
+    for p in c["power"]:
+        assert len(p["power_w"]) == len(v)
+        assert all(
+            lo <= m <= hi for lo, m, hi in zip(p["low_w"], p["power_w"], p["high_w"], strict=True)
+        )
+    light, heavy = c["power"]
+    assert all(h > lt for lt, h in zip(light["power_w"], heavy["power_w"], strict=True))
+    # within the speeds flown (the search's top), energy per km over the ground is least at
+    # the best-range speed in still air; into a headwind it costs more at every speed, and
+    # there is no way through a headwind at less than its speed
+    flown = [k for k, s in enumerate(v) if s <= got["inputs"]["top_ms"] + 1e-9]
+    still = c["wh_per_km"]["0.0"]
+    i = min((k for k in flown if still[k] is not None), key=lambda k: still[k])
+    assert abs(v[i] - f["range_ms"]) <= 0.5
+    windy = c["wh_per_km"]["10.0"]
+    assert windy[v.index(10.0)] is None
+    assert all(w > s for s, w in zip(still, windy, strict=True) if w is not None)
+    assert max(c["flight_s"]) == pytest.approx(f["endurance_s"], rel=0.05)
+    assert {p["phase"] for p in c["points"]} <= {"hover", "level"} and len(c["points"]) > 5
+    assert set(c["points"][0]) == {
+        "flight",
+        "mass_kg",
+        "phase",
+        "airspeed_ms",
+        "power_w",
+        "seconds",
+    }
+    assert got["wp_spd_ms"] is not None
+
+
 def test_the_wind_costs_radius_and_the_headwind_ground_speed(got: dict[str, Any]) -> None:
     r = got["radius"]
     assert r["wind_ms"] == 5.0 and len(r["by_direction"]) == 72
