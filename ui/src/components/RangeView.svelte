@@ -22,6 +22,7 @@
     type Trip,
   } from "../lib/range";
   import { formatNumber, unitText } from "../lib/report";
+  import SpeedPanel from "./SpeedPanel.svelte";
 
   let { airframeId }: { airframeId: string } = $props();
 
@@ -208,6 +209,10 @@
           {#if view.sources.pack}<p class="faint">{t("range.reserve.pack", { pack: view.sources.pack })}</p>{/if}
         </div>
       </section>
+    {/if}
+
+    {#if view.curves && f}
+      <SpeedPanel {view} />
     {/if}
 
     {#if rangeChart && timeChart}

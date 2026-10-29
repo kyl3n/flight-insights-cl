@@ -7,8 +7,15 @@
   },
   "points": {
     "about": "A flight's points for the power model (performance/points.py): its steady tiles (rules/energy.json 'phases') in the phases named here, leaving out a tile in an excluded mode, one starting within settle_s of a mode change, and one whose power's standard deviation exceeds max_power_cv of its mean. A tile's airspeed is its ground velocity less the wind: each drag window's own wind (from the flight's drag, else its airframe's) as a running median over wind_median_s. Tiles are averaged, weighted by time, per phase, airspeed_bin_ms of airspeed and climb_bin_ms of climb.",
-    "phases": ["hover", "level", "climb", "descent"],
-    "excluded_modes": ["LAND"],
+    "phases": [
+      "hover",
+      "level",
+      "climb",
+      "descent"
+    ],
+    "excluded_modes": [
+      "LAND"
+    ],
     "settle_s": 3.0,
     "max_power_cv": 0.1,
     "wind_median_s": 30.0,
@@ -16,12 +23,30 @@
     "climb_bin_ms": 0.5
   },
   "priors": {
-    "kappa_open": {"mean": 1.15, "spread": 0.08},
-    "kappa_coaxial": {"mean": 1.25, "spread": 0.10},
-    "efficiency": {"mean": 0.82, "spread": 0.08},
-    "profile_growth_k": {"mean": 4.65, "spread": 1.5},
-    "profile_coefficient": {"mean": 0.5, "spread": 0.2},
-    "profile_growth_hover": {"mean": 0.03, "spread": 0.02}
+    "kappa_open": {
+      "mean": 1.15,
+      "spread": 0.08
+    },
+    "kappa_coaxial": {
+      "mean": 1.25,
+      "spread": 0.1
+    },
+    "efficiency": {
+      "mean": 0.82,
+      "spread": 0.08
+    },
+    "profile_growth_k": {
+      "mean": 4.65,
+      "spread": 1.5
+    },
+    "profile_coefficient": {
+      "mean": 0.5,
+      "spread": 0.2
+    },
+    "profile_growth_hover": {
+      "mean": 0.03,
+      "spread": 0.02
+    }
   },
   "fit": {
     "about": "The power model's fit (performance/fit.py): for each flat-plate area f (searched between 0 and drag_area_max_m2 in drag_area_steps golden-section steps), the coefficients by weighted least squares on relative errors, each point weighted by its seconds and divided by the noise (starting at noise_start, re-estimated, never under noise_floor), each coefficient drawn to its prior (the avionics' to 0 with a spread of avionics_share of the points' median power), a factor per flight on the power drawn to 1 with a spread of random_effect_spread, and Huber weights at huber times the noise, over irls_steps passes; f where the profile likelihood with the priors is least. At least min_rows points. Level A needs level points spanning airspeed_span_ms at weights at least weight_apart apart (a share); B, level points (at or above moving_ms); C, hovers and climbs alone. The bootstrap resamples flights (bootstrap draws, seed, level).",
@@ -37,7 +62,11 @@
     "bootstrap": 200,
     "seed": 7,
     "level": 0.95,
-    "levels": {"moving_ms": 2.0, "airspeed_span_ms": 6.0, "weight_apart": 0.1}
+    "levels": {
+      "moving_ms": 2.0,
+      "airspeed_span_ms": 6.0,
+      "weight_apart": 0.1
+    }
   },
   "speeds": {
     "about": "The speeds to fly from the power model (performance/optimize.py): airspeeds searched every step_ms up to a cap; best endurance at least power, best range at least energy per metre through the air (from the cells when the pack's resistance is given); long-range cruise the fastest airspeed keeping long_range_share of the best range; each speed's band the airspeeds within band_share of its best; winds averaged over directions directions.",
@@ -67,7 +96,12 @@
     "measured_margin": 0.05,
     "level": 0.95,
     "bootstrap_min_flights": 3,
-    "what_ifs": {"mass_share": -0.05, "drag_share": -0.1, "avionics_w": 10.0, "capacity_share": 0.1}
+    "what_ifs": {
+      "mass_share": -0.05,
+      "drag_share": -0.1,
+      "avionics_w": 10.0,
+      "capacity_share": 0.1
+    }
   },
   "thermal": {
     "about": "Each ESC's first-order thermal model (performance/thermal.py), dT/dt = (T_air + k I^2 - T) / tau, fitted on a step_s grid from a flight's armed ESC telemetry of at least min_seconds whose current spans min_current_span_a or more: tau searched over tau_steps values from tau_min_s to tau_max_s, then refined.",
@@ -87,15 +121,51 @@
     "esc_margin_c": 10.0,
     "trend_gap_ms": 1.0,
     "tracking_growth": 1.5,
-    "required": ["lean", "thrust", "current"],
+    "required": [
+      "lean",
+      "thrust",
+      "current"
+    ],
     "lean_step_deg": 2.0,
     "lean_about": "When the lean alone holds the step back and the thrust allows more (performance/buildup.py): PSC_ANGLE_MAX, the automatic modes' lean limit (AUTO, Guided, RTL and Loiter's base; ATC_ANGLE_MAX stays the pilot's), raised by at most lean_step_deg, never past the whole degrees the thrust allows at the step nor the firmware's 80, and only when the step then holds every margin. AC_PosControl.cpp get_lean_angle_max_rad: PSC_ANGLE_MAX when set, else ATC_ANGLE_MAX, under the lean the thrust leaves.",
     "solutions_about": "What moves each limit the models predict, and by how much (envelope.gains): the airspeed the limit allows again with the change, less what it allows now. drag_share scales the frame's flat-plate drag (the wind fit's k2 and the power model's drag area; the rotors' in-plane force stays), thrust_share the thrust for the same throttle (the hover throttle divided by it: larger or higher-pitch propellers, higher KV or voltage), mass_share the weight, rating_share the packs' continuous rating and MOT_BAT_CURR_MAX, heating_share how much a current heats the ESCs (cooling). Round numbers to compare levers by, not a design.",
     "solutions": {
-      "lean": [{"name": "drag", "drag_share": 0.85}],
-      "thrust": [{"name": "thrust", "thrust_share": 1.1}, {"name": "weight", "mass_share": 0.9}],
-      "current": [{"name": "rating", "rating_share": 1.25}, {"name": "drag", "drag_share": 0.85}],
-      "esc_temp": [{"name": "cooling", "heating_share": 0.8}, {"name": "drag", "drag_share": 0.85}]
+      "lean": [
+        {
+          "name": "drag",
+          "drag_share": 0.85
+        }
+      ],
+      "thrust": [
+        {
+          "name": "thrust",
+          "thrust_share": 1.1
+        },
+        {
+          "name": "weight",
+          "mass_share": 0.9
+        }
+      ],
+      "current": [
+        {
+          "name": "rating",
+          "rating_share": 1.25
+        },
+        {
+          "name": "drag",
+          "drag_share": 0.85
+        }
+      ],
+      "esc_temp": [
+        {
+          "name": "cooling",
+          "heating_share": 0.8
+        },
+        {
+          "name": "drag",
+          "drag_share": 0.85
+        }
+      ]
     }
   },
   "advice": {
@@ -103,14 +173,24 @@
     "min_cruise_ms": 2.0,
     "cruise_step_ms": 0.1,
     "home_step_ms": 0.5,
-    "raise_up_to_verified": ["WP_SPD", "LOIT_SPEED_MS", "RTL_SPEED_MS"]
+    "raise_up_to_verified": [
+      "WP_SPD",
+      "LOIT_SPEED_MS",
+      "RTL_SPEED_MS"
+    ]
   },
   "return": {
     "about": "The charge the battery failsafe keeps back for the way home (performance/charge.py): RTL's climb to RTL_ALT_M at WP_SPD_UP, the way back at RTL_SPEED_MS (WP_SPD at 0) from the percentile of the farthest each flight went from where it armed into the same percentile of the measured winds as a headwind, and the descent at WP_SPD_DN at hover power, at the lowest voltage before the failsafe; plus the setup's reserve share of capacity. Rounded up to round_mah. When the return and its reserve come to more than max_share of the packs, no failsafe setting covers it. defaults are ArduCopter 4.7.0's (config.h RTL_ALT_M_DEFAULT 15; mode_rtl.cpp RTL_SPEED_MS 0 uses WP_SPD; AC_WPNav.cpp WP_SPD 10, WP_SPD_UP 2.5, WP_SPD_DN 1.5). Uncalibrated until checked against the airframe's own flights to reserve.",
     "percentile": 90,
     "round_mah": 100,
     "max_share": 0.6,
-    "defaults": {"RTL_ALT_M": 15.0, "RTL_SPEED_MS": 0.0, "WP_SPD": 10.0, "WP_SPD_UP": 2.5, "WP_SPD_DN": 1.5}
+    "defaults": {
+      "RTL_ALT_M": 15.0,
+      "RTL_SPEED_MS": 0.0,
+      "WP_SPD": 10.0,
+      "WP_SPD_UP": 2.5,
+      "WP_SPD_DN": 1.5
+    }
   },
   "anomaly": {
     "about": "A flight that drew more power than its airframe's other flights predict (performance/efficiency.py): its hover points and its level points, each over at least min_seconds, against the power model fitted without it, at each point's weight, airspeed, climb and air. Flagged when the power drawn exceeds the prediction by more than the larger of min_excess and sigmas times the robust spread (1.4826 x the median absolute deviation) of how far the other flights' energy sits from that same model, needing min_flights flights with points in all; the flight judged never widens the spread. Hover alone points at the propulsion or a weight entered wrong, level alone at drag. Uncalibrated until checked against the airframe's own flights; the 8% floor is above the 5% median leave-one-out error the HL1 validation asks of the model.",
@@ -121,8 +201,25 @@
   },
   "readiness": {
     "about": "Before the speed build-up's next step is offered (performance/buildup.py `gate`): none of these findings open on the flight at a severity in `severities`. Staging already holds the build-up (navigation) behind the mechanical, filter and tune stages; these are the findings it would otherwise be offered alongside or ahead of, and the earlier-stage ones that matter most at speed, named so the reason is shown. GNSS: the step is flown on GNSS speed and position, and a disturbance at speed has less room. Motor-out margin: faster flight leans further and uses more of the thrust a lost motor leaves. The packs and their failsafe: the step draws more current from the pack, its sag and its reserve must be right first. ESCs, motors and vibration: what fails first at higher power. An app rule, uncalibrated: a prefix ending in '.' names a family.",
-    "codes": ["gnss.", "motor_out.short", "performance.pack_worn", "performance.pack_resistance", "performance.capacity_setting", "performance.low_mah", "performance.return_short", "failsafe.battery_near_miss", "power.board_voltage", "esc.", "motors.saturation", "vibration."],
-    "severities": ["caution", "out", "safety"]
+    "codes": [
+      "gnss.",
+      "motor_out.short",
+      "performance.pack_worn",
+      "performance.pack_resistance",
+      "performance.capacity_setting",
+      "performance.low_mah",
+      "performance.return_short",
+      "failsafe.battery_near_miss",
+      "power.board_voltage",
+      "esc.",
+      "motors.saturation",
+      "vibration."
+    ],
+    "severities": [
+      "caution",
+      "out",
+      "safety"
+    ]
   },
   "packs": {
     "about": "Each pack's capacity and resistance over its flights (performance/packs.py; each flight's fit is analyzers/pack.py's, rules/ocv.json 'fit'). A monitor's measured capacity is the median of the capacities its latest `flights` flights of the airframe measured (a flight measures one when it uses at least min_soc_span of the pack), needing min_flights of them. BATTn_CAPACITY more than capacity_share above it is lowered to it, rounded down to round_mah: the capacity failsafe counts down from BATTn_CAPACITY, so a setting above the pack acts with less charge left than BATTn_LOW_MAH. A setting below it is left: it only acts early. A pack has aged when its measured capacity is under aged_capacity of its rated capacity (the end-of-life convention: USABC's test manual and GB/Z 18333.1 end life at 80% of rated), or when its resistance (R0 + R1, the median of its latest `compare` flights) reaches aged_resistance times the median of its first `compare` (200% of initial, the convention the power metrics already cite). Only flights where the pack flew alone on one monitor count towards a pack's history: the import does not record which monitor read which of several packs. Uncalibrated: SITL's packs come back within 2%, real packs are not yet checked.",
@@ -135,8 +232,15 @@
     "compare": 3
   },
   "report": {
-    "about": "What the Range & speed screen and the range card show (performance/report.py): the best airspeed and ground speed into each of headwinds_ms, and on the card the radius out and back with each as the wind, the worst way round.",
-    "headwinds_ms": [0.0, 5.0, 10.0]
+    "about": "What the Range & speed screen and the range card show (performance/report.py): the best airspeed and ground speed into each of headwinds_ms, and on the card the radius out and back with each as the wind, the worst way round. The Range & speed screen's curves run from 0 to the larger of curve_beyond times the fastest level airspeed flown and that plus curve_beyond_ms, every curve_step_ms: the power at the empty, chosen and heaviest weights with the projections' 95% band, and at the chosen weight the energy per km over the ground into each of headwinds_ms and the flight time.",
+    "headwinds_ms": [
+      0.0,
+      5.0,
+      10.0
+    ],
+    "curve_step_ms": 0.5,
+    "curve_beyond": 1.3,
+    "curve_beyond_ms": 3.0
   },
   "top_speed": {
     "about": "The maximum level airspeed (performance/top_speed.py): the least of the lean limit (the measured drag carried to the weight and air, at PSC_ANGLE_MAX else ATC_ANGLE_MAX), the thrust limit (acos of the hover throttle at that weight over 0.8 of full, wind.json's throttle_limit), and the current limit (the model's power within the lowest voltage times the least of the pack's rating and MOT_BAT_CURR_MAX), searched every step_ms up to search_ms.",

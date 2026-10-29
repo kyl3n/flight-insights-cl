@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { earlyEnds, flownSpan, interval, measuredAt, weightChart, weights, type Figures, type Inputs } from "./range";
+import { at, band, earlyEnds, flownSpan, interval, least, measuredAt, plot, split, weightChart, weights, type Figures, type Inputs } from "./range";
 
 const inputs = (over: Partial<Inputs> = {}): Inputs => ({
   mass_kg: 32.5,
@@ -81,5 +81,40 @@ describe("what ends the figures", () => {
     ]);
     expect(earlyEnds({ hover: "reserve", endurance: "cutoff", range: "reserve" })).toEqual([]);
     expect(earlyEnds(undefined)).toEqual([]);
+  });
+});
+
+describe("the speed charts", () => {
+  const frame = { width: 600, height: 200, left: 50, right: 10, top: 10, bottom: 30 };
+  const xs = [0, 2, 4, 6, 8, 10];
+
+  it("draws a line solid up to the speeds flown and dashed beyond, joined where it crosses", () => {
+    const p = plot(xs, [1, 5], frame);
+    const ln = split(xs, [3, 2.5, 2, 2.2, 2.6, 3.2], 5, p);
+    expect(ln.solid.match(/M/g)).toHaveLength(1);
+    expect(ln.solid.match(/L/g)).toHaveLength(2); // 0, 2, 4
+    expect(ln.beyond.startsWith(`M${p.px(4).toFixed(1)}`)).toBe(true); // from the last flown point
+  });
+
+  it("breaks a line where a value is missing, as into a headwind faster than the speed", () => {
+    const p = plot(xs, [0, 400], frame);
+    const ln = split(xs, [null, null, null, 300, 200, 150], 10, p);
+    expect(ln.solid.startsWith(`M${p.px(6).toFixed(1)}`)).toBe(true);
+    expect(ln.beyond).toBe("");
+  });
+
+  it("reads a curve between its points and finds its least within the speeds flown", () => {
+    const ys = [300, 200, 120, 100, 110, 90];
+    expect(at(xs, ys, 5)).toBe(110);
+    expect(at(xs, [null, 1], 1)).toBeNull();
+    expect(least(xs, ys, 8)).toEqual({ v: 6, y: 100 }); // the 90 at 10 is beyond them
+  });
+
+  it("closes a band from the high line out and the low line back", () => {
+    const p = plot(xs, [0, 10], frame);
+    const b = band([0, 10], [1, 2], [3, 4], p);
+    expect(b.startsWith("M")).toBe(true);
+    expect(b.endsWith("Z")).toBe(true);
+    expect(b.match(/L/g)).toHaveLength(3);
   });
 });
