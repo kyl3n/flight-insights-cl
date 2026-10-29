@@ -18,6 +18,13 @@ app never fetches or invents them.
   arm blockage and forward flight are the airframe's own and come from its flights. Two
   tables on different props or voltages compare those setups, not the motor alone; the
   comparison says so. Every candidate figure is an estimate, not flown.
+- **Read in the same air.** A maker states the test's ambient temperature; thinner, hotter
+  air needs more power for the same thrust. With a fixed-pitch prop at a given thrust, the
+  induced and profile power both go as one over the square root of the air density, so a
+  table with its temperature is brought to the air asked for (at standard pressure: no
+  maker gives the pressure; the motor's own losses are taken to scale with the rest). Two
+  tables are read in the same air only when both give their temperature; otherwise the
+  comparison says one is missing.
 - **Flown against the bench.** The airframe's hover power per motor against its current
   table's at the same thrust: well above the bench means losses outside the motor (prop
   wash on arms, coaxial interference, damaged props), as the spec's g/W check reads it.
@@ -36,6 +43,14 @@ from flight_insights.performance.fit import Model
 from flight_insights.store.db import Store
 
 ROLES = ("current", "candidate", "none")
+R_AIR = 287.05287  # J/(kg K), dry air
+P_STANDARD = 101325.0  # Pa
+AMBIENT_C = (-40.0, 60.0)  # the temperatures a bench is plausibly run in
+
+
+def test_density(ambient_c: float) -> float:
+    """The air the bench ran in, at standard pressure."""
+    return P_STANDARD / (R_AIR * (ambient_c + 273.15))
 
 
 class BenchError(ValueError):
@@ -63,6 +78,7 @@ class Bench:
     motor_mass_g: float | None
     source: str | None
     rows: tuple[Row, ...]
+    ambient_c: float | None = None
 
     def power_at(self, thrust_g: float) -> float | None:
         """Electrical power for this thrust, read between the steps on a log-log scale
@@ -75,6 +91,14 @@ class Bench:
                 f = math.log(thrust_g / a.thrust_g) / math.log(b.thrust_g / a.thrust_g)
                 return math.exp(math.log(a.power_w) + f * math.log(b.power_w / a.power_w))
         return self.rows[0].power_w
+
+    def power_in(self, thrust_g: float, density: float) -> float | None:
+        """The power for this thrust in air of this density, when the table gives the
+        temperature it ran in; as measured otherwise."""
+        at = self.power_at(thrust_g)
+        if at is None or self.ambient_c is None:
+            return at
+        return at * math.sqrt(test_density(self.ambient_c) / density)
 
     @property
     def max_thrust_g(self) -> float:
@@ -91,7 +115,7 @@ class Bench:
             "id": self.id, "version": self.version, "role": self.role, "label": self.label,
             "motor": self.motor, "kv": self.kv, "prop_diameter_in": self.prop_diameter_in,
             "prop_pitch_in": self.prop_pitch_in, "volts": self.volts,
-            "motor_mass_g": self.motor_mass_g, "source": self.source,
+            "motor_mass_g": self.motor_mass_g, "source": self.source, "ambient_c": self.ambient_c,
             "rows": [{"throttle_pct": r.throttle_pct, "thrust_g": r.thrust_g,
                       "power_w": r.power_w} for r in self.rows],
             "max_thrust_g": self.max_thrust_g, "full_throttle": self.full_throttle,
@@ -131,12 +155,23 @@ def _number(values: Mapping[str, Any], key: str) -> float | None:
     return float(v)
 
 
+def _temperature(values: Mapping[str, Any]) -> float | None:
+    v = values.get("ambient_c")
+    if v is None or v == "":
+        return None
+    lo, hi = AMBIENT_C
+    if isinstance(v, bool) or not isinstance(v, int | float) or not lo <= v <= hi:
+        raise BenchError(f"ambient_c is the test's air temperature, {lo:g} to {hi:g} °C")
+    return float(v)
+
+
 def _from_row(row: Mapping[str, Any]) -> Bench:
     rows = tuple(Row(float(r["throttle_pct"]), float(r["thrust_g"]), float(r["power_w"]))
                  for r in json.loads(str(row["rows_json"])))  # fmt: skip
     return Bench(str(row["id"]), int(row["version"]), str(row["role"]), str(row["label"]),
                  row["motor"], row["kv"], row["prop_diameter_in"], row["prop_pitch_in"],
-                 row["volts"], row["motor_mass_g"], row["source"], rows)  # fmt: skip
+                 row["volts"], row["motor_mass_g"], row["source"], rows,
+                 row["ambient_c"])  # fmt: skip
 
 
 def benches(store: Store, platform_id: str) -> list[Bench]:
@@ -169,7 +204,7 @@ def save(store: Store, platform_id: str, values: Mapping[str, Any], bench_id: st
         "motor": (str(values.get("motor") or "").strip()[:80] or None),
         "kv": _number(values, "kv"), "prop_diameter_in": _number(values, "prop_diameter_in"),
         "prop_pitch_in": _number(values, "prop_pitch_in"), "volts": _number(values, "volts"),
-        "motor_mass_g": _number(values, "motor_mass_g"),
+        "motor_mass_g": _number(values, "motor_mass_g"), "ambient_c": _temperature(values),
         "source": (str(values.get("source") or "").strip()[:300] or None),
         "rows_json": json.dumps([r.__dict__ for r in check_rows(values.get("rows") or [])]),
     }  # fmt: skip
@@ -196,11 +231,19 @@ def propulsion(model: Model, share: float) -> Model:
                    profile=model.profile * share)  # fmt: skip
 
 
-def compare(current: Bench, candidate: Bench, thrust_g: float) -> dict[str, Any]:
-    """The two tables at one motor's hover thrust: each one's power, the candidate's
-    share of the current's, and what limits reading them."""
-    now, then = current.power_at(thrust_g), candidate.power_at(thrust_g)
+def compare(current: Bench, candidate: Bench, thrust_g: float,
+            density: float) -> dict[str, Any]:  # fmt: skip
+    """The two tables at one motor's hover thrust: each one's power, in the air of this
+    density when both give their temperature, the candidate's share of the current's, and
+    what limits reading them."""
+    both = current.ambient_c is not None and candidate.ambient_c is not None
+    if both:
+        now, then = current.power_in(thrust_g, density), candidate.power_in(thrust_g, density)
+    else:
+        now, then = current.power_at(thrust_g), candidate.power_at(thrust_g)
     notes: list[str] = []
+    if not both and (current.ambient_c, candidate.ambient_c) != (None, None):
+        notes.append("ambient_unknown")
     if (current.prop_diameter_in, current.prop_pitch_in) != (
             candidate.prop_diameter_in, candidate.prop_pitch_in):  # fmt: skip
         notes.append("props_differ")
@@ -214,5 +257,5 @@ def compare(current: Bench, candidate: Bench, thrust_g: float) -> dict[str, Any]
         notes.append("candidate_short")
     return {
         "thrust_g": thrust_g, "current_w": now, "candidate_w": then,
-        "share": then / now if now and then else None, "notes": notes,
+        "share": then / now if now and then else None, "notes": notes, "same_air": both,
     }  # fmt: skip

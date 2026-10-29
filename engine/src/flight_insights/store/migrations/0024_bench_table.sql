@@ -18,6 +18,7 @@ CREATE TABLE bench_table (
     volts REAL,                    -- the test's supply voltage
     motor_mass_g REAL,             -- one motor, as the maker gives it
     source TEXT,                   -- where the table came from: a sheet, a page, a bench
+    ambient_c REAL,                -- the air temperature the bench ran in, as the maker gives it
     rows_json TEXT NOT NULL        -- [{throttle_pct, thrust_g, power_w}], throttle rising
 );
 CREATE INDEX bench_table_platform ON bench_table (platform_id);

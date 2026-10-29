@@ -66,12 +66,16 @@
   let draft = $state<Draft | null>(null);
   let saving = $state(false);
   let error = $state("");
-  const read = $derived(draft ? parseSteps(draft.steps) : { steps: [], refused: 0 });
+  const read = $derived(draft ? parseSteps(draft.steps) : { steps: [], refused: 0, tables: 0, ambient_c: null });
 
   function open(table: BenchTable | null) {
     editing = table;
     draft = table ? draftOf(table) : emptyDraft(current ? (candidate ? "none" : "candidate") : "current");
     error = "";
+  }
+  // a maker's table pasted with its air temperature fills the field, unless one is typed
+  function fillAmbient() {
+    if (draft && draft.ambient_c.trim() === "" && read.ambient_c !== null) draft.ambient_c = String(read.ambient_c);
   }
   async function save() {
     if (!draft) return;
@@ -113,6 +117,7 @@
       {#if v.share !== null}
         {t("builds.flown", { kg: num(kg), flown: `${num(v.flown_w, 0)} ${unit("W")}`, pct: num(v.share * 100, 0), thrust: grams(v.thrust_g) })}
         {t(v.share >= 1 ? "builds.flown.above" : "builds.flown.below")}
+        {#if !v.same_air}{t("builds.flown.air")}{/if}
       {:else}
         {t("builds.flown.outside", { kg: num(kg), thrust: grams(v.thrust_g) })}
       {/if}
@@ -188,6 +193,9 @@
         </tbody>
       </table>
     </div>
+    <p class="faint">
+      {c.same_air ? t("builds.air.same", { ratio: num((view.inputs?.density ?? NaN) / 1.225, 2) }) : c.notes.includes("ambient_unknown") ? "" : t("builds.air.none")}
+    </p>
     {#each c.notes as n (n)}
       <p class="notice">▲ {t(`builds.note.${n}` as MessageKey)}</p>
     {/each}
@@ -234,16 +242,18 @@
         <label>{t("builds.form.pitch")}<input type="text" inputmode="decimal" bind:value={draft.prop_pitch_in} /></label>
         <label>{t("builds.form.volts")}<input type="text" inputmode="decimal" bind:value={draft.volts} /></label>
         <label>{t("builds.form.mass")}<input type="text" inputmode="decimal" bind:value={draft.motor_mass_g} /></label>
+        <label>{t("builds.form.ambient")}<input type="text" inputmode="decimal" bind:value={draft.ambient_c} /></label>
         <label class="wide">{t("builds.form.source")}<input type="text" maxlength="300" bind:value={draft.source} /></label>
         <label class="wide"
-          >{t("builds.form.steps")}<textarea rows="8" spellcheck="false" bind:value={draft.steps}></textarea>
+          >{t("builds.form.steps")}<textarea rows="8" spellcheck="false" bind:value={draft.steps} oninput={fillAmbient}></textarea>
           <span class="faint">{t("builds.form.steps.hint")} {t("builds.form.read", { n: read.steps.length })}</span>
-          {#if read.refused}<span class="error">{t("builds.form.refused", { n: read.refused })}</span>{/if}</label
+          {#if read.refused}<span class="error">{t("builds.form.refused", { n: read.refused })}</span>{/if}
+          {#if read.tables > 1}<span class="error">{t("builds.form.tables", { n: read.tables })}</span>{/if}</label
         >
       </div>
       {#if error}<p class="error">{error}</p>{/if}
       <div class="actions">
-        <button type="submit" class="primary" disabled={saving}>{t("builds.form.save")}</button>
+        <button type="submit" class="primary" disabled={saving || read.tables > 1}>{t("builds.form.save")}</button>
         <button
           type="button"
           class="link"

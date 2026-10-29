@@ -4,6 +4,7 @@ steps is exact and the ratio of two tables is known at any thrust."""
 
 from __future__ import annotations
 
+import math
 from dataclasses import replace
 from pathlib import Path
 from typing import Any
@@ -82,6 +83,8 @@ def test_the_rest_of_a_table_is_checked(store: Store, platform: str) -> None:
         bench.save(store, platform, table(0.002, kv=-170))
     with pytest.raises(bench.BenchError, match="kv is a number above zero"):
         bench.save(store, platform, table(0.002, kv=True))
+    with pytest.raises(bench.BenchError, match="air temperature"):
+        bench.save(store, platform, table(0.002, ambient_c=80))
     with pytest.raises(bench.BenchError, match="no such platform"):
         bench.save(store, "nope", table(0.002))
     steps = table(0.002)["rows"]  # entered in any order, kept by throttle
@@ -111,16 +114,35 @@ def test_one_table_per_role_and_changes_name_their_version(store: Store,
 def test_the_ratio_and_what_limits_reading_it(store: Store, platform: str) -> None:
     now = bench.save(store, platform, table(0.002))
     then = bench.save(store, platform, table(0.0018))
-    c = bench.compare(now, then, 4062.5)
+    c = bench.compare(now, then, 4062.5, 1.225)
     assert c["share"] == pytest.approx(0.9, rel=1e-9) and c["notes"] == []
     short = bench.save(store, platform, table(0.0016, (1500.0, 2500.0, 3500.0), top=62,
                                               prop_diameter_in=21, volts=44))  # fmt: skip
-    c = bench.compare(now, short, 4062.5)
+    c = bench.compare(now, short, 4062.5, 1.225)
     assert c["share"] is None and c["candidate_w"] is None
     assert c["notes"] == ["props_differ", "volts_differ", "candidate_out_of_range",
                           "candidate_short"]  # fmt: skip
-    assert bench.compare(now, then, 1000.0)["notes"] == ["current_out_of_range",
+    assert bench.compare(now, then, 1000.0, 1.225)["notes"] == ["current_out_of_range",
                                                          "candidate_out_of_range"]  # fmt: skip
+
+
+def test_tables_are_read_in_the_same_air(store: Store, platform: str) -> None:
+    """The same motor measured at 15 °C and at 35 °C: once each table is brought to the
+    same air, they agree; a table without its temperature is read as measured."""
+    cool = bench.save(store, platform, table(0.002, ambient_c=15))
+    # the hot bench needs sqrt(rho_15 / rho_35) = sqrt(308.15 / 288.15) more for the thrust
+    hot_c = 0.002 * math.sqrt(308.15 / 288.15)
+    hot = bench.save(store, platform, table(hot_c, ambient_c=35))
+    assert hot.ambient_c == 35.0 and hot.view()["ambient_c"] == 35.0
+    c = bench.compare(cool, hot, 4000.0, 1.225)
+    assert c["same_air"] and c["share"] == pytest.approx(1.0, rel=1e-9) and c["notes"] == []
+    # in standard air at 15 °C the cool table needs no correction
+    assert cool.power_in(4000.0, bench.test_density(15.0)) == pytest.approx(0.002 * 4000**1.5)
+    plain = bench.save(store, platform, table(0.002))
+    c = bench.compare(cool, plain, 4000.0, 1.225)
+    assert not c["same_air"] and c["notes"] == ["ambient_unknown"]
+    assert c["current_w"] == pytest.approx(0.002 * 4000**1.5)  # as measured, uncorrected
+    assert bench.compare(plain, plain, 4000.0, 1.0)["notes"] == []
 
 
 def test_only_the_propulsion_power_scales() -> None:

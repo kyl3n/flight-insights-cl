@@ -365,17 +365,18 @@ def _builds(store: Store, airframe_id: str, i: Inputs, model: Model,
     if current is not None:
         # flown hover power per motor against the bench at the same thrust
         flown = float(model.power(mass * G, 0.0, 0.0, density, rules)[()]) - model.avionics
-        at = current.power_at(per_motor(mass))
+        at = current.power_in(per_motor(mass), density)
         out["flown_vs_bench"] = {"thrust_g": per_motor(mass), "flown_w": flown / i.motors,
                                  "bench_w": at,
-                                 "share": flown / i.motors / at if at else None}  # fmt: skip
+                                 "share": flown / i.motors / at if at else None,
+                                 "same_air": current.ambient_c is not None}  # fmt: skip
     if current is None or candidate is None:
         out["missing"] = "current" if current is None else "candidate"
         return out
     delta = (i.motors * (candidate.motor_mass_g - current.motor_mass_g) / 1000.0
              if candidate.motor_mass_g and current.motor_mass_g else 0.0)  # fmt: skip
     heavy, empty = mass + delta, (i.empty_kg or mass) + delta
-    c = bench.compare(current, candidate, per_motor(heavy))
+    c = bench.compare(current, candidate, per_motor(heavy), density)
     out["compare"] = c | {"mass_kg": heavy, "delta_kg": delta}
     out["headroom"] = {
         "current": current.max_thrust_g * i.motors / (mass * 1000.0),
@@ -401,7 +402,9 @@ def _builds(store: Store, airframe_id: str, i: Inputs, model: Model,
     if i.empty_kg is not None and i.max_kg is not None:
         rows: list[dict[str, Any]] = []
         for kg in np.linspace(i.empty_kg, i.max_kg, int(rules["projections"]["weight_steps"])):
-            share = bench.compare(current, candidate, per_motor(float(kg) + delta))["share"]
+            share = bench.compare(current, candidate, per_motor(float(kg) + delta), density)[
+                "share"
+            ]
             got = (figures(bench.propulsion(model, float(share)), rules, curve_b,
                            float(kg) + delta, empty, density, top, None, trips=())
                    if share is not None else None)  # fmt: skip
