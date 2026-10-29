@@ -14,6 +14,7 @@ import pytest
 from test_perf_store import CALLISTO, PACK, airframe, flown
 
 from flight_insights.analyzers import Registry
+from flight_insights.performance import bench
 from flight_insights.performance.report import range_card, report
 from flight_insights.platforms.records import platform_view, save_answers
 from flight_insights.platforms.schema import load_schema
@@ -224,6 +225,52 @@ def test_the_range_card(fleet: dict[str, Any]) -> None:
     assert card["valid"]["flown_kg"] == [32.5, 40.5]
 
 
+def test_two_builds_side_by_side(fleet: dict[str, Any], got: dict[str, Any]) -> None:
+    """Made-up bench tables (power = c * thrust^1.5): the candidate takes 0.9 of the
+    current's power at any thrust, and its motors weigh 20 g more each."""
+    from test_bench import table
+
+    b = got["builds"]
+    assert b["tables"] == [] and b["missing"] == "current" and "compare" not in b
+    store, cache, af = fleet["store"], fleet["cache"], fleet["airframe"]
+    platform = store.get("airframe", af)["platform_id"]
+    bench.save(store, platform, table(0.002, role="current", motor_mass_g=400))
+    r = report(store, cache, PACK, af)["builds"]
+    n = r["motors"]
+    assert n == 8 and r["missing"] == "candidate"
+    fvb = r["flown_vs_bench"]  # the flown hover power per motor against the table's
+    assert fvb["thrust_g"] == pytest.approx(32500 / n, rel=1e-3)
+    assert fvb["bench_w"] == pytest.approx(0.002 * (32500 / n) ** 1.5, rel=1e-3)
+    assert (
+        fvb["share"] == pytest.approx(fvb["flown_w"] / fvb["bench_w"], rel=1e-3)
+        and fvb["share"] > 0
+    )
+    bench.save(store, platform, table(0.0018, role="candidate", motor_mass_g=420))
+    r = report(store, cache, PACK, af)["builds"]
+    c = r["compare"]
+    assert c["delta_kg"] == pytest.approx(n * 0.020, rel=1e-3) and c["notes"] == []
+    assert c["mass_kg"] == pytest.approx(32.5 + n * 0.020, rel=1e-3)
+    assert c["share"] == pytest.approx(0.9, rel=1e-3)
+    assert r["headroom"]["current"] == pytest.approx(12500 * n / 32500, rel=1e-3)
+    assert r["headroom"]["candidate"] < r["headroom"]["current"]  # heavier, same top
+    now, then = r["figures"]["current"], r["figures"]["candidate"]
+    assert then["hover_s"] > now["hover_s"] and then["range_m"] > now["range_m"]
+    power = r["power"]
+    assert len(power["airspeed_ms"]) == len(power["current_w"]) == len(power["candidate_w"])
+    assert all(b < a for a, b in zip(power["current_w"], power["candidate_w"], strict=True))
+    rows = r["against_weight"]
+    assert rows[0]["mass_kg"] == 32.5 and rows[-1]["mass_kg"] == 45.0
+    assert all(x["range_m"] and x["range_m"] > 0 for x in rows)
+    ranges = [x["range_m"] for x in rows]
+    assert ranges == sorted(ranges, reverse=True)
+    # a candidate whose table stops short of the hover thrust gives no figures
+    bench.save(store, platform, table(0.0016, (1500.0, 2500.0, 3500.0), top=62,
+                                      role="candidate"))  # fmt: skip
+    r = report(store, cache, PACK, af)["builds"]
+    assert r["compare"]["share"] is None and "figures" not in r
+    assert {"candidate_out_of_range", "candidate_short"} <= set(r["compare"]["notes"])
+
+
 def test_over_rpc(fleet: dict[str, Any], tmp_path: Path) -> None:
     from test_rpc import LAPTOP, Output, call
     from test_rpc import keys as store_keys
@@ -247,4 +294,18 @@ def test_over_rpc(fleet: dict[str, Any], tmp_path: Path) -> None:
     assert "flights" in nothing["missing"]
     card = call(server, out, 21, "airframe.range_card", airframe_id=af)["result"]
     assert card["rows"] == []
+    good = {"label": "made-up", "role": "current", "rows": [
+        {"throttle_pct": t, "thrust_g": g, "power_w": w}
+        for t, g, w in ((30, 1000, 50), (60, 3000, 250), (100, 6000, 700))]}  # fmt: skip
+    e = call(server, out, 23, "bench.save", platform_id=pl["id"], values=good | {"rows": []})
+    assert e["error"]["code"] == -32003 and "three steps" in e["error"]["message"]
+    e = call(server, out, 24, "bench.save", platform_id=pl["id"], values="x")
+    assert e["error"]["code"] == -32602
+    saved = call(server, out, 25, "bench.save", platform_id=pl["id"], values=good)["result"]
+    assert saved["role"] == "current" and saved["max_thrust_g"] == 6000
+    [listed] = call(server, out, 26, "bench.list", platform_id=pl["id"])["result"]
+    assert listed == saved
+    e = call(server, out, 27, "bench.save", platform_id=pl["id"], values=good,
+             id=saved["id"], version=saved["version"] + 5)  # fmt: skip
+    assert e["error"]["code"] == -32004
     call(server, out, 22, "engine.shutdown")

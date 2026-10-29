@@ -14,7 +14,7 @@ from typing import Any
 RECORDS: tuple[str, ...] = (
     "laptop", "platform", "build_version", "airframe", "component", "battery_pack",
     "ground_station", "ground_station_version", "source_file", "param_snapshot", "flight",
-    "change_set", "recommendation", "ai_packet", "ai_exchange",
+    "change_set", "recommendation", "ai_packet", "ai_exchange", "bench_table",
 )  # fmt: skip
 
 # Links: rows that join two records, added once and never changed. Their key is the
