@@ -26,7 +26,7 @@ from typing import TYPE_CHECKING, Any, cast
 
 from flight_insights import imports, stations
 from flight_insights.imports import ConfirmedChange, Decision, Proposal, Scanned
-from flight_insights.imports.commit import REASONS
+from flight_insights.imports.commit import REASONS, NewAirframe
 from flight_insights.rpc.server import BAD_INPUT, INVALID_PARAMS, Context, RpcError, Server
 
 if TYPE_CHECKING:
@@ -91,7 +91,7 @@ def _changes(value: Any) -> list[ConfirmedChange]:
     return out
 
 
-def _new_airframe(value: Any) -> tuple[str, str] | None:
+def _new_airframe(value: Any) -> NewAirframe | None:
     if value is None:
         return None
     if not isinstance(value, dict):
@@ -100,7 +100,10 @@ def _new_airframe(value: Any) -> tuple[str, str] | None:
     platform, name = d.get("platform_id"), d.get("name")
     if not isinstance(platform, str) or not isinstance(name, str):
         raise RpcError(INVALID_PARAMS, "new_airframe needs platform_id and name")
-    return platform, name
+    team = d.get("team")
+    if team is not None and not isinstance(team, str):
+        raise RpcError(INVALID_PARAMS, "new_airframe's team must be a string")
+    return platform, name, team
 
 
 def _weight(value: Any, most_kg: float) -> float | None:

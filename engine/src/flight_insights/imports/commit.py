@@ -57,6 +57,14 @@ REASONS: tuple[ChangeKind, ...] = ("failure", "upgrade", "test", "detected")
 log = logging.getLogger(__name__)
 
 
+# a new airframe for a log: its platform, its name, and optionally its team
+NewAirframe = tuple[str, str] | tuple[str, str, str | None]
+
+
+def _create(store: Store, new: NewAirframe) -> str:
+    return create_airframe(store, new[0], new[1], new[2] if len(new) > 2 else None)
+
+
 @dataclass(frozen=True)
 class ConfirmedChange:
     part: str  # "board", "INS_ACC_ID", "propellers"...
@@ -69,7 +77,7 @@ class Decision:
     log: str
     action: Literal["import", "skip"] = "import"
     airframe_id: str | None = None  # None: hold the log's flights
-    new_airframe: tuple[str, str] | None = None  # (platform id, name)
+    new_airframe: NewAirframe | None = None  # (platform id, name[, team])
     changes: list[ConfirmedChange] = field(default_factory=list[ConfirmedChange])
     packs: list[str] = field(default_factory=list[str])
     payload: str | None = None
@@ -254,7 +262,7 @@ def resolve(
     pack: Pack,
     flight_ids: Sequence[str],
     airframe_id: str | None = None,
-    new_airframe: tuple[str, str] | None = None,
+    new_airframe: NewAirframe | None = None,
     changes: Sequence[ConfirmedChange] = (),
 ) -> str:
     """Decide held flights: an existing airframe (for a replaced flight controller,
@@ -264,7 +272,7 @@ def resolve(
         if row is None or row["airframe_id"] is not None:
             raise SetupError(f"flight {fid} is not waiting for a decision")
     if new_airframe is not None:
-        airframe_id = create_airframe(store, *new_airframe)
+        airframe_id = _create(store, new_airframe)
     if airframe_id is None:
         raise SetupError("choose an airframe or create one")
     attach(store, pack, flight_ids, airframe_id, changes)
@@ -385,7 +393,7 @@ def _dataflash(
     assert item.snapshot is not None and item.hardware is not None
     with store.transaction():
         if decision.new_airframe is not None:
-            airframe_id = create_airframe(store, *decision.new_airframe)
+            airframe_id = _create(store, decision.new_airframe)
         source = _source(store, item, "dataflash", station)
         # One set for a file of one flight (or none); otherwise each new flight's own below.
         snapshot_id = None

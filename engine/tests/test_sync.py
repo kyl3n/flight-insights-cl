@@ -344,6 +344,21 @@ def test_different_fields_of_one_record_both_survive(
     assert conflicts(a.store) == conflicts(b.store) == []
 
 
+def test_an_airframe_s_team_reaches_the_other_laptop(
+    laptops: tuple[Laptop, Laptop], pack: Pack
+) -> None:
+    a, b = laptops
+    airframe = quad_airframe(a, pack)
+    sync(pack, a, b)
+    _rename(a, "airframe", airframe, team="Team B")
+    _rename(b, "airframe", airframe, name="Q-1 (B)")
+    sync(pack, a, b)
+    assert state(a) == state(b)
+    got = b.store.get("airframe", airframe)
+    assert got is not None and (got["team"], got["name"]) == ("Team B", "Q-1 (B)")
+    assert conflicts(a.store) == conflicts(b.store) == []
+
+
 def test_the_same_value_set_on_both_is_no_conflict(
     laptops: tuple[Laptop, Laptop], pack: Pack
 ) -> None:

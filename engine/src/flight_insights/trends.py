@@ -566,12 +566,13 @@ def fleet_overview(store: Store, reg: Registry, pack: Pack) -> dict[str, Any]:
     across the fleet, most urgent first. Stored analyses only: nothing is re-run here."""
     airframes: dict[str, dict[str, Any]] = {}
     attention: list[dict[str, Any]] = []
-    for airframe_id, name, vehicle in store.conn.execute(
-        "SELECT a.id, a.name, p.vehicle FROM airframe a JOIN platform p ON p.id = a.platform_id"
+    for airframe_id, name, vehicle, team in store.conn.execute(
+        "SELECT a.id, a.name, p.vehicle, a.team FROM airframe a "
+        "JOIN platform p ON p.id = a.platform_id"
     ).fetchall():
         flights = [f for f in _flights(store, airframe_id) if f.run_id is not None]
         if not flights:
-            airframes[airframe_id] = {"status": "none", "flights": 0}
+            airframes[airframe_id] = {"status": "none", "flights": 0, "team": team}
             continue
         latest = flights[-1]
         assert latest.run_id is not None
@@ -600,12 +601,12 @@ def fleet_overview(store: Store, reg: Registry, pack: Pack) -> dict[str, Any]:
         )
         airframes[airframe_id] = {
             "status": status, "stage": stage, "planned": planned, "flights": len(flights),
-            "counts": counts,
+            "counts": counts, "team": team,
             "current": analysis["current"], "metrics": metrics,
             "last": {"flight": latest.id, "utc_us": latest.utc_us, "duration_s": duration,
                      "payload": latest.payload},
         }  # fmt: skip
-        base = {"airframe_id": airframe_id, "airframe": name, "flight": latest.id,
+        base = {"airframe_id": airframe_id, "airframe": name, "team": team, "flight": latest.id,
                 "utc_us": latest.utc_us}  # fmt: skip
         for f in findings:
             if f["severity"] in SEVERITY_RANK:

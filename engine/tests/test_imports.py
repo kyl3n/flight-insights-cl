@@ -451,8 +451,11 @@ def test_held_flights_are_resolved_later(
     assert h["reason"] == "decision" and h["candidates"][0]["airframe_id"] == aid
     platform = store.get("airframe", aid)
     assert platform is not None
-    new = resolve(store, pack, [h["id"]], new_airframe=(platform["platform_id"], "Q-2"))
+    new = resolve(store, pack, [h["id"]],
+                  new_airframe=(platform["platform_id"], "Q-2", "Team B"))  # fmt: skip
     assert new != aid and held(store) == []
+    made = store.get("airframe", new)
+    assert made is not None and made["team"] == "Team B"
     with pytest.raises(ValueError, match="not waiting"):
         resolve(store, pack, [h["id"]], airframe_id=aid)
 

@@ -135,12 +135,22 @@ def save_answers(
 # --- airframes ------------------------------------------------------------------------
 
 
-def create_airframe(store: Store, platform_id: str, name: str) -> str:
+def _team(team: str | None) -> str | None:
+    """A team's name as kept: trimmed, at most 60 characters; empty means none."""
+    if team is None:
+        return None
+    t = " ".join(team.split())[:60]
+    return t or None
+
+
+def create_airframe(store: Store, platform_id: str, name: str, team: str | None = None) -> str:
     platform = _require(store, "platform", platform_id)
     if not name.strip():
         raise SetupError("an airframe needs a name or tail number")
     with store.transaction():
-        airframe = store.insert("airframe", {"name": name.strip(), "platform_id": platform_id})
+        airframe = store.insert(
+            "airframe", {"name": name.strip(), "platform_id": platform_id, "team": _team(team)}
+        )
         build = store.insert(
             "build_version",
             {"airframe_id": airframe, "number": 1, "based_on_id": platform["reference_build_id"],
@@ -170,6 +180,8 @@ def airframe_view(store: Store, schema: Schema, airframe_id: str) -> dict[str, A
     return {
         "id": airframe_id,
         "name": airframe["name"],
+        "team": airframe["team"],
+        "version": airframe["version"],
         "platform": {
             "id": platform["id"],
             "name": platform["name"],
@@ -184,12 +196,46 @@ def airframe_view(store: Store, schema: Schema, airframe_id: str) -> dict[str, A
 
 
 def list_airframes(
-    store: Store, schema: Schema, platform_id: str | None = None
+    store: Store, schema: Schema, platform_id: str | None = None, team: str | None = None
 ) -> list[dict[str, Any]]:
-    query, args = "SELECT id FROM airframe ORDER BY name", ()
+    """The airframes, by name; of one platform, of one team, or both."""
+    where: list[str] = []
+    args: list[Any] = []
     if platform_id is not None:
-        query, args = "SELECT id FROM airframe WHERE platform_id = ? ORDER BY name", (platform_id,)
-    return [airframe_view(store, schema, r[0]) for r in store.conn.execute(query, args)]
+        where.append("platform_id = ?")
+        args.append(platform_id)
+    if team is not None:
+        where.append("team = ?")
+        args.append(team)
+    query = "SELECT id FROM airframe" + (" WHERE " + " AND ".join(where) if where else "")
+    return [airframe_view(store, schema, r[0])
+            for r in store.conn.execute(query + " ORDER BY name", args)]  # fmt: skip
+
+
+def teams(store: Store) -> list[str]:
+    """Every team an airframe names, in order."""
+    rows = store.conn.execute(
+        "SELECT DISTINCT team FROM airframe WHERE team IS NOT NULL ORDER BY team"
+    ).fetchall()
+    return [str(r[0]) for r in rows]
+
+
+def update_airframe(store: Store, schema: Schema, airframe_id: str, base_version: int,
+                    name: str | None = None, team: str | None = None,
+                    clear_team: bool = False) -> dict[str, Any]:  # fmt: skip
+    """Rename an airframe or set its team, from the version it was read at; a record
+    changed since is not overwritten (StoreError)."""
+    _require(store, "airframe", airframe_id)
+    changes: dict[str, Any] = {}
+    if name is not None:
+        if not name.strip():
+            raise SetupError("an airframe needs a name or tail number")
+        changes["name"] = name.strip()
+    if team is not None or clear_team:
+        changes["team"] = None if clear_team else _team(team)
+    if changes:
+        store.update("airframe", airframe_id, base_version, changes)
+    return airframe_view(store, schema, airframe_id)
 
 
 def record_build(

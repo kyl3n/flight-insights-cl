@@ -115,8 +115,8 @@ def test_a_change_the_map_does_not_tie_is_learned_from_the_fleet(
     found = fleet.links(store, reg, platform_of(store, target))
     spin = [x for x in found if x["param"] == "MOT_SPIN_MIN"]
     assert spin == [{"param": "MOT_SPIN_MIN", "changed": "down", "metric": D_NOISE[0],
-                     "moved": "up", "airframes": 3, "against": 0, "in_map": False,
-                     "link": None}]  # fmt: skip
+                     "moved": "up", "airframes": 3, "against": 0, "teams": [],
+                     "in_map": False, "link": None}]  # fmt: skip
 
 
 def test_the_platform_lists_the_links_it_confirmed(store: Store, pack: Pack, reg: Registry
@@ -128,6 +128,20 @@ def test_the_platform_lists_the_links_it_confirmed(store: Store, pack: Pack, reg
     assert (d["param"], d["changed"], d["moved"], d["airframes"]) == ("ATC_RAT_RLL_D", "up",
                                                                       "up", 3)  # fmt: skip
     assert d["in_map"] and d["link"] == "rate D"
+    assert d["teams"] == []  # no airframe names its team yet
+
+
+def test_a_confirmed_link_names_the_teams_that_saw_it(store: Store, pack: Pack, reg: Registry
+                                                      ) -> None:  # fmt: skip
+    p, airframes = platform(store, pack, 3)
+    for af, team in zip(airframes, ("Team A", "Team B", None), strict=True):
+        row = store.get("airframe", af)
+        assert row is not None
+        store.update("airframe", af, row["version"], {"team": team})
+        doubled(store, af, D_UP)
+    [d] = fleet.links(store, reg, p)
+    # three airframes agree; two name a team, one does not
+    assert d["airframes"] == 3 and d["teams"] == ["Team A", "Team B"]
 
 
 def test_a_shift_with_changes_ranked_close_is_no_evidence(reg: Registry) -> None:

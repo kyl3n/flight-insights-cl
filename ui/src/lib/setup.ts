@@ -61,6 +61,8 @@ export interface PlatformView {
 export interface AirframeView {
   id: string;
   name: string;
+  team?: string | null; // the team that flies it, when named
+  version?: number; // as read: an update names it, so a later change is not overwritten
   platform: { id: string; name: string; vehicle: string };
   build: { id: string; number: number };
   spec: Spec;

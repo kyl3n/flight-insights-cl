@@ -27,6 +27,7 @@
     type ScannedFile,
   } from "../lib/imports";
   import type { AirframeView, PlatformView } from "../lib/setup";
+  import { teamsOf } from "../lib/fleet";
   import { engineCall, inDesktopApp, onProgress, pendingImports, type PendingFile } from "../lib/shell";
   import type { StationView } from "../lib/stations";
 
@@ -169,7 +170,8 @@
     const c = choices[f.id]!;
     if (value === "new") {
       const platform = airframes.find((a) => a.id === f.proposal.airframe_id)?.platform.id ?? platforms[0]?.id ?? "";
-      c.choice = { kind: "new", platform_id: platform, name: "" };
+      const team = airframes.find((a) => a.id === f.proposal.airframe_id)?.team ?? "";
+      c.choice = { kind: "new", platform_id: platform, name: "", team };
     } else if (value === "hold" || value === "skip" || value === "import" || value === "undecided") {
       c.choice = { kind: value };
     } else {
@@ -337,6 +339,10 @@
               {t("import.new.name")}
               <input type="text" bind:value={choice.name} aria-invalid={!choice.name.trim()} />
             </label>
+            <label>
+              {t("import.new.team")}
+              <input type="text" list="import-teams" maxlength="60" placeholder={t("team.none")} bind:value={choice.team} />
+            </label>
           </section>
         {/if}
         {#if f.kind === "dataflash" && (c.choice.kind === "airframe" || c.choice.kind === "new")}
@@ -425,6 +431,10 @@
     </footer>
   </div>
 </div>
+
+<datalist id="import-teams">
+  {#each teamsOf(airframes).teams as team (team)}<option value={team}></option>{/each}
+</datalist>
 
 <style>
   .backdrop {

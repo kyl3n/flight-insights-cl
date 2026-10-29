@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { byUrgency, findingCount, keep, stagePosition, statusLook, type AirframeHealth } from "./fleet";
+import { byUrgency, findingCount, inTeam, keep, stagePosition, statusLook, teamsOf, type AirframeHealth } from "./fleet";
 
 const H: Record<string, AirframeHealth> = {
   a: { status: "ok", flights: 4, stage: null, counts: { info: 2 } },
@@ -31,5 +31,21 @@ describe("fleet", () => {
     expect(stagePosition("nonsense")).toBeNull();
     expect(statusLook("fix").status).toBe("out");
     expect(statusLook("none").label).toBe("fleet.status.none");
+  });
+});
+
+describe("teams", () => {
+  it("lists the teams named, in order, and whether any airframe names none", () => {
+    expect(teamsOf([{ team: "Team B" }, { team: "Team A" }, { team: "Team B" }, { team: null }])).toEqual({ teams: ["Team A", "Team B"], unnamed: true });
+    expect(teamsOf([{ team: "Team A" }])).toEqual({ teams: ["Team A"], unnamed: false });
+  });
+
+  it("keeps an airframe by its team", () => {
+    expect(inTeam("Team A", { kind: "all" })).toBe(true);
+    expect(inTeam(null, { kind: "all" })).toBe(true);
+    expect(inTeam("Team A", { kind: "team", team: "Team A" })).toBe(true);
+    expect(inTeam("Team B", { kind: "team", team: "Team A" })).toBe(false);
+    expect(inTeam(null, { kind: "none" })).toBe(true);
+    expect(inTeam("Team A", { kind: "none" })).toBe(false);
   });
 });

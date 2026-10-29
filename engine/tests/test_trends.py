@@ -359,6 +359,9 @@ def test_the_fleet_overview_puts_the_most_urgent_first(store: Store, reg: Regist
         fly(store, drifting, n, hover(v))
     fly(store, broken, 0, hover(12))
     last = fly(store, broken, 1, hover(70), bad=True)
+    row = store.get("airframe", broken)
+    assert row is not None
+    store.update("airframe", broken, row["version"], {"team": "Team B"})
     run = store.conn.execute("SELECT id FROM analysis_run WHERE flight_id = ?", (last,)).fetchone()
     store.insert(
         "finding",
@@ -367,7 +370,8 @@ def test_the_fleet_overview_puts_the_most_urgent_first(store: Store, reg: Regist
     )  # fmt: skip
     view = fleet_overview(store, reg, pack)
     cards = view["airframes"]
-    assert cards[quiet] == {"status": "none", "flights": 0}
+    assert cards[quiet] == {"status": "none", "flights": 0, "team": None}
+    assert cards[broken]["team"] == "Team B" and cards[steady]["team"] is None
     assert cards[steady]["status"] == "ok" and cards[steady]["flights"] == 6
     assert cards[drifting]["status"] == "inspect" and cards[broken]["status"] == "fix"
     assert cards[broken]["counts"] == {"out": 1, "caution": 1}
@@ -383,6 +387,7 @@ def test_the_fleet_overview_puts_the_most_urgent_first(store: Store, reg: Regist
         ("HL3", "finding", "out"), ("HL2", "drift", "caution"), ("HL3", "finding", "caution"),
     ]  # fmt: skip
     assert view["attention"][1]["metric"] == VIBE
+    assert view["attention"][0]["team"] == "Team B"  # each item says whose aircraft
 
 
 def test_the_key_metrics_are_known_metrics(reg: Registry) -> None:

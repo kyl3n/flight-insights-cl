@@ -10,6 +10,9 @@ moved it the other way is ranked lower.
   else changed with it. Each airframe counts once per change and metric.
 - **The key.** The parameter, which way it was changed (up or down) and the metric;
   the vote is which way the metric moved.
+- **Teams.** Each confirmed link names the teams its agreeing airframes fly for (an
+  airframe with no team counts as unnamed), so a link seen by two teams reads as more
+  than one team's habit.
 - **Confirmed** when at least `min_airframes` other airframes agree and at most
   `max_against_share` of the votes disagree; **contradicted** the other way round. An
   airframe's own shifts never count towards its own ranking.
@@ -102,6 +105,9 @@ def links(store: Store, reg: Registry, platform_id: str) -> list[dict[str, Any]]
     from flight_insights.history.attribution import links_to
 
     rules: Mapping[str, Any] = reg.rules["attribution"]["fleet"]
+    team_of = dict(store.conn.execute(
+        "SELECT id, team FROM airframe WHERE platform_id = ?", (platform_id,)
+    ).fetchall())  # fmt: skip
     out: list[dict[str, Any]] = []
     for (param, way, metric), t in sorted(tallies(store, reg, platform_id).items()):
         for effect in (1, -1):
@@ -113,6 +119,8 @@ def links(store: Store, reg: Registry, platform_id: str) -> list[dict[str, Any]]
             out.append({
                 "param": param, "changed": "up" if way > 0 else "down", "metric": metric,
                 "moved": "up" if effect > 0 else "down", "airframes": agree, "against": against,
+                "teams": sorted({str(team_of[a]) for a in (t.up if effect > 0 else t.down)
+                                 if team_of.get(a)}),
                 "in_map": link is not None and expected in (None, effect),
                 "link": None if link is None else link.group.group,
             })  # fmt: skip
