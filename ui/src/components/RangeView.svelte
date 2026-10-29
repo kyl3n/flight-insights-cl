@@ -22,8 +22,10 @@
     type Trip,
   } from "../lib/range";
   import { formatNumber, unitText } from "../lib/report";
+  import BatteryPanel from "./BatteryPanel.svelte";
   import BuildUpPanel from "./BuildUpPanel.svelte";
   import SpeedPanel from "./SpeedPanel.svelte";
+  import WhatIfPanel from "./WhatIfPanel.svelte";
   import WindPanel from "./WindPanel.svelte";
 
   let { airframeId }: { airframeId: string } = $props();
@@ -222,6 +224,8 @@
     {#if f}
       <BuildUpPanel {view} {airframeId} onchange={() => (reloads += 1)} />
       <WindPanel {view} />
+      <BatteryPanel {view} />
+      <WhatIfPanel {view} />
     {/if}
 
     {#if rangeChart && timeChart}

@@ -135,6 +135,52 @@ export interface Performance {
   radius_wind?: { wind_ms: number; worst_m: number; across_m: number | null }[];
   headwind?: { wind_ms: number; airspeed: number | null; ground?: number; power?: number; wh_per_km?: number }[];
   failsafe?: Failsafe;
+  battery?: Battery;
+  what_ifs?: WhatIf[];
+}
+
+/** One of the airframe's packs on the flights it flew alone, in flight order. */
+export interface PackHistory {
+  code: string;
+  rated_mah: number | null;
+  flights: { capacity_mah: number | null; resistance_mohm: number }[];
+}
+
+export interface Battery {
+  usable: { power_w: number; energy_wh: number; ends: End }[];
+  loads: Record<"hover" | "endurance" | "range", number>;
+  aged_capacity: number; // share of rated at end of life
+  aged_resistance: number; // multiple of new at end of life
+  packs: PackHistory[];
+}
+
+/** One lever alone, by the rules' step, at the weight picked: what each figure gains. */
+export interface WhatIf {
+  lever: "mass" | "drag" | "avionics" | "capacity";
+  change: number; // kg, m^2 of flat plate, W, or Ah
+  hover_s: number;
+  endurance_s: number;
+  range_m: number;
+  radius_m: number;
+  share: number | null; // the change as a share of what it changes
+  basis: "measured" | "theory";
+}
+
+/** A pack's capacity as a share of its rated, and its resistance as a multiple of new (the
+ * median of its first flights, as the engine compares them), flight by flight. */
+export function packShares(p: PackHistory): { capacity: (number | null)[]; resistance: number[] } {
+  const rated = p.rated_mah && p.rated_mah > 0 ? p.rated_mah : null;
+  const capacity = p.flights.map((f) => (rated !== null && f.capacity_mah !== null ? f.capacity_mah / rated : null));
+  const ohms = p.flights.map((f) => f.resistance_mohm);
+  const k = Math.min(3, Math.max(1, Math.floor(ohms.length / 2)));
+  const first = [...ohms.slice(0, k)].sort((a, b) => a - b);
+  const mid = first.length % 2 ? first[(first.length - 1) / 2]! : (first[first.length / 2 - 1]! + first[first.length / 2]!) / 2;
+  return { capacity, resistance: ohms.map((r) => (mid > 0 ? r / mid : 1)) };
+}
+
+/** A what-if's gains as shares of the figures at the weight picked. */
+export function whatIfShares(w: WhatIf, f: Figures): { range: number; endurance: number } {
+  return { range: f.range_m > 0 ? w.range_m / f.range_m : 0, endurance: f.endurance_s > 0 ? w.endurance_s / f.endurance_s : 0 };
 }
 
 /** What ends a steady flight: the reserve, or something the pack or parameters set sooner. */

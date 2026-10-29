@@ -6,12 +6,14 @@ its pack's size is entered, and is told what to fly for the rest."""
 
 from __future__ import annotations
 
+from itertools import pairwise
 from pathlib import Path
 from typing import Any
 
 import pytest
 from test_perf_store import CALLISTO, PACK, airframe, flown
 
+from flight_insights.analyzers import Registry
 from flight_insights.performance.report import range_card, report
 from flight_insights.platforms.records import platform_view, save_answers
 from flight_insights.platforms.schema import load_schema
@@ -31,8 +33,8 @@ def make_fleet(tmp_path_factory: pytest.TempPathFactory) -> dict[str, Any]:
     store = open_store(folder / "r.db", keys, "e" * 32)
     cache = ColumnCache(folder / "cache", keys)
     af = airframe(store, "Callisto", SETUP)
-    flown(store, cache, "copter-heavylift-sweep", af, 32.5)
-    flown(store, cache, "copter-heavylift-sweep-loaded", af, 40.5)
+    flown(store, cache, "copter-heavylift-sweep", af, 32.5, ["P1"])
+    flown(store, cache, "copter-heavylift-sweep-loaded", af, 40.5, ["P1"])
     bare = airframe(store, "Callisto, no pack", CALLISTO | {"typical_takeoff_kg": 32.5})
     flown(store, cache, "copter-heavylift-discharge", bare, 32.5)
     return {"store": store, "cache": cache, "airframe": af, "bare": bare}
@@ -137,6 +139,40 @@ def test_the_wind_costs_radius_and_the_headwind_ground_speed(got: dict[str, Any]
     gains = {w["lever"]: w for w in got["what_ifs"]}
     assert gains["mass"]["hover_s"] > 0 and gains["capacity"]["range_m"] > 0
     assert all(w["change"] != 0 for w in got["what_ifs"])
+
+
+def test_the_pack_against_load_and_each_pack_over_its_flights(got: dict[str, Any]) -> None:
+    b = got["battery"]
+    usable = b["usable"]
+    powers = [x["power_w"] for x in usable]
+    assert powers == sorted(powers) and len(powers) >= 10
+    # a heavier load gets less of the pack: more is lost in its resistance
+    energy = [x["energy_wh"] for x in usable]
+    assert all(a >= b - 1e-6 for a, b in pairwise(energy))
+    ends = {"reserve", "capacity_failsafe", "voltage_failsafe", "cutoff", "empty", "power",
+            "current", "time"}  # fmt: skip
+    assert {x["ends"] for x in usable} <= ends
+    # the loads the figures fly at sit on the grid, and end as the figures say
+    assert set(b["loads"]) == {"hover", "endurance", "range"}
+    assert all(powers[0] <= v <= powers[-1] for v in b["loads"].values())
+    assert b["loads"]["endurance"] <= b["loads"]["hover"]
+    assert b["aged_capacity"] == 0.8 and b["aged_resistance"] == 2.0
+    # the one pack flew both sweeps alone: its resistance on each, its rated capacity
+    [p] = b["packs"]
+    assert p["code"] == "P1" and p["rated_mah"] == 30000
+    assert len(p["flights"]) == 2 and all(f["resistance_mohm"] > 0 for f in p["flights"])
+
+
+def test_each_what_if_says_what_it_rests_on(got: dict[str, Any]) -> None:
+    shares = {w["lever"]: w["share"] for w in got["what_ifs"]}
+    rules = Registry.load(PACK).rules["performance"]["projections"]["what_ifs"]
+    assert shares["mass"] == pytest.approx(rules["mass_share"], abs=1e-3)
+    assert shares["drag"] == pytest.approx(rules["drag_share"], abs=1e-3)
+    assert shares["capacity"] == pytest.approx(rules["capacity_share"], abs=1e-3)
+    basis = {w["lever"]: w["basis"] for w in got["what_ifs"]}
+    # flown at 32.5 and 40.5 kg: the weight's effect is measured, the rest the model's
+    assert basis.pop("mass") == "measured"
+    assert set(basis.values()) == {"theory"}
 
 
 def test_the_top_speed_and_the_next_step(got: dict[str, Any]) -> None:
