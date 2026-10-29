@@ -1,0 +1,302 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Range card</title>
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&amp;family=IBM+Plex+Sans:wght@400;500;600&amp;display=swap" rel="stylesheet">
+<style>
+body{margin:0;background:#0E1114}
+a{color:#7CC4F0}a:hover{color:#A9D9F7}
+button{font-family:inherit}
+:focus-visible{outline:2px solid #7CC4F0;outline-offset:2px}
+@media (max-width:720px){.rail{flex:1 1 100% !important;width:100% !important;flex-direction:row !important;overflow-x:auto;padding:8px !important}.rail-spacer{display:none !important}}
+</style>
+</helmet>
+<div style="min-height: 100vh; display: flex; flex-wrap: wrap; background: #0E1114; color: #E7EAEE; font-family: 'IBM Plex Sans', system-ui, sans-serif; font-size: 14px; line-height: 1.45;">
+
+<nav class="rail" aria-label="Main navigation" style="flex: 0 0 76px; width: 76px; box-sizing: border-box; background: #0A0C0F; border-right: 1px solid #1E242B; display: flex; flex-direction: column; align-items: center; gap: 4px; padding: 14px 0 16px;">
+<svg role="img" aria-label="Flight Insights" width="36" height="36" viewBox="0 0 36 36" style="flex: 0 0 auto; margin-bottom: 14px;"><rect x="1" y="1" width="34" height="34" rx="9" fill="#13222D" stroke="#2A4558"></rect><path d="M8 25l6-7 5 4 9-12" fill="none" stroke="#5AB0E8" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"></path><circle cx="28" cy="10" r="2.4" fill="#5AB0E8"></circle></svg>
+<a href="Main.dc.html" style="flex: 0 0 auto; width: 60px; padding: 8px 0 7px; border-radius: 10px; display: flex; flex-direction: column; align-items: center; gap: 4px; font-size: 11px; font-weight: 500; text-decoration: none; color: #A3ACB6;"><svg aria-hidden="true" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="7" height="7" rx="1.5"></rect><rect x="14" y="3" width="7" height="7" rx="1.5"></rect><rect x="3" y="14" width="7" height="7" rx="1.5"></rect><rect x="14" y="14" width="7" height="7" rx="1.5"></rect></svg>Fleet</a>
+<a href="FlightReport.dc.html" style="flex: 0 0 auto; width: 60px; padding: 8px 0 7px; border-radius: 10px; display: flex; flex-direction: column; align-items: center; gap: 4px; font-size: 11px; font-weight: 500; text-decoration: none; color: #A3ACB6;"><svg aria-hidden="true" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M6 3h9l4 4v14H6z"></path><path d="M14 3v5h5"></path><path d="M9 13h7M9 17h5"></path></svg>Flights</a>
+<a href="Trends.dc.html" aria-current="page" style="flex: 0 0 auto; width: 60px; padding: 8px 0 7px; border-radius: 10px; display: flex; flex-direction: column; align-items: center; gap: 4px; font-size: 11px; font-weight: 500; text-decoration: none; color: #9BD3F5; background: rgba(90,176,232,0.15);"><svg aria-hidden="true" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M3 17l5-5 4 3 8-8"></path><path d="M15 7h5v5"></path></svg>Trends</a>
+<a href="ConfigReview.dc.html" style="flex: 0 0 auto; width: 60px; padding: 8px 0 7px; border-radius: 10px; display: flex; flex-direction: column; align-items: center; gap: 4px; font-size: 11px; font-weight: 500; text-decoration: none; color: #A3ACB6;"><svg aria-hidden="true" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M4 6h10M18 6h2M4 12h4M12 12h8M4 18h12"></path><circle cx="16" cy="6" r="2"></circle><circle cx="10" cy="12" r="2"></circle><circle cx="18" cy="18" r="2"></circle></svg>Params</a>
+<a href="Plan.dc.html" style="flex: 0 0 auto; width: 60px; padding: 8px 0 7px; border-radius: 10px; display: flex; flex-direction: column; align-items: center; gap: 4px; font-size: 11px; font-weight: 500; text-decoration: none; color: #A3ACB6;"><svg aria-hidden="true" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M10 6h10M10 12h10M10 18h10"></path><path d="M3.5 6l1.5 1.5L7.5 5"></path><path d="M3.5 12l1.5 1.5L7.5 11"></path><circle cx="5" cy="18" r="1.5"></circle></svg>Plan</a>
+<button type="button" style="flex: 0 0 auto; width: 60px; padding: 8px 0 7px; border: 0; border-radius: 10px; background: transparent; display: flex; flex-direction: column; align-items: center; gap: 4px; font-size: 11px; font-weight: 500; color: #A3ACB6; cursor: pointer;"><svg aria-hidden="true" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M4 5h16v11H9l-5 4z"></path><path d="M8 10h8"></path></svg>Ask</button>
+<div class="rail-spacer" style="flex: 1 1 auto;"></div>
+<button type="button" style="flex: 0 0 auto; width: 60px; padding: 8px 0 7px; border: 0; border-radius: 10px; background: transparent; display: flex; flex-direction: column; align-items: center; gap: 4px; font-size: 11px; font-weight: 500; color: #A3ACB6; cursor: pointer;"><svg aria-hidden="true" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3v11"></path><path d="M7 9l5 5 5-5"></path><path d="M4 17v3h16v-3"></path></svg>Imports</button>
+<button type="button" style="flex: 0 0 auto; width: 60px; padding: 8px 0 7px; border: 0; border-radius: 10px; background: transparent; display: flex; flex-direction: column; align-items: center; gap: 4px; font-size: 11px; font-weight: 500; color: #A3ACB6; cursor: pointer;"><svg aria-hidden="true" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"></circle><path d="M12 2v3M12 19v3M2 12h3M19 12h3M4.9 4.9L7 7M17 17l2.1 2.1M4.9 19.1L7 17M17 7l2.1-2.1"></path></svg>Settings</button>
+</nav>
+
+<div style="flex: 999 1 560px; min-width: 0; display: flex; flex-direction: column;">
+
+<header style="display: flex; flex-wrap: wrap; align-items: center; gap: 12px 16px; padding: 10px 24px; min-height: 60px; box-sizing: border-box; border-bottom: 1px solid #1E242B;">
+<nav aria-label="Scope" style="display: flex; align-items: center; gap: 4px; flex-wrap: wrap;">
+<button type="button" style="display: flex; align-items: center; gap: 6px; padding: 6px 10px; border: 1px solid transparent; border-radius: 8px; background: transparent; font-size: 13px; color: #CBD2D9; cursor: pointer;">Heavy-lift X8<svg aria-hidden="true" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#7C8691" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M6 9l6 6 6-6"></path></svg></button>
+<svg aria-hidden="true" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#4A535D" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 6l6 6-6 6"></path></svg>
+<button type="button" style="display: flex; align-items: center; gap: 6px; padding: 6px 10px; border: 1px solid #262D35; border-radius: 8px; background: #151A1F; font-family: 'IBM Plex Mono', ui-monospace, monospace; font-size: 13px; color: #E7EAEE; cursor: pointer;">HL-07<svg aria-hidden="true" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#7C8691" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M6 9l6 6 6-6"></path></svg></button>
+</nav>
+<button type="button" style="flex: 1 1 200px; max-width: 360px; display: flex; align-items: center; gap: 8px; padding: 8px 12px; border: 1px solid #262D35; border-radius: 8px; background: #12161A; color: #8A949E; font-size: 13px; text-align: left; cursor: pointer;"><svg aria-hidden="true" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><circle cx="11" cy="11" r="6"></circle><path d="M20 20l-4.5-4.5"></path></svg><span style="flex: 1 1 auto;">Search or jump</span><kbd style="font-family: 'IBM Plex Mono', ui-monospace, monospace; font-size: 11px; padding: 2px 6px; border: 1px solid #333B45; border-radius: 5px; color: #A3ACB6;">Ctrl K</kbd></button>
+<div style="margin-left: auto; display: flex; align-items: center; gap: 8px; flex-wrap: wrap;">
+<span style="display: flex; align-items: center; gap: 6px; padding: 5px 10px; border-radius: 999px; background: #151A1F; border: 1px solid #222930; font-size: 12px; color: #A3ACB6;"><span aria-hidden="true" style="width: 7px; height: 7px; border-radius: 50%; background: #3DBE8B;"></span>Claude API</span>
+<button type="button" style="display: flex; align-items: center; gap: 8px; padding: 9px 14px; border: 0; border-radius: 8px; background: #5AB0E8; color: #06121A; font-size: 13px; font-weight: 600; cursor: pointer;"><svg aria-hidden="true" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3v11"></path><path d="M7 9l5 5 5-5"></path><path d="M4 17v3h16v-3"></path></svg>Import logs</button>
+</div>
+</header>
+<div style="display: flex; flex-direction: column; gap: 12px; padding: 18px 24px 0;">
+<div style="display: flex; flex-wrap: wrap; align-items: baseline; gap: 8px 16px;">
+<h1 style="margin: 0; font-size: 22px; font-weight: 600; letter-spacing: -0.01em;">HL-07 · Range card</h1>
+<p style="margin: 0; font-size: 13px; color: #A3ACB6;">How long, how far and how fast, for each payload, from this airframe’s measured performance. For the field: print it and keep it with the aircraft.</p>
+</div>
+<nav aria-label="Airframe views" style="display: flex; flex-wrap: wrap; gap: 2px; border-bottom: 1px solid #1E242B;">
+<sc-for list="{{tabs}}" as="t" hint-placeholder-count="5">
+<a href="{{t.href}}" style="padding: 9px 12px 10px; font-size: 13px; font-weight: 500; text-decoration: none; color: {{t.c}}; border-bottom: 2px solid {{t.line}}; margin-bottom: -1px;">{{t.label}}</a>
+</sc-for>
+</nav>
+</div>
+
+<main style="display: flex; flex-wrap: wrap; gap: 20px; padding: 16px 24px 24px; align-items: flex-start;">
+<article aria-label="Range card for HL-07" style="flex: 0 1 1010px; min-width: 0; box-sizing: border-box; padding: 26px 28px; border-radius: 6px; background: #FFFFFF; color: #14181C; display: flex; flex-direction: column; gap: 14px; font-family: 'IBM Plex Sans', system-ui, sans-serif;">
+<header style="display: flex; flex-wrap: wrap; align-items: baseline; gap: 6px 16px; padding-bottom: 10px; border-bottom: 2px solid #14181C;">
+<h1 style="margin: 0; font-size: 22px; font-weight: 600;">HL-07 · Range card</h1>
+<span style="font-size: 12px; color: #4A535D;">Heavy-lift X8 · build v4, T-Motor V605 KV210, 22-inch props · parameters a3f9 · printed 28 Oct 2026</span>
+<span style="margin-left: auto; font-family: 'IBM Plex Mono', ui-monospace, monospace; font-size: 12px; color: #4A535D;">Valid while the parameters stay a3f9</span>
+</header>
+<div style="display: flex; flex-wrap: wrap; gap: 6px 22px; font-size: 13px;">
+<span><span style="color: #4A535D;">Packs</span> <span style="font-weight: 500;">2 × 12S 22 Ah LiPo in parallel, 1,954 Wh rated; worked out for the {{packName}}</span></span>
+<span><span style="color: #4A535D;">Air</span> <span style="font-weight: 500;">{{airName}}</span></span>
+<span><span style="color: #4A535D;">Cruise</span> <span style="font-weight: 500;">best-range speed, from the platform’s priority: stability</span></span>
+<span><span style="color: #4A535D;">Empty, with both packs</span> <span style="font-family: 'IBM Plex Mono', ui-monospace, monospace; font-weight: 500;">22.0 kg</span></span>
+</div>
+
+<section style="display: flex; flex-direction: column; gap: 6px; break-inside: avoid;">
+<h2 style="margin: 0; font-size: 15px; font-weight: 600;">Time, distance and speed · still air</h2>
+<div style="overflow-x: auto;"><table aria-label="Time, distance and speed by payload" style="width: 100%; border-collapse: collapse; font-size: 13px; color: #14181C;"><thead><tr>
+<th scope="col" style="padding: 5px 8px; text-align: left; font-weight: 600; font-size: 12px; color: #4A535D; border-bottom: 1.5px solid #14181C;">Payload</th>
+<th scope="col" style="padding: 5px 8px; text-align: right; font-weight: 600; font-size: 12px; color: #4A535D; border-bottom: 1.5px solid #14181C;">Hovering</th>
+<th scope="col" style="padding: 5px 8px; text-align: right; font-weight: 600; font-size: 12px; color: #4A535D; border-bottom: 1.5px solid #14181C;">Longest flight</th>
+<th scope="col" style="padding: 5px 8px; text-align: right; font-weight: 600; font-size: 12px; color: #4A535D; border-bottom: 1.5px solid #14181C;">Cruise speed</th>
+<th scope="col" style="padding: 5px 8px; text-align: right; font-weight: 600; font-size: 12px; color: #4A535D; border-bottom: 1.5px solid #14181C;">Range</th>
+<th scope="col" style="padding: 5px 8px; text-align: right; font-weight: 600; font-size: 12px; color: #4A535D; border-bottom: 1.5px solid #14181C;">Maximum speed</th>
+<th scope="col" style="padding: 5px 8px; text-align: right; font-weight: 600; font-size: 12px; color: #4A535D; border-bottom: 1.5px solid #14181C;">Verified speed</th>
+<th scope="col" style="padding: 5px 8px; text-align: left; font-weight: 600; font-size: 12px; color: #4A535D; border-bottom: 1.5px solid #14181C;">From</th>
+</tr></thead><tbody>
+<sc-for list="{{rows}}" as="r" hint-placeholder-count="4"><tr style="background: {{r.bg}};">
+<th scope="row" style="padding: 7px 8px; text-align: left; border-bottom: 1px solid #D5DBE0; vertical-align: top; font-weight: 500;"><span style="font-family: 'IBM Plex Mono', ui-monospace, monospace;">{{r.pl}}</span><br><span style="font-size: 11px; font-weight: 400; color: #4A535D;">{{r.W}} take-off</span></th>
+<td style="padding: 7px 8px; text-align: right; border-bottom: 1px solid #D5DBE0; vertical-align: top; font-family: 'IBM Plex Mono', ui-monospace, monospace;">{{r.hover}}</td>
+<td style="padding: 7px 8px; text-align: right; border-bottom: 1px solid #D5DBE0; vertical-align: top;"><span style="font-family: 'IBM Plex Mono', ui-monospace, monospace;">{{r.best}}</span><br><span style="font-size: 11px; color: #4A535D;">{{r.bestV}}</span></td>
+<td style="padding: 7px 8px; text-align: right; border-bottom: 1px solid #D5DBE0; vertical-align: top; font-family: 'IBM Plex Mono', ui-monospace, monospace;">{{r.cruiseV}}</td>
+<td style="padding: 7px 8px; text-align: right; border-bottom: 1px solid #D5DBE0; vertical-align: top; font-family: 'IBM Plex Mono', ui-monospace, monospace; font-weight: 500;">{{r.range}}</td>
+<td style="padding: 7px 8px; text-align: right; border-bottom: 1px solid #D5DBE0; vertical-align: top;"><span style="font-family: 'IBM Plex Mono', ui-monospace, monospace;">{{r.vmax}}</span><br><span style="font-size: 11px; color: #4A535D;">limit: {{r.lim}}</span></td>
+<td style="padding: 7px 8px; text-align: right; border-bottom: 1px solid #D5DBE0; vertical-align: top;"><span style="font-family: 'IBM Plex Mono', ui-monospace, monospace;">{{r.ver}}</span><br><span style="font-size: 11px; color: #4A535D;">{{r.verNote}}</span></td>
+<td style="padding: 7px 8px; text-align: left; border-bottom: 1px solid #D5DBE0; vertical-align: top; font-size: 12px;"><span style="color: {{r.srcC}}; font-weight: 600;">{{r.src}}</span><sc-if value="{{r.hasNote}}" hint-placeholder-val="{{ false }}"><br><span style="color: #8A5A12;">{{r.note}}</span></sc-if></td>
+</tr></sc-for>
+</tbody></table></div>
+<span style="font-size: 11px; color: #4A535D;">Longest flight: at the best-endurance speed. Range: at the cruise speed, still air. Maximum speed: what the airframe could hold; missions fly <span style="font-family: 'IBM Plex Mono', ui-monospace, monospace;">WP_SPD</span>. Verified: held 10 s with every watched metric in its margin.</span>
+</section>
+
+<section style="display: flex; flex-direction: column; gap: 6px; break-inside: avoid;">
+<h2 style="margin: 0; font-size: 15px; font-weight: 600;">How far out, km · worst direction for the wind</h2>
+<div style="overflow-x: auto;"><table aria-label="Radius by payload, trip and wind" style="width: 100%; border-collapse: collapse; font-size: 13px; color: #14181C;"><thead>
+<tr><th scope="col" rowspan="2" style="padding: 5px 8px; text-align: left; font-weight: 600; font-size: 12px; color: #4A535D; border-bottom: 1.5px solid #14181C; vertical-align: bottom;">Payload</th>
+<th scope="colgroup" colspan="3" style="padding: 5px 8px; text-align: center; font-weight: 600; font-size: 12px; color: #14181C; border-bottom: 1px solid #D5DBE0; border-left: 1px solid #D5DBE0;">Out and back</th>
+<th scope="colgroup" colspan="3" style="padding: 5px 8px; text-align: center; font-weight: 600; font-size: 12px; color: #14181C; border-bottom: 1px solid #D5DBE0; border-left: 1px solid #D5DBE0;">Out loaded, drop, back light</th>
+<th scope="colgroup" colspan="3" style="padding: 5px 8px; text-align: center; font-weight: 600; font-size: 12px; color: #14181C; border-bottom: 1px solid #D5DBE0; border-left: 1px solid #D5DBE0;">Out and back, 5 min at the site</th></tr>
+<tr>
+<th scope="col" style="padding: 4px 8px; text-align: right; font-weight: 500; font-size: 11px; color: #4A535D; border-bottom: 1.5px solid #14181C; border-left: 1px solid #D5DBE0;">calm</th><th scope="col" style="padding: 4px 8px; text-align: right; font-weight: 500; font-size: 11px; color: #4A535D; border-bottom: 1.5px solid #14181C;">5 m/s</th><th scope="col" style="padding: 4px 8px; text-align: right; font-weight: 500; font-size: 11px; color: #4A535D; border-bottom: 1.5px solid #14181C;">10 m/s</th>
+<th scope="col" style="padding: 4px 8px; text-align: right; font-weight: 500; font-size: 11px; color: #4A535D; border-bottom: 1.5px solid #14181C; border-left: 1px solid #D5DBE0;">calm</th><th scope="col" style="padding: 4px 8px; text-align: right; font-weight: 500; font-size: 11px; color: #4A535D; border-bottom: 1.5px solid #14181C;">5 m/s</th><th scope="col" style="padding: 4px 8px; text-align: right; font-weight: 500; font-size: 11px; color: #4A535D; border-bottom: 1.5px solid #14181C;">10 m/s</th>
+<th scope="col" style="padding: 4px 8px; text-align: right; font-weight: 500; font-size: 11px; color: #4A535D; border-bottom: 1.5px solid #14181C; border-left: 1px solid #D5DBE0;">calm</th><th scope="col" style="padding: 4px 8px; text-align: right; font-weight: 500; font-size: 11px; color: #4A535D; border-bottom: 1.5px solid #14181C;">5 m/s</th><th scope="col" style="padding: 4px 8px; text-align: right; font-weight: 500; font-size: 11px; color: #4A535D; border-bottom: 1.5px solid #14181C;">10 m/s</th>
+</tr></thead><tbody>
+<sc-for list="{{rows}}" as="r" hint-placeholder-count="4"><tr style="background: {{r.bg}};">
+<th scope="row" style="padding: 7px 8px; text-align: left; border-bottom: 1px solid #D5DBE0; font-weight: 500; font-family: 'IBM Plex Mono', ui-monospace, monospace;">{{r.pl}}</th>
+<sc-for list="{{r.oab}}" as="v" hint-placeholder-count="3"><td style="padding: 7px 8px; text-align: right; border-bottom: 1px solid #D5DBE0; font-family: 'IBM Plex Mono', ui-monospace, monospace;">{{v}}</td></sc-for>
+<sc-for list="{{r.drop}}" as="v" hint-placeholder-count="3"><td style="padding: 7px 8px; text-align: right; border-bottom: 1px solid #D5DBE0; font-family: 'IBM Plex Mono', ui-monospace, monospace;">{{v}}</td></sc-for>
+<sc-for list="{{r.site}}" as="v" hint-placeholder-count="3"><td style="padding: 7px 8px; text-align: right; border-bottom: 1px solid #D5DBE0; font-family: 'IBM Plex Mono', ui-monospace, monospace;">{{v}}</td></sc-for>
+</tr></sc-for>
+</tbody></table></div>
+<span style="font-size: 11px; color: #4A535D;">The worst direction is along the wind: either way for the trips out and back, and out into it, loaded, for the drop trip. Each leg flown at its best speed, up to the verified speed (12 m/s where none is verified). Climb to 40 m included; the drop trip hovers 30 s to drop.</span>
+</section>
+
+<div style="display: flex; flex-wrap: wrap; gap: 12px; align-items: stretch;">
+<section style="flex: 3 1 420px; min-width: 0; display: flex; flex-direction: column; gap: 6px; padding: 12px 14px; border: 1.5px solid #2F6E9E; border-radius: 8px; break-inside: avoid;">
+<h2 style="margin: 0; font-size: 15px; font-weight: 600;">Into a headwind, set this ground speed</h2>
+<table aria-label="Ground speed to set into a headwind" style="width: 100%; border-collapse: collapse; font-size: 13px; color: #14181C;"><thead><tr>
+<th scope="col" style="padding: 4px 8px; text-align: left; font-weight: 600; font-size: 12px; color: #4A535D; border-bottom: 1.5px solid #14181C;">Payload</th>
+<th scope="col" style="padding: 4px 8px; text-align: right; font-weight: 600; font-size: 12px; color: #4A535D; border-bottom: 1.5px solid #14181C;">calm</th>
+<th scope="col" style="padding: 4px 8px; text-align: right; font-weight: 600; font-size: 12px; color: #4A535D; border-bottom: 1.5px solid #14181C;">3 m/s</th>
+<th scope="col" style="padding: 4px 8px; text-align: right; font-weight: 600; font-size: 12px; color: #4A535D; border-bottom: 1.5px solid #14181C;">6 m/s</th>
+<th scope="col" style="padding: 4px 8px; text-align: right; font-weight: 600; font-size: 12px; color: #4A535D; border-bottom: 1.5px solid #14181C;">9 m/s</th>
+</tr></thead><tbody>
+<sc-for list="{{rows}}" as="r" hint-placeholder-count="4"><tr>
+<th scope="row" style="padding: 6px 8px; text-align: left; border-bottom: 1px solid #D5DBE0; font-weight: 500; font-family: 'IBM Plex Mono', ui-monospace, monospace;">{{r.pl}}</th>
+<sc-for list="{{r.hw}}" as="h" hint-placeholder-count="4"><td style="padding: 6px 8px; text-align: right; border-bottom: 1px solid #D5DBE0;"><span style="color: #8A5A12;">{{h.mark}}</span> <span style="font-family: 'IBM Plex Mono', ui-monospace, monospace; font-weight: 500;">{{h.g}}</span> <span style="font-size: 11px; color: #4A535D;">air {{h.a}}</span></td></sc-for>
+</tr></sc-for>
+</tbody></table>
+<span style="font-size: 11px; color: #4A535D;">m/s. <span style="font-family: 'IBM Plex Mono', ui-monospace, monospace;">WP_SPD</span> and <span style="font-family: 'IBM Plex Mono', ui-monospace, monospace;">RTL_SPEED_MS</span> are ground speeds. <span style="color: #8A5A12;">▲</span> held to the verified airspeed: the best would be faster through the air.</span>
+</section>
+<section style="flex: 2 1 280px; min-width: 0; display: flex; flex-direction: column; gap: 6px; padding: 12px 14px; border: 1.5px solid #2F6E9E; border-radius: 8px; break-inside: avoid;">
+<h2 style="margin: 0; font-size: 15px; font-weight: 600;">The reserve, in every figure</h2>
+<p style="margin: 0; font-size: 13px; line-height: 1.5;">The larger of the battery failsafe (<span style="font-family: 'IBM Plex Mono', ui-monospace, monospace;">BATT_LOW_MAH</span> 4400 mAh, <span style="font-family: 'IBM Plex Mono', ui-monospace, monospace;">BATT_LOW_VOLT</span> 42.0 V: about <span style="font-family: 'IBM Plex Mono', ui-monospace, monospace;">{{reserve.fs}} Wh</span>) and 20% of the packs’ usable energy (<span style="font-family: 'IBM Plex Mono', ui-monospace, monospace;">{{reserve.pct}} Wh</span>), plus the <span style="font-family: 'IBM Plex Mono', ui-monospace, monospace;">{{reserve.land}} Wh</span> measured to descend and land.</p>
+<p style="margin: 0; font-size: 13px; line-height: 1.5;"><span style="color: #4A535D;">Energy to plan with at 8 kg</span> <span style="font-family: 'IBM Plex Mono', ui-monospace, monospace; font-weight: 500;">{{reserve.plan}} Wh</span></p>
+<sc-if value="{{isType}}" hint-placeholder-val="{{ true }}"><p style="margin: 0; font-size: 12px; line-height: 1.45; color: #8A5A12;">▲ With pack pair B-17 (170% of new resistance), take {{weakCut}}% off every time and distance.</p></sc-if>
+</section>
+</div>
+
+<div style="display: flex; flex-wrap: wrap; gap: 12px; align-items: stretch;">
+<section style="flex: 1 1 300px; min-width: 0; display: flex; flex-direction: column; gap: 6px; padding: 12px 14px; border: 1px solid #D5DBE0; border-radius: 8px; break-inside: avoid;">
+<h2 style="margin: 0; font-size: 14px; font-weight: 600;">Worked out with these parameters</h2>
+<table style="border-collapse: collapse; font-size: 13px;"><tbody>
+<tr><td style="padding: 3px 12px 3px 0; font-family: 'IBM Plex Mono', ui-monospace, monospace;">WP_SPD</td><td style="padding: 3px 0; font-family: 'IBM Plex Mono', ui-monospace, monospace;">10 m/s</td></tr>
+<tr><td style="padding: 3px 12px 3px 0; font-family: 'IBM Plex Mono', ui-monospace, monospace;">RTL_SPEED_MS</td><td style="padding: 3px 0;"><span style="font-family: 'IBM Plex Mono', ui-monospace, monospace;">0</span> <span style="color: #4A535D;">: the trip home flies <span style="font-family: 'IBM Plex Mono', ui-monospace, monospace;">WP_SPD</span></span></td></tr>
+<tr><td style="padding: 3px 12px 3px 0; font-family: 'IBM Plex Mono', ui-monospace, monospace;">BATT_LOW_MAH</td><td style="padding: 3px 0; font-family: 'IBM Plex Mono', ui-monospace, monospace;">4400 mAh</td></tr>
+<tr><td style="padding: 3px 12px 3px 0; font-family: 'IBM Plex Mono', ui-monospace, monospace;">BATT_CAPACITY</td><td style="padding: 3px 0; font-family: 'IBM Plex Mono', ui-monospace, monospace;">44000 mAh</td></tr>
+</tbody></table>
+<span style="font-size: 11px; color: #4A535D;">The card is rebuilt when any of them, the build or a pack pair changes; an out-of-date card is marked on the airframe.</span>
+</section>
+<section style="flex: 1 1 300px; min-width: 0; display: flex; flex-direction: column; gap: 6px; padding: 12px 14px; border: 1.5px dashed #B07A1F; border-radius: 8px; break-inside: avoid;">
+<h2 style="margin: 0; font-size: 14px; font-weight: 600;">Estimate, not validated yet</h2>
+<ul style="margin: 0; padding-left: 18px; display: flex; flex-direction: column; gap: 3px; font-size: 12px; line-height: 1.45;">
+<li>Flown: 24.6–32.0 kg take-off (the 4 and 8 kg rows); up to 14.2 m/s at 4 kg and 13.4 m/s at 8 kg.</li>
+<li>Model of 27 Oct 2026, from 16 flights on build v4; each flight’s energy predicted from the others within 3.8% (median).</li>
+<li>“Validated” once HL1’s validation flights pass: 5% median, 10% at the 90th percentile, and a flight to the reserve within 5%.</li>
+</ul>
+</section>
+</div>
+<footer style="display: flex; flex-direction: column; gap: 3px; font-size: 11px; color: #4A535D;"><span style="font-weight: 600; color: #14181C;">Nothing here was sent anywhere; distances and air density are worked out on this laptop.</span><span>Made by Flight Insights from HL-07’s own flights and settings. No positions are printed. Re-print after any parameter, build or pack change.</span></footer>
+</article>
+
+<aside aria-labelledby="pr-title" style="flex: 1 1 240px; max-width: 320px; min-width: 0; display: flex; flex-direction: column; gap: 14px; padding: 18px; border-radius: 12px; background: #12161A; border: 1px solid #262D35;">
+<h2 id="pr-title" style="margin: 0; font-size: 15px; font-weight: 600;">Print</h2>
+<div style="display: flex; flex-direction: column; gap: 6px;">
+<span style="font-size: 12px; color: #A3ACB6;">Pack</span>
+<div role="group" aria-label="Pack" style="display: flex; flex-wrap: wrap; gap: 6px;"><sc-for list="{{packOpts}}" as="b" hint-placeholder-count="2"><button type="button" aria-pressed="{{b.on}}" onClick="{{b.pick}}" style="padding: 6px 10px; border: 1px solid {{b.bd}}; border-radius: 7px; background: {{b.bg}}; font-size: 12px; color: {{b.c}}; cursor: pointer;">{{b.label}}</button></sc-for></div>
+</div>
+<div style="display: flex; flex-direction: column; gap: 6px;">
+<span style="font-size: 12px; color: #A3ACB6;">Air</span>
+<div role="group" aria-label="Air" style="display: flex; flex-wrap: wrap; gap: 6px;"><sc-for list="{{airOpts}}" as="b" hint-placeholder-count="2"><button type="button" aria-pressed="{{b.on}}" onClick="{{b.pick}}" style="padding: 6px 10px; border: 1px solid {{b.bd}}; border-radius: 7px; background: {{b.bg}}; font-size: 12px; color: {{b.c}}; cursor: pointer;">{{b.label}}</button></sc-for></div>
+</div>
+<div style="display: flex; flex-direction: column; gap: 6px;">
+<div style="display: flex; justify-content: space-between; align-items: baseline; gap: 10px; font-size: 12px;"><span style="color: #A3ACB6;">Paper</span><span style="color: #E7EAEE; text-align: right;">A4 or Letter, landscape, one page</span></div>
+<div style="display: flex; justify-content: space-between; align-items: baseline; gap: 10px; font-size: 12px;"><span style="color: #A3ACB6;">Version</span><span style="color: #E7EAEE; text-align: right;">parameters a3f9, build v4</span></div>
+<div style="display: flex; justify-content: space-between; align-items: baseline; gap: 10px; font-size: 12px;"><span style="color: #A3ACB6;">Measured from</span><span style="color: #E7EAEE; text-align: right;">16 flights, 4 speed sweeps</span></div>
+</div>
+<p style="margin: 0; font-size: 12px; line-height: 1.5; color: #A3ACB6;">The same model as Range and speed, at the payloads, trips and winds a crew plans with. It is worked out and printed here: nothing on the card is uploaded or synced.</p>
+<div style="display: flex; gap: 8px; flex-wrap: wrap;"><button type="button" style="display: inline-flex; align-items: center; justify-content: center; min-height: 40px; padding: 0 14px; border: 0; border-radius: 8px; background: #5AB0E8; color: #06121A; font-size: 13px; font-weight: 600; cursor: pointer;">Print</button><a href="Performance.dc.html" style="display: inline-flex; align-items: center; justify-content: center; min-height: 40px; padding: 0 12px; border: 1px solid #333B45; border-radius: 8px; background: transparent; font-size: 13px; color: #CBD2D9; text-decoration: none; cursor: pointer;">Back to Range and speed</a></div>
+</aside>
+</main>
+</div>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":1440,"height":1600}}'>
+class Component extends DCLogic {
+  renderVals() {
+    const st = Object.assign({ pack: 'type', air: 'usual' }, this.state || {});
+    const pill = (on) => ({ bd: on ? '#2D5068' : '#262D35', bg: on ? 'rgba(90,176,232,0.14)' : 'transparent', c: on ? '#9BD3F5' : '#A3ACB6' });
+    const group = (key, opts) => opts.map((o) => ({ label: o[1], on: st[key] === o[0], ...pill(st[key] === o[0]), pick: () => this.setState({ [key]: o[0] }) }));
+    const tabNames = [['Trends', 'Trends.dc.html'], ['Parameter history', 'History.dc.html'], ['Range and speed', 'Performance.dc.html'], ['Recovery card', 'RecoveryCard.dc.html'], ['Range card', 'RangeCard.dc.html']];
+    const tabs = tabNames.map((t, i) => ({ label: t[0], href: t[1], c: i === 4 ? '#E7EAEE' : '#A3ACB6', line: i === 4 ? '#5AB0E8' : 'transparent' }));
+    const packOpts = group('pack', [['type', 'Pack type, as new'], ['weak', 'Weakest in service, B-17']]);
+    const airOpts = group('air', [['usual', 'This airframe’s usual air'], ['std', 'Standard air']]);
+
+    // ---- Formatting ----
+    const neg = (s) => s.replace(/^-/, '−');
+    const fx = (x, n = 1) => neg(x.toFixed(n));
+    const fk = (x) => neg(Math.round(x).toLocaleString('en-GB'));
+    const sgn = (x, n = 1) => (x > 0 ? '+' : '') + fx(x, n);
+
+    // ---- The model (illustrative, fitted to HL-07's flights) ----
+    // Electrical power at airspeed V (m/s), take-off weight W (kg), air density ratio sig:
+    // rotor power scales with W^1.5 / sqrt(sig) and induced velocity follows Glauert;
+    // body drag is c3 * sig * V^3; avionics are separate.
+    const EMPTY = 22.0, G = 9.81, RHO0 = 1.225;
+    const SIG = st.air === 'usual' ? 0.97 : 1;
+    const BUILD = { v4: { eff: 1, tmax: 72.4, name: 'v4 · KV210' }, v5: { eff: 0.935, tmax: 64.5, name: 'v5 · KV175' } };
+    const PACKS = { type: { cap: 1, r: 1, name: 'pack type, as new' }, b12: { cap: 0.97, r: 1.12, name: 'B-12' }, b14: { cap: 0.94, r: 1.28, name: 'B-14' }, b17: { cap: 0.89, r: 1.70, name: 'B-17' } };
+    const packKey = st.pack === 'weak' ? 'b17' : st.pack;
+    const u = (x) => Math.sqrt((-x * x + Math.sqrt(x ** 4 + 4)) / 2);
+    const mk = (o) => {
+      const b = BUILD[o.build || 'v4'], pk = PACKS[o.pack || packKey], sig = o.sig || SIG;
+      const dragF = o.dragF || 1, Pav = 62 + (o.dAv || 0), capX = o.capX || 1;
+      const P = (V, W) => {
+        const s = W / 30;
+        return b.eff * (Math.pow(s, 1.5) / Math.sqrt(sig) * (2364 * u(V / (3.7 * Math.sqrt(s / sig))) + 2174) + 0.8 * V * V * Math.sqrt(s * sig)) + dragF * sig * V ** 3 + Pav;
+      };
+      const Epack = (load) => 1994 * pk.cap * capX * (1 - 1.3 * load * 0.012 * pk.r / 1936);
+      const land = (W) => 56 / 4600 * P(0, W);
+      const reserve = (load) => Math.max(189 * capX, 0.12 * Epack(load), 0.2 * Epack(load));
+      const Eplan = (load, W) => Epack(load) - reserve(load) - land(W);
+      return { P, Epack, land, reserve, Eplan, sig, dragF, b };
+    };
+    const argmin = (f, a, c, n = 300) => { let bx = a, bv = Infinity; for (let i = 0; i <= n; i++) { const x = a + (c - a) * i / n; const v = f(x); if (v < bv) { bv = v; bx = x; } } return [bx, bv]; };
+    const perf = (o) => {
+      const m = mk(o), W = o.W, sig = m.sig;
+      const ph = m.P(0, W);
+      const [vmp, pmin] = argmin((V) => m.P(V, W), 0, 15);
+      const [vmr] = argmin((V) => m.P(V, W) / V, 3, 22);
+      const pmr = m.P(vmr, W), whkm = pmr / vmr / 3.6;
+      const CdA = 0.99 * m.dragF, rho = RHO0 * sig, leanMax = o.leanMax || 30;
+      const lean = (V) => Math.atan(0.5 * rho * CdA * V * V / (W * G)) * 180 / Math.PI;
+      const vLean = Math.sqrt(Math.tan(leanMax * Math.PI / 180) * W * G / (0.5 * rho * CdA));
+      let vCur = 25; for (let V = 0; V <= 25; V += 0.02) { if (m.P(V, W) / 42 >= 200) { vCur = V; break; } }
+      const tmax = m.b.tmax * sig;
+      let vThr = 25; for (let V = 0; V <= 25; V += 0.02) { if (W / Math.cos(lean(V) * Math.PI / 180) / tmax * 1.18 >= 0.85) { vThr = V; break; } }
+      const lim = [['lean', vLean], ['current', vCur], ['thrust', vThr], ['firmware', 20]].sort((a, c) => a[1] - c[1]);
+      return {
+        m, W, ph, hoverMin: m.Eplan(ph, W) / ph * 60, vmp, pmin, bestMin: m.Eplan(pmin, W) / pmin * 60,
+        vmr, pmr, whkm, rangeKm: m.Eplan(pmr, W) / whkm, vLean, vCur, vThr, vmax: lim[0][1], limiter: lim[0][0], lean, tmax
+      };
+    };
+    // Ground speed along the track; phi is the angle between the track and where the wind comes from (0: straight into it).
+    const vg = (Va, w, phi) => { const c = w * Math.sin(phi); if (Va <= Math.abs(c)) return -1; return -w * Math.cos(phi) + Math.sqrt(Va * Va - c * c); };
+    const legCost = (m, W, w, phi, cap, fixed) => {
+      if (fixed) { const g = vg(fixed, w, phi); return g <= 0.3 ? [Infinity, fixed, g] : [m.P(fixed, W) / g / 3.6, fixed, g]; }
+      let best = [Infinity, 0, 0];
+      for (let Va = 3; Va <= cap + 1e-9; Va += 0.1) { const g = vg(Va, w, phi); if (g <= 0.3) continue; const c = m.P(Va, W) / g / 3.6; if (c < best[0]) best = [c, Va, g]; }
+      return best;
+    };
+
+    // ---- The card: one row per payload ----
+    const CAPS = { 0: [null, 12], 4: [14, 14], 8: [13, 13], 12: [null, 12] };
+    const FLOWN = { 0: false, 4: true, 8: true, 12: false };
+    const tripR = (o, pp, trip, w, phi, cap) => {
+      const m = pp.m, Wl = o.W, Wb = trip === 'drop' ? EMPTY : Wl;
+      const out = legCost(m, Wl, w, phi, cap, 0), back = legCost(m, Wb, w, phi + Math.PI, cap, 0);
+      let fixed = (m.P(0, Wl) + Wl * G * 2.5 / 0.6) * 16 / 3600;
+      if (trip === 'drop') fixed += m.P(0, Wl) * 30 / 3600;
+      if (trip === 'site') fixed += m.P(w, Wl) * 5 / 60;
+      const E = m.Eplan(m.P(Math.min(cap, pp.vmr), Wl), (Wl + Wb) / 2) - fixed;
+      return Math.max(0, E / (out[0] + back[0]));
+    };
+    const worst = (o, pp, trip, w, cap) => { let r = Infinity; for (let d = 0; d < 360; d += 15) r = Math.min(r, tripR(o, pp, trip, w, d * Math.PI / 180, cap)); return r; };
+    const limName = { lean: 'lean', current: 'current', thrust: 'thrust', firmware: 'firmware' };
+    const moLim = 30.5 * SIG / 0.97;
+    const rows = [0, 4, 8, 12].map((pl) => {
+      const W = EMPTY + pl, o = { W, sig: SIG, build: 'v4', pack: packKey }, pp = perf(o), [ver, cap] = CAPS[pl], m = pp.m;
+      const rad = (trip) => [0, 5, 10].map((w) => (trip === 'drop' && pl === 0) ? '—' : fx(worst(o, pp, trip, w, cap), 1));
+      const hw = [0, 3, 6, 9].map((w) => { const q = legCost(m, W, w, 0, cap, 0); return { g: fx(q[2], 1), a: fx(q[1], 1), held: q[1] >= cap - 0.05 && w > 0 }; });
+      const note = !FLOWN[pl] ? (W > moLim ? `▲ Not flown. Above the motor-out target (${fx(moLim, 1)} kg).` : 'Not flown: lighter than any flight.') : '';
+      return {
+        pl: pl + ' kg', W: fx(W, 1) + ' kg', flown: FLOWN[pl], src: FLOWN[pl] ? 'measured' : 'extrapolated', srcC: FLOWN[pl] ? '#2F6E9E' : '#4A535D', note, hasNote: !!note, bg: W > moLim ? '#FBF6EC' : 'transparent',
+        hover: fx(pp.hoverMin, 0) + ' min', best: fx(pp.bestMin, 0) + ' min', bestV: 'at ' + fx(pp.vmp, 1) + ' m/s',
+        cruiseV: fx(pp.vmr, 1) + ' m/s', range: fx(pp.rangeKm, 1) + ' km',
+        vmax: fx(pp.vmax, 1) + ' m/s', lim: limName[pp.limiter], ver: ver ? ver + ' m/s' : 'none', verNote: ver ? '' : 'plan at 12 m/s or less',
+        oab: rad('oab'), drop: rad('drop'), site: rad('site'),
+        hw: hw.map((h) => ({ g: h.g, a: h.a, mark: h.held ? '▲' : '' }))
+      };
+    });
+    const r8 = perf({ W: 30, sig: SIG, build: 'v4', pack: packKey }), ep = r8.m.Epack(r8.pmr), res = r8.m.reserve(r8.pmr), land = r8.m.land(30);
+    const pType = perf({ W: 30, sig: SIG, build: 'v4', pack: 'type' }), pWeak = perf({ W: 30, sig: SIG, build: 'v4', pack: 'b17' });
+    const reserve = { fs: fk(Math.max(189, 0.12 * ep)), pct: fk(0.2 * ep), land: fk(land), plan: fk(ep - res - land) };
+    return {
+      tabs, packOpts, airOpts, rows, reserve,
+      packName: PACKS[packKey].name, airName: st.air === 'usual' ? 'this airframe’s usual air, 0.97 of standard' : 'standard air',
+      weakCut: fx((1 - pWeak.rangeKm / pType.rangeKm) * 100, 0), isType: packKey === 'type'
+    };
+  }
+}
+</script>
+</body>
+</html>

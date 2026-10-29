@@ -52,7 +52,7 @@ button{font-family:inherit}
 <div style="display: flex; flex-direction: column; gap: 10px; padding: 18px 24px 0;">
 <div style="display: flex; flex-wrap: wrap; align-items: baseline; gap: 8px 16px;">
 <h1 style="margin: 0; font-size: 22px; font-weight: 600; letter-spacing: -0.01em;">Flight 156 · Propulsion</h1>
-<p style="margin: 0; font-size: 13px; color: #A3ACB6;">What this flight's motors, ESCs and pack did, with what Phase 2 adds: the thrust-curve check, the payload estimate and the motor-out margin.</p>
+<p style="margin: 0; font-size: 13px; color: #A3ACB6;">What this flight's motors, ESCs and pack did, with what Phase 2 adds: the thrust-curve check, the payload estimate, the motor-out margin and the energy this flight used.</p>
 </div>
 <nav aria-label="Flight views" style="display: flex; flex-wrap: wrap; gap: 2px; border-bottom: 1px solid #1E242B;">
 <sc-for list="{{tabs}}" as="t" hint-placeholder-count="10">
@@ -109,6 +109,91 @@ button{font-family:inherit}
 <tr><td style="padding: 7px 10px; text-align: left; border-bottom: 1px solid #1E242B; vertical-align: top;"><span style="color: #9BD3F5; font-weight: 600;">21% heavier · this flight</span></td><td style="padding: 7px 10px; text-align: left; border-bottom: 1px solid #1E242B; vertical-align: top;"><span style="font-family: 'IBM Plex Mono', ui-monospace, monospace; font-size: 13px; color: #E7EAEE;">41.1–45.2%</span></td><td style="padding: 7px 10px; text-align: left; border-bottom: 1px solid #1E242B; vertical-align: top;">29.8–32.8 kg</td><td style="padding: 7px 10px; text-align: right; border-bottom: 1px solid #1E242B; vertical-align: top;">4</td><td style="padding: 7px 10px; text-align: left; border-bottom: 1px solid #1E242B; vertical-align: top;">survey kit, 10 kg</td></tr>
 </tbody></table></div>
 <div style="display: flex; flex-wrap: wrap; align-items: center; gap: 8px 14px; font-size: 12px; color: #A3ACB6;"><span style="display: inline-flex; align-items: center; gap: 5px; font-size: 12px; font-weight: 600; color: #3DBE8B; white-space: nowrap;"><span aria-hidden="true" style="font-size: 9px;">●</span>Checked against the scale</span><span>3 weighed flights: each estimated from the others' within 2.1%.</span><a href="Trends.dc.html" style="margin-left: auto;">Trends by band</a></div>
+</section>
+<section aria-labelledby="en-title" style="flex: 0 0 auto; min-width: 0; display: flex; flex-direction: column; gap: 12px; padding: 16px 18px; border-radius: 12px; background: #12161A; border: 1px solid #262D35;">
+<div style="display: flex; flex-wrap: wrap; align-items: center; gap: 6px 12px;">
+<h2 id="en-title" style="margin: 0; font-size: 15px; font-weight: 600;"><button type="button" aria-expanded="{{energyOpen}}" aria-controls="en-body" onClick="{{toggleEnergy}}" style="display: inline-flex; align-items: center; gap: 6px; padding: 0; border: 0; background: transparent; color: #E7EAEE; font-size: 15px; font-weight: 600; cursor: pointer;"><svg aria-hidden="true" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#7C8691" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="transform: rotate({{energyRot}}deg);"><path d="M6 9l6 6 6-6"></path></svg>Energy</button></h2>
+<span style="font-size: 12px; color: #8A949E;">This flight · 32.0 kg weighed · 0.97 of standard air</span>
+<span style="margin-left: auto; display: inline-flex; align-items: center; gap: 5px; font-size: 12px; font-weight: 600; color: #E8A33D; white-space: nowrap;"><span aria-hidden="true" style="font-size: 9px;">▲</span>6% over the model</span>
+</div>
+<sc-if value="{{energyClosed}}" hint-placeholder-val="{{ false }}">
+<p style="margin: 0; font-size: 12px; color: #A3ACB6;"><span style="font-family: 'IBM Plex Mono', ui-monospace, monospace; color: #E7EAEE;">{{energy.used}} Wh</span> used over <span style="font-family: 'IBM Plex Mono', ui-monospace, monospace; color: #E7EAEE;">{{energy.dist}} km</span>; 6% more power than the model at its speeds and weight.</p>
+</sc-if>
+<sc-if value="{{energyOpen}}" hint-placeholder-val="{{ true }}">
+<div id="en-body" style="display: flex; flex-direction: column; gap: 14px;">
+<div style="padding: 12px 14px; border-radius: 10px; background: rgba(232,163,61,0.08); border: 1px solid #5A4526; display: flex; flex-wrap: wrap; align-items: center; gap: 8px 14px;">
+<div style="flex: 1 1 360px; display: flex; flex-direction: column; gap: 4px;">
+<span style="display: inline-flex; align-items: center; gap: 5px; font-size: 12px; font-weight: 600; color: #E8A33D;"><span aria-hidden="true" style="font-size: 9px;">▲</span>Energy anomaly</span>
+<span style="font-size: 13px; line-height: 1.5; color: #E7EAEE;">This flight used 6% more power than the model at its speeds and weight. Check props B, on motors 3 and 7.</span>
+<span style="font-size: 12px; line-height: 1.45; color: #A3ACB6;">Motors 3 and 7 drew 9% more current for their thrust (ESC RPM) than the other six, in hover and in cruise alike, so it is not wind or weight. Flight 157 reads 5% over too; flights before 156 were within 2%.</span>
+</div>
+<div style="display: flex; gap: 8px; flex-wrap: wrap;"><a href="Plan.dc.html" style="display: inline-flex; align-items: center; justify-content: center; min-height: 36px; padding: 0 12px; border-radius: 8px; background: #5AB0E8; color: #06121A; font-size: 13px; font-weight: 600; text-decoration: none;">Add the inspection to the plan</a><a href="Performance.dc.html" style="display: inline-flex; align-items: center; justify-content: center; min-height: 36px; padding: 0 12px; border: 1px solid #333B45; border-radius: 8px; color: #CBD2D9; font-size: 13px; text-decoration: none;">Range and speed</a></div>
+</div>
+
+<div style="display: grid; grid-template-columns: repeat(auto-fill, minmax(136px, 1fr)); gap: 10px;">
+<div style="display: flex; flex-direction: column; gap: 6px; padding: 12px 14px; border-radius: 10px; background: #151A1F; border: 1px solid #262D35;"><span style="font-size: 12px; color: #A3ACB6;">Energy used</span><span style="font-family: 'IBM Plex Mono', ui-monospace, monospace; font-size: 18px; font-weight: 500; color: #E7EAEE;">{{energy.used}} Wh</span><span style="font-size: 12px; color: #A3ACB6;"><span style="font-family: 'IBM Plex Mono', ui-monospace, monospace;">{{energy.mAh}} mAh</span>, {{energy.share}}% of the packs</span></div>
+<div style="display: flex; flex-direction: column; gap: 6px; padding: 12px 14px; border-radius: 10px; background: #151A1F; border: 1px solid #262D35;"><span style="font-size: 12px; color: #A3ACB6;">Distance flown</span><span style="font-family: 'IBM Plex Mono', ui-monospace, monospace; font-size: 18px; font-weight: 500; color: #E7EAEE;">{{energy.dist}} km</span><span style="font-size: 12px; color: #A3ACB6;">over the ground, in 14:40 · stays on this laptop</span></div>
+<div style="display: flex; flex-direction: column; gap: 6px; padding: 12px 14px; border-radius: 10px; background: #151A1F; border: 1px solid #262D35;"><span style="font-size: 12px; color: #A3ACB6;">Energy per km flown</span><span style="font-family: 'IBM Plex Mono', ui-monospace, monospace; font-size: 18px; font-weight: 500; color: #E7EAEE;">{{energy.perKm}} Wh/km</span><span style="font-size: 12px; color: #A3ACB6;">the whole flight, hover included</span></div>
+<div style="display: flex; flex-direction: column; gap: 6px; padding: 12px 14px; border-radius: 10px; background: #151A1F; border: 1px solid #262D35;"><span style="font-size: 12px; color: #A3ACB6;">Energy per km at cruise</span><span style="font-family: 'IBM Plex Mono', ui-monospace, monospace; font-size: 18px; font-weight: 500; color: #E7EAEE;">{{energy.cruiseKm}} Wh/km</span><span style="font-size: 12px; color: #A3ACB6;">at 11 m/s through the air · model {{energy.cruiseModel}}</span></div>
+<div style="display: flex; flex-direction: column; gap: 6px; padding: 12px 14px; border-radius: 10px; background: #151A1F; border: 1px solid #262D35;"><span style="font-size: 12px; color: #A3ACB6;">Climb</span><span style="font-family: 'IBM Plex Mono', ui-monospace, monospace; font-size: 18px; font-weight: 500; color: #E7EAEE;">{{energy.climbM}} Wh/m</span><span style="font-size: 12px; color: #A3ACB6;">at 2.5 m/s; {{energy.climbX}} of it above hovering</span></div>
+<div style="display: flex; flex-direction: column; gap: 6px; padding: 12px 14px; border-radius: 10px; background: #151A1F; border: 1px solid #5A4526;"><span style="font-size: 12px; color: #A3ACB6;">Hover power at standard air</span><span style="font-family: 'IBM Plex Mono', ui-monospace, monospace; font-size: 18px; font-weight: 500; color: #E8A33D;">{{energy.hoverStd}} kW</span><span style="font-size: 12px; color: #A3ACB6;"><span style="font-weight: 600; color: #E8A33D;"><span aria-hidden="true" style="font-size: 9px;">▲</span> +6%</span> · model at 32.0 kg: {{energy.hoverStdModel}} kW</span></div>
+</div>
+
+<figure style="margin: 0; display: flex; flex-direction: column; gap: 8px;">
+<figcaption style="display: flex; flex-wrap: wrap; gap: 4px 14px; font-size: 12px; color: #A3ACB6;"><span style="color: #E7EAEE; font-weight: 500;">Where the {{energy.cells}} Wh from the cells went</span><span>{{energy.used}} Wh reached the packs’ terminals; the rest heated the packs</span></figcaption>
+<div role="img" aria-label="{{energyAria}}" style="position: relative; height: 22px; border-radius: 4px; background: #12161A; overflow: hidden;">
+<sc-for list="{{energy.bar}}" as="b" hint-placeholder-count="8"><span style="position: absolute; top: 0; bottom: 0; left: {{b.x}}%; width: {{b.w}}%; background: {{b.col}};"></span></sc-for>
+</div>
+<div style="display: grid; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap: 4px 16px; font-size: 12px;">
+<sc-for list="{{energy.bar}}" as="b" hint-placeholder-count="8"><div style="display: flex; align-items: baseline; gap: 6px;"><span aria-hidden="true" style="flex: 0 0 10px; width: 10px; height: 10px; border-radius: 2px; background: {{b.col}};"></span><span style="flex: 1 1 auto; color: #CBD2D9;">{{b.l}}</span><span style="font-family: 'IBM Plex Mono', ui-monospace, monospace; color: #E7EAEE;">{{b.e}}</span><span style="flex: 0 0 34px; text-align: right; font-family: 'IBM Plex Mono', ui-monospace, monospace; color: #8A949E;">{{b.pc}}</span></div></sc-for>
+</div>
+<span style="font-size: 12px; color: #8A949E;">Flight phases are the propulsion power in each; avionics are the pack’s power less the ESCs’ input; battery heat is current squared times the pair’s logged resistance; the harness is the voltage lost between the pack and the ESCs.</span>
+</figure>
+
+<figure style="margin: 0; display: flex; flex-direction: column; gap: 6px;">
+<figcaption style="display: flex; flex-wrap: wrap; gap: 4px 14px; font-size: 12px; color: #A3ACB6;"><span style="color: #E7EAEE; font-weight: 500;">Pack power against time</span><sc-for list="{{energy.ptime.legend}}" as="l" hint-placeholder-count="5"><span><span aria-hidden="true" style="color: {{l.col}};">▮</span> {{l.l}}</span></sc-for></figcaption>
+<svg role="img" aria-label="Pack power through the flight: about 6.8 kW in the climb, 5.4 kW hovering, 5.1 kW cruising at 11 m/s, 5.9 kW in the fast run at 13 m/s, and varying 4.5 to 6 kW in the survey manoeuvres" width="100%" viewBox="0 0 900 212" style="display: block;">
+<sc-for list="{{energy.ptime.shade}}" as="s" hint-placeholder-count="9"><rect x="{{s.x}}" y="16" width="{{s.w}}" height="160" fill="{{s.col}}" fill-opacity="0.13"></rect></sc-for>
+<sc-for list="{{energy.ptime.yt}}" as="g" hint-placeholder-count="5"><line x1="56" y1="{{g.gy}}" x2="884" y2="{{g.gy}}" stroke="#1E242B"></line><text x="48" y="{{g.y}}" fill="#8A949E" font-size="11" text-anchor="end" font-family="IBM Plex Mono, monospace">{{g.l}}</text></sc-for>
+<line x1="56" y1="176" x2="884" y2="176" stroke="#2A3139"></line>
+<rect x="{{energy.ptime.fastX}}" y="16" width="{{energy.ptime.fastW}}" height="160" fill="none" stroke="#9BD3F5" stroke-dasharray="3 3"></rect>
+<text x="{{energy.ptime.fastX}}" y="30" dx="6" fill="#9BD3F5" font-size="11" font-family="IBM Plex Sans, sans-serif">fast run, 13.1 m/s</text>
+<path d="{{energy.ptime.d}}" fill="none" stroke="#E7EAEE" stroke-width="1.6" stroke-linejoin="round"></path>
+<sc-for list="{{energy.ptime.xt}}" as="t" hint-placeholder-count="6"><text x="{{t.x}}" y="196" fill="#8A949E" font-size="11" text-anchor="{{t.a}}" font-family="IBM Plex Mono, monospace">{{t.l}}</text></sc-for>
+</svg>
+</figure>
+
+<div style="display: flex; flex-wrap: wrap; gap: 16px; align-items: flex-start;">
+<figure style="flex: 999 1 380px; min-width: 0; margin: 0; display: flex; flex-direction: column; gap: 6px;">
+<figcaption style="display: flex; flex-wrap: wrap; gap: 4px 14px; font-size: 12px; color: #A3ACB6;"><span style="color: #E7EAEE; font-weight: 500;">This flight’s steady tiles on the airframe’s curve</span><span><span aria-hidden="true" style="color: #5AB0E8;">━</span> HL-07’s model at 32.0 kg, 95% band</span><span><span aria-hidden="true" style="color: #E8A33D;">●</span> this flight, 2 s tiles averaged per 1 m/s</span></figcaption>
+<svg role="img" aria-label="Power against airspeed at 32 kilograms: this flight's 23 steady tiles sit about 6 percent above the airframe's curve at every speed, above its 95 percent band" width="100%" viewBox="0 0 640 222" style="display: block;">
+<sc-for list="{{energy.onCurve.yt}}" as="g" hint-placeholder-count="5"><line x1="52" y1="{{g.gy}}" x2="620" y2="{{g.gy}}" stroke="#1E242B"></line><text x="44" y="{{g.y}}" fill="#8A949E" font-size="11" text-anchor="end" font-family="IBM Plex Mono, monospace">{{g.l}}</text></sc-for>
+<line x1="52" y1="196" x2="620" y2="196" stroke="#2A3139"></line>
+<path d="{{energy.onCurve.band}}" fill="#5AB0E8" fill-opacity="0.14"></path>
+<path d="{{energy.onCurve.d}}" fill="none" stroke="#5AB0E8" stroke-width="2.2"></path>
+<sc-for list="{{energy.onCurve.tiles}}" as="q" hint-placeholder-count="23"><circle cx="{{q.x}}" cy="{{q.y}}" r="3.5" fill="#E8A33D" stroke="#12161A" stroke-width="1.2"></circle></sc-for>
+<text x="{{energy.onCurve.lx}}" y="{{energy.onCurve.ly}}" fill="#E8A33D" font-size="11" text-anchor="end" font-family="IBM Plex Sans, sans-serif">+6% at every speed</text>
+<sc-for list="{{energy.onCurve.xt}}" as="t" hint-placeholder-count="5"><text x="{{t.x}}" y="214" fill="#8A949E" font-size="11" text-anchor="{{t.a}}" font-family="IBM Plex Mono, monospace">{{t.l}}</text></sc-for>
+</svg>
+</figure>
+<div style="flex: 1 1 220px; display: flex; flex-direction: column; gap: 8px;">
+<div style="display: flex; justify-content: space-between; align-items: baseline; gap: 10px; font-size: 12px;"><span style="color: #A3ACB6;">Against the model</span><span style="color: #E7EAEE; text-align: right;"><span style="font-family: 'IBM Plex Mono', ui-monospace, monospace;">+6.2%</span> 95%: +4.9 to +7.5</span></div>
+<div style="display: flex; justify-content: space-between; align-items: baseline; gap: 10px; font-size: 12px;"><span style="color: #A3ACB6;">Tiles</span><span style="color: #E7EAEE; text-align: right;">23: hover 6, survey 5, cruise 8, fast run 4</span></div>
+<div style="display: flex; justify-content: space-between; align-items: baseline; gap: 10px; font-size: 12px;"><span style="color: #A3ACB6;">Weight and air</span><span style="color: #E7EAEE; text-align: right;">32.0 kg weighed; 0.97 of standard</span></div>
+<div style="display: flex; justify-content: space-between; align-items: baseline; gap: 10px; font-size: 12px;"><span style="color: #A3ACB6;">Wind</span><span style="color: #E7EAEE; text-align: right;">5.2 m/s; airspeed from the wind the aircraft measured</span></div>
+<p style="margin: 0; font-size: 12px; line-height: 1.5; color: #8A949E;">The curve is the one on Range and speed. A flight that sits off it at every speed points at the aircraft, not the conditions.</p>
+</div>
+</div>
+
+<div style="display: flex; flex-direction: column; gap: 8px;">
+<div style="display: flex; flex-wrap: wrap; align-items: baseline; gap: 6px 12px;"><h3 style="margin: 0; font-size: 13px; font-weight: 600;">At speed · the fast run</h3><span style="font-size: 12px; color: #8A949E;">9:35–11:05, 13.1 m/s held 84 s · verified 13 m/s at this weight</span></div>
+<div style="overflow-x: auto;"><table aria-label="Watched metrics during the fast run" style="width: 100%; border-collapse: collapse; font-size: 13px; color: #CBD2D9;"><thead><tr><th scope="col" style="padding: 6px 10px; text-align: left; font-weight: 500; color: #8A949E; border-bottom: 1px solid #262D35;">Watched</th><th scope="col" style="padding: 6px 10px; text-align: left; font-weight: 500; color: #8A949E; border-bottom: 1px solid #262D35;">This run</th><th scope="col" style="padding: 6px 10px; text-align: left; font-weight: 500; color: #8A949E; border-bottom: 1px solid #262D35;">Margin</th><th scope="col" style="padding: 6px 10px; text-align: right; font-weight: 500; color: #8A949E; border-bottom: 1px solid #262D35;"></th></tr></thead><tbody>
+<sc-for list="{{watch}}" as="w" hint-placeholder-count="8"><tr><td style="padding: 7px 10px; text-align: left; border-bottom: 1px solid #1E242B; vertical-align: top;">{{w.n}}</td><td style="padding: 7px 10px; text-align: left; border-bottom: 1px solid #1E242B; vertical-align: top;"><span aria-hidden="true" style="display: inline-block; width: 90px; height: 6px; border-radius: 3px; background: #232A31; vertical-align: middle; margin-right: 8px;"><span style="display: block; height: 6px; border-radius: 3px; width: {{w.wd}}%; background: {{w.bc}};"></span></span><span style="font-family: 'IBM Plex Mono', ui-monospace, monospace; font-size: 13px; color: #E7EAEE;">{{w.v}}</span></td><td style="padding: 7px 10px; text-align: left; border-bottom: 1px solid #1E242B; vertical-align: top; font-size: 12px; color: #A3ACB6;">{{w.lim}}</td><td style="padding: 7px 10px; text-align: right; border-bottom: 1px solid #1E242B; vertical-align: top;"><span style="display: inline-flex; align-items: center; gap: 5px; font-size: 12px; font-weight: 600; color: {{w.c}}; white-space: nowrap;"><span aria-hidden="true" style="font-size: 9px;">{{w.g}}</span>{{w.s}}</span></td></tr></sc-for>
+</tbody></table></div>
+<p style="margin: 0; font-size: 12px; line-height: 1.5; color: #8A949E;">ESC 3 was still warming when the run ended: at 1.6 °C a minute it would reach 90 °C in about 5 minutes at this speed. It is the limit for the next speed step.</p>
+</div>
+</div>
+</sc-if>
 </section>
 <section aria-labelledby="fit-title" style="flex: 0 0 auto; min-width: 0; display: flex; flex-direction: column; gap: 12px; padding: 16px 18px; border-radius: 12px; background: #12161A; border: 1px solid #262D35;">
 <div style="display: flex; flex-wrap: wrap; align-items: baseline; gap: 6px 12px;"><h2 id="fit-title" style="margin: 0; font-size: 15px; font-weight: 600;">Thrust curve from ESC RPM</h2><span style="font-size: 12px; color: #8A949E;">This flight · bidirectional DShot, 8 ESCs</span></div>
@@ -176,7 +261,7 @@ button{font-family:inherit}
 </div>
 </div>
 </x-dc>
-<script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":1440,"height":1700}}'>
+<script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":1440,"height":3200}}'>
 class Component extends DCLogic {
   renderVals() {
     const tabNames = [['Overview', 'FlightReport.dc.html'], ['Timeline', 'Incidents.dc.html'], ['Filters', 'Workbench.dc.html'], ['Tune', 'Tune.dc.html'], ['Propulsion', 'Propulsion.dc.html'], ['Navigation and GNSS', 'Navigation.dc.html'], ['Links', 'Links.dc.html'], ['System and buses', 'FlightReport.dc.html'], ['Weather', 'Weather.dc.html'], ['Parameters', 'History.dc.html']];
@@ -186,7 +271,82 @@ class Component extends DCLogic {
     const options = [['light', 'Lightest'], ['this', '21% heavier · this flight'], ['max', 'Maximum, 34 kg']];
     const bands = options.map((b) => ({ label: b[1], on: b[0] === band, ...pill(b[0] === band), pick: () => this.setState({ band: b[0] }) }));
     const worst = { light: '79%', this: '88%', max: '94%' }[band];
-    return { tabs, bands, worst };
+
+    // Energy, this flight: the airframe's power model at 32.0 kg and 0.97 of standard air (as on Range and speed);
+    // this flight drew 6% more than it at every speed.
+    const energyOpen = !(this.state && this.state.energyOpen === false);
+    const toggleEnergy = () => this.setState({ energyOpen: !energyOpen });
+    const n1 = (v) => v.toFixed(1);
+    const sc = (d0, d1, r0, r1) => (v) => r0 + (v - d0) / (d1 - d0) * (r1 - r0);
+    const path = (pts) => pts.map((q, i) => (i ? 'L' : 'M') + n1(q[0]) + ' ' + n1(q[1])).join(' ');
+    const fk = (x) => Math.round(x).toLocaleString('en-GB');
+    const ug = (x) => Math.sqrt((-x * x + Math.sqrt(x ** 4 + 4)) / 2);
+    const Pm = (V, W, sig) => { const s = W / 30; return Math.pow(s, 1.5) / Math.sqrt(sig) * (2364 * ug(V / (3.7 * Math.sqrt(s / sig))) + 2174) + 0.8 * V * V * Math.sqrt(s * sig) + sig * V ** 3 + 62; };
+    const TW = 32.0, SG = 0.97, KX = 1.06, G = 9.81, AV = 62;
+    const ph = Pm(0, TW, SG) * KX;
+    const PHASES = [
+      ['climb', 0, 25, ph + TW * G * 2.5 / 0.6, 0, 0], ['hover', 25, 125, ph, 0, 0], ['cruise', 125, 365, Pm(11, TW, SG) * KX, 6.0, 11],
+      ['manoeuvre', 365, 515, Pm(5, TW, SG) * KX * 1.09, 3.4, 5], ['hover', 515, 575, ph, 0, 0], ['cruise', 575, 665, Pm(13.1, TW, SG) * KX, 12.1, 13.1],
+      ['cruise', 665, 755, Pm(11, TW, SG) * KX, 16.0, 11], ['hover', 755, 820, ph, 0, 0], ['descent', 820, 880, ph - TW * G * 1.5 * 0.35, 0, 0]
+    ];
+    const PC = { hover: '#5AB0E8', cruise: '#2F7FB8', climb: '#9BD3F5', descent: '#CFE9FA', manoeuvre: '#4A7FA3', avionics: '#8A949E', harness: '#6E7883', heat: '#4A535D' };
+    const eBy = {}; let eProp = 0, dist = 0;
+    PHASES.forEach(([k, a, b, pw, g]) => { const e = (pw - AV) * (b - a) / 3600; eBy[k] = (eBy[k] || 0) + e; eProp += pw * (b - a) / 3600; dist += g * (b - a) / 1000; });
+    const iAvg = eProp / (880 / 3600) / 43.3, eHarn = iAvg * iAvg * 0.002 * 880 / 3600, eHeat = iAvg * iAvg * 0.0154 * 880 / 3600, eAv = AV * 880 / 3600;
+    const eTerm = eProp + eHarn, eCells = eTerm + eHeat;
+    const parts = [['hover', 'Hover'], ['cruise', 'Cruise'], ['climb', 'Climb'], ['descent', 'Descent'], ['manoeuvre', 'Manoeuvre'], ['avionics', 'Avionics'], ['heat', 'Battery heat'], ['harness', 'Harness']]
+      .map(([k, l]) => [k, l, k === 'avionics' ? eAv : k === 'heat' ? eHeat : k === 'harness' ? eHarn : eBy[k]]);
+    let acc = 0;
+    const bar = parts.map(([k, l, e]) => { const w = e / eCells * 100, x = acc; acc += w; return { k, l, col: PC[k], x: x.toFixed(2), w: Math.max(0, w - 0.25).toFixed(2), e: fk(e) + ' Wh', pc: (w < 1 ? w.toFixed(1) : w.toFixed(0)) + '%' }; });
+    // power against time, 2 s samples, phases shaded
+    const tx = sc(0, 880, 56, 884), ty = sc(0, 8000, 176, 16);
+    const nzE = [0.012, -0.018, 0.007, -0.004, 0.015, -0.011, 0.002, -0.014, 0.009, -0.006, 0.013, -0.002];
+    const pts = [];
+    for (let t = 0; t <= 880; t += 4) {
+      const ph0 = PHASES.find((q) => t >= q[1] && t < q[2]) || PHASES[PHASES.length - 1];
+      const j = ph0[0] === 'manoeuvre' ? 0.09 : 0.025;
+      pts.push([tx(t), ty(ph0[3] * (1 + nzE[(t / 4) % 12] * j / 0.018))]);
+    }
+    const shade = PHASES.map(([k, a, b]) => ({ x: n1(tx(a)), w: n1(tx(b) - tx(a)), col: PC[k] }));
+    const ptime = {
+      d: path(pts), shade, fastX: n1(tx(575)), fastW: n1(tx(665) - tx(575)),
+      yt: [0, 2000, 4000, 6000, 8000].map((v) => ({ gy: n1(ty(v)), y: n1(ty(v) + 4), l: v / 1000 + (v === 8000 ? ' kW' : '') })),
+      xt: [0, 180, 360, 540, 720, 880].map((s, i, a) => ({ x: n1(tx(s)), l: Math.floor(s / 60) + ':' + String(s % 60).padStart(2, '0'), a: i === a.length - 1 ? 'end' : i === 0 ? 'start' : 'middle' })),
+      legend: [['hover', 'Hover'], ['cruise', 'Cruise'], ['climb', 'Climb'], ['descent', 'Descent'], ['manoeuvre', 'Manoeuvre']].map(([k, l]) => ({ l, col: PC[k] }))
+    };
+    // this flight's steady tiles on the airframe's curve at its weight
+    const vx = sc(0, 16, 52, 620), vy = sc(3000, 9000, 196, 16);
+    const curve = [], up = [], dn = [];
+    for (let V = 0; V <= 16.001; V += 0.25) { const q = Pm(V, TW, SG); curve.push([vx(V), vy(q)]); up.push([vx(V), vy(q * 1.04)]); dn.push([vx(V), vy(q * 0.96)]); }
+    const tileV = [0, 0.2, 0.1, 0.3, 0, 0.2, 4.2, 4.8, 5.3, 5.9, 6.4, 10.7, 10.9, 11.0, 11.1, 11.2, 10.8, 11.0, 11.3, 12.9, 13.1, 13.2, 13.0];
+    const tiles = tileV.map((V, i) => ({ x: n1(vx(V)), y: n1(vy(Pm(V, TW, SG) * (KX + nzE[i % 12] * 0.8))) }));
+    const onCurve = {
+      d: path(curve), band: path(up) + ' ' + dn.slice().reverse().map((q) => 'L' + n1(q[0]) + ' ' + n1(q[1])).join(' ') + ' Z', tiles,
+      yt: [3000, 5000, 7000, 9000].map((v) => ({ gy: n1(vy(v)), y: n1(vy(v) + 4), l: v / 1000 + (v === 9000 ? ' kW' : '') })),
+      xt: [0, 4, 8, 12, 16].map((v, i, a) => ({ x: n1(vx(v)), l: v === 16 ? '16 m/s' : String(v), a: i === a.length - 1 ? 'end' : i === 0 ? 'start' : 'middle' })),
+      lx: n1(vx(10.4)), ly: n1(vy(Pm(10.4, TW, SG) * KX) - 14)
+    };
+    const energy = {
+      used: fk(eTerm), mAh: fk(eTerm / 43.3 * 1000), share: (eTerm / 43.3 / 44 * 100).toFixed(0), cells: fk(eCells), dist: dist.toFixed(1),
+      perKm: fk(eTerm / dist), cruiseKm: fk(Pm(11, TW, SG) * KX / 11 / 3.6), cruiseModel: fk(Pm(11, TW, SG) / 11 / 3.6),
+      climbM: (ph + TW * G * 2.5 / 0.6) / 2.5 / 3600, hoverStd: Pm(0, TW, 1) * KX, hoverStdModel: Pm(0, TW, 1),
+      bar, ptime, onCurve
+    };
+    energy.climbM = energy.climbM.toFixed(2); energy.climbX = (TW * G * 2.5 / 0.6 / 2.5 / 3600).toFixed(2);
+    energy.hoverStd = (energy.hoverStd / 1000).toFixed(2); energy.hoverStdModel = (energy.hoverStdModel / 1000).toFixed(2);
+    const p13 = Pm(13.1, TW, SG) * KX, lean13 = Math.atan(0.5 * 1.225 * SG * 0.99 * 13.1 * 13.1 / (TW * G)) * 180 / Math.PI;
+    const watch = [
+      ['Vibration, peak', '21 m/s²', 'under 30', 21 / 30, 'ok'],
+      ['Accelerometer clipping', '0', 'none', 0, 'ok'],
+      ['Highest motor output', '79%, motor 7', 'watch above 85%', 79 / 85, 'ok'],
+      ['ESC peak temperature', '81 °C, ESC 3, rising 1.6 °C/min', '90 °C: protection 100 °C less 10', (81 - 14) / (90 - 14), 'cau'],
+      ['Peak current', Math.round(p13 / 42 * 1.12) + ' A', '200 A, the power module', p13 / 42 * 1.12 / 200, 'ok'],
+      ['Lean', lean13.toFixed(1) + '°, ' + (lean13 / 30 * 100).toFixed(0) + '% of the limit', 'ATC_ANGLE_MAX 30°', lean13 / 30, 'ok'],
+      ['Attitude tracking error', '2.2° RMS', 'under 4°', 2.2 / 4, 'ok'],
+      ['Velocity tracking error', '0.5 m/s RMS', 'under 1.0 m/s', 0.5, 'ok']
+    ].map((w) => ({ n: w[0], v: w[1], lim: w[2], wd: (Math.min(1, w[3]) * 100).toFixed(0), bc: w[4] === 'cau' ? '#E8A33D' : '#4A7FA3', g: w[4] === 'cau' ? '▲' : '●', c: w[4] === 'cau' ? '#E8A33D' : '#3DBE8B', s: w[4] === 'cau' ? 'Inside, rising' : 'Inside' }));
+    const energyAria = 'Energy from the cells by use: ' + energy.bar.map((b) => b.l.toLowerCase() + ' ' + b.e).join(', ');
+    return { tabs, bands, worst, energy, watch, energyOpen, energyClosed: !energyOpen, energyRot: energyOpen ? 0 : -90, toggleEnergy, energyAria };
   }
 }
 </script>
