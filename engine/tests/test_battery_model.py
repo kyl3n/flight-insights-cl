@@ -19,6 +19,7 @@ from flight_insights.performance.battery import (
     fit_pack,
     lowpass,
     usable,
+    usable_curve,
 )
 
 RULES: dict[str, Any] = dict(load_pack().json("rules/ocv.json"))
@@ -78,6 +79,16 @@ def test_the_capacity_failsafe_counts_from_zero_like_the_firmware() -> None:
     full = discharge(pack, 1.0, 222.0, fs, dt=1.0)
     assert full.stopped_by == "capacity_failsafe"
     assert full.charge_ah == pytest.approx(7.5, abs=0.07)
+
+
+def test_the_curve_says_what_ends_a_flight_at_each_load() -> None:
+    """A capacity failsafe set below the pack ends every load before the reserve; without
+    it the reserve does; above what the pack can give, the power."""
+    pack = Pack(LIPO, 12, 30.0, 0.02)
+    early = usable_curve(pack, 1.0, Failsafe(capacity_mah=3000, low_mah=450), 0.2, 1000, 6000, 6)
+    assert early.stopped(3100.0) == "capacity_failsafe"
+    late = usable_curve(pack, 1.0, Failsafe(capacity_mah=30000), 0.2, 1000, 6000, 6)
+    assert late.stopped(3100.0) == "reserve" and late.stopped(1e6) == "power"
 
 
 def test_the_voltage_failsafe_waits_its_timer() -> None:

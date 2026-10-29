@@ -21,7 +21,9 @@ from, and what the power model gives with them.
 - **The build-up:** each flight's fast segment (`fast.*`, `analyzers/fast.py`) with its
   weight, and the ESCs' thermal models from the latest flight with ESC telemetry.
 
-Anything an input is missing for is left out, with what to enter or fly to get it.
+Anything an input is missing for is left out, with what to enter or fly to get it. Each
+figure says what ends it (the reserve, the cutoff, or a failsafe the parameters set sooner:
+`Usable.stopped`), with the failsafe it read.
 """
 
 from __future__ import annotations
@@ -340,6 +342,13 @@ def report(store: Store, cache: ColumnCache, pack: KnowledgePack, airframe_id: s
         out["missing"]["hover"] = "the pack cannot hold a hover at this weight"
         return _round(out)
     assert i.model.fitted is not None
+    # what ends each figure: the reserve, or a failsafe the parameters set sooner
+    out["failsafe"] = asdict(i.failsafe)
+    out["ends"] = {
+        "hover": curve.stopped(float(model.power(w, 0.0, 0.0, density, rules))),
+        "endurance": curve.stopped(float(model.power(w, f.endurance_ms, 0.0, density, rules))),
+        "range": curve.stopped(float(model.power(w, f.range_ms, 0.0, density, rules))),
+    }
     out["spread"] = {k: asdict(v) for k, v in
                      spread(i.model.fitted, rules, curve, mass, i.empty_kg or mass, density,
                             top).items()}  # fmt: skip

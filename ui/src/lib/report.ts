@@ -198,14 +198,14 @@ export function formatNumber(value: number, locale: Locale = "en"): string {
 const UNIT_TEXT: Record<Locale, Record<string, string>> = {
   en: {
     degC: "°C", mOhm: "mΩ", Ohm: "Ω", "W.h": "Wh", "W.h/km": "Wh/km", "A/krpm^2": "A/krpm²",
-    us: "µs", "W.h/m": "Wh/m", "mA.h": "mAh",
+    us: "µs", "W.h/m": "Wh/m", "mA.h": "mAh", "W.h/(kg.km)": "Wh/(kg·km)",
   },
   uk: {
     degC: "°C", mOhm: "мОм", "W.h": "Вт·год", "W.h/km": "Вт·год/км", "A/krpm^2": "А/(тис. об/хв)²",
     W: "Вт", V: "В",
     A: "А", s: "с", ms: "мс", Hz: "Гц", dB: "дБ", "B/s": "Б/с", "m/s/s": "м/с²", Ohm: "Ом", rpm: "об/хв",
     m: "м", "m/s": "м/с", hPa: "гПа", us: "мкс", kW: "кВт", km: "км", kg: "кг", "W.h/m": "Вт·год/м",
-    "mA.h": "мА·год",
+    "mA.h": "мА·год", "W.h/(kg.km)": "Вт·год/(кг·км)", min: "хв",
   },
 };
 

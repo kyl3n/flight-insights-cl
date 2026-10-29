@@ -36,6 +36,7 @@
   } from "../lib/trends";
   import AirframePicker from "./AirframePicker.svelte";
   import HistoryView from "./HistoryView.svelte";
+  import RangeView from "./RangeView.svelte";
   import PlatformMultiples from "./PlatformMultiples.svelte";
   import TrendChart from "./TrendChart.svelte";
 
@@ -190,6 +191,7 @@
     <h1>
       {#if !airframe}{t("nav.trends")}
       {:else if app.trendsTab === "history"}{t("history.heading", { airframe: airframe.name })}
+      {:else if app.trendsTab === "range"}{t("range.heading", { airframe: airframe.name })}
       {:else}{t("trends.title", { airframe: airframe.name })}{/if}
     </h1>
     <AirframePicker />
@@ -197,11 +199,14 @@
   <div class="tabs" role="group" aria-label={t("trends.tabs")}>
     <button type="button" aria-pressed={app.trendsTab === "metrics"} onclick={() => (app.trendsTab = "metrics")}>{t("trends.tab.metrics")}</button>
     <button type="button" aria-pressed={app.trendsTab === "history"} onclick={() => (app.trendsTab = "history")}>{t("trends.tab.history")}</button>
+    <button type="button" aria-pressed={app.trendsTab === "range"} onclick={() => (app.trendsTab = "range")}>{t("trends.tab.range")}</button>
   </div>
-  <p class="faint">{app.trendsTab === "history" ? t("history.about") : t("trends.about")}</p>
+  <p class="faint">{app.trendsTab === "history" ? t("history.about") : app.trendsTab === "range" ? t("range.about") : t("trends.about")}</p>
   {#if error}<p class="error">{error}</p>{/if}
 
-  {#if app.trendsTab === "history"}
+  {#if app.trendsTab === "range"}
+    {#if app.scope.airframe !== null}<RangeView airframeId={app.scope.airframe} />{/if}
+  {:else if app.trendsTab === "history"}
     {#if app.scope.airframe !== null}
       <HistoryView airframeId={app.scope.airframe} platformId={airframe?.platform.id ?? null} onopentrend={openTrend} />
     {/if}
