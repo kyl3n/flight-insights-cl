@@ -203,6 +203,13 @@ class Usable:
         p = np.asarray(power, np.float64)
         return np.asarray(self.at(p) * 3600.0 / np.maximum(p, 1e-9))
 
+    def stopped(self, power: float) -> str:
+        """What ends a steady flight at this load: the reason at the grid's nearest load
+        at or above it (the one `at` errs toward), or "power" above the grid."""
+        if power > float(self.powers[-1]) * (1 + 1e-9):
+            return "power"
+        return self.stopped_by[min(int(np.searchsorted(self.powers, power)), len(self.powers) - 1)]
+
 
 def usable_curve(
     pack: Pack,

@@ -73,6 +73,12 @@ def test_the_figures_agree_with_themselves(got: dict[str, Any]) -> None:
     assert hovers == sorted(hovers, reverse=True)
 
 
+def test_each_figure_says_what_ends_it(got: dict[str, Any]) -> None:
+    # the latest flight's BATT_CAPACITY is the pack's, with no BATT_LOW_MAH: the reserve
+    assert got["ends"] == {"hover": "reserve", "endurance": "reserve", "range": "reserve"}
+    assert got["failsafe"]["capacity_mah"] == 44000 and got["failsafe"]["low_mah"] is None
+
+
 def test_the_wind_costs_radius_and_the_headwind_ground_speed(got: dict[str, Any]) -> None:
     r = got["radius"]
     assert r["wind_ms"] == 5.0 and len(r["by_direction"]) == 72

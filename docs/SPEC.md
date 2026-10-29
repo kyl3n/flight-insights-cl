@@ -773,7 +773,7 @@ Added to Phase 2 on 2026-10-27 at the fleet owner's request, and built in steps 
   - at cruise: the level tiles' energy over their own distance.
 - **Where the energy went:** the energy in each steady tile's phase (low, hover, level, climb, descent, manoeuvre), and what fell between tiles. The parts add up to the whole.
 
-**What the user gets** (the speeds, the radius, the projections, the efficiency figures, the what-ifs and maximum speed are worked out, `performance/optimize.py`, `radius.py`, `project.py` and `top_speed.py`, and given over RPC with the stored model, `report.py`; the screens are not yet).
+**What the user gets** (the speeds, the radius, the projections, the efficiency figures, the what-ifs and maximum speed are worked out, `performance/optimize.py`, `radius.py`, `project.py` and `top_speed.py`, and given over RPC with the stored model, `report.py`; the Range and speed screen shows the figures and the weight chart so far, the rest of its charts and the range card are not yet).
 
 - **Speeds:**
   - best-endurance speed (minimum power);
@@ -823,7 +823,7 @@ Added to Phase 2 on 2026-10-27 at the fleet owner's request, and built in steps 
 
   Whatever an input is missing for is left out, with what to enter or fly to get it. An airframe that has only hovered gets its hover time alone, with its interval; the speeds, range and radius wait for level flight.
 - **Over RPC:**
-  - `airframe.performance` (weight, usual or standard air, trip, wind): the inputs, the speeds, the figures and their intervals, against weight, the radius by direction relative to the wind, the best leg into each headwind, the what-ifs that change something, maximum speed and the build-up's next step;
+  - `airframe.performance` (weight, usual or standard air, trip, wind): the inputs, the speeds, the figures and their intervals, against weight, the radius by direction relative to the wind, the best leg into each headwind, the what-ifs that change something, maximum speed and the build-up's next step; and what ends the hover, best-endurance and best-range figures (the reserve, the cells' cutoff, or a failsafe the latest flight's parameters set sooner: `BATT_CAPACITY` less `BATT_LOW_MAH`, or `BATT_LOW_VOLT`), with that failsafe;
   - `airframe.range_card`: a row for each of the empty, typical and heaviest take-off weights, with:
     - hover time and best endurance (the low end);
     - the cruise speed Priority calls for (best endurance for endurance, else best range);
@@ -2156,7 +2156,7 @@ Rules that keep decisions easy:
 | Filter workbench | Pre- and post-filter spectra, spectrogram over time with motor RPM and notch centres overlaid, predicted spectrum, phase-lag readout | Edit candidate filter values and see the prediction update |
 | Tune | Attitude tracking error (the tune's measure) and rate tracking error (its guard) per axis, each with its 95% interval, against a tune-check flight of the same payload band; step and frequency responses of one axis, both flights; the stick inputs counted and those left out, with why; whether the plan improved the tune | Pick the flight to compare with (same band), the payload band and the axis; open the tune-check card |
 | Propulsion and power | Per-motor output and RPM, temperatures, sag, battery resistance; the motor-out margin with each motor stopped in turn, and the payload band; the thrust-model fit (not yet); this flight's energy: where it went, power against time, its tiles on the airframe's power curve, and the watched metrics at speed | Select motors and segments; see which motor loss is worst |
-| Range and speed (not yet) | Per airframe: flight time, range, radius and maximum speed against take-off weight and wind; power against airspeed with the best speeds; efficiency; batteries; what-ifs and builds side by side; the speed build-up when the speed goal is "fastest safe"; the data the figures rest on | Pick payload, pack, air, wind, trip and build; switch the speed goal; plan the speed sweep or the next speed step; print the range card |
+| Range and speed (partly built) | Per airframe: flight time, range, radius and maximum speed against take-off weight and wind; power against airspeed with the best speeds; efficiency; batteries; what-ifs and builds side by side; the speed build-up when the speed goal is "fastest safe"; the data the figures rest on | Pick payload, pack, air, wind, trip and build; switch the speed goal; plan the speed sweep or the next speed step; print the range card |
 | System and buses | CPU load, loop timing, latency budget, per-task CPU, bus and interface errors | Align with flight events; compare before and after a change |
 | Navigation and GNSS | The fleet goal; jamming and spoofing events with their class, confidence and evidence; outages and drills; how the aircraft coped with each; the evidence each receiver gives; the Flying without GNSS view below; later, estimator innovations, GPS quality and position-controller error statistics | Pick an event, outage or drill; select segments (later) |
 | Flying without GNSS | On the Navigation and GNSS tab: readiness by area, measured drift and dead-reckoning range, outages and drills, what would get it home, the recovery card in short | Open an outage or drill; print the recovery card |
@@ -2365,6 +2365,16 @@ Every number, chart point, log field and parameter in the app explains itself. H
   - **The loop period** from SCHED_LOOP_RATE.
   - **Errors:** a table of the errors logged, grouped by subsystem and meaning, using the release's own names.
   - **Not shown:** per-task CPU is not in the onboard log, and the latency budget is not built yet.
+
+**Range and speed (Phase 2; `airframe.performance`, `ui/src/components/RangeView.svelte`; mock-up `Performance.dc.html`).** A third tab beside Trends and Parameter history, per airframe. Built so far:
+
+- **Controls:** the take-off weight (the setup's typical, the empty weight, each weight flown and the most it may carry), the air (the airframe's usual, or standard), the trip (the three standard trips) and the wind (0, 5 or 10 m/s). The line under them says that distances and air density are worked out on the laptop and nothing on the screen is sent anywhere.
+- **Figures** at that weight, each with its 95% interval where the engine gives one, and marked measured inside the weights flown or estimate outside them (maximum speed is an estimate when it is beyond the speeds flown): hover endurance, best endurance and its speed, range at best-range speed, the radius the worst way round in that wind (with still air beside it), maximum speed and what limits it, the best-range and best-endurance speeds with their flat bands, hover efficiency and g/W, energy per km, and energy per kg carried and km.
+- **What ends each figure:** the reserve, or a failsafe the parameters set sooner. When a failsafe ends them first, a callout says which and how much it leaves (for `BATT_CAPACITY` less `BATT_LOW_MAH`, the charge the firmware counts down from take-off, whatever the pack holds), and points at the plan's battery finding. The figures follow the parameters as the aircraft flies them.
+- **The reserve** kept back, with where its share and the pack came from.
+- **Weight, range and flight time:** range at best-range speed and flight time at best-endurance speed against take-off weight, with the weights outside those flown shaded as extrapolated, and the empty and heaviest weights marked.
+- **A model not yet measured at speed** (level B or C) is called an estimate at the top, with the card to fly. Whatever is missing is listed with what to enter or fly.
+- **Not built yet:** power against airspeed, the wind charts and headwind table, the speed build-up and the speed-goal switch, batteries, what-ifs, density altitude, over time, the data the figures rest on, the builds side by side, the recommendations, and the range card.
 
 **Languages.** Interface text goes through an i18n layer from the first release, with English and Ukrainian as the initial languages. Parameter names stay in ArduPilot's English form everywhere. Text the engine composes itself, such as failsafe names and some evidence notes, stays in English on the Ukrainian screens for now (decided 2026-10-27); wording from the knowledge pack, the recovery card, the timeline and the metric explanations is in both languages. Units follow the language: Ukrainian writes SI symbols in Cyrillic (В, Вт, Гц, дБ, м/с²), as its own texts do. Numbers use each language's own decimal separator and digit grouping.
 
