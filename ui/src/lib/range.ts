@@ -48,6 +48,54 @@ export interface Inputs {
   reserve_share: number;
   trip: Trip;
   wind_ms: number;
+  speed_goal?: "efficient" | "fastest";
+}
+
+export interface Check {
+  name: string; // lean, thrust, current, esc_temp, output, vibration, attitude, velocity
+  value: number;
+  limit: number;
+  holds: boolean;
+  how: "model" | "trend";
+}
+
+export interface BuildUp {
+  verified_ms: number | null;
+  verified_flight: string | null;
+  next_ms: number | null;
+  checks: Check[];
+  missing: string[];
+  binding: string | null;
+  offered: boolean;
+}
+
+/** Each check's unit, as the engine measures it. */
+export const CHECK_UNITS: Record<string, string> = {
+  lean: "%",
+  thrust: "deg",
+  current: "A",
+  esc_temp: "degC",
+  output: "%",
+  vibration: "m/s/s",
+  attitude: "deg",
+  velocity: "m/s",
+};
+
+/** How much of its limit a check uses, 0 to 1 and beyond. */
+export function used(c: Check): number {
+  return c.limit > 0 ? c.value / c.limit : 1;
+}
+
+/** A polar of the radius by direction relative to the wind: up is out into the wind (the
+ * engine's angle 0 is out with the wind behind, so it is drawn at the bottom). */
+export function polar(by: [number, number][], cx: number, cy: number, radius: number, most: number): string {
+  if (!by.length || most <= 0) return "";
+  const pts = by.map(([deg, m]) => {
+    const r = (m / most) * radius;
+    const a = ((deg + 180) * Math.PI) / 180;
+    return `${(cx + r * Math.sin(a)).toFixed(1)} ${(cy - r * Math.cos(a)).toFixed(1)}`;
+  });
+  return `M${pts.join(" L")} Z`;
 }
 
 export interface Speeds {
@@ -83,7 +131,9 @@ export interface Performance {
   ends?: Record<"hover" | "endurance" | "range", End>;
   curves?: Curves;
   wp_spd_ms?: number | null;
-  build_up?: { verified_ms: number | null; next_ms: number | null; binding: string | null; offered: boolean };
+  build_up?: BuildUp;
+  radius_wind?: { wind_ms: number; worst_m: number; across_m: number | null }[];
+  headwind?: { wind_ms: number; airspeed: number | null; ground?: number; power?: number; wh_per_km?: number }[];
   failsafe?: Failsafe;
 }
 

@@ -197,11 +197,11 @@ export function formatNumber(value: number, locale: Locale = "en"): string {
 // (Ukrainian writes SI symbols in Cyrillic: В, Вт, Гц).
 const UNIT_TEXT: Record<Locale, Record<string, string>> = {
   en: {
-    degC: "°C", mOhm: "mΩ", Ohm: "Ω", "W.h": "Wh", "W.h/km": "Wh/km", "A/krpm^2": "A/krpm²",
+    deg: "°", degC: "°C", mOhm: "mΩ", Ohm: "Ω", "W.h": "Wh", "W.h/km": "Wh/km", "A/krpm^2": "A/krpm²",
     us: "µs", "W.h/m": "Wh/m", "mA.h": "mAh", "W.h/(kg.km)": "Wh/(kg·km)",
   },
   uk: {
-    degC: "°C", mOhm: "мОм", "W.h": "Вт·год", "W.h/km": "Вт·год/км", "A/krpm^2": "А/(тис. об/хв)²",
+    deg: "°", degC: "°C", mOhm: "мОм", "W.h": "Вт·год", "W.h/km": "Вт·год/км", "A/krpm^2": "А/(тис. об/хв)²",
     W: "Вт", V: "В",
     A: "А", s: "с", ms: "мс", Hz: "Гц", dB: "дБ", "B/s": "Б/с", "m/s/s": "м/с²", Ohm: "Ом", rpm: "об/хв",
     m: "м", "m/s": "м/с", hPa: "гПа", us: "мкс", kW: "кВт", km: "км", kg: "кг", "W.h/m": "Вт·год/м",
@@ -217,7 +217,7 @@ export function unitText(unit: string, locale: Locale = "en"): string {
 export function formatValue(value: number, unit: string, locale: Locale = "en"): string {
   const text = formatNumber(value, locale);
   if (!unit || unit === "count" || unit === "ratio") return text;
-  return unit === "%" ? `${text}%` : `${text} ${unitText(unit, locale)}`;
+  return unit === "%" || unit === "deg" ? `${text}${unitText(unit, locale)}` : `${text} ${unitText(unit, locale)}`;
 }
 
 function fillValue(v: unknown, locale: Locale): string {

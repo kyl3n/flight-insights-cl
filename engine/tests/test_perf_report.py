@@ -114,12 +114,26 @@ def test_the_curves_for_the_power_and_speed_charts(got: dict[str, Any]) -> None:
     assert got["wp_spd_ms"] is not None
 
 
+def test_the_radius_falls_as_the_wind_rises(got: dict[str, Any]) -> None:
+    rw = got["radius_wind"]
+    assert [x["wind_ms"] for x in rw] == [0.0, 2.0, 4.0, 6.0, 8.0, 10.0, 12.0]
+    worst = [x["worst_m"] for x in rw]
+    assert worst == sorted(worst, reverse=True)
+    # in still air every way round is the same; across the wind it is never the worst
+    assert rw[0]["across_m"] == pytest.approx(rw[0]["worst_m"], rel=1e-6)
+    assert all(x["across_m"] >= x["worst_m"] - 1e-6 for x in rw)
+    assert got["inputs"]["speed_goal"] == "efficient"
+
+
 def test_the_wind_costs_radius_and_the_headwind_ground_speed(got: dict[str, Any]) -> None:
     r = got["radius"]
     assert r["wind_ms"] == 5.0 and len(r["by_direction"]) == 72
     assert r["worst_m"] < got["figures"]["radius_m"]["out_and_back"]
     for h in got["headwind"]:
         assert h["ground"] == pytest.approx(h["airspeed"] - h["wind_ms"], abs=1e-6)
+    # in still air the best leg is the best-range speed, at the weight picked
+    still = got["headwind"][0]
+    assert still["wh_per_km"] == pytest.approx(got["speeds"]["range_wh_per_km"], rel=0.05)
     gains = {w["lever"]: w for w in got["what_ifs"]}
     assert gains["mass"]["hover_s"] > 0 and gains["capacity"]["range_m"] > 0
     assert all(w["change"] != 0 for w in got["what_ifs"])

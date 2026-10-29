@@ -22,7 +22,9 @@
     type Trip,
   } from "../lib/range";
   import { formatNumber, unitText } from "../lib/report";
+  import BuildUpPanel from "./BuildUpPanel.svelte";
   import SpeedPanel from "./SpeedPanel.svelte";
+  import WindPanel from "./WindPanel.svelte";
 
   let { airframeId }: { airframeId: string } = $props();
 
@@ -33,6 +35,7 @@
   let view = $state<Performance | null>(null);
   let error = $state("");
   let busy = $state(false);
+  let reloads = $state(0); // a setup answer changed: work the figures out again
 
   $effect(() => {
     void airframeId;
@@ -41,6 +44,7 @@
 
   $effect(() => {
     const asked = { mass_kg: massKg, air, trip, wind_ms: windMs };
+    void reloads;
     busy = true;
     error = "";
     airframePerformance(airframeId, asked)
@@ -213,6 +217,11 @@
 
     {#if view.curves && f}
       <SpeedPanel {view} />
+    {/if}
+
+    {#if f}
+      <BuildUpPanel {view} {airframeId} onchange={() => (reloads += 1)} />
+      <WindPanel {view} />
     {/if}
 
     {#if rangeChart && timeChart}

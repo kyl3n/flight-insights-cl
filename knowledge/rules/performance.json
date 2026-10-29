@@ -232,7 +232,7 @@
     "compare": 3
   },
   "report": {
-    "about": "What the Range & speed screen and the range card show (performance/report.py): the best airspeed and ground speed into each of headwinds_ms, and on the card the radius out and back with each as the wind, the worst way round. The Range & speed screen's curves run from 0 to the larger of curve_beyond times the fastest level airspeed flown and that plus curve_beyond_ms, every curve_step_ms: the power at the empty, chosen and heaviest weights with the projections' 95% band, and at the chosen weight the energy per km over the ground into each of headwinds_ms and the flight time.",
+    "about": "What the Range & speed screen and the range card show (performance/report.py): the best airspeed and ground speed into each of headwinds_ms, and on the card the radius out and back with each as the wind, the worst way round. The Range & speed screen's curves run from 0 to the larger of curve_beyond times the fastest level airspeed flown and that plus curve_beyond_ms, every curve_step_ms: the power at the empty, chosen and heaviest weights with the projections' 95% band, and at the chosen weight the energy per km over the ground into each of headwinds_ms and the flight time. The radius against wind speed is worked out at each of radius_winds_ms, the worst way round and across the wind.",
     "headwinds_ms": [
       0.0,
       5.0,
@@ -240,7 +240,16 @@
     ],
     "curve_step_ms": 0.5,
     "curve_beyond": 1.3,
-    "curve_beyond_ms": 3.0
+    "curve_beyond_ms": 3.0,
+    "radius_winds_ms": [
+      0.0,
+      2.0,
+      4.0,
+      6.0,
+      8.0,
+      10.0,
+      12.0
+    ]
   },
   "top_speed": {
     "about": "The maximum level airspeed (performance/top_speed.py): the least of the lean limit (the measured drag carried to the weight and air, at PSC_ANGLE_MAX else ATC_ANGLE_MAX), the thrust limit (acos of the hover throttle at that weight over 0.8 of full, wind.json's throttle_limit), and the current limit (the model's power within the lowest voltage times the least of the pack's rating and MOT_BAT_CURR_MAX), searched every step_ms up to search_ms.",
