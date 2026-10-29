@@ -165,6 +165,36 @@ def test_the_pack_against_load_and_each_pack_over_its_flights(got: dict[str, Any
     assert len(p["flights"]) == 2 and all(f["resistance_mohm"] > 0 for f in p["flights"])
 
 
+def test_the_figures_against_density_altitude(got: dict[str, Any]) -> None:
+    d = got["density"]
+    rules = Registry.load(PACK).rules["performance"]["report"]
+    rows = d["rows"]
+    assert [r["altitude_m"] for r in rows] == [float(h) for h in rules["density_altitudes_m"]]
+    assert rows[0]["density"] == pytest.approx(1.225, abs=1e-3)
+    hover = [r["hover_s"] for r in rows]
+    reach = [r["range_m"] for r in rows]
+    assert hover == sorted(hover, reverse=True) and reach == sorted(reach, reverse=True)
+    # thin air costs induced power, most in hover: hover endurance falls faster than range
+    assert hover[-1] / hover[0] < reach[-1] / reach[0] < 1
+    # the airframe's usual air sits inside what it flew, on the laptop
+    low, high = d["flown_m"]
+    assert low <= d["usual_m"] <= high
+
+
+def test_the_data_behind_the_figures(got: dict[str, Any]) -> None:
+    d = got["data"]
+    assert {c["mass_kg"] for c in d["grid"]} == {32.5, 40.5}
+    # hover is airspeed 0, and the sweep's legs reach 12 m/s at both weights
+    for kg in (32.5, 40.5):
+        speeds = {c["airspeed_ms"] for c in d["grid"] if c["mass_kg"] == kg}
+        assert 0 in speeds and 12 in speeds
+    assert all(c["minutes"] > 0 for c in d["grid"])
+    assert d["level"] == "A" and d["flights"] == 2 and len(d["lofo"]) == 2
+    errors = [abs(x["error"]) for x in d["lofo"]]
+    assert d["lofo_median"] == pytest.approx(sum(errors) / 2, rel=1e-3)
+    assert d["targets"] == {"median": 0.05, "p90": 0.1}
+
+
 def test_each_what_if_says_what_it_rests_on(got: dict[str, Any]) -> None:
     shares = {w["lever"]: w["share"] for w in got["what_ifs"]}
     rules = Registry.load(PACK).rules["performance"]["projections"]["what_ifs"]

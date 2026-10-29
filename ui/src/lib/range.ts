@@ -139,6 +139,59 @@ export interface Performance {
   battery?: Battery;
   what_ifs?: WhatIf[];
   builds?: Builds;
+  density?: DensityAltitude;
+  data?: DataBehind;
+}
+
+/** Range and hover endurance in the standard atmosphere's air at each density altitude, at
+ * the weight picked; worked out and kept on this laptop. */
+export interface DensityAltitude {
+  rows: { altitude_m: number; density: number; range_m: number | null; hover_s: number | null }[];
+  usual_m: number | null;
+  flown_m: [number, number] | null;
+}
+
+/** What the model rests on: steady minutes by weight and airspeed (0 is hover), and each
+ * flight's energy predicted without it. */
+export interface DataBehind {
+  grid: { mass_kg: number | null; airspeed_ms: number; minutes: number }[];
+  sloped_minutes: number;
+  lofo: { flight_id: string; error: number }[];
+  lofo_median: number | null;
+  lofo_p90: number | null;
+  targets: { median: number; p90: number };
+  level: "A" | "B" | "C" | null;
+  rows: number;
+  flights: number;
+  left_out: number;
+  skipped: Record<string, string>;
+}
+
+/** Each figure's change against sea level in standard air, as a share. */
+export function againstSeaLevel(d: DensityAltitude): { altitude: number[]; range: (number | null)[]; hover: (number | null)[] } {
+  const r0 = d.rows[0]?.range_m ?? null;
+  const h0 = d.rows[0]?.hover_s ?? null;
+  const share = (v: number | null, base: number | null) => (v === null || base === null || base <= 0 ? null : v / base - 1);
+  return {
+    altitude: d.rows.map((r) => r.altitude_m),
+    range: d.rows.map((r) => share(r.range_m, r0)),
+    hover: d.rows.map((r) => share(r.hover_s, h0)),
+  };
+}
+
+/** The minutes grid as rows by weight and columns by airspeed, every 1 m/s from hover (0)
+ * to the fastest flown; a cell not flown is null. Unweighed flights come last. */
+export function minutesGrid(d: DataBehind): { speeds: number[]; rows: { mass_kg: number | null; cells: (number | null)[] }[] } {
+  const top = Math.max(0, ...d.grid.map((c) => c.airspeed_ms));
+  const speeds = Array.from({ length: top + 1 }, (_, i) => i);
+  const masses = [...new Set(d.grid.map((c) => c.mass_kg))].sort((a, b) => (a ?? Infinity) - (b ?? Infinity));
+  return {
+    speeds,
+    rows: masses.map((m) => ({
+      mass_kg: m,
+      cells: speeds.map((v) => d.grid.find((c) => c.mass_kg === m && c.airspeed_ms === v)?.minutes ?? null),
+    })),
+  };
 }
 
 /** One of the airframe's packs on the flights it flew alone, in flight order. */
