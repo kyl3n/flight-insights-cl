@@ -9,6 +9,7 @@
   import { motorColour, standout, zoomTo, type MotorRow, type PropulsionView, type Trace } from "../lib/flightviews";
   import { formatNumber, unitText } from "../lib/report";
   import { engineCall } from "../lib/shell";
+  import EnergyPanel from "./EnergyPanel.svelte";
   import MarginPanels from "./MarginPanels.svelte";
   import TimePlot from "./TimePlot.svelte";
 
@@ -131,6 +132,8 @@
     </section>
 
     <MarginPanels {flightId} />
+
+    <EnergyPanel {flightId} />
 
     {#if has("output")}
       <section class="panel">

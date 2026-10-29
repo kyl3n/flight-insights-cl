@@ -3,7 +3,8 @@
   // as the band between its bins' lowest and highest samples, so a spike shows even
   // though the trace is reduced for display. Behind it, the hover windows are shaded,
   // the time outside the armed span dimmed, mode changes drawn as lines and logged
-  // errors as red ticks; an optional level is drawn dashed. Every plot of a flight
+  // errors as red ticks; an optional level is drawn dashed. Spans of time can be shaded in
+  // their own colours (the flight phases) and outlined dashed (the fast run). Every plot of a flight
   // shares one cursor, so the same moment lines up across them.
   import { onMount } from "svelte";
   import uPlot from "uplot";
@@ -21,6 +22,8 @@
     modes = [],
     errors = [],
     level = null,
+    spans = [],
+    outlined = [],
     label,
     height = 170,
   }: {
@@ -32,6 +35,8 @@
     modes?: { t: number; mode: string }[];
     errors?: number[];
     level?: number | null;
+    spans?: { start: number; end: number; colour: string }[];
+    outlined?: [number, number][];
     label: string;
     height?: number;
   } = $props();
@@ -56,7 +61,18 @@
     ctx.fillStyle = css("--accent");
     ctx.globalAlpha = 0.1;
     for (const [a, b] of hover) ctx.fillRect(x(a), top, x(b) - x(a), h);
+    ctx.globalAlpha = 0.22;
+    for (const s of spans) {
+      ctx.fillStyle = s.colour;
+      ctx.fillRect(x(s.start), top, x(s.end) - x(s.start), h);
+    }
     ctx.globalAlpha = 1;
+    const dpr0 = devicePixelRatio || 1;
+    ctx.strokeStyle = css("--accent");
+    ctx.lineWidth = dpr0;
+    ctx.setLineDash([3 * dpr0, 3 * dpr0]);
+    for (const [a, b] of outlined) ctx.strokeRect(x(a), top + dpr0, x(b) - x(a), h - 2 * dpr0);
+    ctx.setLineDash([]);
     const dpr = devicePixelRatio || 1;
     ctx.font = `${11 * dpr}px sans-serif`;
     for (const m of modes) {
@@ -152,7 +168,7 @@
   });
 
   $effect(() => {
-    void [traces, range, level, app.theme, app.locale];
+    void [traces, range, level, spans, outlined, app.theme, app.locale];
     build();
   });
 </script>
