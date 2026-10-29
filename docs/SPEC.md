@@ -967,7 +967,16 @@ Added to Phase 2 on 2026-10-27 at the fleet owner's request, and built in steps 
 
 - **Synthetic flights** with known answers.
 - **ArduPilot's simulator.** It checks plumbing, drag and the battery model. Its motors draw power in proportion to thrust, so it cannot check the speed dependence.
-- **The published DJI Matrice 100 dataset** (Rodrigues et al., Scientific Data 2021), as position-free window averages, once its hosts are allowed.
+- **The published DJI Matrice 100 dataset** (Rodrigues et al., Scientific Data 2021; CC BY 4.0), checked 2026-10-29. `tests/fixtures/public/cmu-m100/` holds its 2 s steady windows. They carry no position, height, heading, time or date. 196 flights at 4–12 m/s with 0, 250 and 500 g.
+  - **How airspeed is worked out:** the anemometer's magnitude reads high, so airspeed is the ground velocity less each flight's wind. The wind is fitted from the anemometer's air vector against the ground velocity.
+  - **Results:** the windows are binned and fitted as an airframe's points are, and the model meets every check (`engine/tests/test_public_m100.py`):
+    - the data supports level A;
+    - level-flight power is within 5% at every payload and 1 m/s of airspeed flown from 3 to 12 m/s; the largest error is about 4%;
+    - hover power is within 5%, and what 500 g costs in hover is within 2%;
+    - flying at the model's best-endurance speed (8.5–9 m/s) draws within the 2% band of the least power measured;
+    - power per metre still falls at the fastest speed flown, in both the flights and the model;
+    - each flight's energy, from a model fitted without it (ten folds by flight), is within 2.3% at the median and 5.6% at the 90th percentile, against the targets of 5% and 10%.
+  - **What it doesn't validate:** the HL1 checks below are still needed on HL1, a heavy-lift X8 with coaxial props, because one quadcopter of under 5 kg cannot speak for it.
 - **HL1's own flights:**
   - leave-one-flight-out energy error, median at most 5% and P90 at most 10%;
   - the best-range speed inside the sweep's measured 2% band;
