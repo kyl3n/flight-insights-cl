@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { at, band, earlyEnds, flownSpan, interval, least, measuredAt, packShares, plot, polar, split, used, weightChart, weights, whatIfShares, type Figures, type Inputs } from "./range";
+import { againstSeaLevel, at, band, earlyEnds, flownSpan, interval, least, measuredAt, minutesGrid, packShares, plot, polar, split, used, weightChart, weights, whatIfShares, type Figures, type Inputs } from "./range";
 
 const inputs = (over: Partial<Inputs> = {}): Inputs => ({
   mass_kg: 32.5,
@@ -163,5 +163,47 @@ describe("batteries and what-ifs", () => {
     const f = { range_m: 10000, endurance_s: 1200 } as Figures;
     const w = { lever: "mass" as const, change: -1, hover_s: 50, endurance_s: 60, range_m: 500, radius_m: 250, share: -0.05, basis: "measured" as const };
     expect(whatIfShares(w, f)).toEqual({ range: 0.05, endurance: 0.05 });
+  });
+});
+
+describe("the air and the data behind", () => {
+  it("gives each figure's change against sea level", () => {
+    const got = againstSeaLevel({
+      rows: [
+        { altitude_m: 0, density: 1.225, range_m: 10000, hover_s: 1000 },
+        { altitude_m: 1000, density: 1.11, range_m: 9500, hover_s: 900 },
+        { altitude_m: 2000, density: 1.0, range_m: null, hover_s: null },
+      ],
+      usual_m: 300,
+      flown_m: [250, 400],
+    });
+    expect(got.altitude).toEqual([0, 1000, 2000]);
+    expect(got.range.map((v) => (v === null ? null : Math.round(v * 1000) / 1000))).toEqual([0, -0.05, null]);
+    expect(got.hover.map((v) => (v === null ? null : Math.round(v * 1000) / 1000))).toEqual([0, -0.1, null]);
+  });
+
+  it("lays the minutes out by weight and every 1 m/s, hover first, gaps empty", () => {
+    const got = minutesGrid({
+      grid: [
+        { mass_kg: 40.5, airspeed_ms: 0, minutes: 0.5 },
+        { mass_kg: 32.5, airspeed_ms: 0, minutes: 1 },
+        { mass_kg: 32.5, airspeed_ms: 3, minutes: 2 },
+        { mass_kg: null, airspeed_ms: 2, minutes: 0.2 },
+      ],
+      sloped_minutes: 0,
+      lofo: [],
+      lofo_median: null,
+      lofo_p90: null,
+      targets: { median: 0.05, p90: 0.1 },
+      level: "B",
+      rows: 4,
+      flights: 3,
+      left_out: 0,
+      skipped: {},
+    });
+    expect(got.speeds).toEqual([0, 1, 2, 3]);
+    expect(got.rows.map((r) => r.mass_kg)).toEqual([32.5, 40.5, null]);
+    expect(got.rows[0]!.cells).toEqual([1, null, null, 2]);
+    expect(got.rows[2]!.cells).toEqual([null, null, 0.2, null]);
   });
 });

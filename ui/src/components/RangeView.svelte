@@ -24,6 +24,8 @@
   import { formatNumber, unitText } from "../lib/report";
   import BatteryPanel from "./BatteryPanel.svelte";
   import BuildUpPanel from "./BuildUpPanel.svelte";
+  import DataPanel from "./DataPanel.svelte";
+  import DensityPanel from "./DensityPanel.svelte";
   import SpeedPanel from "./SpeedPanel.svelte";
   import WhatIfPanel from "./WhatIfPanel.svelte";
   import WindPanel from "./WindPanel.svelte";
@@ -226,6 +228,7 @@
       <WindPanel {view} />
       <BatteryPanel {view} />
       <WhatIfPanel {view} />
+      <DensityPanel {view} />
     {/if}
 
     {#if rangeChart && timeChart}
@@ -242,6 +245,7 @@
         </p>
       </section>
     {/if}
+    <DataPanel {view} />
   {/if}
 </div>
 
