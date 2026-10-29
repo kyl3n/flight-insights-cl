@@ -44,10 +44,12 @@ def airframe(store: Store, name: str, answers: dict[str, Any]) -> str:
     return create_airframe(store, platform, name)
 
 
-def flown(store: Store, cache: ColumnCache, name: str, af: str, kg: float | None) -> str:
+def flown(store: Store, cache: ColumnCache, name: str, af: str, kg: float | None,
+          packs: list[str] | None = None) -> str:  # fmt: skip
     batch = scan(store, PACK, bytes(32), [FIXTURES / f"{name}.bin"])
     [res] = commit(store, PACK, cache, batch, propose(store, PACK, batch),
-                   [Decision(batch[0].id, airframe_id=af, takeoff_kg=kg)])  # fmt: skip
+                   [Decision(batch[0].id, airframe_id=af, takeoff_kg=kg,
+                             packs=packs or [])])  # fmt: skip
     flight = res.flights[0]
     run_analysis(store, cache, PACK, flight)
     return flight

@@ -21,6 +21,13 @@ from, and what the power model gives with them.
 - **The build-up:** each flight's fast segment (`fast.*`, `analyzers/fast.py`) with its
   weight, and the ESCs' thermal models from the latest flight with ESC telemetry.
 
+- **The batteries:** the pack's usable energy against load, with the loads the figures fly
+  at, and each of the airframe's packs' capacity and resistance across the flights it flew
+  alone (`packs.history`), against the end-of-life conventions.
+- **The what-ifs:** each lever alone; the weight's is measured when the flights span more
+  than one weight, every other lever is the model's alone until a flight with the change
+  confirms it.
+
 Anything an input is missing for is left out, with what to enter or fly to get it. Each
 figure says what ends it (the reserve, the cutoff, or a failsafe the parameters set sooner:
 `Usable.stopped`), with the failsafe it read.
@@ -68,7 +75,7 @@ from flight_insights.performance.thermal import Thermal, from_flight
 from flight_insights.performance.top_speed import Basis, lowest_volts, top_speed
 from flight_insights.store.cache import CacheError, ColumnCache
 from flight_insights.store.db import Store
-from flight_insights.trends import analysed_flights, metric_of
+from flight_insights.trends import Flight, analysed_flights, metric_of
 from flight_insights.weather.measured import drag
 
 FAST_METRICS = (
@@ -100,6 +107,7 @@ class Inputs:
     motors: int = 4
     fast: Sequence[Fast] = ()
     latest_flight: str | None = None
+    flights: Sequence[Flight] = ()
     sources: dict[str, str] = field(default_factory=dict[str, str])
     missing: dict[str, str] = field(default_factory=dict[str, str])
 
@@ -155,6 +163,7 @@ def gather(store: Store, cache: ColumnCache, pack: KnowledgePack, airframe_id: s
         out.missing["flights"] = str(e)
         return out
     out.params, out.answers, out.latest_flight = latest.params, latest.answers, latest.id
+    out.flights = flights
     out.motors = max(len(motors(latest.params)), 1)
     a = latest.answers
     out.empty_kg, out.typical_kg, out.max_kg = (
@@ -294,6 +303,38 @@ def _headwind(model: Model, weight: float, density: float, rules: Mapping[str, A
     return {"wind_ms": wind_ms, **(asdict(x) if x else {"airspeed": None})}
 
 
+def _battery(store: Store, reg: Registry, airframe_id: str, flights: Sequence[Flight],
+             curve: Usable, loads: Mapping[str, float]) -> dict[str, Any]:  # fmt: skip
+    """The pack's usable energy against load (down to the reserve or what ends it sooner),
+    with the loads the figures fly at; and each of the airframe's packs' capacity and
+    resistance on the flights it flew alone on one monitor, against the end-of-life
+    conventions."""
+    spec: Mapping[str, Any] = reg.rules["performance"]["packs"]
+    out: dict[str, Any] = {
+        "usable": [{"power_w": float(p), "energy_wh": float(e), "ends": s} for p, e, s
+                   in zip(curve.powers, curve.energy_wh, curve.stopped_by, strict=True)],
+        "loads": dict(loads), "aged_capacity": float(spec["aged_capacity"]),
+        "aged_resistance": float(spec["aged_resistance"]), "packs": [],
+    }  # fmt: skip
+    rows = store.conn.execute(
+        "SELECT DISTINCT bp.id, bp.pack_code, bp.capacity_mah FROM battery_pack bp "
+        "JOIN flight_battery fb ON fb.battery_pack_id = bp.id "
+        "JOIN flight f ON f.id = fb.flight_id WHERE f.airframe_id = ? ORDER BY bp.pack_code",
+        (airframe_id,),
+    ).fetchall()
+    for pack_id, code, rated in rows:
+        got = packs.history(store, reg, str(pack_id), flights)
+        if not got:
+            continue
+        label = next((x.label_mah for x in got if x.label_mah), None)
+        out["packs"].append({
+            "code": str(code), "rated_mah": float(rated) if rated else label,
+            "flights": [{"capacity_mah": x.capacity_mah, "resistance_mohm": x.resistance_mohm}
+                        for x in got],
+        })  # fmt: skip
+    return out
+
+
 def _curves(fitted: Fitted, am_flights: Sequence[FlightPoints], rules: Mapping[str, Any],
             curve: Usable, masses: Sequence[float], mass: float, density: float, top: float,
             ) -> dict[str, Any]:  # fmt: skip
@@ -391,11 +432,13 @@ def report(store: Store, cache: ColumnCache, pack: KnowledgePack, airframe_id: s
     assert i.model.fitted is not None
     # what ends each figure: the reserve, or a failsafe the parameters set sooner
     out["failsafe"] = asdict(i.failsafe)
-    out["ends"] = {
-        "hover": curve.stopped(float(model.power(w, 0.0, 0.0, density, rules))),
-        "endurance": curve.stopped(float(model.power(w, f.endurance_ms, 0.0, density, rules))),
-        "range": curve.stopped(float(model.power(w, f.range_ms, 0.0, density, rules))),
+    loads = {
+        "hover": float(model.power(w, 0.0, 0.0, density, rules)),
+        "endurance": float(model.power(w, f.endurance_ms, 0.0, density, rules)),
+        "range": float(model.power(w, f.range_ms, 0.0, density, rules)),
     }
+    out["ends"] = {k: curve.stopped(v) for k, v in loads.items()}
+    out["battery"] = _battery(store, reg, airframe_id, i.flights, curve, loads)
     out["spread"] = {k: asdict(v) for k, v in
                      spread(i.model.fitted, rules, curve, mass, i.empty_kg or mass, density,
                             top).items()}  # fmt: skip
@@ -421,9 +464,18 @@ def report(store: Store, cache: ColumnCache, pack: KnowledgePack, airframe_id: s
     out["radius_wind"] = radius_wind
     out["headwind"] = [_headwind(model, w, density, rules, top, h)
                        for h in rules["report"]["headwinds_ms"]]  # fmt: skip
-    out["what_ifs"] = [asdict(x) for x in what_ifs(
-        model, rules, i.pack, 1.0, i.failsafe, i.reserve_share, mass, i.empty_kg or mass,
-        i.pack_mass_kg, density, top) if x.change != 0]  # fmt: skip
+    # each lever's change as a share of what it changes; the weight's effect is measured
+    # once the flights span weights, the rest the model's alone
+    spans = i.flown_kg is not None and i.flown_kg[1] > i.flown_kg[0]
+    base = {"mass": mass, "drag": model.drag_area, "avionics": model.avionics,
+            "capacity": i.pack.capacity_ah}  # fmt: skip
+    out["what_ifs"] = [
+        asdict(x) | {"share": x.change / base[x.lever] if base[x.lever] else None,
+                     "basis": "measured" if x.lever == "mass" and spans else "theory"}
+        for x in what_ifs(model, rules, i.pack, 1.0, i.failsafe, i.reserve_share, mass,
+                          i.empty_kg or mass, i.pack_mass_kg, density, top)
+        if x.change != 0
+    ]  # fmt: skip
     if i.basis is not None:
         volts = lowest_volts(i.params, i.pack)
         ts = top_speed(model, rules, reg.rules["wind"]["envelope"], i.params, i.basis, mass,

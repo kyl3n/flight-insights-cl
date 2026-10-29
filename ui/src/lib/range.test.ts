@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { at, band, earlyEnds, flownSpan, interval, least, measuredAt, plot, polar, split, used, weightChart, weights, type Figures, type Inputs } from "./range";
+import { at, band, earlyEnds, flownSpan, interval, least, measuredAt, packShares, plot, polar, split, used, weightChart, weights, whatIfShares, type Figures, type Inputs } from "./range";
 
 const inputs = (over: Partial<Inputs> = {}): Inputs => ({
   mass_kg: 32.5,
@@ -133,5 +133,35 @@ describe("wind and the build-up", () => {
   it("gives each check's share of its limit", () => {
     expect(used({ name: "lean", value: 20, limit: 80, holds: true, how: "model" })).toBe(0.25);
     expect(used({ name: "current", value: 5, limit: 0, holds: false, how: "model" })).toBe(1);
+  });
+});
+
+describe("batteries and what-ifs", () => {
+  it("gives each pack's capacity as a share of rated and resistance against its first flights", () => {
+    const got = packShares({
+      code: "P1",
+      rated_mah: 30000,
+      flights: [
+        { capacity_mah: 29400, resistance_mohm: 20 },
+        { capacity_mah: null, resistance_mohm: 22 },
+        { capacity_mah: 27000, resistance_mohm: 30 },
+        { capacity_mah: 24000, resistance_mohm: 44 },
+      ],
+    });
+    expect(got.capacity).toEqual([0.98, null, 0.9, 0.8]);
+    // new is the median of the first two of four: 21 mOhm
+    expect(got.resistance.map((r) => Math.round(r * 100) / 100)).toEqual([0.95, 1.05, 1.43, 2.1]);
+  });
+
+  it("leaves capacity out without a rated capacity", () => {
+    const got = packShares({ code: "P2", rated_mah: null, flights: [{ capacity_mah: 5000, resistance_mohm: 10 }] });
+    expect(got.capacity).toEqual([null]);
+    expect(got.resistance).toEqual([1]);
+  });
+
+  it("gives a what-if's gains as shares of the figures", () => {
+    const f = { range_m: 10000, endurance_s: 1200 } as Figures;
+    const w = { lever: "mass" as const, change: -1, hover_s: 50, endurance_s: 60, range_m: 500, radius_m: 250, share: -0.05, basis: "measured" as const };
+    expect(whatIfShares(w, f)).toEqual({ range: 0.05, endurance: 0.05 });
   });
 });

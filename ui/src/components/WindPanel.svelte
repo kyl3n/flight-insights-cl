@@ -239,6 +239,9 @@
     color: var(--text-muted);
     padding: 6px 12px 6px 0;
   }
+  td.mono {
+    white-space: nowrap;
+  }
   td {
     padding: 6px 12px 6px 0;
     border-top: 1px solid var(--border-soft);
