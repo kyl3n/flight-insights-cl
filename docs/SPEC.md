@@ -632,7 +632,7 @@ T is the hover thrust (take-off weight scaled by the payload ratio), ρ is air d
 | Gains and position-control aggressiveness | Constant small corrections in calm hover; position-controller oscillation | Correlation between tracking activity and power |
 | Cruise speed (multirotor) | Power against airspeed over level segments | Power falls with forward speed, then rises; the minimum is best-endurance speed, the tangent from the origin is best-range speed. The app recommends a waypoint speed (`WP_SPD` in 4.7) |
 | Climb and descent profile | Energy per metre climbed at different climb rates | Measured directly from matched segments |
-| Props and motors | Figure of merit, g/W against bench data, hover throttle | Hardware recommendation; compared against alternatives only when the user enters candidate parts (the makers' bench tables, under "Builds side by side") |
+| Props and motors | Figure of merit, g/W against bench data, hover throttle; the propeller's thrust and power coefficients measured in hover | Hardware recommendation: the makers' bench tables a person enters ("Builds side by side"), and candidate propellers and motors predicted from the aircraft's own anchor ("Propeller and motor choice") |
 | Hover thrust | Measured hover throttle against `MOT_THST_HOVER` while hover learning is off (`MOT_HOVER_LEARN` 0) | More than 0.05 apart: the measured value is proposed, since the altitude controller starts from it (an app rule, uncalibrated) |
 | Battery choice and condition | Sag, resistance trend, cold-weather behaviour, energy per kilogram | Pack replacement or a chemistry change (high-energy Li-ion against high-power LiPo) for this mission profile |
 | Payload | Hover power against payload ratio | Endurance per payload; cost of carrying unused payload |
@@ -982,6 +982,45 @@ Added to Phase 2 on 2026-10-27 at the fleet owner's request, and built in steps 
   - leave-one-flight-out energy error, median at most 5% and P90 at most 10%;
   - the best-range speed inside the sweep's measured 2% band;
   - a flight to reserve within 5% of the projected time.
+
+### Propeller and motor choice
+
+(Work package J, planned 2026-10-30; nothing in this section is built yet.) What a different propeller, or motor, would do for an airframe: its hover power, flight time, range, thrust headroom, current, temperature, motor frequency and response, and which propeller the setup's Priority favours. A person asked for a learned model of propeller effects; a learned model knows only what varies in its data, each airframe flies one propeller, and no openly licensed dataset of large measured propellers exists, so it would extrapolate without evidence. The app uses physics anchored on the aircraft's own measurements instead.
+
+**Anchor and change.**
+
+1. **Anchor:** the current propeller's thrust and power coefficients (C_T = T/(ρn²D⁴), C_P = P/(ρn³D⁵)) measured on the aircraft. In steady hover the thrust is the weight (corrected for density, with the coaxial share from the rules), ESC telemetry gives each motor's speed, and the motor model turns each ESC's electrical power into shaft power.
+2. **Change:** a candidate propeller is predicted as a ratio to that anchor from blade-element hover theory for its family (C_T from the blades' lift slope and solidity and the pitch angle at 75% radius against the inflow; C_P from the induced and profile parts, the profile drag with a Reynolds-number correction; Leishman, Principles of Helicopter Aerodynamics, 2nd ed., ch. 2–3). Errors the theory and the aircraft share cancel in the ratio.
+3. **Motor:** the result goes through a DC motor model (Drela, "Second-order DC electric motor model", MIT: v = Ω/Kv + i·R(i), torque (i − i0(Ω))/Kq, with R and the no-load current growing with current and speed), fitted on ESC input power so the ESC's own losses are included.
+
+**Where each part comes from.**
+
+- **The motor model:** a maker's bench table with speed, torque, voltage and current (any propeller: the motor's constants do not depend on it), else the maker's Kv, resistance and no-load current entered in the setup, refined by the flights' per-ESC speed, voltage and current.
+- **Bench tables keep every column the maker prints** (speed, torque, current, voltage beside throttle, thrust and power). A person enters each table; the app never fetches one, and none is committed to the repository.
+- **Propeller families** (`knowledge/rules/props.json`): makers' lines whose blades share planform and section and differ in pitch and size (for example T-Motor's polished P series or glossy G series). Each family's theory parameters start from cited literature values marked uncalibrated, and are calibrated on every table the platform's people entered and on the anchors its flights measured. The calibration improves as tables and propeller swaps accumulate.
+- **Measured on this aircraft:** the flights' own thrust against electrical power per motor, at each weight flown, shown beside the makers' tables. With a motor table on another propeller, it stands in for the missing table of the propeller flown, up to the heaviest weight flown.
+
+**What is predicted for a candidate** (any propeller: diameter, pitch, blades, family, mass; optionally another motor):
+
+- hover speed, current and power per motor at each weight, and through the airframe's own fitted model (its disc area, profile power and propulsion efficiency replaced by the candidate's), flight time, range, radius and maximum speed;
+- maximum thrust, the motor and propeller matched at full throttle at the pack's lowest loaded voltage, and the thrust-to-weight headroom;
+- current at full thrust against the pack, the ESCs and `MOT_BAT_CURR_MAX`; ESC temperature from each ESC's thermal model;
+- motor frequency (where the harmonic notch must follow), tip Mach number, clearance between neighbouring propellers from the wheelbase and motor count, and response time (the measured motor response scaled by the propeller's inertia).
+
+Every predicted figure is labelled predicted (theory), carries an interval (the family calibration's residuals and a bootstrap), and is never presented as a maker's table. A candidate of a family with no calibration data is labelled uncalibrated, with a wide interval.
+
+**Advice** (`performance.prop_choice`, a hardware recommendation, never applied): the app searches pitch within the family's range and diameter within the clearance (and a motor swap when one is entered), for the setup's Priority (endurance and efficiency: power at the typical weight; agility and speed: headroom and top speed), within the rules' limits on thrust-to-weight, current, ESC temperature, tip Mach, clearance and response. It is raised only when the predicted gain is more than twice the validated error, with its evidence (the anchoring flights, the calibrating tables, the validation figures), and names a bench test or one flight to confirm it.
+
+**Closing the loop.** When flights on a new propeller arrive, the earlier prediction is graded against what they measured, the family calibration updates, and the app shows its own track record beside each prediction.
+
+**Validation before advice is given.** Predictions are shown, labelled theory, from the start; the advice stays off until the local validation meets its targets, and the measured errors become the advice threshold.
+
+- **Synthetic tables and flights** with known answers, in CI (made-up tables only).
+- **Same-motor, different-propeller maker tables** a person saves on their own laptop, never committed: each propeller predicted from the others. Targets: hover power at a fixed thrust within 5% at the median and 10% at the 90th percentile; maximum thrust within 8%. Only the aggregate errors are recorded here.
+- **Flights at several weights** (a heavy-lift airframe's flights at 0, 5, 10 and 15 kg of payload): fitted on three weights, the fourth predicted within 5%.
+- **Data not used:** the UIUC Propeller Data Site (no licence for reuse, decided 2026-10-30). Kotarski's T-Motor bench data (IEEE DataPort, CC BY) would become a committed, credited test if it can be obtained.
+
+**Privacy.** Propeller and motor quantities say nothing about where the aircraft flew; predictions stay out of AI packets, like the airframe's projections.
 
 ## ESC and motor health
 
@@ -3191,7 +3230,7 @@ Phase 1 is the first release engineers can use on real aircraft: it answers the 
 | --- | --- | --- | --- |
 | 0. Foundations | Decoders for .bin and tlog, parameter dialects and history, cache, fingerprint. Tauri shell, engine sidecar, CLI, platform and ground station setup, import, laptop keys | about 6 weeks | 4.7 logs, the fleet's own included, decode exactly as pymavlink decodes them |
 | 1. Copter filters and health (first release) | Filters, vibration, power, ESC and motors, bus and CPU, configuration review. Recommendations with step-by-step procedures, trends, explanations, encrypted Drive sync, AI layer. Settings-only checks, with their procedures, for the Phase 2 subsystems too: failsafes, GNSS, EKF sources and compass, rate-tuning starting values and the AutoTune procedure, navigation and operations | about 8 weeks | Zero scrubber leaks, sync soak test clean, filter prediction on target |
-| 2. Copter tune and heavy-lift | Rate loop and Autotune results, thrust model (`MOT_THST_EXPO` fitted from ESC RPM once real logs validate the fit; the simulator's RPM is linear in the motor command), payload, motor-out margin, weather and wind. Change attribution, link analysis, whether failsafes worked, GNSS jamming and spoofing, flying without GNSS. Range, flight time and speed (added 2026-10-27): power against airspeed, usable pack energy, the best cruise speed, radius, maximum speed and the speed build-up | about 8 weeks | A reference heavy-lift airframe measurably improved by the app's own plan |
+| 2. Copter tune and heavy-lift | Rate loop and Autotune results, thrust model (`MOT_THST_EXPO` fitted from ESC RPM once real logs validate the fit; the simulator's RPM is linear in the motor command), payload, motor-out margin, weather and wind. Change attribution, link analysis, whether failsafes worked, GNSS jamming and spoofing, flying without GNSS. Range, flight time and speed (added 2026-10-27): power against airspeed, usable pack energy, the best cruise speed, radius, maximum speed and the speed build-up. Propeller and motor choice (added 2026-10-30): candidate propellers and motors predicted from the aircraft's own measurements | about 8 weeks | A reference heavy-lift airframe measurably improved by the app's own plan |
 | 3. Plane and QuadPlane | TECS, airspeed, cruise efficiency, transition reports. VTOL analyzers on the Q_ parameter families | about 10 weeks | Transition and TECS findings confirmed on reference airframes |
 | 4. Helicopter and MAVLink download | Rotor speed, geometry-based notches, heli rate loops. Log and system-file download over MAVLink | about 8 weeks | Heli findings confirmed on a reference helicopter |
 | 5. More platforms | macOS, Linux ARM64. Mobile viewer reading the shared Drive | ongoing | |
