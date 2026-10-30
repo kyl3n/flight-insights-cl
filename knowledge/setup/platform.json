@@ -352,6 +352,34 @@
      "unit": "°C"
     },
     {
+     "id": "motor_resistance_mohm",
+     "label": {
+      "en": "Motor resistance, from the datasheet",
+      "uk": "Опір мотора з паспорта"
+     },
+     "type": "number",
+     "required": false,
+     "why": {
+      "en": "The motor's losses, to predict what another propeller would draw",
+      "uk": "Втрати мотора, щоб передбачити, що споживатиме інший пропелер"
+     },
+     "unit": "mΩ"
+    },
+    {
+     "id": "motor_no_load_a",
+     "label": {
+      "en": "No-load current, from the datasheet",
+      "uk": "Струм холостого ходу з паспорта"
+     },
+     "type": "number",
+     "required": false,
+     "why": {
+      "en": "The motor's losses, to predict what another propeller would draw",
+      "uk": "Втрати мотора, щоб передбачити, що споживатиме інший пропелер"
+     },
+     "unit": "A"
+    },
+    {
      "id": "directions_checked",
      "label": {
       "en": "Spin directions checked on the bench",
