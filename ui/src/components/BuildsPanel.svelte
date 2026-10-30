@@ -66,6 +66,8 @@
   let draft = $state<Draft | null>(null);
   let saving = $state(false);
   let error = $state("");
+  // a table with each step's speed and torque gives the motor's constants (spec: "Propeller and motor choice")
+  const withTorque = (rows: { rpm?: number; torque_nm?: number }[]) => rows.length > 0 && rows.every((r) => r.rpm !== undefined && r.torque_nm !== undefined);
   const read = $derived(draft ? parseSteps(draft.steps) : { steps: [], refused: 0, tables: 0, ambient_c: null });
 
   function open(table: BenchTable | null) {
@@ -210,7 +212,7 @@
         <li>
           <span class="tag" class:on={x.role !== "none"}>{t(`builds.role.${x.role}` as MessageKey)}</span>
           <span class="name">{x.label}</span>
-          <span class="faint">{about(x)}{#if !x.full_throttle}{" · "}{t("builds.table.short", { pct: num(x.rows.at(-1)?.throttle_pct, 0) })}{/if}</span>
+          <span class="faint">{about(x)}{#if !x.full_throttle}{" · "}{t("builds.table.short", { pct: num(x.rows.at(-1)?.throttle_pct, 0) })}{/if}{#if withTorque(x.rows)}{" · "}{t("builds.table.torque")}{/if}</span>
           <button type="button" class="link" onclick={() => open(x)}>{t("builds.edit")}</button>
         </li>
       {/each}
@@ -246,7 +248,7 @@
         <label class="wide">{t("builds.form.source")}<input type="text" maxlength="300" bind:value={draft.source} /></label>
         <label class="wide"
           >{t("builds.form.steps")}<textarea rows="8" spellcheck="false" bind:value={draft.steps} oninput={fillAmbient}></textarea>
-          <span class="faint">{t("builds.form.steps.hint")} {t("builds.form.read", { n: read.steps.length })}</span>
+          <span class="faint">{t("builds.form.steps.hint")} {t("builds.form.read", { n: read.steps.length })}{#if withTorque(read.steps)}{" · "}{t("builds.table.torque")}{/if}</span>
           {#if read.refused}<span class="error">{t("builds.form.refused", { n: read.refused })}</span>{/if}
           {#if read.tables > 1}<span class="error">{t("builds.form.tables", { n: read.tables })}</span>{/if}</label
         >

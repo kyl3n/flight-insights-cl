@@ -12,7 +12,16 @@ export interface Step {
   throttle_pct: number;
   thrust_g: number;
   power_w: number;
+  // the maker's other columns, where printed: the propeller and motor model reads them
+  rpm?: number;
+  torque_nm?: number;
+  current_a?: number;
+  volts?: number;
 }
+
+/** The columns beyond throttle, thrust and power a step may carry, in the order a table
+ * shows them. */
+export const EXTRA: ("rpm" | "torque_nm" | "current_a" | "volts")[] = ["rpm", "torque_nm", "current_a", "volts"];
 
 export interface BenchTable {
   id: string;
@@ -89,8 +98,18 @@ export function draftOf(b: BenchTable): Draft {
     motor_mass_g: text(b.motor_mass_g),
     source: b.source ?? "",
     ambient_c: text(b.ambient_c),
-    steps: b.rows.map((r) => `${r.throttle_pct}\t${r.thrust_g}\t${r.power_w}`).join("\n"),
+    steps: stepsText(b.rows),
   };
+}
+
+/** A table's steps as the form shows them: three columns, or with the maker's other
+ * columns under a heading that `parseSteps` reads back. */
+export function stepsText(rows: Step[]): string {
+  const extra = EXTRA.filter((k) => rows.some((r) => r[k] !== undefined));
+  if (!extra.length) return rows.map((r) => `${r.throttle_pct}\t${r.thrust_g}\t${r.power_w}`).join("\n");
+  const names = { rpm: "RPM", torque_nm: "Torque (N*m)", current_a: "Current (A)", volts: "Voltage (V)" };
+  const head = ["Throttle", "Thrust (g)", "Power (W)", ...extra.map((k) => names[k])].join("\t");
+  return [head, ...rows.map((r) => [`${r.throttle_pct}%`, r.thrust_g, r.power_w, ...extra.map((k) => r[k] ?? "")].join("\t"))].join("\n");
 }
 
 /** A number as people type it: a decimal comma reads as a point. Empty is null; anything
@@ -111,6 +130,9 @@ interface Heading {
   power: number | null;
   volts: number | null;
   amps: number | null;
+  rpm: number | null;
+  torque: number | null;
+  torqueScale: number; // to N·m: kgf·cm and N·mm are also printed
 }
 
 function heading(cells: string[]): Heading | null {
@@ -119,19 +141,26 @@ function heading(cells: string[]): Heading | null {
   const thrust = at(/thrust/i);
   if (throttle < 0 || thrust < 0) return null;
   const rel = (i: number) => (i < 0 ? null : i - throttle);
+  const torque = at(/torque/i);
+  const unit = torque < 0 ? "" : cells[torque]!.replace(/\s+/g, "").toLowerCase();
   return {
     thrust: thrust - throttle,
     thrustScale: /\bkg/i.test(cells[thrust]!) ? 1000 : 1,
     power: rel(at(/power/i, /max|efficien/i)),
     volts: rel(at(/volt/i)),
     amps: rel(at(/current|amp/i, /idle|peak/i)),
+    rpm: rel(at(/\brpm\b|speed/i)),
+    torque: rel(torque),
+    torqueScale: /kgf?[*.·]?cm/.test(unit) ? 0.0980665 : /n[*.·]?mm/.test(unit) ? 0.001 : 1,
   };
 }
 
 const PERCENT = /^\d+(?:[.,]\d+)?\s*%$/;
 const number = (c: string | undefined) => (c === undefined ? null : readNumber(c.replace(/\s+/g, "").replace(/[%a-zA-Z℃°]+$/, "")));
 
-/** The steps pasted from a maker's sheet: throttle %, thrust in g and power in W.
+/** The steps pasted from a maker's sheet: throttle %, thrust in g and power in W, and
+ * from a table with its heading, each step's speed, torque (in N·m), current and voltage
+ * where the maker prints them.
  *
  * A whole table pasted with its heading (cells split by tabs or semicolons) is read by
  * the heading's column names, from the cell that holds the throttle percentage on each
@@ -172,7 +201,13 @@ export function parseSteps(s: string): { steps: Step[]; refused: number; tables:
       const v = cell(head.volts), a = cell(head.amps);
       const power = w ?? (v !== null && a !== null ? v * a : null);
       if (throttle !== null && thrust !== null && power !== null && [throttle, thrust, power].every(Number.isFinite)) {
-        steps.push({ throttle_pct: throttle, thrust_g: thrust * head.thrustScale, power_w: power });
+        const step: Step = { throttle_pct: throttle, thrust_g: thrust * head.thrustScale, power_w: power };
+        const n = cell(head.rpm), q = cell(head.torque);
+        if (n !== null && Number.isFinite(n)) step.rpm = n;
+        if (q !== null && Number.isFinite(q)) step.torque_nm = Math.round(q * head.torqueScale * 1e6) / 1e6;
+        if (a !== null && Number.isFinite(a)) step.current_a = a;
+        if (v !== null && Number.isFinite(v)) step.volts = v;
+        steps.push(step);
       } else if (cells.some((c) => number(c) !== null && Number.isFinite(number(c)))) refused += 1;
       continue;
     }
