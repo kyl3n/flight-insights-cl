@@ -14,6 +14,8 @@ import pytest
 
 from flight_insights.analyzers import Registry
 from flight_insights.knowledge import load_pack
+from flight_insights.performance.bench import Bench, Row
+from flight_insights.performance.bench import test_density as bench_density
 from flight_insights.performance.propeller import INCH, TablePoint
 from flight_insights.performance.propfamily import (
     CP_ROTOR,
@@ -23,10 +25,13 @@ from flight_insights.performance.propfamily import (
     Prop,
     calibrate,
     coefficients,
+    flown,
+    from_tables,
     predict,
     starting,
     uncalibrated,
 )
+from flight_insights.platforms.schema import load_schema
 
 RULES: dict[str, Any] = dict(Registry.load(load_pack()).rules["props"])
 TRUE = np.array([5.0, -4.5, 0.012, 0.9, 0.35])  # a made-up family's theory
@@ -212,3 +217,46 @@ def test_intervals_cover_held_out_propellers() -> None:
         assert got.shaft_w is not None and got.power_spread is not None
         hits += abs(math.log(got.shaft_w / shaft)) <= 1.96 * got.power_spread
     assert hits / n >= 0.85
+
+
+def test_the_platforms_tables_calibrate_their_families() -> None:
+    def bench(family: str | None, d: float, p: float, rpm: bool = True,
+              pitch: bool = True) -> Bench:  # fmt: skip
+        """A made-up table of a propeller of the true family's theory, marked `family`."""
+        steps = table(Prop(FAM, d, p), rho=bench_density(20.0))
+        rows = tuple(Row(10.0 * (i + 1), t.thrust_n / 9.80665 * 1000.0, 2 * (t.cp or 0.0) * 1.18,
+                         rpm=t.rpm if rpm else None) for i, t in enumerate(steps))  # fmt: skip
+        return Bench(f"{family}{d}", 1, "none", "made-up", None, None, d, p if pitch else None,
+                     48.0, None, None, rows, 20.0, family)  # fmt: skip
+
+    tables = [
+        bench(FAM, 22.0, 6.6),
+        bench(FAM, 24.0, 8.0),
+        bench("tmotor_g", 28.0, 9.2),
+        bench(None, 22.0, 6.6),  # no family
+        bench(FAM, 20.0, 6.0, rpm=False),  # no speeds
+        bench(FAM, 18.0, 6.0, pitch=False),  # no pitch
+        bench("tmotor_x", 22.0, 6.6),  # not a family the rules know
+    ]
+    got = from_tables(RULES, tables)
+    assert set(got) == {FAM, "tmotor_g"}
+    assert got[FAM].tables == 2 and got["tmotor_g"].tables == 1
+    assert {o.prop.key for o in got[FAM].offsets} == {"tmotor_p:22x6.6x2", "tmotor_p:24x8x2"}
+
+
+def test_the_propeller_flown() -> None:
+    answers = {"prop_diameter_in": 22, "prop_pitch_in": 6.6, "prop_family": "tmotor_p"}
+    assert flown(RULES, answers) == Prop(FAM, 22.0, 6.6, 2)
+    assert flown(RULES, answers | {"prop_blades": 3}) == Prop(FAM, 22.0, 6.6, 3)
+    # no family named: the rules' default
+    assert flown(RULES, answers | {"prop_family": None}) == Prop("carbon", 22.0, 6.6, 2)
+    assert flown(RULES, {"prop_diameter_in": 22}) is None
+
+
+def test_the_families_are_the_setups_choices() -> None:
+    raw = load_schema(load_pack()).raw
+    setup = next(f for step in raw["steps"] for f in step["fields"] if f["id"] == "prop_family")
+    fams = RULES["families"]
+    assert setup["choices"] == [f["id"] for f in fams]
+    assert setup["choice_labels"] == {f["id"]: f["label"] for f in fams}
+    assert RULES["default_family"] in setup["choices"]

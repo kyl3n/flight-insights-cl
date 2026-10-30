@@ -19,6 +19,8 @@ const TABLE: BenchTable = {
     { throttle_pct: 100, thrust_g: 8000, power_w: 990.5 },
   ],
   ambient_c: 22,
+  prop_family: null,
+  prop_blades: null,
   max_thrust_g: 8000,
   full_throttle: true,
 };
@@ -106,6 +108,10 @@ describe("bench tables", () => {
     expect(v.rows).toEqual(TABLE.rows);
     expect(v).toMatchObject({ role: "current", kv: 210, prop_pitch_in: 7.4, volts: null, motor: "", ambient_c: 22 });
     expect(valuesOf(emptyDraft("candidate"))).toMatchObject({ role: "candidate", rows: [], kv: null });
+    // a table's propeller family and blades round-trip; left empty, they are not set
+    const marked = valuesOf(draftOf({ ...TABLE, prop_family: "tmotor_p", prop_blades: 3 }));
+    expect(marked).toMatchObject({ prop_family: "tmotor_p", prop_blades: 3 });
+    expect(valuesOf(emptyDraft("none"))).toMatchObject({ prop_family: null, prop_blades: null });
   });
 
   it("gives hover thrust as a share of the most the table gives", () => {

@@ -40,7 +40,8 @@ from typing import Any
 
 import numpy as np
 
-from flight_insights.performance.propeller import INCH, TablePoint
+from flight_insights.performance.bench import Bench
+from flight_insights.performance.propeller import INCH, TablePoint, table_points
 
 Array = np.ndarray[Any, Any]
 Params = Sequence[float] | Array  # the theory parameters, in NAMES order
@@ -296,6 +297,43 @@ def calibrate(rules: Mapping[str, Any], family: str,
     return Family(family, tuple(map(float, params)), offsets, tuple(map(tuple, cov.tolist())),
                   float(tau[0]), float(tau[1]), noise, float(np.sqrt(np.mean(raw**2))),
                   used)  # fmt: skip
+
+
+def from_tables(rules: Mapping[str, Any], tables: Sequence[Bench]) -> dict[str, Family]:
+    """Each family calibrated on the tables marked with it (and with the propeller's
+    diameter and pitch, and steps with their speed); a table without a family calibrates
+    none."""
+    by: dict[str, list[tuple[Prop, Sequence[TablePoint]]]] = {}
+    known = {f["id"] for f in rules["families"]}
+    for b in tables:
+        if b.prop_family not in known or not b.prop_diameter_in or not b.prop_pitch_in:
+            continue
+        assert b.prop_family is not None
+        points, _ = table_points(b)
+        if points:
+            prop = Prop(b.prop_family, b.prop_diameter_in, b.prop_pitch_in, b.prop_blades or 2)
+            by.setdefault(b.prop_family, []).append((prop, points))
+    return {f: calibrate(rules, f, found) for f, found in by.items()}
+
+
+def flown(rules: Mapping[str, Any], answers: Mapping[str, Any]) -> Prop | None:
+    """The propeller the setup says the aircraft flies, in the default family when the
+    setup names none; None without its diameter and pitch."""
+
+    def number(key: str) -> float | None:
+        v = answers.get(key)
+        return (
+            float(v) if isinstance(v, int | float) and not isinstance(v, bool) and v > 0 else None
+        )
+
+    d, p = number("prop_diameter_in"), number("prop_pitch_in")
+    if d is None or p is None:
+        return None
+    family = answers.get("prop_family")
+    if family not in {f["id"] for f in rules["families"]}:
+        family = rules["default_family"]
+    blades = number("prop_blades")
+    return Prop(str(family), d, p, int(blades) if blades else 2)
 
 
 def _least_squares(x: Array, resid: Callable[..., Array],

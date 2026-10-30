@@ -5,7 +5,7 @@
   // person enters here. The candidate is the airframe's own model with its motors' power
   // scaled by the tables' ratio at hover thrust; every candidate figure is an estimate.
   import { app, t } from "../lib/app.svelte";
-  import { benchSave, draftOf, emptyDraft, hoverShare, parseSteps, ROLES, type BenchTable, type Builds, type Draft } from "../lib/bench";
+  import { benchFamilies, benchSave, draftOf, emptyDraft, hoverShare, parseSteps, ROLES, type BenchTable, type Builds, type Draft, type Family } from "../lib/bench";
   import type { MessageKey } from "../lib/i18n";
   import { plot, split, type Performance } from "../lib/range";
   import { formatNumber, unitText } from "../lib/report";
@@ -66,6 +66,14 @@
   let draft = $state<Draft | null>(null);
   let saving = $state(false);
   let error = $state("");
+  // the propeller families a table can calibrate (knowledge/rules/props.json), read once
+  let families = $state<Family[]>([]);
+  $effect(() => {
+    benchFamilies().then(
+      (f) => (families = f),
+      () => (families = []),
+    );
+  });
   // a table with each step's speed and torque gives the motor's constants (spec: "Propeller and motor choice")
   const withTorque = (rows: { rpm?: number; torque_nm?: number }[]) => rows.length > 0 && rows.every((r) => r.rpm !== undefined && r.torque_nm !== undefined);
   const read = $derived(draft ? parseSteps(draft.steps) : { steps: [], refused: 0, tables: 0, ambient_c: null });
@@ -242,6 +250,13 @@
         <label>{t("builds.form.kv")}<input type="text" inputmode="decimal" bind:value={draft.kv} /></label>
         <label>{t("builds.form.diameter")}<input type="text" inputmode="decimal" bind:value={draft.prop_diameter_in} /></label>
         <label>{t("builds.form.pitch")}<input type="text" inputmode="decimal" bind:value={draft.prop_pitch_in} /></label>
+        <label
+          >{t("builds.form.family")}<select bind:value={draft.prop_family}>
+            <option value="">{t("builds.form.family.none")}</option>
+            {#each families as f (f.id)}<option value={f.id}>{f.label[app.locale]}</option>{/each}
+          </select></label
+        >
+        <label>{t("builds.form.blades")}<input type="text" inputmode="numeric" bind:value={draft.prop_blades} /></label>
         <label>{t("builds.form.volts")}<input type="text" inputmode="decimal" bind:value={draft.volts} /></label>
         <label>{t("builds.form.mass")}<input type="text" inputmode="decimal" bind:value={draft.motor_mass_g} /></label>
         <label>{t("builds.form.ambient")}<input type="text" inputmode="decimal" bind:value={draft.ambient_c} /></label>

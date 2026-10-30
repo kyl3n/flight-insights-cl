@@ -2,6 +2,7 @@
 // "Range, endurance and speed"; mock-up Performance, "Build against build"). A person
 // enters each table for the platform; the engine compares the current parts with a
 // candidate set on the airframe's own model. Nothing here is fetched from a maker.
+import type { Locale } from "./i18n";
 import type { Figures } from "./range";
 import { engineCall } from "./shell";
 
@@ -36,6 +37,9 @@ export interface BenchTable {
   motor_mass_g: number | null;
   source: string | null;
   ambient_c: number | null;
+  /** knowledge/rules/props.json "families": which family's theory the steps calibrate */
+  prop_family: string | null;
+  prop_blades: number | null;
   rows: Step[];
   max_thrust_g: number;
   full_throttle: boolean;
@@ -77,11 +81,27 @@ export interface Draft {
   motor_mass_g: string;
   source: string;
   ambient_c: string;
+  prop_family: string;
+  prop_blades: string;
   steps: string;
 }
 
 export function emptyDraft(role: Role): Draft {
-  return { role, label: "", motor: "", kv: "", prop_diameter_in: "", prop_pitch_in: "", volts: "", motor_mass_g: "", source: "", ambient_c: "", steps: "" };
+  return {
+    role,
+    label: "",
+    motor: "",
+    kv: "",
+    prop_diameter_in: "",
+    prop_pitch_in: "",
+    volts: "",
+    motor_mass_g: "",
+    source: "",
+    ambient_c: "",
+    prop_family: "",
+    prop_blades: "",
+    steps: "",
+  };
 }
 
 const text = (v: number | null) => (v === null ? "" : String(v));
@@ -98,6 +118,8 @@ export function draftOf(b: BenchTable): Draft {
     motor_mass_g: text(b.motor_mass_g),
     source: b.source ?? "",
     ambient_c: text(b.ambient_c),
+    prop_family: b.prop_family ?? "",
+    prop_blades: text(b.prop_blades),
     steps: stepsText(b.rows),
   };
 }
@@ -237,12 +259,24 @@ export function valuesOf(d: Draft): Record<string, unknown> {
     motor_mass_g: readNumber(d.motor_mass_g),
     source: d.source,
     ambient_c: readNumber(d.ambient_c),
+    prop_family: d.prop_family || null,
+    prop_blades: readNumber(d.prop_blades),
     rows: parseSteps(d.steps).steps,
   };
 }
 
 export function benchList(platformId: string): Promise<BenchTable[]> {
   return engineCall<BenchTable[]>("bench.list", { platform_id: platformId });
+}
+
+/** A propeller family a table's propeller can belong to. */
+export interface Family {
+  id: string;
+  label: Record<Locale, string>;
+}
+
+export function benchFamilies(): Promise<Family[]> {
+  return engineCall<Family[]>("bench.families", {});
 }
 
 export function benchSave(platformId: string, d: Draft, table: BenchTable | null): Promise<BenchTable> {

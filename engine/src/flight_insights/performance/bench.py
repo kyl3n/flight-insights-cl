@@ -36,7 +36,7 @@ from __future__ import annotations
 
 import json
 import math
-from collections.abc import Mapping, Sequence
+from collections.abc import Collection, Mapping, Sequence
 from dataclasses import dataclass, replace
 from itertools import pairwise
 from typing import Any
@@ -48,6 +48,7 @@ ROLES = ("current", "candidate", "none")
 R_AIR = 287.05287  # J/(kg K), dry air
 P_STANDARD = 101325.0  # Pa
 AMBIENT_C = (-40.0, 60.0)  # the temperatures a bench is plausibly run in
+BLADES = (2, 8)
 
 
 def test_density(ambient_c: float) -> float:
@@ -99,6 +100,8 @@ class Bench:
     source: str | None
     rows: tuple[Row, ...]
     ambient_c: float | None = None
+    prop_family: str | None = None  # knowledge/rules/props.json "families"
+    prop_blades: int | None = None
 
     def power_at(self, thrust_g: float) -> float | None:
         """Electrical power for this thrust, read between the steps on a log-log scale
@@ -136,6 +139,7 @@ class Bench:
             "motor": self.motor, "kv": self.kv, "prop_diameter_in": self.prop_diameter_in,
             "prop_pitch_in": self.prop_pitch_in, "volts": self.volts,
             "motor_mass_g": self.motor_mass_g, "source": self.source, "ambient_c": self.ambient_c,
+            "prop_family": self.prop_family, "prop_blades": self.prop_blades,
             "rows": [r.view() for r in self.rows],
             "max_thrust_g": self.max_thrust_g, "full_throttle": self.full_throttle,
         }  # fmt: skip
@@ -206,7 +210,7 @@ def _from_row(row: Mapping[str, Any]) -> Bench:
     return Bench(str(row["id"]), int(row["version"]), str(row["role"]), str(row["label"]),
                  row["motor"], row["kv"], row["prop_diameter_in"], row["prop_pitch_in"],
                  row["volts"], row["motor_mass_g"], row["source"], rows,
-                 row["ambient_c"])  # fmt: skip
+                 row["ambient_c"], row["prop_family"], row["prop_blades"])  # fmt: skip
 
 
 def benches(store: Store, platform_id: str) -> list[Bench]:
@@ -222,10 +226,30 @@ def benches(store: Store, platform_id: str) -> list[Bench]:
     return sorted(found, key=lambda b: order[b.role])
 
 
+def _family(values: Mapping[str, Any], families: Collection[str]) -> str | None:
+    v = values.get("prop_family")
+    if v is None or v == "":
+        return None
+    if v not in families:
+        raise BenchError("prop_family is one of the propeller families: " + ", ".join(families))
+    return str(v)
+
+
+def _blades(values: Mapping[str, Any]) -> int | None:
+    v = values.get("prop_blades")
+    if v is None or v == "":
+        return None
+    lo, hi = BLADES
+    if isinstance(v, bool) or not isinstance(v, int) or not lo <= v <= hi:
+        raise BenchError(f"prop_blades is a whole number of blades, {lo} to {hi}")
+    return v
+
+
 def save(store: Store, platform_id: str, values: Mapping[str, Any], bench_id: str | None = None,
-         version: int | None = None) -> Bench:  # fmt: skip
+         version: int | None = None, families: Collection[str] = ()) -> Bench:  # fmt: skip
     """A new table, or a change to one read at `version`. Marking a table current or
-    candidate unmarks the platform's other table in that role."""
+    candidate unmarks the platform's other table in that role. A propeller family, when
+    given, is one of `families`."""
     if store.get("platform", platform_id) is None:
         raise BenchError("no such platform")
     role = str(values.get("role") or "none")
@@ -241,6 +265,7 @@ def save(store: Store, platform_id: str, values: Mapping[str, Any], bench_id: st
         "prop_pitch_in": _number(values, "prop_pitch_in"), "volts": _number(values, "volts"),
         "motor_mass_g": _number(values, "motor_mass_g"), "ambient_c": _temperature(values),
         "source": (str(values.get("source") or "").strip()[:300] or None),
+        "prop_family": _family(values, families), "prop_blades": _blades(values),
         "rows_json": json.dumps([r.view() for r in check_rows(values.get("rows") or [])]),
     }  # fmt: skip
     with store.transaction():

@@ -300,6 +300,8 @@ def test_two_builds_side_by_side(fleet: dict[str, Any], got: dict[str, Any]) -> 
     m = b["measured"]
     assert m["flights"] == [] and m["motor"] is None and m["diameter_in"] == 30.0
     assert m["without"] == {"no ESC speed telemetry: the propeller's speed is not known": 2}
+    # no pitch in the setup: no propeller flown to change from; no table names a family
+    assert b["prop"] is None and b["families"] == []
     store, cache, af = fleet["store"], fleet["cache"], fleet["airframe"]
     platform = store.get("airframe", af)["platform_id"]
     bench.save(store, platform, table(0.002, role="current", motor_mass_g=400))
@@ -375,6 +377,20 @@ def test_over_rpc(fleet: dict[str, Any], tmp_path: Path) -> None:
     assert saved["role"] == "current" and saved["max_thrust_g"] == 6000
     [listed] = call(server, out, 26, "bench.list", platform_id=pl["id"])["result"]
     assert listed == saved
+    families = call(server, out, 28, "bench.families")["result"]
+    assert families[0]["id"] == "tmotor_p" and families[0]["label"]["uk"]
+    e = call(server, out, 29, "bench.save", platform_id=pl["id"],
+             values=good | {"label": "p", "prop_family": "nope"})  # fmt: skip
+    assert e["error"]["code"] == -32003 and "propeller families" in e["error"]["message"]
+    marked = call(
+        server,
+        out,
+        30,
+        "bench.save",
+        platform_id=pl["id"],
+        values=good | {"label": "p", "prop_family": "tmotor_p", "prop_blades": 3},
+    )
+    assert marked["result"]["prop_family"] == "tmotor_p" and marked["result"]["prop_blades"] == 3
     e = call(server, out, 27, "bench.save", platform_id=pl["id"], values=good,
              id=saved["id"], version=saved["version"] + 5)  # fmt: skip
     assert e["error"]["code"] == -32004

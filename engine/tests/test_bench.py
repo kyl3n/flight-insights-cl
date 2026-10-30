@@ -193,3 +193,22 @@ def test_the_makers_other_columns_are_checked(
     rows[0] = rows[0] | {"rpm": 3400.0, "torque_nm": 0.7, "current_a": 5.5, "volts": 48.0} | change
     with pytest.raises(bench.BenchError, match=says):
         bench.save(store, platform, table(0.002, rows=rows))
+
+
+def test_a_tables_propeller_family_and_blades(store: Store, platform: str) -> None:
+    families = ("tmotor_p", "carbon")
+    got = bench.save(store, platform, table(0.002, prop_family="tmotor_p", prop_blades=2),
+                     families=families)  # fmt: skip
+    assert (got.prop_family, got.prop_blades) == ("tmotor_p", 2)
+    assert got.view()["prop_family"] == "tmotor_p" and got.view()["prop_blades"] == 2
+    assert bench.benches(store, platform)[0] == got  # read back from the store
+    plain = bench.save(store, platform, table(0.002, label="no family", prop_family=""))
+    assert (plain.prop_family, plain.prop_blades) == (None, None)
+    refused: list[tuple[dict[str, Any], str]] = [
+        ({"prop_family": "tmotor_x"}, "propeller families"),
+        ({"prop_blades": 1}, "2 to 8"), ({"prop_blades": 2.5}, "whole"),
+        ({"prop_blades": True}, "whole"),
+    ]  # fmt: skip
+    for change, says in refused:
+        with pytest.raises(bench.BenchError, match=says):
+            bench.save(store, platform, table(0.002, **change), families=families)

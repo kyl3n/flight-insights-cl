@@ -464,6 +464,52 @@
      ]
     },
     {
+     "id": "prop_family",
+     "label": {
+      "en": "Propeller family",
+      "uk": "Сімейство пропелерів"
+     },
+     "type": "choice",
+     "required": false,
+     "why": {
+      "en": "Which family's theory predicts another pitch or size of this propeller",
+      "uk": "Теорія якого сімейства передбачає інший крок чи розмір цього пропелера"
+     },
+     "prevents": {
+      "en": "Propeller choice predictions",
+      "uk": "Передбачення для вибору пропелера"
+     },
+     "choices": [
+      "tmotor_p",
+      "tmotor_g",
+      "tmotor_ns",
+      "tmotor_mf",
+      "carbon"
+     ],
+     "choice_labels": {
+      "tmotor_p": {
+       "en": "T-Motor P series (polished carbon)",
+       "uk": "T-Motor серії P (полірований карбон)"
+      },
+      "tmotor_g": {
+       "en": "T-Motor G series (glossy carbon)",
+       "uk": "T-Motor серії G (глянцевий карбон)"
+      },
+      "tmotor_ns": {
+       "en": "T-Motor NS series (carbon)",
+       "uk": "T-Motor серії NS (карбон)"
+      },
+      "tmotor_mf": {
+       "en": "T-Motor MF series (folding)",
+       "uk": "T-Motor серії MF (складані)"
+      },
+      "carbon": {
+       "en": "Other carbon-fibre propellers",
+       "uk": "Інші карбонові пропелери"
+      }
+     }
+    },
+    {
      "id": "esc_model",
      "label": {
       "en": "ESC model",
