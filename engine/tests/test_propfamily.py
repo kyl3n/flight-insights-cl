@@ -21,6 +21,7 @@ from flight_insights.performance.propfamily import (
     CP_ROTOR,
     CT_ROTOR,
     Family,
+    Installed,
     Operating,
     Prop,
     calibrate,
@@ -260,3 +261,82 @@ def test_the_families_are_the_setups_choices() -> None:
     assert setup["choices"] == [f["id"] for f in fams]
     assert setup["choice_labels"] == {f["id"]: f["label"] for f in fams}
     assert RULES["default_family"] in setup["choices"]
+
+
+def hovers(prop: Prop, kt: float, kp: float, seed: int, noise: float = 0.005,
+           rho: float = 1.2) -> tuple[Operating, ...]:  # fmt: skip
+    """An aircraft's hovers on a propeller of the true family: its coefficients times what
+    the aircraft does to every propeller it flies (kt, kp), with the flights' scatter."""
+    rng = np.random.default_rng(seed)
+    rpms = np.linspace(2600.0, 3400.0, 6)
+    ct, cp = coefficients(TRUE, RULES, prop, rpms, rho)
+    ct = ct * kt * np.exp(rng.normal(0, noise, len(rpms)))
+    cp = cp * kp * np.exp(rng.normal(0, noise, len(rpms)))
+    return tuple(Operating(float(w), float(a), float(b), rho)
+                 for w, a, b in zip(rpms, ct, cp, strict=True))  # fmt: skip
+
+
+def anchor(prop: Prop, thrust: float, rho: float, kt: float, kp: float) -> Operating:
+    rpm, shaft = true_hover(prop, thrust, rho, kt, kp)
+    d, n = prop.diameter_in * INCH, rpm / 60
+    return Operating(rpm, thrust / (rho * n**2 * d**4), shaft / (rho * n**3 * d**5), rho)
+
+
+TWO_TABLES = [(p, table(p, noise=0.01, seed=s))
+              for s, p in enumerate([Prop(FAM, 20.0, 6.0), Prop(FAM, 26.0, 8.5)])]  # fmt: skip
+A, B = Prop(FAM, 22.0, 6.6), Prop(FAM, 24.0, 8.4)  # flown, no table of either
+KT, KP = 0.85, 1.25  # the aircraft's arms and frame: far from the bench
+
+
+def test_an_aircraft_on_two_propellers_calibrates_the_change() -> None:
+    flown_two = [Installed("a1", A, hovers(A, KT, KP, 1)), Installed("a1", B, hovers(B, KT, KP, 2))]
+    bench_only = calibrate(RULES, FAM, TWO_TABLES)
+    both = calibrate(RULES, FAM, TWO_TABLES, flown_two)
+    assert (both.tables, both.aircraft, bench_only.aircraft) == (2, 1, 0)
+    assert both.flight_noise is not None and both.flight_noise >= RULES["flown"]["noise_floor"]
+    # the aircraft's 15% and 25% are its own offsets: the propellers' stay near the bench's
+    assert {o.prop.key for o in both.offsets} == {p.key for p, _ in TWO_TABLES} | {A.key, B.key}
+    assert all(abs(o.thrust) < 0.02 and abs(o.power) < 0.02 for o in both.offsets)
+    assert len(both.covariance) == 5 + 2 * 4  # the aircraft's own offsets are not the family's
+    # B predicted from a hover on A on that aircraft: both measured, the change near exact
+    thrust, rho = 60.0, 1.2
+    want = true_hover(B, thrust, rho, KT, KP)
+    at = anchor(A, thrust, rho, KT, KP)
+    before = predict(RULES, {FAM: bench_only}, B, thrust, rho, A, at)
+    after = predict(RULES, {FAM: both}, B, thrust, rho, A, at)
+    assert after.shaft_w is not None and before.shaft_w is not None
+    assert after.notes == () and "candidate_not_measured" in before.notes
+    err = abs(after.shaft_w / want[1] - 1)
+    assert err < 0.005 and err < abs(before.shaft_w / want[1] - 1)
+    assert abs(after.rpm / want[0] - 1) < 0.002
+    assert after.power_spread is not None and before.power_spread is not None
+    assert after.power_spread < before.power_spread
+
+
+def test_a_pitch_change_flown_teaches_the_theory_its_pitch() -> None:
+    # one table only; an aircraft flies its propeller and a steeper one: a pitch between
+    # them is predicted closer than from the one table
+    p1, p2, mid = Prop(FAM, 22.0, 6.6), Prop(FAM, 22.0, 8.8), Prop(FAM, 22.0, 7.7)
+    one = [(p1, table(p1, noise=0.01, seed=5))]
+    flown_two = [Installed("a2", p1, hovers(p1, KT, KP, 3)),
+                 Installed("a2", p2, hovers(p2, KT, KP, 4))]  # fmt: skip
+    thrust, rho = 60.0, 1.2
+    want, at = true_hover(mid, thrust, rho, KT, KP), anchor(p1, thrust, rho, KT, KP)
+    errs: list[float] = []
+    for fam in (calibrate(RULES, FAM, one), calibrate(RULES, FAM, one, flown_two)):
+        h = predict(RULES, {FAM: fam}, mid, thrust, rho, p1, at)
+        assert h.shaft_w is not None
+        errs.append(abs(h.shaft_w / want[1] - 1))
+    assert errs[1] < 0.01 < errs[0]
+
+
+def test_an_aircraft_on_one_propeller_calibrates_nothing() -> None:
+    one = [Installed("a3", A, hovers(A, KT, KP, 1)), Installed("a4", B, hovers(B, KT, KP, 2))]
+    assert calibrate(RULES, FAM, TWO_TABLES, one) == calibrate(RULES, FAM, TWO_TABLES)
+    assert from_tables(RULES, [], one) == {}
+    # a family no table names, calibrated by an aircraft's two propellers alone: its
+    # parameters move, but it is not calibrated on tables, so nothing is advised on it
+    got = from_tables(RULES, [], [*one, Installed("a3", B, hovers(B, KT, KP, 5))])
+    fam = got[FAM]
+    assert (fam.tables, fam.aircraft, fam.calibrated) == (0, 1, False)
+    assert fam.rms is None and fam.view()["aircraft"] == 1

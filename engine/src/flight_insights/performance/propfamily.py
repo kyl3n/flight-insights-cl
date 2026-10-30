@@ -19,6 +19,14 @@ rules in `knowledge/rules/props.json`).
   from the theory (its thrust coefficient's, and its power's at the same thrust), and the
   spread of those offsets between propellers is measured as tables accumulate: it is
   how far a propeller nobody has measured may sit from its family's theory.
+- **Aircraft that flew two or more of a family's propellers** calibrate it too: each
+  propeller's hovers measured on the aircraft (its flights' anchors) join the tables, with
+  what the aircraft does to every propeller it flies (its arms, its frame, a coaxial
+  partner, the error of its weights) as the aircraft's own pair of offsets under a wide
+  prior, so only the change between its propellers reaches the theory. Each propeller on
+  each aircraft keeps a pair of offsets of the installation spread (the aircraft's losses
+  differing between two propellers), and the flights' scatter about their propeller's
+  curve is measured apart from the tables'.
 - **A candidate** is predicted as a change from the propeller flown: the operating point
   measured on the aircraft (its anchor), times the theory's ratio between the candidate
   and the current propeller, with each one's own offset where a table measured it. What
@@ -73,6 +81,15 @@ class Operating:
 
 
 @dataclass(frozen=True)
+class Installed:
+    """A propeller's hovers measured on one aircraft: its flights' operating points."""
+
+    aircraft: str
+    prop: Prop
+    points: tuple[Operating, ...]
+
+
+@dataclass(frozen=True)
 class Offsets:
     """A propeller's own departure from its family's theory, from its tables."""
 
@@ -93,6 +110,8 @@ class Family:
     noise: float  # a table's step-to-step scatter about its propeller's curve, log
     rms: float | None  # of the fitted tables' residuals, log
     tables: int
+    aircraft: int = 0  # aircraft whose flights on two or more propellers calibrate it
+    flight_noise: float | None = None  # a flight's hover's scatter about its curve, log
 
     @property
     def calibrated(self) -> bool:
@@ -112,6 +131,7 @@ class Family:
     def view(self) -> dict[str, Any]:
         return {
             "id": self.id, "calibrated": self.calibrated, "tables": self.tables,
+            "aircraft": self.aircraft, "flight_noise": self.flight_noise,
             "params": dict(zip(NAMES, self.params, strict=True)),
             "spread_thrust": self.spread_thrust, "spread_power": self.spread_power,
             "noise": self.noise, "rms": self.rms,
@@ -219,92 +239,136 @@ def uncalibrated(rules: Mapping[str, Any], family: str) -> Family:
 
 
 def calibrate(rules: Mapping[str, Any], family: str,
-              tables: Sequence[tuple[Prop, Sequence[TablePoint]]]) -> Family:  # fmt: skip
-    """The family's theory fitted to its tables: the parameters, each propeller's offsets
-    and the spread of offsets between propellers. Steps without a speed are left out;
-    steps without a shaft power give the thrust coefficient only."""
+              tables: Sequence[tuple[Prop, Sequence[TablePoint]]],
+              installed: Sequence[Installed] = ()) -> Family:  # fmt: skip
+    """The family's theory fitted to its tables, and to the hovers of aircraft that flew
+    two or more of its propellers: the parameters, each propeller's offsets and the spread
+    of offsets between propellers. Steps without a speed are left out; steps without a
+    shaft power give the thrust coefficient only."""
     g = _geometry(rules, family)
     props: dict[str, Prop] = {}
-    rows: list[tuple[int, TablePoint]] = []
+    rows: list[tuple[int, TablePoint | Operating, int]] = []  # propeller, point, pair (-1: table)
+
+    def index(prop: Prop) -> int:
+        props.setdefault(prop.key, prop)
+        return list(props).index(prop.key)
+
+    def good(pts: Sequence[TablePoint | Operating]) -> list[TablePoint | Operating]:
+        return [t for t in pts if t.rpm > 0 and t.ct > 0]
+
     used = 0
     for prop, pts in tables:
-        if prop.family != family:
+        if prop.family == family and (kept := good(pts)):
+            used += 1
+            i = index(prop)
+            rows += [(i, t, -1) for t in kept]
+    flown_on: dict[str, set[str]] = {}
+    for s in installed:
+        if s.prop.family == family and good(s.points):
+            flown_on.setdefault(s.aircraft, set()).add(s.prop.key)
+    least = int(rules["flown"]["least_propellers"])
+    aircraft = sorted(a for a, keys in flown_on.items() if len(keys) >= least)
+    pairs: list[tuple[int, int]] = []  # (aircraft, propeller)
+    for s in installed:
+        if s.prop.family != family or s.aircraft not in aircraft or not (kept := good(s.points)):
             continue
-        good = [t for t in pts if t.rpm > 0 and t.ct > 0]
-        if not good:
-            continue
-        used += 1
-        i = list(props).index(prop.key) if prop.key in props else len(props)
-        props.setdefault(prop.key, prop)
-        rows += [(i, t) for t in good]
+        key = (aircraft.index(s.aircraft), index(s.prop))
+        if key not in pairs:
+            pairs.append(key)
+        rows += [(key[1], t, pairs.index(key)) for t in kept]
     if not rows:
         return uncalibrated(rules, family)
     order = list(props.values())
-    k = len(order)
-    which = np.array([i for i, _ in rows])
-    pts = _points([order[int(i)] for i in which], np.array([t.rpm for _, t in rows]),
-                  np.array([t.density for _, t in rows]))  # fmt: skip
-    log_ct = np.log([t.ct for _, t in rows])
-    has_cp = np.array([t.cp is not None and t.cp > 0 for _, t in rows])
-    log_cp = np.log([t.cp if t.cp is not None and t.cp > 0 else 1.0 for _, t in rows])
-    mean, spread, least = starting(rules)
+    k, n_air, n_pair = len(order), len(aircraft), len(pairs)
+    which = np.array([i for i, _, _ in rows])
+    pair = np.array([p for _, _, p in rows])
+    pts = _points([order[int(i)] for i in which], np.array([t.rpm for _, t, _ in rows]),
+                  np.array([t.density for _, t, _ in rows]))  # fmt: skip
+    log_ct = np.log([t.ct for _, t, _ in rows])
+    has_cp = np.array([t.cp is not None and t.cp > 0 for _, t, _ in rows])
+    log_cp = np.log([t.cp if t.cp is not None and t.cp > 0 else 1.0 for _, t, _ in rows])
+    y = np.concatenate([log_ct, log_cp[has_cp]])
+
+    # the offsets each row holds: its propeller's two, and on an aircraft, the aircraft's
+    # two and the propeller's on that aircraft; a power row holds 1.5 of each thrust offset
+    d_t = np.zeros((len(rows), 2 * (k + n_air + n_pair)))
+    for r, (i, p) in enumerate(zip(which, pair, strict=True)):
+        d_t[r, [2 * i] if p < 0 else [2 * i, 2 * (k + pairs[p][0]), 2 * (k + n_air + p)]] = 1.0
+    d_p = 1.5 * d_t
+    d_p[:, 1::2] = d_t[:, 0::2]
+    design = np.vstack([d_t, d_p[has_cp]])
+    on_air = np.concatenate([pair >= 0, (pair >= 0)[has_cp]])
+    mean, spread, least_values = starting(rules)
     m = len(NAMES)
-    floor = float(rules["noise_floor"])
+    floor, flight_floor = float(rules["noise_floor"]), float(rules["flown"]["noise_floor"])
     tau0 = np.array(
         [float(rules["offset_spread"]["thrust"]), float(rules["offset_spread"]["power"])]
     )
+    held = np.concatenate([
+        np.tile([float(rules["flown"]["aircraft_spread"]["thrust"]),
+                 float(rules["flown"]["aircraft_spread"]["power"])], n_air),
+        np.tile([float(rules["installation_spread"]["thrust"]),
+                 float(rules["installation_spread"]["power"])], n_pair),
+    ])  # fmt: skip
     strength = float(rules["offset_strength"])
-    noise, tau = floor, tau0.copy()
+    noise, flight_noise, tau = floor, flight_floor, tau0.copy()
 
-    def model(params: Array) -> tuple[Array, Array]:
+    def sigma() -> Array:
+        return np.where(on_air, flight_noise, noise)
+
+    def prior() -> Array:
+        return np.concatenate([np.tile(tau, k), held])
+
+    def model(params: Array) -> Array:
         ct, cp = _theory(params, rules, g, pts)
-        return np.log(np.maximum(ct, 1e-12)), np.log(np.maximum(cp, 1e-12))
+        return np.concatenate(
+            [np.log(np.maximum(ct, 1e-12)), np.log(np.maximum(cp, 1e-12))[has_cp]]
+        )
 
-    def unpack(x: Array) -> tuple[Array, Array, Array]:
-        u = x[m:].reshape(k, 2)
-        return x[:m], u[:, 0], u[:, 1]
+    def resid(x: Array, theory: Array | None = None) -> Array:
+        params, z = x[:m], x[m:]
+        th = theory if theory is not None else model(params)
+        return np.concatenate([(y - th - design @ z) / sigma(), (params - mean) / spread,
+                               z / prior()])  # fmt: skip
 
-    def resid(x: Array, theory: tuple[Array, Array] | None = None) -> Array:
-        params, ut, uq = unpack(x)
-        mt, mp = theory if theory is not None else model(params)
-        rt = (log_ct - mt - ut[which]) / noise
-        rp = ((log_cp - mp - 1.5 * ut[which] - uq[which]) / noise)[has_cp]
-        return np.concatenate([rt, rp, (params - mean) / spread, ut / tau[0], uq / tau[1]])
-
-    x = np.concatenate([mean, np.zeros(2 * k)])
+    x = np.concatenate([mean, np.zeros(design.shape[1])])
     cov = np.eye(len(x))
+    n_tables = int((~on_air).sum())
+    k_tables = len({int(i) for i, p in zip(which, pair, strict=True) if p < 0})
     for _ in range(int(rules["outer_rounds"])):
-        x, jac = _least_squares(x, resid, model, which, has_cp, noise, tau, m, k, least,
+        x, jac = _least_squares(x, resid, model, design, sigma(), prior(), m, least_values,
                                 int(rules["iterations"]))  # fmt: skip
         cov = np.linalg.inv(jac.T @ jac)  # every parameter has a prior: positive definite
-        params, ut, uq = unpack(x)
-        mt, mp = model(params)
-        raw = np.concatenate([log_ct - mt - ut[which],
-                              (log_cp - mp - 1.5 * ut[which] - uq[which])[has_cp]])  # fmt: skip
-        free = max(len(raw) - m - 2 * k, 1)
-        was = np.array([noise, *tau])
-        noise = max(math.sqrt(float(raw @ raw) / free), floor)
-        var_u = np.diag(cov)[m:].reshape(k, 2)
-        squares = (np.stack([ut, uq], 1) ** 2 + var_u).sum(axis=0)
+        raw = y - model(x[:m]) - design @ x[m:]
+        was = np.array([noise, flight_noise, *tau])
+        if n_tables:
+            r = raw[~on_air]
+            noise = max(math.sqrt(float(r @ r) / max(n_tables - m - 2 * k_tables, 1)), floor)
+        if n_air:
+            r = raw[on_air]
+            flight_noise = max(math.sqrt(float(r @ r) / max(len(r) - 2 * n_air, 1)), flight_floor)
+        u = x[m : m + 2 * k].reshape(k, 2)
+        var_u = np.diag(cov)[m : m + 2 * k].reshape(k, 2)
+        squares = (u**2 + var_u).sum(axis=0)
         tau = np.sqrt((squares + strength * tau0**2) / (k + strength))
-        if np.all(np.abs(np.array([noise, *tau]) / was - 1) < 0.01):
+        if np.all(np.abs(np.array([noise, flight_noise, *tau]) / was - 1) < 0.01):
             break
-    params, ut, uq = unpack(x)
-    mt, mp = model(params)
-    raw = np.concatenate(
-        [log_ct - mt - ut[which], (log_cp - mp - 1.5 * ut[which] - uq[which])[has_cp]]
-    )
-    offsets = tuple(Offsets(order[i], float(ut[i]), float(uq[i]), int((which == i).sum()))
+    params, u = x[:m], x[m : m + 2 * k].reshape(k, 2)
+    raw = y - model(params) - design @ x[m:]
+    offsets = tuple(Offsets(order[i], float(u[i, 0]), float(u[i, 1]), int((which == i).sum()))
                     for i in range(k))  # fmt: skip
-    return Family(family, tuple(map(float, params)), offsets, tuple(map(tuple, cov.tolist())),
-                  float(tau[0]), float(tau[1]), noise, float(np.sqrt(np.mean(raw**2))),
-                  used)  # fmt: skip
+    keep = m + 2 * k  # each aircraft's offsets, and each propeller's on it, are its own
+    return Family(family, tuple(map(float, params)), offsets,
+                  tuple(map(tuple, cov[:keep, :keep].tolist())), float(tau[0]), float(tau[1]),
+                  noise, float(np.sqrt(np.mean(raw[~on_air] ** 2))) if n_tables else None,
+                  used, n_air, flight_noise if n_air else None)  # fmt: skip
 
 
-def from_tables(rules: Mapping[str, Any], tables: Sequence[Bench]) -> dict[str, Family]:
+def from_tables(rules: Mapping[str, Any], tables: Sequence[Bench],
+                installed: Sequence[Installed] = ()) -> dict[str, Family]:  # fmt: skip
     """Each family calibrated on the tables marked with it (and with the propeller's
-    diameter and pitch, and steps with their speed); a table without a family calibrates
-    none."""
+    diameter and pitch, and steps with their speed), and on the hovers of aircraft that
+    flew two or more of its propellers; a table without a family calibrates none."""
     by: dict[str, list[tuple[Prop, Sequence[TablePoint]]]] = {}
     known = {f["id"] for f in rules["families"]}
     for b in tables:
@@ -315,7 +379,12 @@ def from_tables(rules: Mapping[str, Any], tables: Sequence[Bench]) -> dict[str, 
         if points:
             prop = Prop(b.prop_family, b.prop_diameter_in, b.prop_pitch_in, b.prop_blades or 2)
             by.setdefault(b.prop_family, []).append((prop, points))
-    return {f: calibrate(rules, f, found) for f, found in by.items()}
+    out: dict[str, Family] = {}
+    for f in [*by, *sorted({s.prop.family for s in installed if s.prop.family in known} - set(by))]:
+        got = calibrate(rules, f, by.get(f, []), [s for s in installed if s.prop.family == f])
+        if f in by or got.aircraft:
+            out[f] = got
+    return out
 
 
 def flown(rules: Mapping[str, Any], answers: Mapping[str, Any]) -> Prop | None:
@@ -338,14 +407,17 @@ def flown(rules: Mapping[str, Any], answers: Mapping[str, Any]) -> Prop | None:
     return Prop(str(family), d, p, int(blades) if blades else 2)
 
 
-def _least_squares(x: Array, resid: Callable[..., Array],
-                   model: Callable[[Array], tuple[Array, Array]], which: Array, has_cp: Array,
-                   noise: float, tau: Array, m: int, k: int, least: Array,
+def _least_squares(x: Array, resid: Callable[..., Array], model: Callable[[Array], Array],
+                   design: Array, sigma: Array, prior: Array, m: int, least: Array,
                    iterations: int) -> tuple[Array, Array]:  # fmt: skip
-    """Levenberg-Marquardt; the parameters' Jacobian by differences, the offsets' exact.
-    Returns the solution and the Jacobian there."""
+    """Levenberg-Marquardt; the parameters' Jacobian by differences, the offsets' exact
+    (the residuals are linear in them). Returns the solution and the Jacobian there."""
+    n = len(design)
+    fixed = np.zeros((n + m + len(prior), design.shape[1]))
+    fixed[:n] = -design / sigma[:, None]
+    fixed[n + m :] = np.diag(1 / prior)
 
-    def jacobian(x: Array, base: tuple[Array, Array]) -> Array:
+    def jacobian(x: Array, base: Array) -> Array:
         r0 = resid(x, base)
         jac = np.zeros((len(r0), len(x)))
         for j in range(m):
@@ -353,18 +425,10 @@ def _least_squares(x: Array, resid: Callable[..., Array],
             dx = x.copy()
             dx[j] += step
             jac[:, j] = (resid(dx) - r0) / step
-        n_t, n_p = len(which), int(has_cp.sum())
-        for i in range(k):
-            rows_t = np.flatnonzero(which == i)
-            rows_p = np.flatnonzero(which[has_cp] == i)
-            jac[rows_t, m + 2 * i] = -1 / noise
-            jac[n_t + rows_p, m + 2 * i] = -1.5 / noise
-            jac[n_t + rows_p, m + 2 * i + 1] = -1 / noise
-            jac[n_t + n_p + m + i, m + 2 * i] = 1 / tau[0]
-            jac[n_t + n_p + m + k + i, m + 2 * i + 1] = 1 / tau[1]
+        jac[:, m:] = fixed
         return jac
 
-    lower = np.concatenate([least, np.full(2 * k, -np.inf)])
+    lower = np.concatenate([least, np.full(design.shape[1], -np.inf)])
     base = model(x[:m])
     r = resid(x, base)
     cost = float(r @ r)
