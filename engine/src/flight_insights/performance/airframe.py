@@ -32,12 +32,13 @@ from flight_insights.analyzers.registry import knowledge_version
 from flight_insights.knowledge import Pack
 from flight_insights.performance.fit import Fitted, G, Model, Row, fitted
 from flight_insights.performance.points import FlightPoints, Point, flight_points
+from flight_insights.performance.propeller import Anchor
 from flight_insights.sim.export import rotors
 from flight_insights.store.cache import CacheError, ColumnCache
 from flight_insights.store.db import Store
 
 INCH = 0.0254
-FORMAT = 1  # of model_json: raised when what is kept changes shape
+FORMAT = 2  # of model_json: raised when what is kept changes shape
 
 
 class PerformanceError(LookupError):
@@ -178,6 +179,8 @@ def from_json(text: str) -> AirframeModel:
             wind_from=p["wind_from"],
             density_from=p["density_from"],
             left_out=dict(p["left_out"]),
+            anchor=Anchor(**p["anchor"]) if p.get("anchor") else None,
+            anchor_why=p.get("anchor_why"),
         )
         for p in raw["flights"]
     )

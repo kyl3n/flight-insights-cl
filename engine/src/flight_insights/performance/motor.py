@@ -192,3 +192,32 @@ def from_tables(tables: Sequence[Sequence[Row]], kv: float,
             kv_from = "full throttle"
     return Motor(kv, *map(float, x), source="table", kv_from=kv_from, rms=rms,
                  steps=len(use))  # fmt: skip
+
+
+def _same(a: str | None, b: str | None) -> bool:
+    return bool(a and b and " ".join(a.lower().split()) == " ".join(b.lower().split()))
+
+
+def drive_for(tables: Sequence[Any], answers: Mapping[str, Any],
+              rules: Mapping[str, Any]) -> tuple[Motor, str] | None:  # fmt: skip
+    """The motor the aircraft flies, with where it came from: fitted together from every
+    entered table of it with each step's speed and torque (the table marked current, and
+    any other naming the setup's motor model, whatever propeller they were run on), else
+    the setup's datasheet values; None when neither is there."""
+    model = answers.get("motor_model")
+    kv_given = answers.get("motor_kv")
+    mine = [t for t in tables if t.role == "current" or _same(t.motor, model)]
+    usable = [t for t in mine if t.rows and all(r.rpm and r.torque_nm for r in t.rows)]
+    kv = next((float(t.kv) for t in usable if t.kv), None)
+    if kv is None and isinstance(kv_given, int | float) and kv_given > 0:
+        kv = float(kv_given)
+    if usable and kv:
+        fitted = from_tables([t.rows for t in usable], kv, rules)
+        if fitted is not None:
+            return fitted, "tables: " + ", ".join(t.label for t in usable)
+    r = answers.get("motor_resistance_mohm")
+    if isinstance(kv_given, int | float) and kv_given > 0 and isinstance(r, int | float) and r > 0:
+        i0 = answers.get("motor_no_load_a")
+        no_load = float(i0) if isinstance(i0, int | float) and i0 > 0 else 0.0
+        return from_datasheet(float(kv_given), float(r), no_load), "datasheet"
+    return None

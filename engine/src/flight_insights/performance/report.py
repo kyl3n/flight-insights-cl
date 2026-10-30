@@ -67,6 +67,7 @@ from flight_insights.performance.envelope import Fast, verified
 from flight_insights.performance.envelope import Inputs as EnvelopeInputs
 from flight_insights.performance.envelope import step as next_step
 from flight_insights.performance.fit import Fitted, G, Model
+from flight_insights.performance.motor import drive_for
 from flight_insights.performance.optimize import Cells, best, leg, terminals
 from flight_insights.performance.points import FlightPoints
 from flight_insights.performance.project import (
@@ -84,6 +85,7 @@ from flight_insights.performance.project import (
     what_ifs,
     worst_trip,
 )
+from flight_insights.performance.propeller import anchor_view
 from flight_insights.performance.radius import standard
 from flight_insights.performance.thermal import Thermal, from_flight
 from flight_insights.performance.top_speed import Basis, lowest_volts, top_speed
@@ -359,6 +361,33 @@ def _battery(store: Store, reg: Registry, airframe_id: str, flights: Sequence[Fl
     return out
 
 
+def _measured(i: Inputs, tables: list[bench.Bench], rules: Mapping[str, Any]) -> dict[str, Any]:
+    """Measured on this aircraft: each flight's propeller operating point in hover (thrust,
+    power and speed per motor, its coefficients, and with a motor model the shaft power and
+    the drive's efficiency), and the motor model with where it came from."""
+    drive = drive_for(tables, i.answers, rules)
+    diameter = i.answers.get("prop_diameter_in")
+    d = float(diameter) if isinstance(diameter, int | float) and diameter > 0 else None
+    motor = drive[0] if drive else None
+    flights = [
+        anchor_view(f.anchor, d, motor) | {"flight_id": f.flight_id, "mass_kg": f.mass_kg}
+        for f in i.model.flights if f.anchor is not None
+    ]  # fmt: skip
+    why: dict[str, int] = {}
+    for f in i.model.flights:
+        if f.anchor is None and f.anchor_why:
+            why[f.anchor_why] = why.get(f.anchor_why, 0) + 1
+    return {
+        "flights": sorted(flights, key=lambda x: (x["mass_kg"] or 0.0, x["flight_id"])),
+        "without": why,
+        "motor": None if drive is None else {
+            "from": drive[1], "kv": drive[0].kv, "kv_from": drive[0].kv_from,
+            "source": drive[0].source, "rms": drive[0].rms, "steps": drive[0].steps,
+        },
+        "diameter_in": d,
+    }  # fmt: skip
+
+
 def _builds(store: Store, airframe_id: str, i: Inputs, model: Model,
             rules: Mapping[str, Any], mass: float, density: float, top: float,
             f: Any) -> dict[str, Any]:  # fmt: skip
@@ -381,6 +410,7 @@ def _builds(store: Store, airframe_id: str, i: Inputs, model: Model,
     def per_motor(kg: float) -> float:
         return kg * 1000.0 / i.motors
 
+    out["measured"] = _measured(i, tables, rules)
     if current is not None:
         # flown hover power per motor against the bench at the same thrust
         flown = float(model.power(mass * G, 0.0, 0.0, density, rules)[()]) - model.avionics
