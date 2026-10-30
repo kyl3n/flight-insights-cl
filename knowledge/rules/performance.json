@@ -260,6 +260,11 @@
     "search_ms": 40.0,
     "step_ms": 0.05
   },
+  "propeller": {
+    "about": "The propeller as the aircraft flies it (performance/propeller.py): its thrust and power coefficients in a flight's quiet steady hover (stick inputs taken out, windows of at least min_window_s, min_seconds in all). Each motor's speed is its ESC's median there; each motor's thrust is the take-off weight over the tilt (cos roll cos pitch), shared evenly between the motors (on a coaxial frame, the upper and lower propellers share it as one, and the coefficients are the pair's as installed); the power is each ESC's volts times amps where every ESC reports them on real hardware, else the packs' power shared between the motors, with the avionics in it. With a motor model, the shaft power is the torque that draws that power at that speed.",
+    "min_window_s": 2.0,
+    "min_seconds": 10.0
+  },
   "motor": {
     "about": "The motor and its ESC as one drive (performance/motor.py): Drela's DC motor model, i = Q k + i0(Omega), v = Omega/k + i R(i), with R = r0 + r2 i^2 and i0 = i00 + i01 Omega + i02 Omega^2, fitted to the power the ESC draws so its losses fall into R and i0. From a maker's table with each step's speed and torque: at least min_steps such steps; Levenberg-Marquardt for at most `iterations` steps on the relative power error, each parameter kept at or above zero and drawn to its prior with prior_weight (weak: they keep a short table well posed). When the table reaches full_throttle_pct with its voltage, Kv is taken from the top step over kv_rounds rounds, the motor's voltage there being the supply's times full_duty (the ESC's top duty, an app value, uncalibrated). From a datasheet: Kv, resistance and the no-load current, first order.",
     "min_steps": 4,

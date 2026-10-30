@@ -40,6 +40,7 @@ from flight_insights.analyzers.tune import modes
 from flight_insights.analyzers.wind import ekf, window_winds, windows
 from flight_insights.dataflash import si
 from flight_insights.knowledge import Pack
+from flight_insights.performance.propeller import Anchor, flight_anchor
 from flight_insights.sim.export import isa_density_at
 from flight_insights.store.cache import CacheError, ColumnCache
 from flight_insights.store.db import Store
@@ -68,6 +69,8 @@ class FlightPoints:
     wind_from: str  # 'flight', 'airframe' or 'none' (taken as calm)
     density_from: str
     left_out: Mapping[str, float] = field(default_factory=dict[str, float])  # seconds, by why
+    anchor: Anchor | None = None  # the propeller's operating point in hover
+    anchor_why: str | None = None  # why there is none
 
 
 def calm(centres: Array) -> Array:
@@ -273,4 +276,9 @@ def flight_points(store: Store, cache: ColumnCache, pack: Pack, flight_id: str
                                modes(flight, reg), rules,
                                reg.rules["energy"]["phases"])  # fmt: skip
     mass, mass_from = _mass(store, reg, flight)
-    return FlightPoints(flight_id, tuple(points), mass, mass_from, wind_from, density_from, left)
+    anchor: Anchor | str = mass_from
+    if mass is not None:
+        anchor = flight_anchor(flight, reg, mass, density, (packs.t, packs.power))
+    return FlightPoints(flight_id, tuple(points), mass, mass_from, wind_from, density_from, left,
+                        anchor if isinstance(anchor, Anchor) else None,
+                        anchor if isinstance(anchor, str) else None)  # fmt: skip

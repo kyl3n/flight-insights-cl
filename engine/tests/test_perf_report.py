@@ -296,6 +296,10 @@ def test_two_builds_side_by_side(fleet: dict[str, Any], got: dict[str, Any]) -> 
 
     b = got["builds"]
     assert b["tables"] == [] and b["missing"] == "current" and "compare" not in b
+    # the simulator's heavy-lift flights log no ESC telemetry: nothing measured, and why
+    m = b["measured"]
+    assert m["flights"] == [] and m["motor"] is None and m["diameter_in"] == 30.0
+    assert m["without"] == {"no ESC speed telemetry: the propeller's speed is not known": 2}
     store, cache, af = fleet["store"], fleet["cache"], fleet["airframe"]
     platform = store.get("airframe", af)["platform_id"]
     bench.save(store, platform, table(0.002, role="current", motor_mass_g=400))
