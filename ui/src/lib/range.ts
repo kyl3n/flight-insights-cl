@@ -53,7 +53,7 @@ export interface Inputs {
 }
 
 export interface Check {
-  name: string; // lean, thrust, current, esc_temp, output, vibration, attitude, velocity
+  name: string; // lean, thrust, current, esc_temp, notch, output, vibration, attitude, velocity
   value: number;
   limit: number;
   holds: boolean;
@@ -76,6 +76,7 @@ export const CHECK_UNITS: Record<string, string> = {
   thrust: "deg",
   current: "A",
   esc_temp: "degC",
+  notch: "Hz",
   output: "%",
   vibration: "m/s/s",
   attitude: "deg",

@@ -100,6 +100,17 @@
         "uk": "Охолодіть ESC (обдув, радіатори, монтаж подалі від тепла батареї) або встановіть ESC з більшим запасом струму. Температура ESC дозволяє {allows_ms} м/с: охолодження, що зменшує їх нагрів на {cooling_pct}%, дозволило б приблизно на {cooling_gain_ms} м/с більше, а на {drag_pct}% менша площа опору — приблизно на {drag_gain_ms} м/с."
       }
     },
+    "speed.limited_by_notch": {
+      "stage": "navigation",
+      "title": {
+        "en": "The speed build-up stops at {verified_ms} m/s at {mass_kg} kg: at {next_ms} m/s the motors would turn at about {value} Hz, past the {limit} Hz a harmonic notch that does not follow them reaches",
+        "uk": "Нарощування швидкості зупиняється на {verified_ms} м/с при {mass_kg} кг: на {next_ms} м/с мотори оберталися б приблизно з частотою {value} Гц, понад {limit} Гц, до яких сягає гармонічний режекторний фільтр, що не стежить за ними"
+      },
+      "action": {
+        "en": "Let the notch follow the motors: ESC telemetry or an RPM sensor (INS_HNTCH_MODE 3 or 2), or the throttle (MODE 1, with REF the hover throttle). On the in-flight FFT, raise FFT_MAXHZ past {value} Hz. A fixed notch could be widened (INS_HNTCH_BW), at the cost of more phase lag; the filter workbench compares the choices.",
+        "uk": "Нехай фільтр стежить за моторами: телеметрія ESC або датчик обертів (INS_HNTCH_MODE 3 або 2) чи газ (MODE 1, з REF — газом висіння). Для FFT у польоті підніміть FFT_MAXHZ понад {value} Гц. Фіксований фільтр можна розширити (INS_HNTCH_BW) ціною більшого фазового запізнення; робоче місце фільтрів порівнює варіанти."
+      }
+    },
     "speed.limited_by_output": {
       "stage": "navigation",
       "title": {

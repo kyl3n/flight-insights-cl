@@ -25,6 +25,7 @@ from flight_insights.analyzers.model import (
     Confidence,
     Evidence,
     Finding,
+    MetricValue,
     Result,
     Segment,
 )
@@ -381,13 +382,17 @@ def _filters(flight: FlightData, reg: Registry) -> Result:
     m = picture(flight)
     if m.spectrum is None:
         return Result(skipped="no pre-filter gyro data: the logging analyzer says how to get it")
-    p1 = NotchParams.read(flight.params, SET)
-    # the other sets this board has (a set it lacks has no parameters in the log)
-    others = [NotchParams.read(flight.params, s) for s in SETS[1:] if f"{s}ENABLE" in flight.params]
-    enabled = p1.enable and p1.num_harmonics > 0
-    confident = m.kind == "hover" and m.seconds >= STEADY_ENOUGH_S
-    confidence: Confidence = "high" if confident else "medium"
-    picture_ev = Evidence(
+    res = _notch(flight, reg, m)
+    if m.kind == "hover" and m.fundamental_hz:
+        # the motors' frequency in hover, which the speed build-up carries to its step
+        res.evidence.append(_picture_evidence(m))
+        res.metrics.append(MetricValue("filter.motor_hz", "hover", round(m.fundamental_hz, 1),
+                                       None, "filters:motors"))  # fmt: skip
+    return res
+
+
+def _picture_evidence(m: MotorPicture) -> Evidence:
+    return Evidence(
         id="filters:motors",
         kind="series",
         summary=(
@@ -412,6 +417,16 @@ def _filters(flight: FlightData, reg: Registry) -> Result:
             "seconds": round(m.seconds, 1),
         },
     )
+
+
+def _notch(flight: FlightData, reg: Registry, m: MotorPicture) -> Result:
+    p1 = NotchParams.read(flight.params, SET)
+    # the other sets this board has (a set it lacks has no parameters in the log)
+    others = [NotchParams.read(flight.params, s) for s in SETS[1:] if f"{s}ENABLE" in flight.params]
+    enabled = p1.enable and p1.num_harmonics > 0
+    confident = m.kind == "hover" and m.seconds >= STEADY_ENOUGH_S
+    confidence: Confidence = "high" if confident else "medium"
+    picture_ev = _picture_evidence(m)
     setup: dict[str, Any] = {
         f"{p.prefix}{name}": value
         for p in (p1, *others)
@@ -709,9 +724,9 @@ def _search_evidence(outcome: Outcome, m: MotorPicture) -> Evidence:
 
 FILTERS = Analyzer(
     name="filters",
-    version=5,
+    version=6,
     run=_filters,
-    metrics=(),
+    metrics=("filter.motor_hz",),
     findings=(
         "filter.no_notch",
         "filter.heli_throttle",

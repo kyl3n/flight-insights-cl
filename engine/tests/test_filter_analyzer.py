@@ -340,3 +340,15 @@ def test_a_busy_processor_gets_no_more_notches() -> None:
     base = {"MODE": 3.0, "REF": 1.0, "FREQ": 110.0, "OPTS": 32.0}
     busy = search(s, base, 1, 4, cpu_load_p95=85.0)
     assert busy.best is None or busy.best.notches <= busy.current.notches
+
+
+def test_the_motors_hover_frequency_is_a_metric(reg: Registry) -> None:
+    # from the ESCs' RPM where they report it (9000 rpm: 150 Hz), else the gyro's peak
+    tables = {"GYR": gyr([(150.0, 4.0)]), "ESC": MOTORS}
+    found = FILTERS.run(hover_flight(tables, {k: float(v) for k, v in NOTCH.items()}), reg)
+    [m] = [m for m in found.metrics if m.metric == "filter.motor_hz"]
+    assert (m.segment, m.value, m.zone) == ("hover", pytest.approx(150.0, abs=0.5), None)
+    assert m.evidence_id in {e.id for e in found.evidence}
+    found = FILTERS.run(hover_flight({"GYR": gyr([(143.0, 4.0)])}, {"INS_HNTCH_ENABLE": 0.0}), reg)
+    [m] = [m for m in found.metrics if m.metric == "filter.motor_hz"]
+    assert m.value == pytest.approx(143.0, abs=1.0)

@@ -132,6 +132,30 @@
         "kind": "app",
         "title": "App rule, provisional, set for the Phase 1 gate on 2026-10-24 from 3 simulator logs (0.009 to 0.042 dB) and 2 HL1 logs (0.007 dB with the notch off; 1.142 dB with per-motor ESC notches rebuilt from 100 Hz telemetry), and a simulator flight with fast harmonic notch logging (0.021 dB following the logged inputs, 0.284 dB rebuilt). Revisited as more reference-airframe logs arrive."
       }
+    },
+    "filter.motor_hz": {
+      "name": {
+        "en": "Motor frequency in hover",
+        "uk": "Частота моторів у висінні"
+      },
+      "unit": "Hz",
+      "direction": "band",
+      "definition": {
+        "en": "How fast the motors turn in steady hover, as a frequency: the fundamental of the vibration the harmonic notch is there to remove. It moves with the weight carried, the air and the propellers, and it rises with the thrust, so the speed build-up carries it to the lean of its next step.",
+        "uk": "Як швидко обертаються мотори в усталеному висінні, у вигляді частоти: основна гармоніка вібрації, яку має прибирати гармонічний режекторний фільтр. Вона змінюється з вагою, повітрям і пропелерами та зростає з тягою, тож нарощування швидкості переносить її на нахил свого наступного кроку."
+      },
+      "method": {
+        "en": "Over the flight's steady-hover windows: the median of the ESCs' reported RPM over 60, where the ESCs report it; otherwise the strongest peak of the pre-filter gyro spectrum. Given only when the flight has a steady hover.",
+        "uk": "За вікнами усталеного висіння польоту: медіана обертів, повідомлених ESC, поділена на 60, якщо ESC їх повідомляють; інакше найсильніший пік спектра гіроскопа до фільтрів. Подається, лише коли в польоті є усталене висіння."
+      },
+      "messages": [
+        "ESC",
+        "GYR"
+      ],
+      "source": {
+        "kind": "baseline",
+        "title": "No universal range: it depends on the propellers, the motors and the weight. Read against the airframe's own flights"
+      }
     }
   },
   "findings": {
