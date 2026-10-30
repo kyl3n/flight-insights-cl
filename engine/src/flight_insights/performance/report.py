@@ -68,7 +68,7 @@ from flight_insights.performance.envelope import Fast, verified
 from flight_insights.performance.envelope import Inputs as EnvelopeInputs
 from flight_insights.performance.envelope import step as next_step
 from flight_insights.performance.fit import Fitted, G, Model
-from flight_insights.performance.motor import drive_for
+from flight_insights.performance.motor import Motor, drive_for
 from flight_insights.performance.optimize import Cells, best, leg, terminals
 from flight_insights.performance.points import FlightPoints
 from flight_insights.performance.project import (
@@ -86,7 +86,7 @@ from flight_insights.performance.project import (
     what_ifs,
     worst_trip,
 )
-from flight_insights.performance.propeller import anchor_view
+from flight_insights.performance.propeller import Anchor, anchor_view
 from flight_insights.performance.radius import standard
 from flight_insights.performance.thermal import Thermal, from_flight
 from flight_insights.performance.top_speed import Basis, lowest_volts, top_speed
@@ -414,8 +414,9 @@ def _builds(store: Store, airframe_id: str, i: Inputs, model: Model,
     out["measured"] = _measured(i, tables, rules)
     prop = propfamily.flown(props, i.answers)
     out["prop"] = None if prop is None else asdict(prop)
-    out["families"] = [fam.view() for fam in propfamily.from_tables(props, tables).values()]
-    out["prop_track"] = _track(store, i, props, rules, tables)
+    out["families"] = [fam.view() for fam in _families(store, airframe_id, i, props, rules,
+                                                       tables).values()]  # fmt: skip
+    out["prop_track"] = _track(store, airframe_id, i, props, rules, tables)
     if current is not None:
         # flown hover power per motor against the bench at the same thrust
         flown = float(model.power(mass * G, 0.0, 0.0, density, rules)[()]) - model.avionics
@@ -721,24 +722,93 @@ def report(store: Store, cache: ColumnCache, pack: KnowledgePack, airframe_id: s
 CARD_PARAMS = ("WP_SPD", "RTL_SPEED_MS", "BATT_LOW_MAH", "BATT_LOW_VOLT", "BATT_CAPACITY")
 
 
-def _track(store: Store, i: Inputs, props: Mapping[str, Any], rules: Mapping[str, Any],
-           tables: Sequence[bench.Bench]) -> dict[str, Any]:  # fmt: skip
-    """The airframe's propeller changes, each graded against what the flights before it
-    predicted (performance/propgrade.py), and the record over them."""
-    drive = drive_for(tables, i.answers, rules)
-    flown: list[propgrade.Flown] = []
-    for f in i.model.flights:
+@dataclass(frozen=True)
+class _OnProp:
+    """A flight's hover anchor on the propeller and motor its build names."""
+
+    flight_id: str
+    order: float  # when it flew
+    anchor: Anchor
+    prop: propfamily.Prop
+    motor_key: str
+    motor: Motor | None  # the build's motor model
+
+
+def _on_props(store: Store, flights: Sequence[FlightPoints], props: Mapping[str, Any],
+              rules: Mapping[str, Any],
+              tables: Sequence[bench.Bench]) -> list[_OnProp]:  # fmt: skip
+    """Each flight with a hover anchor, on the propeller its build's setup answers name."""
+    builds: dict[str, tuple[propfamily.Prop | None, str, Motor | None]] = {}
+    out: list[_OnProp] = []
+    for f in flights:
         row = store.get("flight", f.flight_id) if f.anchor is not None else None
         if row is None or f.anchor is None:
             continue
-        answers = build_answers(store, row["build_version_id"])
-        prop = propfamily.flown(props, answers)
-        if prop is None:
+        build = str(row["build_version_id"])
+        if build not in builds:
+            answers = build_answers(store, row["build_version_id"])
+            drive = drive_for(tables, answers, rules)
+            builds[build] = (propfamily.flown(props, answers),
+                             f"{answers.get('motor_model')}|{answers.get('motor_kv')}",
+                             drive[0] if drive else None)  # fmt: skip
+        prop, key, motor = builds[build]
+        if prop is not None:
+            order = float((row["boot_utc_us"] or 0) + (row["arm_us"] or 0))
+            out.append(_OnProp(f.flight_id, order, f.anchor, prop, key, motor))
+    return out
+
+
+def _installed(store: Store, airframe_id: str, i: Inputs, props: Mapping[str, Any],
+               rules: Mapping[str, Any],
+               tables: Sequence[bench.Bench]) -> list[propfamily.Installed]:  # fmt: skip
+    """The hovers each of the platform's airframes measured on each propeller it flew: this
+    airframe's from its model now, the others' as the models kept for them hold them."""
+    row = store.get("airframe", airframe_id)
+    assert row is not None
+    fleets: list[tuple[str, Sequence[FlightPoints]]] = [(airframe_id, i.model.flights)]
+    for other, text in store.conn.execute(
+        "SELECT a.id, f.model_json FROM airframe a JOIN performance_fit f "
+        "ON f.airframe_id = a.id WHERE a.platform_id = ? AND a.id != ? ORDER BY a.id",
+        (row["platform_id"], airframe_id),
+    ).fetchall():  # fmt: skip
+        try:
+            fleets.append((str(other), perf.from_json(str(text)).flights))
+        except (KeyError, TypeError, ValueError):  # kept by an older engine: made again when opened
             continue
-        order = float((row["boot_utc_us"] or 0) + (row["arm_us"] or 0))
-        motor_key = f"{answers.get('motor_model')}|{answers.get('motor_kv')}"
-        flown.append(propgrade.Flown(f.flight_id, order, f.anchor, prop, motor_key))
-    graded = propgrade.grade(props, propfamily.from_tables(props, tables),
+    out: list[propfamily.Installed] = []
+    for aircraft, flights in fleets:
+        grouped: dict[str, list[propfamily.Operating]] = {}
+        named: dict[str, propfamily.Prop] = {}
+        for f in _on_props(store, flights, props, rules, tables):
+            v = anchor_view(f.anchor, f.prop.diameter_in, f.motor)
+            grouped.setdefault(f.prop.key, []).append(
+                propfamily.Operating(f.anchor.rpm, float(v["ct"]), v.get("cp"), f.anchor.density)
+            )
+            named[f.prop.key] = f.prop
+        out += [propfamily.Installed(aircraft, named[k], tuple(pts)) for k, pts in grouped.items()]
+    return out
+
+
+def _families(store: Store, airframe_id: str, i: Inputs, props: Mapping[str, Any],
+              rules: Mapping[str, Any], tables: Sequence[bench.Bench],
+              leave_out: bool = False) -> dict[str, propfamily.Family]:  # fmt: skip
+    """The families as the platform's tables and its aircraft's flown propellers calibrate
+    them; without this airframe's flights when `leave_out` (for grading its own changes)."""
+    installed = _installed(store, airframe_id, i, props, rules, tables)
+    if leave_out:
+        installed = [s for s in installed if s.aircraft != airframe_id]
+    return propfamily.from_tables(props, tables, installed)
+
+
+def _track(store: Store, airframe_id: str, i: Inputs, props: Mapping[str, Any],
+           rules: Mapping[str, Any], tables: Sequence[bench.Bench]) -> dict[str, Any]:  # fmt: skip
+    """The airframe's propeller changes, each graded against what the flights before it
+    predicted (performance/propgrade.py), with the families calibrated without this
+    airframe's own flights, and the record over them."""
+    drive = drive_for(tables, i.answers, rules)
+    flown = [propgrade.Flown(f.flight_id, f.order, f.anchor, f.prop, f.motor_key)
+             for f in _on_props(store, i.model.flights, props, rules, tables)]  # fmt: skip
+    graded = propgrade.grade(props, _families(store, airframe_id, i, props, rules, tables, True),
                              drive[0] if drive else None, flown)  # fmt: skip
     return {"changes": graded, "record": propgrade.record(graded)}
 
@@ -759,7 +829,8 @@ def _candidate_basis(store: Store, airframe_id: str, i: Inputs, rules: Mapping[s
     arms = round(i.model.disc_area / (math.pi * radius**2)) if i.model.disc_area else None
     limits = [a for a in (i.current_a, float(i.params.get("MOT_BAT_CURR_MAX", 0.0) or 0.0)) if a]
     basis = cand.Basis(
-        flown=flown, families=propfamily.from_tables(props, tables), motor=motor, at=at,
+        flown=flown, families=_families(store, airframe_id, i, props, rules, tables),
+        motor=motor, at=at,
         motors=i.motors, lowest_v=lowest_volts(i.params, i.pack) if i.pack else None,
         nominal_v=float(i.pack.open_circuit(0.5)) if i.pack else None, arms=arms,
         wheelbase_mm=_number(i.answers, "wheelbase_mm"), thermals=tuple(i.thermals),
@@ -799,7 +870,8 @@ def prop_search(
     out["inputs"] = {"mass_kg": mass, "mass_from": mass_from, "density": density, "air": air}
     out["flown_prop"] = asdict(flown)
     platform = (store.get("airframe", airframe_id) or {}).get("platform_id")
-    out["track"] = _track(store, i, props, rules, bench.benches(store, str(platform)))["record"]
+    out["track"] = _track(store, airframe_id, i, props, rules,
+                          bench.benches(store, str(platform)))["record"]  # fmt: skip
     out["search"] = propchoice.search(
         basis,
         props,
@@ -875,7 +947,8 @@ def prop_candidate(store: Store, cache: ColumnCache, pack: KnowledgePack, airfra
                                                "kv_from": drive[0].kv_from}  # fmt: skip
     out["without_anchor"] = why
     platform = (store.get("airframe", airframe_id) or {}).get("platform_id")
-    out["track"] = _track(store, i, props, rules, bench.benches(store, str(platform)))["record"]
+    out["track"] = _track(store, airframe_id, i, props, rules,
+                          bench.benches(store, str(platform)))["record"]  # fmt: skip
     out["candidate"] = got
     share = got["at"]["share"]
     model = i.model.fitted.model if i.model.fitted else None
