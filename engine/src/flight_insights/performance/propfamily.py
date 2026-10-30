@@ -174,7 +174,9 @@ def _theory(params: Params, rules: Mapping[str, Any], g: _Geometry,
         for _ in range(int(rules["tip_loss_rounds"])):
             f = p.blades[:, None] / 2 * (1 - r) / np.maximum(lam, 1e-9)
             loss = np.maximum(2 / math.pi * np.arccos(np.clip(np.exp(-f), 0.0, 1.0)), 1e-3)
-            lam = sa / (16 * loss) * (np.sqrt(1 + 32 * loss * lift * r / sa) - 1)
+            was, lam = lam, sa / (16 * loss) * (np.sqrt(1 + 32 * loss * lift * r / sa) - 1)
+            if float(np.max(np.abs(lam - was))) < 1e-12:  # settled
+                break
     alpha = theta - lam / r
     reynolds = p.density[:, None] * tip * r * g.chord[None, :] * radius / float(
         rules["air_viscosity"])  # fmt: skip
@@ -529,7 +531,9 @@ def predict(rules: Mapping[str, Any], families: Mapping[str, Family], candidate:
         for _ in range(int(rules["hover_rounds"])):
             lt, lp = c.coefficients(z, rpm, density)
             ct, cp = math.exp(lt), math.exp(lp)
-            rpm = 60 * math.sqrt(thrust_n / (ct * density * d**4))
+            was, rpm = rpm, 60 * math.sqrt(thrust_n / (ct * density * d**4))
+            if abs(rpm - was) < 1e-10 * rpm:  # settled
+                break
         n = rpm / 60
         return math.log(rpm), math.log(cp * density * n**3 * d**5), ct, cp
 

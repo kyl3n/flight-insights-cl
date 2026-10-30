@@ -194,28 +194,76 @@ def most_thrust(basis: Basis, rules: Mapping[str, Any], prop: Prop, motor: Motor
     return out
 
 
+def clearance(basis: Basis, prop: Prop) -> float | None:
+    """The gap between neighbouring propellers' tips, mm, the arms evenly round the
+    wheelbase; None without the wheelbase or the arms."""
+    if not (basis.arms and basis.wheelbase_mm):
+        return None
+    return basis.wheelbase_mm * math.sin(math.pi / basis.arms) - prop.diameter_in * 25.4
+
+
+def assess(basis: Basis, rules: Mapping[str, Any], prop: Prop, motor: Motor | None,
+           mass_kg: float, density: float, duty: float) -> dict[str, Any]:  # fmt: skip
+    """One propeller on the aircraft at a weight: its hover, its most thrust (with a motor
+    model) and the checks against the rules' limits."""
+    spec: Mapping[str, Any] = rules["candidate"]
+    point = _point(basis, rules, prop, motor, mass_kg * G / basis.motors, density)
+    most = most_thrust(basis, rules, prop, motor, density, duty) if motor else None
+    if most is not None:
+        most["thrust_to_weight"] = most["thrust_n"] * basis.motors / (mass_kg * G)
+    checks: list[dict[str, Any]] = []
+
+    def check(name: str, value: float, limit: float, ok: bool) -> None:
+        checks.append({"check": name, "value": value, "limit": limit, "ok": ok})
+
+    if most is not None:
+        least = float(spec["least_thrust_to_weight"])
+        ratio = most["thrust_to_weight"]
+        check("thrust_to_weight", ratio, least, ratio >= least)
+        if basis.pack_limit_a:
+            check("pack_current", most["pack_a"], basis.pack_limit_a,
+                  most["pack_a"] <= basis.pack_limit_a)  # fmt: skip
+    tip = max(point["tip_mach"], most["tip_mach"] if most else 0.0)
+    check("tip_mach", tip, float(spec["most_tip_mach"]), tip <= float(spec["most_tip_mach"]))
+    gap = clearance(basis, prop)
+    if gap is not None:
+        least = float(spec["least_clearance_mm"])
+        check("clearance", gap, least, gap >= least)
+    esc = point.get("esc_c")
+    if esc is not None and basis.esc_limit_c:
+        limit = basis.esc_limit_c - float(spec["esc_margin_c"])
+        check("esc_temperature", esc, limit, esc <= limit)
+    if basis.notch_low_hz:
+        hz = point["motor_hz"]
+        check("notch", hz, basis.notch_low_hz, hz >= basis.notch_low_hz)
+    return {"point": point, "most": most, "checks": checks}
+
+
 def compare(basis: Basis, rules: Mapping[str, Any], candidate: Prop, motor: Motor | None,
             masses: Sequence[float], mass_kg: float, density: float,
             duty: float) -> dict[str, Any]:  # fmt: skip
     """The candidate against the propeller flown: at each weight and at the one asked
     for, the most thrust, clearance and the checks against the rules' limits."""
-    spec: Mapping[str, Any] = rules["candidate"]
     drive_n = motor or basis.motor
+
+    def share(now: Mapping[str, Any], then: Mapping[str, Any], kg: float) -> dict[str, Any]:
+        key = "electric_w" if "electric_w" in now and "electric_w" in then else "shaft_w"
+        ratio = (then[key] / now[key]) if now.get(key) and then.get(key) else None
+        return {"mass_kg": kg, "flown": now, "candidate": then, "share": ratio,
+                "share_from": "electric" if key == "electric_w" else "shaft",
+                "share_spread": then.get("power_spread")}  # fmt: skip
 
     def both(kg: float) -> dict[str, Any]:
         thrust = kg * G / basis.motors
-        now = _point(basis, rules, basis.flown, basis.motor, thrust, density)
-        then = _point(basis, rules, candidate, drive_n, thrust, density)
-        key = "electric_w" if "electric_w" in now and "electric_w" in then else "shaft_w"
-        share = (then[key] / now[key]) if now.get(key) and then.get(key) else None
-        spread = then.get("power_spread")
-        return {"mass_kg": kg, "flown": now, "candidate": then, "share": share,
-                "share_from": "electric" if key == "electric_w" else "shaft",
-                "share_spread": spread}  # fmt: skip
+        return share(_point(basis, rules, basis.flown, basis.motor, thrust, density),
+                     _point(basis, rules, candidate, drive_n, thrust, density), kg)  # fmt: skip
 
+    flown = assess(basis, rules, basis.flown, basis.motor, mass_kg, density, duty)
+    then = assess(basis, rules, candidate, drive_n, mass_kg, density, duty)
     out: dict[str, Any] = {
         "flown_prop": asdict(basis.flown), "candidate_prop": asdict(candidate),
-        "other_motor": motor is not None, "at": both(mass_kg),
+        "other_motor": motor is not None,
+        "at": share(flown["point"], then["point"], mass_kg),
         "hover": [both(kg) for kg in masses], "anchor": dict(basis.anchor) or None,
     }  # fmt: skip
     notes = set(out["at"]["candidate"]["notes"])
@@ -223,56 +271,10 @@ def compare(basis: Basis, rules: Mapping[str, Any], candidate: Prop, motor: Moto
         notes.add("drive_efficiency_equal")
     out["notes"] = sorted(notes)
     out["calibrated"] = bool(out["at"]["candidate"]["calibrated"])
-    top: dict[str, Any] = {}
-    if basis.motor is not None and drive_n is not None:
-        top = {
-            "flown": most_thrust(basis, rules, basis.flown, basis.motor, density, duty),
-            "candidate": most_thrust(basis, rules, candidate, drive_n, density, duty),
-        }
-        for v in top.values():
-            if v is not None:
-                v["thrust_to_weight"] = v["thrust_n"] * basis.motors / (mass_kg * G)
-    out["most"] = top or None
-    if basis.arms and basis.wheelbase_mm:
-        spacing = basis.wheelbase_mm * math.sin(math.pi / basis.arms)
-        out["clearance_mm"] = {"flown": spacing - basis.flown.diameter_in * 25.4,
-                               "candidate": spacing - candidate.diameter_in * 25.4}  # fmt: skip
-    checks: list[dict[str, Any]] = []
-    c_top: dict[str, Any] = (top.get("candidate") or {}) if top else {}
-    if c_top:
-        checks.append(
-            {
-                "check": "thrust_to_weight",
-                "value": c_top["thrust_to_weight"],
-                "limit": float(spec["least_thrust_to_weight"]),
-                "ok": c_top["thrust_to_weight"] >= float(spec["least_thrust_to_weight"]),
-            }
-        )
-        if basis.pack_limit_a:
-            checks.append(
-                {
-                    "check": "pack_current",
-                    "value": c_top["pack_a"],
-                    "limit": basis.pack_limit_a,
-                    "ok": c_top["pack_a"] <= basis.pack_limit_a,
-                }
-            )
-    tip = max(out["at"]["candidate"]["tip_mach"], c_top.get("tip_mach", 0.0))
-    checks.append({"check": "tip_mach", "value": tip, "limit": float(spec["most_tip_mach"]),
-                   "ok": tip <= float(spec["most_tip_mach"])})  # fmt: skip
-    if "clearance_mm" in out:
-        least = float(spec["least_clearance_mm"])
-        gap = out["clearance_mm"]["candidate"]
-        checks.append({"check": "clearance", "value": gap, "limit": least, "ok": gap >= least})
-    esc = out["at"]["candidate"].get("esc_c")
-    if esc is not None and basis.esc_limit_c:
-        margin = float(spec["esc_margin_c"])
-        checks.append({"check": "esc_temperature", "value": esc,
-                       "limit": basis.esc_limit_c - margin,
-                       "ok": esc <= basis.esc_limit_c - margin})  # fmt: skip
-    hz = out["at"]["candidate"]["motor_hz"]
-    if basis.notch_low_hz:
-        checks.append({"check": "notch", "value": hz, "limit": basis.notch_low_hz,
-                       "ok": hz >= basis.notch_low_hz})  # fmt: skip
-    out["checks"] = checks
+    out["most"] = ({"flown": flown["most"], "candidate": then["most"]}
+                   if basis.motor is not None and drive_n is not None else None)  # fmt: skip
+    gaps = clearance(basis, basis.flown), clearance(basis, candidate)
+    if gaps[0] is not None:
+        out["clearance_mm"] = {"flown": gaps[0], "candidate": gaps[1]}
+    out["checks"] = then["checks"]
     return out
