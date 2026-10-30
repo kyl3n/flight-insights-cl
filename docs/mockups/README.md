@@ -22,6 +22,7 @@ These are the source files of the Flight Insights layout canvas. The live, viewa
 | `Navigation.dc.html` | Flight navigation and GNSS: events and their class, how the aircraft coped, readiness without GNSS |
 | `RecoveryCard.dc.html` | Printable recovery card per airframe; its link section worded as the engine builds it |
 | `Performance.dc.html` | Airframe range and speed: endurance, range and radius by payload, pack, air, wind and trip; power against airspeed; the speed to fly into a headwind; batteries; what-ifs; a planned build against the flying one; the speed build-up; the data behind the model; recommendations for the plan |
+| `Propellers.dc.html` | Airframe propellers: the propeller flown as each weighed hover measured it, any other propeller (or motor) tried against it, the options for the setup's Priority, the suggestion once the predictions are validated, and what the predictions rest on. Every predicted figure is labelled theory |
 | `RangeCard.dc.html` | Printable range card per airframe: time, range, radius and speeds for each payload, with the reserve rule, the parameters it was worked out with and its validity |
 | `Weather.dc.html` | Flight weather: the record, measured against model wind, wind envelope |
 | `SettingsWeather.dc.html` | Settings: weather key and download status |
