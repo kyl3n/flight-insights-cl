@@ -174,7 +174,9 @@ def _theory(params: Params, rules: Mapping[str, Any], g: _Geometry,
         for _ in range(int(rules["tip_loss_rounds"])):
             f = p.blades[:, None] / 2 * (1 - r) / np.maximum(lam, 1e-9)
             loss = np.maximum(2 / math.pi * np.arccos(np.clip(np.exp(-f), 0.0, 1.0)), 1e-3)
-            lam = sa / (16 * loss) * (np.sqrt(1 + 32 * loss * lift * r / sa) - 1)
+            was, lam = lam, sa / (16 * loss) * (np.sqrt(1 + 32 * loss * lift * r / sa) - 1)
+            if float(np.max(np.abs(lam - was))) < 1e-12:  # settled
+                break
     alpha = theta - lam / r
     reynolds = p.density[:, None] * tip * r * g.chord[None, :] * radius / float(
         rules["air_viscosity"])  # fmt: skip
@@ -414,18 +416,73 @@ class Hover:
         }
 
 
-def predict(rules: Mapping[str, Any], families: Mapping[str, Family], candidate: Prop,
-            thrust_n: float, density: float, current: Prop | None = None,
-            at: Operating | None = None) -> Hover:  # fmt: skip
-    """The candidate's hover at this thrust and air: changed from the current propeller's
-    measured operating point `at` when there is one, from its family's theory alone
-    otherwise."""
+@dataclass(frozen=True)
+class _Change:
+    """A candidate changed from the propeller flown: both families' parameters and
+    offsets as one vector with its covariance, and where each part sits in it."""
+
+    rules: Mapping[str, Any]
+    candidate: Prop
+    current: Prop | None
+    at: Operating | None
+    fam_n: Family
+    fam_c: Family
+    z0: Array
+    cov: Array
+    off_n: int
+    off_c: int
+    i_n: int | None
+    i_c: int | None
+
+    @property
+    def anchored(self) -> bool:
+        return self.at is not None and self.current is not None
+
+    @property
+    def same(self) -> bool:
+        return self.current is not None and self.anchored and self.current.key == self.candidate.key
+
+    def _theory(self, z: Array, off: int, prop: Prop, rpm: float,
+                rho: float) -> tuple[float, float]:  # fmt: skip
+        ct, cp = _theory(z[off : off + len(NAMES)], self.rules, _geometry(self.rules, prop.family),
+                         _points([prop], np.array([rpm]), np.array([rho])))  # fmt: skip
+        return math.log(float(ct[0])), math.log(float(cp[0]))
+
+    def _offsets(self, z: Array, off: int, i: int | None) -> tuple[float, float]:
+        return (0.0, 0.0) if i is None else (float(z[off + i]), float(z[off + i + 1]))
+
+    def coefficients(self, z: Array, rpm: float, rho: float) -> tuple[float, float]:
+        """The candidate's (log C_T, log C_P) at a speed and air: its family's theory, its
+        own offsets, and what the anchor measured over what the theory and the current
+        propeller's offsets give for it."""
+        ut_n, uq_n = self._offsets(z, self.off_n, self.i_n)
+        dt = dp = 0.0
+        if self.anchored and self.at is not None and self.current is not None:
+            ut_c, uq_c = self._offsets(z, self.off_c, self.i_c)
+            mt, mp = self._theory(z, self.off_c, self.current, self.at.rpm, self.at.density)
+            dt = math.log(self.at.ct) - mt - ut_c
+            dp = (math.log(self.at.cp) - mp - 1.5 * ut_c - uq_c) if self.at.cp else 0.0
+        mt, mp = self._theory(z, self.off_n, self.candidate, rpm, rho)
+        return mt + ut_n + dt, mp + 1.5 * ut_n + uq_n + dp
+
+    def used(self) -> list[int]:
+        """The vector's entries the candidate's coefficients depend on."""
+        m = len(NAMES)
+        out = list(range(self.off_n, self.off_n + m))
+        if self.anchored and self.fam_c is not self.fam_n:
+            out += list(range(self.off_c, self.off_c + m))
+        for off, i in ((self.off_n, self.i_n), (self.off_c, self.i_c)):
+            if i is not None:
+                out += [off + i, off + i + 1]
+        return sorted(set(out))
+
+
+def _change(rules: Mapping[str, Any], families: Mapping[str, Family], candidate: Prop,
+            current: Prop | None, at: Operating | None) -> _Change:  # fmt: skip
     fam_n = families.get(candidate.family) or uncalibrated(rules, candidate.family)
-    anchored = at is not None and current is not None
-    same = anchored and current is not None and current.key == candidate.key
     blocks: list[Family] = [fam_n]
     fam_c = fam_n
-    if anchored and current is not None:
+    if at is not None and current is not None:
         fam_c = families.get(current.family) or uncalibrated(rules, current.family)
         if fam_c.id != fam_n.id:
             blocks.append(fam_c)
@@ -435,52 +492,54 @@ def predict(rules: Mapping[str, Any], families: Mapping[str, Family], candidate:
     for b, s in zip(blocks, starts, strict=False):
         n = len(b.vector())
         cov[s : s + n, s : s + n] = np.array(b.covariance)
-    m = len(NAMES)
-    off_n = int(starts[0])
-    off_c = int(starts[blocks.index(fam_c)])
-    i_n = fam_n.index(candidate)
-    i_c = fam_c.index(current) if current is not None else None
-    g_n = _geometry(rules, candidate.family)
-    g_c = _geometry(rules, current.family) if current is not None else g_n
+    return _Change(rules, candidate, current, at, fam_n, fam_c, z0, cov, int(starts[0]),
+                   int(starts[blocks.index(fam_c)]), fam_n.index(candidate),
+                   fam_c.index(current) if current is not None else None)  # fmt: skip
+
+
+Coefficients = Callable[[float, float], tuple[float, float]]  # (rpm, density) -> (C_T, C_P)
+
+
+def anchored(rules: Mapping[str, Any], families: Mapping[str, Family], candidate: Prop,
+             current: Prop | None = None, at: Operating | None = None) -> Coefficients:  # fmt: skip
+    """The candidate's (C_T, C_P) at any speed (rpm) and air, as `predict` reads them:
+    for matching the propeller to its motor away from hover."""
+    c = _change(rules, families, candidate, current, at)
+
+    def at_speed(rpm: float, rho: float) -> tuple[float, float]:
+        lt, lp = c.coefficients(c.z0, rpm, rho)
+        return math.exp(lt), math.exp(lp)
+
+    return at_speed
+
+
+def predict(rules: Mapping[str, Any], families: Mapping[str, Family], candidate: Prop,
+            thrust_n: float, density: float, current: Prop | None = None,
+            at: Operating | None = None) -> Hover:  # fmt: skip
+    """The candidate's hover at this thrust and air: changed from the current propeller's
+    measured operating point `at` when there is one, from its family's theory alone
+    otherwise."""
+    c = _change(rules, families, candidate, current, at)
+    fam_n, fam_c, z0, cov, i_n, i_c = c.fam_n, c.fam_c, c.z0, c.cov, c.i_n, c.i_c
+    anchored, same = c.anchored, c.same
     d = candidate.diameter_in * INCH
-
-    def theory(z: Array, off: int, g: _Geometry, prop: Prop, rpm: float,
-               rho: float) -> tuple[float, float]:  # fmt: skip
-        ct, cp = _theory(z[off:off + m], rules, g, _points([prop], np.array([rpm]),
-                                                         np.array([rho])))  # fmt: skip
-        return math.log(float(ct[0])), math.log(float(cp[0]))
-
-    def offsets(z: Array, off: int, i: int | None) -> tuple[float, float]:
-        return (0.0, 0.0) if i is None else (float(z[off + i]), float(z[off + i + 1]))
 
     def solve(z: Array) -> tuple[float, float, float, float]:
         """(log rpm, log shaft power, C_T, C_P) of the candidate."""
-        ut_n, uq_n = offsets(z, off_n, i_n)
-        dt = dp = 0.0
-        if anchored and at is not None and current is not None:
-            ut_c, uq_c = offsets(z, off_c, i_c)
-            mt, mp = theory(z, off_c, g_c, current, at.rpm, at.density)
-            dt = math.log(at.ct) - mt - ut_c
-            dp = (math.log(at.cp) - mp - 1.5 * ut_c - uq_c) if at.cp else 0.0
         rpm = at.rpm if same and at is not None else 3000.0
         ct = cp = 0.0
         for _ in range(int(rules["hover_rounds"])):
-            mt, mp = theory(z, off_n, g_n, candidate, rpm, density)
-            ct = math.exp(mt + ut_n + dt)
-            cp = math.exp(mp + 1.5 * ut_n + uq_n + dp)
-            rpm = 60 * math.sqrt(thrust_n / (ct * density * d**4))
+            lt, lp = c.coefficients(z, rpm, density)
+            ct, cp = math.exp(lt), math.exp(lp)
+            was, rpm = rpm, 60 * math.sqrt(thrust_n / (ct * density * d**4))
+            if abs(rpm - was) < 1e-10 * rpm:  # settled
+                break
         n = rpm / 60
         return math.log(rpm), math.log(cp * density * n**3 * d**5), ct, cp
 
     log_rpm, log_p, ct, cp = solve(z0)
-    used = list(range(off_n, off_n + m))
-    if anchored and fam_c is not fam_n:
-        used += list(range(off_c, off_c + m))
-    for off, i in ((off_n, i_n), (off_c, i_c)):
-        if i is not None:
-            used += [off + i, off + i + 1]
     grad = np.zeros((2, len(z0)))
-    for j in sorted(set(used)):
+    for j in c.used():
         step = max(abs(z0[j]) * 1e-5, 1e-6)
         hi, lo = z0.copy(), z0.copy()
         hi[j] += step

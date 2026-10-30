@@ -95,6 +95,8 @@ class Motor:
             mid = (lo + hi) / 2
             need = float(self.volts(torque_at(np.asarray(mid)), mid))
             lo, hi = (mid, hi) if need < available else (lo, mid)
+            if hi - lo < 1e-9 * hi:
+                break
         return (lo + hi) / 2
 
 

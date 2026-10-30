@@ -104,6 +104,17 @@
     }
   ],
   "default_family": "carbon",
+  "candidate": {
+    "about": "A candidate propeller against the one flown (performance/candidate.py): the checks its predicted figures are held to. least_thrust_to_weight: the most thrust at the pack's lowest loaded voltage over the weight; most_tip_mach: the tip's Mach number in hover and at full throttle; least_clearance_mm: the gap between neighbouring propellers' tips, the arms taken evenly round the wheelbase; esc_margin_c: how far below the ESCs' temperature protection the hottest ESC's settled hover temperature stays. App values, uncalibrated.",
+    "least_thrust_to_weight": 1.6,
+    "most_tip_mach": 0.7,
+    "least_clearance_mm": 10.0,
+    "esc_margin_c": 10.0,
+    "sources": [
+      "Leishman, Principles of Helicopter Aerodynamics, 2nd ed., ch. 7: thin sections' drag rises steeply as the local Mach number nears 0.8, so the tip is kept well below it",
+      "The thrust-to-weight floor, the clearance and the ESC margin are the app's own starting values, to be set from the local validation and the airframe's flights"
+    ]
+  },
   "sources": [
     "Leishman, Principles of Helicopter Aerodynamics, 2nd ed., Cambridge University Press, 2006, ch. 3.3-3.6: blade-element momentum theory in hover, the inflow at each station lambda = (sigma a / 16 F)(sqrt(1 + 32 F theta r / (sigma a)) - 1), Prandtl's tip loss F = (2/pi) arccos(exp(-(N_b/2)(1 - r)/lambda)), dC_T = (1/2) sigma C_l r^2 dr and dC_P = lambda dC_T + (1/2) sigma C_d r^3 dr; ch. 7: the Prandtl-Glauert rise of the lift slope with Mach number and a drag polar C_d = d0 + d1 alpha + d2 alpha^2",
     "Leishman, ch. 2.2: rotor coefficients on the tip speed relate to a propeller's on its revolutions a second, C_T(prop) = (pi^3/4) C_T(rotor) and C_P(prop) = (pi^4/4) C_P(rotor)",
