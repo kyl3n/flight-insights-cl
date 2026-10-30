@@ -21,7 +21,8 @@ flight's weight, as a raise of `WP_SPD` the plan may propose, or what holds it b
 - **A margin fails** (`speed.limited_by_<check>`): its predicted value and limit, and the
   ways to move it. For the limits the models predict (lean, thrust, current, ESC
   temperature), also the airspeed it allows now and how much faster each of the rules'
-  solutions would let it fly (`envelope.gains`).
+  solutions would let it fly (`envelope.gains`). For the notch: the motors' frequency at
+  the step, past the reach of a notch set that does not follow them.
 - **Ready first** (`gate`, rules "readiness"): the step is held back, with what holds it,
   while the flight has a finding open that matters at speed and that staging would not hold
   it behind (GNSS, the motor-out margin, the packs and their failsafe), or one of the
@@ -79,7 +80,7 @@ def buildup(ctx: Context, params: Mapping[str, float], reg: Registry) -> Advice:
         what = "lean" if i.basis is None else "current"
         return Advice([_finding(ctx, MISSING + what, common, [])])
     env = EnvelopeInputs(ctx.model, i.basis, params, lowest_volts(params, i.pack), i.current_a,
-                         i.thermals, i.esc_limit_c, i.motors)  # fmt: skip
+                         i.thermals, i.esc_limit_c, i.motors, i.motor_hz)  # fmt: skip
     s = next_step(i.fast, env, ctx.mass_kg, ctx.density, reg)
     if s.verified is None or s.next_ms is None:
         return Advice([_finding(ctx, START, common, [])])

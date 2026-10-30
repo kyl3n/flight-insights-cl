@@ -102,3 +102,67 @@ def test_a_required_prediction_missing_holds_the_step_back() -> None:
     assert not s.offered and s.binding == "thrust" and "thrust" in s.missing
     none = step([], INPUTS, 30.0, RHO, REG)
     assert not none.offered and none.binding == "verified" and none.next_ms is None
+
+
+FIXED_NARROW = {"INS_HNTCH_ENABLE": 1, "INS_HNTCH_MODE": 0, "INS_HNTCH_FREQ": 70.0,
+                "INS_HNTCH_BW": 2.0, "INS_HNTCH_HMNCS": 1}  # fmt: skip
+STEP_HZ = 70.0 * math.sqrt(1 / math.cos(math.radians(18.12)))  # 13 m/s leans 18.1 deg: 71.8 Hz
+
+
+def notched(params: dict[str, float], motor: tuple[float, float] | None = (70.0, 30.0)) -> Inputs:
+    return replace(INPUTS, params={**INPUTS.params, **params}, motor_hz=motor)
+
+
+@pytest.mark.parametrize(
+    ("params", "reach", "holds"),
+    [
+        (FIXED_NARROW, 71.0, False),  # covers 69-71 Hz in hover; the step's 71.8 Hz is past it
+        ({**FIXED_NARROW, "INS_HNTCH_BW": 20.0}, 80.0, True),
+        # REF 0 in a tracking mode sits at FREQ, as a fixed notch does
+        ({**FIXED_NARROW, "INS_HNTCH_MODE": 3, "INS_HNTCH_REF": 0.0}, 71.0, False),
+        # the in-flight FFT finds the motors up to FFT_MAXHZ
+        (
+            {
+                **FIXED_NARROW,
+                "INS_HNTCH_MODE": 4,
+                "INS_HNTCH_REF": 1.0,
+                "FFT_MINHZ": 50.0,
+                "FFT_MAXHZ": 71.0,
+            },
+            71.0,
+            False,
+        ),
+        ({**FIXED_NARROW, "INS_HNTCH_MODE": 4, "INS_HNTCH_REF": 1.0}, 450.0, True),  # the default
+    ],
+)
+def test_the_notch_reaches_the_motors_at_the_step(params: dict[str, float], reach: float,
+                                                   holds: bool) -> None:  # fmt: skip
+    s = step(HISTORY, notched(params), 30.0, RHO, REG)
+    c = {c.name: c for c in s.checks}["notch"]
+    assert c.value == pytest.approx(STEP_HZ, rel=1e-3) and c.limit == pytest.approx(reach)
+    assert c.holds is holds and c.how == "model"
+    assert s.offered is holds and s.binding == (None if holds else "notch")
+
+
+@pytest.mark.parametrize(
+    "params",
+    [
+        {**FIXED_NARROW, "INS_HNTCH_MODE": 3, "INS_HNTCH_REF": 1.0},  # follows ESC telemetry
+        {**FIXED_NARROW, "INS_HNTCH_MODE": 1, "INS_HNTCH_REF": 0.3},  # follows the throttle
+        {**FIXED_NARROW, "INS_HNTCH_FREQ": 150.0, "INS_HNTCH_BW": 20.0},  # a frame resonance's
+        {**FIXED_NARROW, "INS_HNTCH_ENABLE": 0},
+    ],
+)
+def test_no_notch_check_where_no_static_notch_covers_the_motors(params: dict[str, float]) -> None:
+    s = step(HISTORY, notched(params), 30.0, RHO, REG)
+    assert "notch" not in {c.name for c in s.checks} and s.offered
+
+
+def test_the_motors_frequency_carried_to_the_weight_and_unknown_without_it() -> None:
+    # measured in hover at 25 kg: at 30 kg the motors turn sqrt(30 / 25) faster again
+    s = step(HISTORY, notched({**FIXED_NARROW, "INS_HNTCH_BW": 40.0}, (70.0, 25.0)), 30.0, RHO, REG)
+    c = {c.name: c for c in s.checks}["notch"]
+    assert c.value == pytest.approx(STEP_HZ * math.sqrt(30 / 25), rel=1e-3)
+    # no hover frequency measured: the check is missing, and it does not hold the step back
+    s = step(HISTORY, notched(FIXED_NARROW, None), 30.0, RHO, REG)
+    assert "notch" in s.missing and s.offered

@@ -121,6 +121,7 @@ class Inputs:
     thermals: Sequence[Thermal] = ()
     motors: int = 4
     fast: Sequence[Fast] = ()
+    motor_hz: tuple[float, float] | None = None  # the motors' hover frequency, at a weight (kg)
     latest_flight: str | None = None
     flights: Sequence[Flight] = ()
     sources: dict[str, str] = field(default_factory=dict[str, str])
@@ -267,6 +268,13 @@ def gather(store: Store, cache: ColumnCache, pack: KnowledgePack, airframe_id: s
                    if (v := metric_of(store, f.run_id, m, "fast")) is not None}  # fmt: skip
         mass = by_id[f.id].mass_kg if f.id in by_id else f.takeoff_kg
         out.fast = [*out.fast, Fast(f.id, speed[0], seconds[0], mass, watched)]
+    # the latest hover's motor frequency at its weight, which the build-up's notch check reads
+    for f in reversed(flights):
+        hz = metric_of(store, f.run_id, "filter.motor_hz", "hover") if f.run_id else None
+        mass = by_id[f.id].mass_kg if f.id in by_id else f.takeoff_kg
+        if hz is not None and mass:
+            out.motor_hz = (hz[0], mass)
+            break
     for f in reversed(flights):
         try:
             found = from_flight(FlightData.load(store, cache, pack, f.id), reg.rules["performance"])
@@ -663,7 +671,7 @@ def report(store: Store, cache: ColumnCache, pack: KnowledgePack, airframe_id: s
                        density, volts, i.current_a, top)  # fmt: skip
         out["top_speed"] = asdict(ts)
         env = EnvelopeInputs(model, i.basis, i.params, volts, i.current_a, i.thermals,
-                             i.esc_limit_c, i.motors)  # fmt: skip
+                             i.esc_limit_c, i.motors, i.motor_hz)  # fmt: skip
         s = next_step(i.fast, env, mass, density, reg)
         out["build_up"] = {
             "verified_ms": s.verified.speed_ms if s.verified else None,

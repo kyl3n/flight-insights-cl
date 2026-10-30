@@ -17,6 +17,12 @@ speed build-up"; rules in `knowledge/rules/performance.json` "envelope").
     within the least of the pack's rating and `MOT_BAT_CURR_MAX`;
   - ESC temperature: each ESC's thermal model settled at its share of that current, the
     rules' margin under the ESCs' protection temperature;
+  - the harmonic notch: the motors' hover frequency carried to the step's thrust (it turns
+    as the square root of the thrust, which is the weight over the cosine of the lean),
+    within the reach of every notch set that covers the motors in hover and does not
+    follow them: a fixed notch's band (FREQ, or FREQ with REF 0, plus half its BW) or the
+    in-flight FFT's search band (FFT_MAXHZ). Sets that follow the motors (throttle, ESC
+    telemetry, RPM sensor) move with them;
   - motor output and vibration: a straight line against speed through the airframe's fast
     segments held long enough at the same weight or heavier (in their target zones or
     not: those outside show where it goes wrong), once they span the rules' gap of
@@ -40,6 +46,7 @@ import numpy as np
 
 from flight_insights.analyzers.registry import Registry
 from flight_insights.analyzers.wind import configured_lean, lean_needed, thrust_lean
+from flight_insights.filters.harmonic import FFT, FIXED, SETS, NotchParams
 from flight_insights.performance.fit import G, Model
 from flight_insights.performance.thermal import Thermal
 from flight_insights.performance.top_speed import Basis, drag_at, hover_throttle
@@ -91,6 +98,7 @@ class Inputs:
     thermals: Sequence[Thermal] = ()
     esc_limit_c: float | None = None  # the ESCs' protection temperature
     motors: int = 4
+    motor_hz: tuple[float, float] | None = None  # the motors' frequency in hover, at a weight (kg)
 
 
 @dataclass(frozen=True)
@@ -130,6 +138,47 @@ def _target_limit(reg: Registry, metric: str) -> float:
     return float(high)
 
 
+FFT_DEFAULTS = {"FFT_MINHZ": 50.0, "FFT_MAXHZ": 450.0}  # AP_GyroFFT.cpp var_info, 4.7.0
+
+
+def notch_reach(params: Mapping[str, float], motor_hz: float) -> float | None:
+    """The highest motor frequency the harmonic notch sets that cover the motors at
+    `motor_hz` and do not follow them still reach: a fixed notch's band, or the in-flight
+    FFT's search band. None when every set that covers them follows them, or none does."""
+    reaches: list[float] = []
+    for prefix in SETS:
+        if f"{prefix}ENABLE" not in params:
+            continue
+        p = NotchParams.read(params, prefix)
+        if not p.enable or p.num_harmonics == 0:
+            continue
+        if p.mode == FIXED or p.ref == 0:  # tracking.py: where such a notch sits
+            centre = max(p.freq, p.bw * 0.52) if p.mode == FIXED else p.freq
+            if abs(motor_hz - centre) <= p.bw / 2:
+                reaches.append(centre + p.bw / 2)
+        elif p.mode == FFT:
+            low = float(params.get("FFT_MINHZ", FFT_DEFAULTS["FFT_MINHZ"]))
+            high = float(params.get("FFT_MAXHZ", FFT_DEFAULTS["FFT_MAXHZ"]))
+            if low <= motor_hz <= high:
+                reaches.append(high)
+    return min(reaches) if reaches else None
+
+
+def _static(params: Mapping[str, float]) -> bool:
+    """Whether an enabled harmonic notch set does not follow the motors."""
+    sets = [NotchParams.read(params, prefix) for prefix in SETS if f"{prefix}ENABLE" in params]
+    return any(p.enable and p.num_harmonics and (p.mode in (FIXED, FFT) or p.ref == 0)
+               for p in sets)  # fmt: skip
+
+
+def motor_hz_at(motor_hz: tuple[float, float], mass_kg: float, lean_deg: float) -> float:
+    """The motors' frequency at a weight and lean: in steady level flight the thrust is
+    the weight over the cosine of the lean, and a fixed-pitch propeller's speed goes as
+    the square root of its thrust."""
+    hz, kg = motor_hz
+    return hz * float(np.sqrt(mass_kg / kg / np.cos(np.radians(lean_deg))))
+
+
 def model_checks(inputs: Inputs, at: float, mass_kg: float, density: float,
                  reg: Registry) -> tuple[list[Check], list[str]]:  # fmt: skip
     """The checks the models predict at an airspeed (lean, thrust, current, ESC
@@ -151,6 +200,14 @@ def model_checks(inputs: Inputs, at: float, mass_kg: float, density: float,
     else:
         allowed = thrust_lean(throttle, wind_rules)
         checks.append(Check("thrust", lean, allowed, lean <= allowed, "model"))
+    if inputs.motor_hz is not None:
+        hover = motor_hz_at(inputs.motor_hz, mass_kg, 0.0)
+        reach = notch_reach(inputs.params, hover)
+        if reach is not None:
+            hz = motor_hz_at(inputs.motor_hz, mass_kg, lean)
+            checks.append(Check("notch", hz, reach, hz <= reach, "model"))
+    elif _static(inputs.params):
+        missing.append("notch")
 
     power = float(inputs.model.power(mass_kg * G, at, 0.0, density, rules)[()])
     ratings = [
