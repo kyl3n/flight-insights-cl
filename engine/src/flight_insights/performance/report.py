@@ -60,7 +60,7 @@ from flight_insights.analyzers.flight import FlightError
 from flight_insights.analyzers.motors_health import motors
 from flight_insights.knowledge import Pack as KnowledgePack
 from flight_insights.performance import airframe as perf
-from flight_insights.performance import bench, packs, propfamily
+from flight_insights.performance import bench, packs, propchoice, propfamily
 from flight_insights.performance import candidate as cand
 from flight_insights.performance.battery import Failsafe, Pack, Usable, chemistry
 from flight_insights.performance.efficiency import over_time
@@ -720,6 +720,99 @@ def report(store: Store, cache: ColumnCache, pack: KnowledgePack, airframe_id: s
 CARD_PARAMS = ("WP_SPD", "RTL_SPEED_MS", "BATT_LOW_MAH", "BATT_LOW_VOLT", "BATT_CAPACITY")
 
 
+def _candidate_basis(store: Store, airframe_id: str, i: Inputs, rules: Mapping[str, Any],
+                     props: Mapping[str, Any], flown: propfamily.Prop,
+                     mass: float) -> tuple[cand.Basis, tuple[Any, str] | None]:  # fmt: skip
+    """What candidates are predicted against on this airframe, and the motor model with
+    where it came from."""
+    row = store.get("airframe", airframe_id)
+    assert row is not None
+    tables = bench.benches(store, str(row["platform_id"]))
+    drive = drive_for(tables, i.answers, rules)
+    motor = drive[0] if drive else None
+    chosen = cand.choose_anchor(i.model.flights, flown.diameter_in, motor, mass * G / i.motors)
+    at, about = chosen if chosen else (None, {})
+    radius = flown.diameter_in * 0.0254 / 2
+    arms = round(i.model.disc_area / (math.pi * radius**2)) if i.model.disc_area else None
+    limits = [a for a in (i.current_a, float(i.params.get("MOT_BAT_CURR_MAX", 0.0) or 0.0)) if a]
+    basis = cand.Basis(
+        flown=flown, families=propfamily.from_tables(props, tables), motor=motor, at=at,
+        motors=i.motors, lowest_v=lowest_volts(i.params, i.pack) if i.pack else None,
+        nominal_v=float(i.pack.open_circuit(0.5)) if i.pack else None, arms=arms,
+        wheelbase_mm=_number(i.answers, "wheelbase_mm"), thermals=tuple(i.thermals),
+        esc_limit_c=i.esc_limit_c, pack_limit_a=min(limits) if limits else None,
+        notch_low_hz=cand.notch_floor(i.params), anchor=about,
+    )  # fmt: skip
+    return basis, drive
+
+
+def prop_search(
+    store: Store,
+    cache: ColumnCache,
+    pack: KnowledgePack,
+    airframe_id: str,
+    mass_kg: float | None = None,
+    air: str = "usual",
+) -> dict[str, Any]:
+    """The propellers the setup's Priority favours (performance/propchoice.py), each
+    predicted against the one flown, best first; labelled theory, and advised only once
+    the local validation allows."""
+    reg = Registry.load(pack)
+    rules: Mapping[str, Any] = reg.rules["performance"]
+    props: Mapping[str, Any] = reg.rules["props"]
+    i = gather(store, cache, pack, airframe_id)
+    out: dict[str, Any] = {"airframe_id": airframe_id, "missing": dict(i.missing)}
+    flown = propfamily.flown(props, i.answers)
+    mass, mass_from = _weight(i, mass_kg)
+    if flown is None:
+        out["missing"]["prop"] = "enter the propeller's diameter and pitch in the setup"
+    if mass is None:
+        out["missing"]["weight"] = mass_from
+    if flown is None or mass is None:
+        return _round(out)
+    density = STANDARD_DENSITY if air == "standard" else (i.usual_density or STANDARD_DENSITY)
+    basis, _ = _candidate_basis(store, airframe_id, i, rules, props, flown, mass)
+    priority = i.answers.get("priority")
+    out["inputs"] = {"mass_kg": mass, "mass_from": mass_from, "density": density, "air": air}
+    out["flown_prop"] = asdict(flown)
+    out["search"] = propchoice.search(
+        basis,
+        props,
+        priority if isinstance(priority, str) else None,
+        mass,
+        density,
+        float(rules["motor"]["full_duty"]),
+    )
+    return _round(out)
+
+
+def prop_findings(
+    store: Store,
+    reg: Registry,
+    i: Inputs,
+    airframe_id: str,
+    flight_id: str,
+    mass: float,
+    density: float,
+    evidence: list[str],
+) -> list[dict[str, Any]]:
+    """The `performance.prop_choice` finding for a flight's plan; none while the advice
+    waits for the local validation (nothing is searched then)."""
+    props: Mapping[str, Any] = reg.rules["props"]
+    if not props["advice"]["enabled"]:
+        return []
+    flown = propfamily.flown(props, i.answers)
+    priority = i.answers.get("priority")
+    if flown is None or not isinstance(priority, str):
+        return []
+    rules: Mapping[str, Any] = reg.rules["performance"]
+    basis, _ = _candidate_basis(store, airframe_id, i, rules, props, flown, mass)
+    found = propchoice.search(basis, props, priority, mass, density,
+                              float(rules["motor"]["full_duty"]))  # fmt: skip
+    got = propchoice.finding(flight_id, found, flown, mass, evidence)
+    return [got] if got else []
+
+
 def prop_candidate(store: Store, cache: ColumnCache, pack: KnowledgePack, airframe_id: str,
                    values: Mapping[str, Any], mass_kg: float | None = None,
                    air: str = "usual") -> dict[str, Any]:  # fmt: skip
@@ -742,25 +835,7 @@ def prop_candidate(store: Store, cache: ColumnCache, pack: KnowledgePack, airfra
     if flown is None or mass is None:
         return _round(out)
     density = STANDARD_DENSITY if air == "standard" else (i.usual_density or STANDARD_DENSITY)
-    row = store.get("airframe", airframe_id)
-    assert row is not None
-    tables = bench.benches(store, str(row["platform_id"]))
-    drive = drive_for(tables, i.answers, rules)
-    motor = drive[0] if drive else None
-    chosen = cand.choose_anchor(i.model.flights, flown.diameter_in, motor, mass * G / i.motors)
-    at, about = chosen if chosen else (None, {})
-    radius = flown.diameter_in * 0.0254 / 2
-    arms = round(i.model.disc_area / (math.pi * radius**2)) if i.model.disc_area else None
-    limits = [a for a in (i.current_a, float(i.params.get("MOT_BAT_CURR_MAX", 0.0) or 0.0)) if a]
-    wheelbase = _number(i.answers, "wheelbase_mm")
-    basis = cand.Basis(
-        flown=flown, families=propfamily.from_tables(props, tables), motor=motor, at=at,
-        motors=i.motors, lowest_v=lowest_volts(i.params, i.pack) if i.pack else None,
-        nominal_v=float(i.pack.open_circuit(0.5)) if i.pack else None, arms=arms,
-        wheelbase_mm=wheelbase, thermals=tuple(i.thermals), esc_limit_c=i.esc_limit_c,
-        pack_limit_a=min(limits) if limits else None, notch_low_hz=cand.notch_floor(i.params),
-        anchor=about,
-    )  # fmt: skip
+    basis, drive = _candidate_basis(store, airframe_id, i, rules, props, flown, mass)
     masses = ([float(k) for k in np.linspace(i.empty_kg, i.max_kg,
                                              int(rules["projections"]["weight_steps"]))]
               if i.empty_kg is not None and i.max_kg is not None else [mass])  # fmt: skip

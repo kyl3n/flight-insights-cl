@@ -14,7 +14,7 @@ from test_perf_report import SETUP
 from test_perf_store import PACK, airframe, flown
 
 from flight_insights.performance.candidate import CandidateError
-from flight_insights.performance.report import prop_candidate
+from flight_insights.performance.report import gather, prop_candidate, prop_findings, prop_search
 from flight_insights.store.cache import ColumnCache
 from flight_insights.store.db import open_store
 from flight_insights.store.keys import StoreKeys
@@ -28,7 +28,8 @@ def fleet(tmp_path_factory: pytest.TempPathFactory) -> dict[str, Any]:
     folder = tmp_path_factory.mktemp("candidate")
     store = open_store(folder / "c.db", keys, "e" * 32)
     cache = ColumnCache(folder / "cache", keys)
-    af = airframe(store, "Callisto", SETUP | {"prop_pitch_in": 10, "prop_family": "carbon"})
+    af = airframe(store, "Callisto", SETUP | {"prop_pitch_in": 10, "prop_family": "carbon",
+                                              "priority": "endurance"})  # fmt: skip
     flown(store, cache, "copter-heavylift-sweep", af, 32.5, ["P1"])
     flown(store, cache, "copter-heavylift-sweep-loaded", af, 40.5, ["P1"])
     return {"store": store, "cache": cache, "airframe": af}
@@ -102,3 +103,31 @@ def test_over_rpc(tmp_path: Path) -> None:
              air="thin")  # fmt: skip
     assert e["error"]["code"] == -32602
     call(server, out, 5, "engine.shutdown")
+
+
+def test_the_search_for_the_priority(fleet: dict[str, Any]) -> None:
+    got = prop_search(fleet["store"], fleet["cache"], PACK, fleet["airframe"], mass_kg=40.5)
+    assert got["missing"] == {} and got["flown_prop"]["diameter_in"] == 30
+    found = got["search"]
+    assert found["priority"] == "endurance" and found["objective"] == "hover_power"
+    assert found["best"] is not None and found["best"]["gain"] > 0
+    # labelled theory: the simulator's flights anchor nothing, and advice is off
+    assert not found["advised"] and not found["best"]["anchored"]
+    assert {o["diameter_in"] for o in found["options"]} == {28, 29, 30, 31, 32}
+
+
+def test_the_plan_waits_for_the_validation(fleet: dict[str, Any]) -> None:
+    from dataclasses import replace
+
+    from flight_insights.analyzers import Registry
+
+    reg = Registry.load(PACK)
+    i = gather(fleet["store"], fleet["cache"], PACK, fleet["airframe"])
+    args = (i, fleet["airframe"], "f1", 40.5, 1.2, ["energy:flight"])
+    assert prop_findings(fleet["store"], reg, *args) == []
+    # switched on, a choice still needs anchoring on this aircraft: the simulator's
+    # flights have no ESC telemetry
+    props = dict(reg.rules["props"]) | {"advice": {"enabled": True, "validated_error": 0.01,
+                                                   "gain_over_error": 2.0}}  # fmt: skip
+    on = replace(reg, rules=dict(reg.rules) | {"props": props})
+    assert prop_findings(fleet["store"], on, *args) == []
