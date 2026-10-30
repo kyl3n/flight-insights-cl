@@ -302,6 +302,10 @@ def test_two_builds_side_by_side(fleet: dict[str, Any], got: dict[str, Any]) -> 
     assert m["without"] == {"no ESC speed telemetry: the propeller's speed is not known": 2}
     # no pitch in the setup: no propeller flown to change from; no table names a family
     assert b["prop"] is None and b["families"] == []
+    assert b["prop_track"] == {
+        "changes": [],
+        "record": {"changes": 0, "flights": 0, "speed_error": None, "power_error": None},
+    }
     store, cache, af = fleet["store"], fleet["cache"], fleet["airframe"]
     platform = store.get("airframe", af)["platform_id"]
     bench.save(store, platform, table(0.002, role="current", motor_mass_g=400))

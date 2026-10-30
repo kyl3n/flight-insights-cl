@@ -56,11 +56,11 @@ from typing import Any
 import numpy as np
 
 from flight_insights.analyzers import FlightData, Registry
-from flight_insights.analyzers.flight import FlightError
+from flight_insights.analyzers.flight import FlightError, build_answers
 from flight_insights.analyzers.motors_health import motors
 from flight_insights.knowledge import Pack as KnowledgePack
 from flight_insights.performance import airframe as perf
-from flight_insights.performance import bench, packs, propchoice, propfamily
+from flight_insights.performance import bench, packs, propchoice, propfamily, propgrade
 from flight_insights.performance import candidate as cand
 from flight_insights.performance.battery import Failsafe, Pack, Usable, chemistry
 from flight_insights.performance.efficiency import over_time
@@ -415,6 +415,7 @@ def _builds(store: Store, airframe_id: str, i: Inputs, model: Model,
     prop = propfamily.flown(props, i.answers)
     out["prop"] = None if prop is None else asdict(prop)
     out["families"] = [fam.view() for fam in propfamily.from_tables(props, tables).values()]
+    out["prop_track"] = _track(store, i, props, rules, tables)
     if current is not None:
         # flown hover power per motor against the bench at the same thrust
         flown = float(model.power(mass * G, 0.0, 0.0, density, rules)[()]) - model.avionics
@@ -720,6 +721,28 @@ def report(store: Store, cache: ColumnCache, pack: KnowledgePack, airframe_id: s
 CARD_PARAMS = ("WP_SPD", "RTL_SPEED_MS", "BATT_LOW_MAH", "BATT_LOW_VOLT", "BATT_CAPACITY")
 
 
+def _track(store: Store, i: Inputs, props: Mapping[str, Any], rules: Mapping[str, Any],
+           tables: Sequence[bench.Bench]) -> dict[str, Any]:  # fmt: skip
+    """The airframe's propeller changes, each graded against what the flights before it
+    predicted (performance/propgrade.py), and the record over them."""
+    drive = drive_for(tables, i.answers, rules)
+    flown: list[propgrade.Flown] = []
+    for f in i.model.flights:
+        row = store.get("flight", f.flight_id) if f.anchor is not None else None
+        if row is None or f.anchor is None:
+            continue
+        answers = build_answers(store, row["build_version_id"])
+        prop = propfamily.flown(props, answers)
+        if prop is None:
+            continue
+        order = float((row["boot_utc_us"] or 0) + (row["arm_us"] or 0))
+        motor_key = f"{answers.get('motor_model')}|{answers.get('motor_kv')}"
+        flown.append(propgrade.Flown(f.flight_id, order, f.anchor, prop, motor_key))
+    graded = propgrade.grade(props, propfamily.from_tables(props, tables),
+                             drive[0] if drive else None, flown)  # fmt: skip
+    return {"changes": graded, "record": propgrade.record(graded)}
+
+
 def _candidate_basis(store: Store, airframe_id: str, i: Inputs, rules: Mapping[str, Any],
                      props: Mapping[str, Any], flown: propfamily.Prop,
                      mass: float) -> tuple[cand.Basis, tuple[Any, str] | None]:  # fmt: skip
@@ -775,6 +798,8 @@ def prop_search(
     priority = i.answers.get("priority")
     out["inputs"] = {"mass_kg": mass, "mass_from": mass_from, "density": density, "air": air}
     out["flown_prop"] = asdict(flown)
+    platform = (store.get("airframe", airframe_id) or {}).get("platform_id")
+    out["track"] = _track(store, i, props, rules, bench.benches(store, str(platform)))["record"]
     out["search"] = propchoice.search(
         basis,
         props,
@@ -849,6 +874,8 @@ def prop_candidate(store: Store, cache: ColumnCache, pack: KnowledgePack, airfra
     out["motor"] = None if drive is None else {"from": drive[1], "kv": drive[0].kv,
                                                "kv_from": drive[0].kv_from}  # fmt: skip
     out["without_anchor"] = why
+    platform = (store.get("airframe", airframe_id) or {}).get("platform_id")
+    out["track"] = _track(store, i, props, rules, bench.benches(store, str(platform)))["record"]
     out["candidate"] = got
     share = got["at"]["share"]
     model = i.model.fitted.model if i.model.fitted else None

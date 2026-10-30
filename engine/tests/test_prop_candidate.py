@@ -46,6 +46,7 @@ def test_the_propeller_flown_changes_nothing(fleet: dict[str, Any]) -> None:
     assert c["at"]["share"] == pytest.approx(1.0) and c["at"]["share_from"] == "shaft"
     assert {"not_anchored", "drive_efficiency_equal"} <= set(c["notes"])
     assert got["motor"] is None and c["most"] is None
+    assert got["track"] == {"changes": 0, "flights": 0, "speed_error": None, "power_error": None}
     assert got["without_anchor"] == {
         "no ESC speed telemetry: the propeller's speed is not known": 2
     }
