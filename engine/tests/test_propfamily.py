@@ -137,9 +137,8 @@ def test_the_ratio_is_exact_when_the_theory_is_true() -> None:
 
 
 def test_the_same_propeller_at_another_weight() -> None:
-    prop = Prop(FAM, 22.0, 6.6)
-    fam = calibrate(RULES, FAM, [(prop, table(prop, noise=0.003)),
-                                 (Prop(FAM, 24.0, 8.0), table(Prop(FAM, 24.0, 8.0), seed=2))])  # fmt: skip
+    prop, other = Prop(FAM, 22.0, 6.6), Prop(FAM, 24.0, 8.0)
+    fam = calibrate(RULES, FAM, [(prop, table(prop, noise=0.003)), (other, table(other, seed=2))])
     w, _ = true_hover(prop, 40.0, 1.1, 0.95, 1.04)
     ct, cp = coefficients(TRUE, RULES, prop, w, 1.1)
     at = Operating(w, 0.95 * float(ct[0]), 1.04 * float(cp[0]), 1.1)
