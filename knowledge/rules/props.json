@@ -127,14 +127,18 @@
     "least_motors": 3
   },
   "candidate": {
-    "about": "A candidate propeller against the one flown (performance/candidate.py): the checks its predicted figures are held to. least_thrust_to_weight: the most thrust at the pack's lowest loaded voltage over the weight; most_tip_mach: the tip's Mach number in hover and at full throttle; least_clearance_mm: the gap between neighbouring propellers' tips, the arms taken evenly round the wheelbase; esc_margin_c: how far below the ESCs' temperature protection the hottest ESC's settled hover temperature stays. App values, uncalibrated.",
+    "about": "A candidate propeller against the one flown (performance/candidate.py): the checks its predicted figures are held to. least_thrust_to_weight: the most thrust at the pack's lowest loaded voltage over the weight; most_tip_mach: the tip's Mach number in hover and at full throttle; least_clearance_mm: the gap between neighbouring propellers' tips, the arms taken evenly round the wheelbase; esc_margin_c: how far below the ESCs' temperature protection the hottest ESC's settled hover temperature stays; most_response_share: how much slower than on the propeller flown the motors may answer a command (the response, time constant plus dead time, where a flight measured it); prop_inertia_share: a propeller's moment of inertia over its mass times its radius squared. App values, uncalibrated.",
     "least_thrust_to_weight": 1.6,
     "most_tip_mach": 0.7,
     "least_clearance_mm": 10.0,
     "esc_margin_c": 10.0,
+    "most_response_share": 1.5,
+    "prop_inertia_share": 0.2,
     "sources": [
       "Leishman, Principles of Helicopter Aerodynamics, 2nd ed., ch. 7: thin sections' drag rises steeply as the local Mach number nears 0.8, so the tip is kept well below it",
-      "The thrust-to-weight floor, the clearance and the ESC margin are the app's own starting values, to be set from the local validation and the airframe's flights"
+      "The thrust-to-weight floor, the clearance and the ESC margin are the app's own starting values, to be set from the local validation and the airframe's flights",
+      "Near hover a motor and propeller at a fixed duty are a first-order lag of time constant J/B: the spinning parts' inertia J over their damping B = 1/(Kv^2 R) (R the resistance's slope with current; Drela, 'QPROP Formulation', MIT Aero & Astro, 2006, for the motor model) plus the no-load current's slope over Kv and the propeller's 2Q/omega (its torque rising with the speed squared)",
+      "A blade of uniform section from hub to tip has a moment of inertia of m R^2 / 3; real blades taper in chord and thickness toward the tip, so their mass sits further in and the share is smaller: 0.2 is the app's starting value, and the response limit of 1.5 times the flown propeller's its own, both to be set from the heavy-lift airframe's tune flights"
     ]
   },
   "sources": [

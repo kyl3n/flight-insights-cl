@@ -18,6 +18,18 @@ choice", "What is predicted for a candidate"; rules in `knowledge/rules/props.js
   `MOT_BAT_CURR_MAX`.
 - **Clearance** between neighbouring propellers, the arms taken evenly round the
   wheelbase.
+- **The response:** how fast the motors answer a command, measured on the propeller
+  flown (`analyzers/motor_lag.py`: a time constant and a dead time) and changed for the
+  candidate. Near hover a motor and its propeller are a first-order lag whose time
+  constant is the spinning parts' inertia over their damping: the motor's electrical
+  damping 1/(Kv^2 R) (R the resistance's slope with current), the no-load current's
+  slope, and the propeller's 2Q/omega. The propeller's inertia is a share of its mass
+  times its radius squared (rules); its mass the setup's, or the candidate's, else the
+  flown one's scaled with the diameter cubed. With a motor model and the flown
+  propeller's mass, the measured time constant gives the whole inertia and so the
+  motor's rotor's share; without them the inertia is taken as all the propeller's, and
+  without a motor model the damping as unchanged (each said so). The dead time (the
+  ESC, its telemetry, the logging) stays as measured.
 - **The share:** the candidate's electrical hover power over the flown propeller's at
   the same weight, which scales the airframe's model's propulsion power for its range,
   endurance and speeds (as a candidate bench table does). Without a motor model, the
@@ -49,6 +61,16 @@ from flight_insights.performance.thermal import Thermal
 
 
 @dataclass(frozen=True)
+class Response:
+    """How fast the motors answered their commands on the propeller flown: the medians
+    over the motors of a flight's first-order lag with dead time."""
+
+    time_constant_s: float
+    dead_time_s: float
+    flight_id: str
+
+
+@dataclass(frozen=True)
 class Basis:
     """What a candidate is predicted against."""
 
@@ -66,6 +88,8 @@ class Basis:
     pack_limit_a: float | None = None  # the least of the pack's rating and MOT_BAT_CURR_MAX
     notch_low_hz: float | None = None  # the lowest frequency the harmonic notch sits at
     anchor: Mapping[str, Any] = field(default_factory=dict[str, Any])
+    response: Response | None = None  # the motors' answer measured on the propeller flown
+    prop_mass_g: float | None = None  # one flown propeller's, from the setup
 
 
 class CandidateError(ValueError):
@@ -105,6 +129,11 @@ def read(values: Mapping[str, Any], rules: Mapping[str, Any]) -> tuple[Prop, Mot
     return Prop(str(family), d, p, blades), from_datasheet(
         kv, ohm, _positive(m, "no_load_a", 500.0) or 0.0
     )
+
+
+def mass(values: Mapping[str, Any]) -> float | None:
+    """The candidate propeller's own mass, g, where the person gave it."""
+    return _positive(values, "mass_g", 10000.0)
 
 
 def notch_floor(params: Mapping[str, float]) -> float | None:
@@ -202,12 +231,80 @@ def clearance(basis: Basis, prop: Prop) -> float | None:
     return basis.wheelbase_mm * math.sin(math.pi / basis.arms) - prop.diameter_in * 25.4
 
 
+def _damping(point: Mapping[str, Any], motor: Motor | None) -> float | None:
+    """How much the torque on the spinning parts falls as their speed rises, at a fixed
+    duty, at a hover point (N m s): the motor's electrical damping, its no-load current's
+    slope and the propeller's 2Q/omega. None without a motor model."""
+    if motor is None or point.get("shaft_w") is None or point.get("motor_a") is None:
+        return None
+    omega = float(point["rpm"]) * RPM_TO_RAD
+    amps = float(point["motor_a"])
+    slope = motor.r0 + 3 * motor.r2 * amps**2  # the volts' rise with current
+    electric = 1 / (motor.k**2 * slope) + (motor.i01 + 2 * motor.i02 * omega) / motor.k
+    return electric + 2 * float(point["shaft_w"]) / omega**2
+
+
+def response(basis: Basis, rules: Mapping[str, Any], prop: Prop, motor: Motor | None,
+             point: Mapping[str, Any], flown: Mapping[str, Any],
+             mass_g: float | None = None) -> dict[str, Any] | None:  # fmt: skip
+    """The motors' response on `prop` (its hover `point`), changed from the one measured
+    on the propeller flown (its hover `flown` at the same thrust): the time constant
+    scaled by the inertia's change over the damping's, the dead time as measured. None
+    where no flight measured it."""
+    r = basis.response
+    if r is None:
+        return None
+    share = float(rules["candidate"]["prop_inertia_share"])
+    notes: list[str] = []
+    d_n, d_c = basis.flown.diameter_in, prop.diameter_in
+    m_n = basis.prop_mass_g
+    m_c: float | None = None
+    if m_n is not None:
+        m_c = mass_g if mass_g is not None else m_n * (d_c / d_n) ** 3
+        if mass_g is None and prop.key != basis.flown.key:
+            notes.append("mass_scaled")
+
+    def inertia(m_g: float, d_in: float) -> float:
+        return share * m_g / 1000.0 * (d_in * INCH / 2) ** 2
+
+    b_n, b_c = _damping(flown, basis.motor), _damping(point, motor)
+    whole = r.time_constant_s * b_n if b_n is not None else None
+    if whole is not None and m_n is not None and m_c is not None and whole > inertia(m_n, d_n):
+        # the measured inertia less the propeller's: the motor's rotor, the same on both
+        changed = (whole - inertia(m_n, d_n) + inertia(m_c, d_c)) / whole
+    else:
+        changed = (m_c / m_n if m_c is not None and m_n else (d_c / d_n) ** 3) * (d_c / d_n) ** 2
+        if prop.key != basis.flown.key:
+            notes.append("rotor_inertia_left_out")
+    if b_n is None or b_c is None:
+        damped = 1.0
+        if prop.key != basis.flown.key or motor is not basis.motor:
+            notes.append("damping_equal")
+    else:
+        damped = b_n / b_c
+    tc = r.time_constant_s * changed * damped
+    return {"time_constant_ms": 1000.0 * tc, "dead_time_ms": 1000.0 * r.dead_time_s,
+            "response_ms": 1000.0 * (tc + r.dead_time_s), "flight_id": r.flight_id,
+            "notes": notes}  # fmt: skip
+
+
 def assess(basis: Basis, rules: Mapping[str, Any], prop: Prop, motor: Motor | None,
-           mass_kg: float, density: float, duty: float) -> dict[str, Any]:  # fmt: skip
+           mass_kg: float, density: float, duty: float, mass_g: float | None = None,
+           flown: Mapping[str, Any] | None = None) -> dict[str, Any]:  # fmt: skip
     """One propeller on the aircraft at a weight: its hover, its most thrust (with a motor
-    model) and the checks against the rules' limits."""
+    model), its motors' response (where a flight measured it on the propeller flown,
+    whose hover at this weight is `flown` when already known) and the checks against the
+    rules' limits."""
     spec: Mapping[str, Any] = rules["candidate"]
-    point = _point(basis, rules, prop, motor, mass_kg * G / basis.motors, density)
+    thrust = mass_kg * G / basis.motors
+    point = _point(basis, rules, prop, motor, thrust, density)
+    answer = None
+    if basis.response is not None:
+        if prop.key == basis.flown.key and motor is basis.motor:
+            flown = point
+        elif flown is None:
+            flown = _point(basis, rules, basis.flown, basis.motor, thrust, density)
+        answer = response(basis, rules, prop, motor, point, flown, mass_g)
     most = most_thrust(basis, rules, prop, motor, density, duty) if motor else None
     if most is not None:
         most["thrust_to_weight"] = most["thrust_n"] * basis.motors / (mass_kg * G)
@@ -236,12 +333,16 @@ def assess(basis: Basis, rules: Mapping[str, Any], prop: Prop, motor: Motor | No
     if basis.notch_low_hz:
         hz = point["motor_hz"]
         check("notch", hz, basis.notch_low_hz, hz >= basis.notch_low_hz)
-    return {"point": point, "most": most, "checks": checks}
+    if answer is not None and basis.response is not None:
+        measured = 1000.0 * (basis.response.time_constant_s + basis.response.dead_time_s)
+        slowest = float(spec["most_response_share"]) * measured
+        check("response", answer["response_ms"], slowest, answer["response_ms"] <= slowest)
+    return {"point": point, "most": most, "checks": checks, "response": answer}
 
 
 def compare(basis: Basis, rules: Mapping[str, Any], candidate: Prop, motor: Motor | None,
-            masses: Sequence[float], mass_kg: float, density: float,
-            duty: float) -> dict[str, Any]:  # fmt: skip
+            masses: Sequence[float], mass_kg: float, density: float, duty: float,
+            mass_g: float | None = None) -> dict[str, Any]:  # fmt: skip
     """The candidate against the propeller flown: at each weight and at the one asked
     for, the most thrust, clearance and the checks against the rules' limits."""
     drive_n = motor or basis.motor
@@ -259,7 +360,8 @@ def compare(basis: Basis, rules: Mapping[str, Any], candidate: Prop, motor: Moto
                      _point(basis, rules, candidate, drive_n, thrust, density), kg)  # fmt: skip
 
     flown = assess(basis, rules, basis.flown, basis.motor, mass_kg, density, duty)
-    then = assess(basis, rules, candidate, drive_n, mass_kg, density, duty)
+    then = assess(basis, rules, candidate, drive_n, mass_kg, density, duty, mass_g,
+                  flown["point"])  # fmt: skip
     out: dict[str, Any] = {
         "flown_prop": asdict(basis.flown), "candidate_prop": asdict(candidate),
         "other_motor": motor is not None,
@@ -276,5 +378,7 @@ def compare(basis: Basis, rules: Mapping[str, Any], candidate: Prop, motor: Moto
     gaps = clearance(basis, basis.flown), clearance(basis, candidate)
     if gaps[0] is not None:
         out["clearance_mm"] = {"flown": gaps[0], "candidate": gaps[1]}
+    out["response"] = ({"flown": flown["response"], "candidate": then["response"]}
+                       if then["response"] is not None else None)  # fmt: skip
     out["checks"] = then["checks"]
     return out

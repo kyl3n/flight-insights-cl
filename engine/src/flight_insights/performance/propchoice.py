@@ -6,7 +6,7 @@ and "advice").
   flown diameter and the rules' steps either side, at each pitch over the rules'
   pitch-to-diameter range, each predicted against the propeller flown
   (`performance/candidate.py`). One that fails any check (thrust-to-weight, pack current,
-  tip Mach, clearance, ESC temperature, the notch) is not a choice.
+  tip Mach, clearance, ESC temperature, the notch, the motors' response) is not a choice.
 - **What it is searched for,** the setup's Priority: endurance and efficiency, the least
   electrical hover power at the weight (the shaft power's without a motor model); agility,
   the most thrust-to-weight at full throttle (needs a motor model). Stability asks for
@@ -83,14 +83,15 @@ def search(basis: Basis, rules: Mapping[str, Any], priority: str | None, mass_kg
     if objective is None:
         out["why"] = "the setup's Priority asks for no propeller change"
         return out
-    base, _ = _value(assess(basis, rules, basis.flown, basis.motor, mass_kg, density, duty),
-                     objective)  # fmt: skip
+    flown = assess(basis, rules, basis.flown, basis.motor, mass_kg, density, duty)
+    base, _ = _value(flown, objective)
     if base is None:
         out["why"] = "a motor model is needed for the most thrust"
         return out
     options: list[Option] = []
     for prop in candidates(basis.flown, rules):
-        got = assess(basis, rules, prop, basis.motor, mass_kg, density, duty)
+        got = assess(basis, rules, prop, basis.motor, mass_kg, density, duty, None,
+                     flown["point"])  # fmt: skip
         value, spread = _value(got, objective)
         if value is None:
             continue

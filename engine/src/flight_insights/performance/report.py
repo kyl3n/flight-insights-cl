@@ -813,6 +813,23 @@ def _track(store: Store, airframe_id: str, i: Inputs, props: Mapping[str, Any],
     return {"changes": graded, "record": propgrade.record(graded)}
 
 
+def _response(store: Store, i: Inputs, props: Mapping[str, Any],
+              flown: propfamily.Prop) -> cand.Response | None:  # fmt: skip
+    """The motors' response measured on the propeller flown: the latest flight on it whose
+    analysis timed its motors, the medians over its motors."""
+    for f in reversed(i.flights):
+        row = store.get("flight", f.id) if f.run_id else None
+        got = _evidence(store, f.run_id, "motors:response") if f.run_id else None
+        if row is None or not got or not got.get("time_constant_ms"):
+            continue
+        prop = propfamily.flown(props, build_answers(store, row["build_version_id"]))
+        if prop is None or prop.key != flown.key:
+            continue
+        return cand.Response(float(np.median(got["time_constant_ms"])) / 1000.0,
+                             float(np.median(got["dead_time_ms"])) / 1000.0, f.id)  # fmt: skip
+    return None
+
+
 def _candidate_basis(store: Store, airframe_id: str, i: Inputs, rules: Mapping[str, Any],
                      props: Mapping[str, Any], flown: propfamily.Prop,
                      mass: float) -> tuple[cand.Basis, tuple[Any, str] | None]:  # fmt: skip
@@ -836,6 +853,8 @@ def _candidate_basis(store: Store, airframe_id: str, i: Inputs, rules: Mapping[s
         wheelbase_mm=_number(i.answers, "wheelbase_mm"), thermals=tuple(i.thermals),
         esc_limit_c=i.esc_limit_c, pack_limit_a=min(limits) if limits else None,
         notch_low_hz=cand.notch_floor(i.params), anchor=about,
+        response=_response(store, i, props, flown),
+        prop_mass_g=_number(i.answers, "prop_mass_g"),
     )  # fmt: skip
     return basis, drive
 
@@ -921,6 +940,7 @@ def prop_candidate(store: Store, cache: ColumnCache, pack: KnowledgePack, airfra
     rules: Mapping[str, Any] = reg.rules["performance"]
     props: Mapping[str, Any] = reg.rules["props"]
     prop, other = cand.read(values, props)
+    mass_g = cand.mass(values)
     i = gather(store, cache, pack, airframe_id)
     out: dict[str, Any] = {"airframe_id": airframe_id, "missing": dict(i.missing)}
     flown = propfamily.flown(props, i.answers)
@@ -937,7 +957,7 @@ def prop_candidate(store: Store, cache: ColumnCache, pack: KnowledgePack, airfra
                                              int(rules["projections"]["weight_steps"]))]
               if i.empty_kg is not None and i.max_kg is not None else [mass])  # fmt: skip
     got = cand.compare(basis, props, prop, other, masses, mass, density,
-                       float(rules["motor"]["full_duty"]))  # fmt: skip
+                       float(rules["motor"]["full_duty"]), mass_g)  # fmt: skip
     why: dict[str, int] = {}
     for f in i.model.flights:
         if f.anchor is None and f.anchor_why:
