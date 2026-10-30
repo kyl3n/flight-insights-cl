@@ -60,7 +60,7 @@ from flight_insights.analyzers.flight import FlightError
 from flight_insights.analyzers.motors_health import motors
 from flight_insights.knowledge import Pack as KnowledgePack
 from flight_insights.performance import airframe as perf
-from flight_insights.performance import bench, packs
+from flight_insights.performance import bench, packs, propfamily
 from flight_insights.performance.battery import Failsafe, Pack, Usable, chemistry
 from flight_insights.performance.efficiency import over_time
 from flight_insights.performance.envelope import Fast, verified
@@ -389,8 +389,8 @@ def _measured(i: Inputs, tables: list[bench.Bench], rules: Mapping[str, Any]) ->
 
 
 def _builds(store: Store, airframe_id: str, i: Inputs, model: Model,
-            rules: Mapping[str, Any], mass: float, density: float, top: float,
-            f: Any) -> dict[str, Any]:  # fmt: skip
+            rules: Mapping[str, Any], props: Mapping[str, Any], mass: float, density: float,
+            top: float, f: Any) -> dict[str, Any]:  # fmt: skip
     """The platform's current parts against its candidate set, from the bench tables a
     person entered: the tables, the flown hover power against the current table, and
     the candidate's figures, power curve and range against weight beside the flown
@@ -411,6 +411,9 @@ def _builds(store: Store, airframe_id: str, i: Inputs, model: Model,
         return kg * 1000.0 / i.motors
 
     out["measured"] = _measured(i, tables, rules)
+    prop = propfamily.flown(props, i.answers)
+    out["prop"] = None if prop is None else asdict(prop)
+    out["families"] = [fam.view() for fam in propfamily.from_tables(props, tables).values()]
     if current is not None:
         # flown hover power per motor against the bench at the same thrust
         flown = float(model.power(mass * G, 0.0, 0.0, density, rules)[()]) - model.avionics
@@ -654,7 +657,8 @@ def report(store: Store, cache: ColumnCache, pack: KnowledgePack, airframe_id: s
     }
     out["ends"] = {k: curve.stopped(v) for k, v in loads.items()}
     out["battery"] = _battery(store, reg, airframe_id, i.flights, curve, loads)
-    out["builds"] = _builds(store, airframe_id, i, model, rules, mass, density, top, f)
+    out["builds"] = _builds(store, airframe_id, i, model, rules, reg.rules["props"], mass,
+                            density, top, f)  # fmt: skip
     out["density"] = _density(model, rules, i, mass, top)
     out["data"] = _data(i.model, rules)
     out["over_time"] = _over_time(store, airframe_id, i, model, rules, mass, f.range_ms)

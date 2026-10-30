@@ -258,6 +258,7 @@ pub const UI_METHODS: &[&str] = &[
     "airframe.teams",
     "bench.list",
     "bench.save",
+    "bench.families",
     "station.schema",
     "station.create",
     "station.list",

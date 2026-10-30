@@ -8,11 +8,12 @@ from __future__ import annotations
 
 import math
 import uuid
-from collections.abc import Callable
+from collections.abc import Callable, Mapping
 from typing import TYPE_CHECKING, Any, cast
 
 import pyarrow as pa
 
+from flight_insights.analyzers import Registry
 from flight_insights.performance import airframe as perf
 from flight_insights.performance import bench
 from flight_insights.performance import report as perf_report
@@ -155,6 +156,15 @@ def add_performance_methods(server: Server, state: EngineState,
     def bench_list(_ctx: Context, params: dict[str, Any]) -> list[dict[str, Any]]:
         return [b.view() for b in bench.benches(state.require_store(), _platform(params))]
 
+    def _props() -> Mapping[str, Any]:
+        return Registry.load(state.pack).rules["props"]
+
+    @server.method("bench.families")
+    @guarded
+    def bench_families(_ctx: Context, _params: dict[str, Any]) -> list[dict[str, Any]]:
+        """The propeller families a table's propeller can belong to, with their names."""
+        return [{"id": f["id"], "label": f["label"]} for f in _props()["families"]]
+
     @server.method("bench.save")
     @guarded
     def bench_save(_ctx: Context, params: dict[str, Any]) -> dict[str, Any]:
@@ -168,7 +178,8 @@ def add_performance_methods(server: Server, state: EngineState,
             raise RpcError(INVALID_PARAMS, "version must be the table's version as read")
         try:
             got = bench.save(state.require_store(), _platform(params),
-                             cast(dict[str, Any], values), bench_id, version)  # fmt: skip
+                             cast(dict[str, Any], values), bench_id, version,
+                             [f["id"] for f in _props()["families"]])  # fmt: skip
         except bench.BenchError as e:
             raise RpcError(BAD_INPUT, str(e)) from None
         return got.view()
