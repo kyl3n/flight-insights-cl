@@ -1,0 +1,112 @@
+{
+  "about": "Propeller families (performance/propfamily.py): blade-element momentum theory for a fixed-pitch propeller in hover, its parameters calibrated per family on the makers' tables people entered, and a candidate predicted as a change from the propeller the aircraft flies. The theory runs at `stations` radial stations from `root_cutout` to the tip, with Prandtl's tip loss over `tip_loss_rounds` rounds, the lift slope raised for compressibility up to `mach_limit`, and the profile drag cd0 (Re / re_reference)^-re_exponent + cd2 alpha^2. `parameters` are each family's starting values and their spreads (literature values, uncalibrated); calibration draws each to its starting value. Each propeller's own departure from its family's theory is a pair of offsets (its thrust coefficient's, and its power at the same thrust's), whose spread between propellers starts at `offset_spread` with the weight of `offset_strength` propellers and is then measured. `noise_floor` is the least step-to-step scatter a table is taken to have. `installation_spread` is how much the aircraft's own losses (arms, frame, the coaxial partner) may differ between two propellers; `unanchored_spread` the uncertainty of a prediction with no hover measured on the aircraft to anchor it. All uncalibrated until the local validation (spec: 'Propeller and motor choice', 'Validation before advice is given').",
+  "calibrated": false,
+  "stations": 40,
+  "root_cutout": 0.15,
+  "tip_loss": true,
+  "tip_loss_rounds": 12,
+  "air_viscosity": 1.81e-05,
+  "sound_speed": 340.3,
+  "mach_limit": 0.9,
+  "re_reference": 100000.0,
+  "iterations": 100,
+  "outer_rounds": 6,
+  "hover_rounds": 12,
+  "noise_floor": 0.005,
+  "offset_spread": {
+    "thrust": 0.04,
+    "power": 0.04
+  },
+  "offset_strength": 2.0,
+  "installation_spread": {
+    "thrust": 0.02,
+    "power": 0.02
+  },
+  "unanchored_spread": {
+    "thrust": 0.06,
+    "power": 0.08
+  },
+  "parameters": {
+    "lift_slope": {
+      "mean": 5.7,
+      "spread": 0.8,
+      "least": 1.0
+    },
+    "zero_lift_deg": {
+      "mean": -3.0,
+      "spread": 2.0,
+      "least": -15.0
+    },
+    "cd0": {
+      "mean": 0.015,
+      "spread": 0.006,
+      "least": 0.001
+    },
+    "cd2": {
+      "mean": 0.6,
+      "spread": 0.4,
+      "least": 0.0
+    },
+    "re_exponent": {
+      "mean": 0.3,
+      "spread": 0.2,
+      "least": 0.0
+    }
+  },
+  "chord_shape": [
+    [0.15, 0.95],
+    [0.3, 1.2],
+    [0.5, 1.15],
+    [0.75, 1.0],
+    [0.9, 0.75],
+    [1.0, 0.45]
+  ],
+  "families": [
+    {
+      "id": "tmotor_p",
+      "label": {
+        "en": "T-Motor P series (polished carbon)",
+        "uk": "T-Motor серії P (полірований карбон)"
+      },
+      "chord_75": 0.13
+    },
+    {
+      "id": "tmotor_g",
+      "label": {
+        "en": "T-Motor G series (glossy carbon)",
+        "uk": "T-Motor серії G (глянцевий карбон)"
+      },
+      "chord_75": 0.13
+    },
+    {
+      "id": "tmotor_ns",
+      "label": {
+        "en": "T-Motor NS series (carbon)",
+        "uk": "T-Motor серії NS (карбон)"
+      },
+      "chord_75": 0.13
+    },
+    {
+      "id": "tmotor_mf",
+      "label": {
+        "en": "T-Motor MF series (folding)",
+        "uk": "T-Motor серії MF (складані)"
+      },
+      "chord_75": 0.12
+    },
+    {
+      "id": "carbon",
+      "label": {
+        "en": "Other carbon-fibre propellers",
+        "uk": "Інші карбонові пропелери"
+      },
+      "chord_75": 0.13
+    }
+  ],
+  "default_family": "carbon",
+  "sources": [
+    "Leishman, Principles of Helicopter Aerodynamics, 2nd ed., Cambridge University Press, 2006, ch. 3.3-3.6: blade-element momentum theory in hover, the inflow at each station lambda = (sigma a / 16 F)(sqrt(1 + 32 F theta r / (sigma a)) - 1), Prandtl's tip loss F = (2/pi) arccos(exp(-(N_b/2)(1 - r)/lambda)), dC_T = (1/2) sigma C_l r^2 dr and dC_P = lambda dC_T + (1/2) sigma C_d r^3 dr; ch. 7: the Prandtl-Glauert rise of the lift slope with Mach number and a drag polar C_d = d0 + d1 alpha + d2 alpha^2",
+    "Leishman, ch. 2.2: rotor coefficients on the tip speed relate to a propeller's on its revolutions a second, C_T(prop) = (pi^3/4) C_T(rotor) and C_P(prop) = (pi^4/4) C_P(rotor)",
+    "Starting values: a 2-D lift slope near 2 pi falling at low Reynolds number and finite aspect ratio (Leishman ch. 7), a cambered section's zero-lift angle of a few degrees, and a profile drag of 0.01-0.02 at a Reynolds number of 1e5 falling with it; the app's own, uncalibrated, and drawn weakly so the makers' tables decide"
+  ]
+}
