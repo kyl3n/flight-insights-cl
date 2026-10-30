@@ -17,6 +17,7 @@ from flight_insights.analyzers import Registry
 from flight_insights.performance import airframe as perf
 from flight_insights.performance import bench
 from flight_insights.performance import report as perf_report
+from flight_insights.performance.candidate import CandidateError
 from flight_insights.performance.fit import NAMES
 from flight_insights.rpc.server import BAD_INPUT, INVALID_PARAMS, Context, RpcError, Server
 
@@ -131,6 +132,32 @@ def add_performance_methods(server: Server, state: EngineState,
                                      None if kg is None else float(kg), air, trip,
                                      float(wind))  # fmt: skip
         except perf.PerformanceError as e:
+            raise RpcError(BAD_INPUT, str(e)) from None
+        ctx.progress(1.0, "done")
+        return out
+
+    @server.method("airframe.prop_candidate")
+    @guarded
+    def prop_candidate(ctx: Context, params: dict[str, Any]) -> dict[str, Any]:
+        """A candidate propeller, and optionally another motor, against the one flown."""
+        store, cache = state.require_store(), state.cache
+        assert cache is not None
+        values = params.get("candidate")
+        if not isinstance(values, dict):
+            raise RpcError(INVALID_PARAMS, "candidate must be an object")
+        kg = params.get("mass_kg")
+        if kg is not None and (isinstance(kg, bool) or not isinstance(kg, int | float)
+                               or not math.isfinite(kg) or not 0 < kg <= 1000):  # fmt: skip
+            raise RpcError(INVALID_PARAMS, "mass_kg must be a weight above 0 kg")
+        air = params.get("air", "usual")
+        if air not in ("usual", "standard"):
+            raise RpcError(INVALID_PARAMS, "air must be 'usual' or 'standard'")
+        ctx.progress(0.0, "predicting the candidate")
+        try:
+            out = perf_report.prop_candidate(store, cache, state.pack, _airframe(params),
+                                             cast(dict[str, Any], values),
+                                             None if kg is None else float(kg), air)  # fmt: skip
+        except (perf.PerformanceError, CandidateError) as e:
             raise RpcError(BAD_INPUT, str(e)) from None
         ctx.progress(1.0, "done")
         return out
