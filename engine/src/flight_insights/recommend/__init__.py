@@ -101,6 +101,13 @@ def flight_plan(
                 limits[name] = max(value, limits.get(name, value))
         findings += charge.charge_findings(ctx, store, reg, params, analysis)
         findings += efficiency.anomaly(ctx.flight_id, ctx.inputs.model, ctx.rules, analysis)
+        # a propeller the Priority favours: none until the local validation allows advice
+        row = store.get("flight", flight_id)
+        if row is not None and row["airframe_id"]:
+            from flight_insights.performance.report import prop_findings
+
+            findings += prop_findings(store, reg, ctx.inputs, str(row["airframe_id"]), flight_id,
+                                      ctx.mass_kg, ctx.density, [advice.EVIDENCE])  # fmt: skip
     # each pack's capacity as its flights measured it, over the setup's rated capacity
     found, measured = packs.capacity_findings(store, reg, flight_id, params, analysis)
     findings += found + packs.aged_findings(store, reg, flight_id, analysis)

@@ -1,6 +1,17 @@
 {
   "about": "Findings the recommendation engine raises from the airframe's power model (performance/advice.py; spec: Power and efficiency analysis, 'Range, endurance and speed', 'Recommendations'), not from one log's data alone. Each rests on the flight's own energy (energy:flight) and is low confidence until the model is checked against the airframe's own flights to reserve.",
   "findings": {
+    "performance.prop_choice": {
+      "stage": "mechanical",
+      "title": {
+        "en": "A {best} propeller of the same family is predicted to be {gain_pct}% better for the setup's Priority than the {flown} flown, at {mass_kg} kg",
+        "uk": "Пропелер {best} того самого сімейства, за прогнозом, на {gain_pct}% кращий для пріоритету з налаштувань, ніж встановлений {flown}, при {mass_kg} кг"
+      },
+      "action": {
+        "en": "Predicted (theory), not measured: confirm it before buying a set. Bench-test a {best} on the same motor, or fit one set and fly a steady 60 s hover at {mass_kg} kg with ESC telemetry logging; the app grades the prediction from that flight. It rests on this aircraft's measured hover and the family's tables, and is advised only because its gain is more than twice the validated error. The app never changes the aircraft.",
+        "uk": "Прогноз (теорія), не вимірювання: перевірте його, перш ніж купувати комплект. Випробуйте {best} на стенді з тим самим мотором або встановіть один комплект і виконайте рівне зависання на 60 с при {mass_kg} кг із записом телеметрії ESC; застосунок оцінить прогноз за цим польотом. Він спирається на виміряне зависання цього апарата й таблиці сімейства і радиться лише тому, що виграш більш ніж удвічі перевищує перевірену похибку. Застосунок ніколи не змінює апарат."
+      }
+    },
     "performance.cruise_speed": {
       "stage": "navigation",
       "title": {

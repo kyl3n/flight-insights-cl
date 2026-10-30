@@ -1549,6 +1549,38 @@
         }
       ]
     },
+    "performance.prop_choice": {
+      "steps": [
+        {
+          "kind": "hardware",
+          "text": {
+            "en": "Fit the suggested propellers of the same family on every motor, each turning the way its motor does, balanced and tightened as the maker says. With the arms in flight position, check every tip clears its neighbours and the frame.",
+            "uk": "Встановіть запропоновані пропелери того самого сімейства на всі мотори, кожен за напрямком обертання свого мотора, збалансовані й затягнуті, як радить виробник. З променями в польотному положенні перевірте, що кожен кінчик не дістає сусідніх і рами."
+          }
+        },
+        {
+          "kind": "ground_check",
+          "text": {
+            "en": "With the propellers off, check the motor test spins each motor the right way. A bigger or coarser propeller turns slower in hover: if a harmonic notch follows the motors, check its lowest frequency (INS_HNTCH_FREQ) is below the new hover speed the app predicts.",
+            "uk": "Зі знятими пропелерами перевірте тестом моторів, що кожен обертається в правильний бік. Більший або крокастіший пропелер у зависанні обертається повільніше: якщо гармонічний режекторний фільтр стежить за моторами, перевірте, що його найнижча частота (INS_HNTCH_FREQ) нижча за нову швидкість зависання, яку прогнозує застосунок."
+          }
+        },
+        {
+          "kind": "fly",
+          "text": {
+            "en": "In calm air, take off at the weight the suggestion was made for and hover hands-off for at least 60 s with ESC telemetry logging, then fly a short normal flight and land.",
+            "uk": "У тиху погоду злетіть із вагою, для якої зроблено пропозицію, і зависніть без стіків щонайменше на 60 с із записом телеметрії ESC, потім виконайте короткий звичайний політ і сідайте."
+          }
+        },
+        {
+          "kind": "abort",
+          "text": {
+            "en": "Land and refit the old propellers if the aircraft oscillates, a motor or ESC runs hot, a thrust-loss warning shows, or it needs more than about 70% throttle to hover.",
+            "uk": "Сідайте й поверніть старі пропелери, якщо апарат розгойдується, мотор чи ESC перегріваються, з'являється попередження про втрату тяги або для зависання потрібно більше приблизно 70% газу."
+          }
+        }
+      ]
+    },
     "speed.build_up_step": {
       "graded_by": "checks",
       "add_temporary": [
