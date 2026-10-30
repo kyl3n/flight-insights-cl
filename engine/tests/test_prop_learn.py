@@ -6,6 +6,7 @@ calibrate the family together; grading an airframe's own change leaves its fligh
 
 from __future__ import annotations
 
+import json
 from dataclasses import replace
 from typing import Any
 
@@ -16,16 +17,23 @@ from test_perf_store import PACK, airframe
 from flight_insights.analyzers import Registry
 from flight_insights.analyzers.flight import build_answers
 from flight_insights.performance import airframe as perf
+from flight_insights.performance import report
+from flight_insights.performance.candidate import Response
 from flight_insights.performance.points import FlightPoints
 from flight_insights.performance.propeller import INCH, Anchor
 from flight_insights.performance.propfamily import Prop, coefficients, starting
-from flight_insights.performance.report import Inputs, _families, _installed, _track, gather  # pyright: ignore[reportPrivateUsage]
+from flight_insights.performance.report import Inputs, gather
 from flight_insights.platforms.records import create_airframe, record_change
 from flight_insights.platforms.schema import load_schema
 from flight_insights.store.cache import ColumnCache
 from flight_insights.store.db import Store, open_store
 from flight_insights.store.keys import StoreKeys
+from flight_insights.trends import Flight
 
+_families = report._families  # pyright: ignore[reportPrivateUsage]
+_installed = report._installed  # pyright: ignore[reportPrivateUsage]
+_response = report._response  # pyright: ignore[reportPrivateUsage]
+_track = report._track  # pyright: ignore[reportPrivateUsage]
 REG = Registry.load(PACK)
 PROPS: dict[str, Any] = dict(REG.rules["props"])
 PERF: dict[str, Any] = dict(REG.rules["performance"])
@@ -122,3 +130,25 @@ def test_a_kept_model_an_older_engine_wrote_is_passed_over(fleet: dict[str, Any]
         with store.transaction() as conn:
             conn.execute("UPDATE performance_fit SET model_json = ? WHERE airframe_id = ?",
                          (old, twin))  # fmt: skip
+
+
+def test_the_response_measured_on_the_propeller_flown(fleet: dict[str, Any]) -> None:
+    store, i = fleet["store"], fleet["i"]
+    own = [f.flight_id for f in i.model.flights]  # 30x10, 30x10, then 28x9, 28x9
+    runs: dict[str, str] = {}
+    for n, fid in enumerate(own):
+        timed = {"id": "motors:response", "values": {"time_constant_ms": [20.0 + n, 22.0 + n],
+                                                     "dead_time_ms": [8.0, 9.0]}}  # fmt: skip
+        with store.transaction():
+            runs[fid] = store.insert("analysis_run", {
+                "flight_id": fid, "engine_version": "t", "knowledge_version": "t",
+                "analyzers_json": "[]", "status": "complete",
+                "evidence_json": json.dumps([timed]),
+            })  # fmt: skip
+    j = replace(i, flights=[Flight(fid, None, "", None, None, runs[fid], True) for fid in own])
+    # the latest flight on each propeller, its motors' medians
+    assert _response(store, j, PROPS, Prop("carbon", 28.0, 9.0)) == Response(0.024, 0.0085,
+                                                                              own[3])  # fmt: skip
+    assert _response(store, j, PROPS, Prop("carbon", 30.0, 10.0)) == Response(0.022, 0.0085,
+                                                                              own[1])  # fmt: skip
+    assert _response(store, j, PROPS, Prop("carbon", 32.0, 11.0)) is None

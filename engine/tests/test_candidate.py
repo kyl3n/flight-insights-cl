@@ -15,7 +15,15 @@ import numpy as np
 import pytest
 from test_propfamily import RULES, TRUE
 
-from flight_insights.performance.candidate import Basis, choose_anchor, compare, most_thrust
+from flight_insights.performance.candidate import (
+    Basis,
+    CandidateError,
+    Response,
+    choose_anchor,
+    compare,
+    mass,
+    most_thrust,
+)
 from flight_insights.performance.motor import RPM_TO_RAD, Motor
 from flight_insights.performance.propeller import INCH, Anchor, G
 from flight_insights.performance.propfamily import (
@@ -172,3 +180,66 @@ def test_the_anchor_chosen() -> None:
     # without a motor model no anchor has the shaft power: the nearest one serves
     _, about = choose_anchor(flights, 22.0, None, 20.0 * G / 4) or (None, {})
     assert about["flight_id"] == "packs"
+
+
+MEASURED = Response(0.030, 0.010, "f1")  # 30 ms time constant, 10 ms dead time
+BIG = Prop(FAM, 24.0, 7.2)
+
+
+def damping(point: dict[str, Any]) -> float:
+    """By hand: the motor's 1/(Kv^2 R) (no r2, no speed-dependent no-load current) and the
+    propeller's 2Q/omega."""
+    omega = point["rpm"] * RPM_TO_RAD
+    return 1 / (MOTOR.k**2 * MOTOR.r0) + 2 * point["shaft_w"] / omega**2
+
+
+def test_the_response_scales_with_inertia_over_damping() -> None:
+    b = basis(response=MEASURED, prop_mass_g=60.0)
+    same = compare(b, RULES, FLOWN, None, [MASS], MASS, RHO, DUTY)["response"]
+    assert same["flown"] == same["candidate"]
+    assert (
+        same["candidate"]["response_ms"] == pytest.approx(40.0) and same["candidate"]["notes"] == []
+    )
+    got = compare(b, RULES, BIG, None, [MASS], MASS, RHO, DUTY)
+    r = got["response"]["candidate"]
+    # the measured time constant times the damping gives the whole inertia; the rotor is
+    # what the propeller's share leaves, the same under the bigger propeller
+    share = RULES["candidate"]["prop_inertia_share"]
+
+    def prop_j(grams: float, d_in: float) -> float:
+        return share * grams / 1000 * (d_in * INCH / 2) ** 2
+
+    b_n, b_c = damping(got["at"]["flown"]), damping(got["at"]["candidate"])
+    whole = 0.030 * b_n
+    big_g = 60.0 * (24 / 22) ** 3  # the flown mass scaled with the diameter cubed
+    want = (whole - prop_j(60.0, 22.0) + prop_j(big_g, 24.0)) / b_c
+    assert r["time_constant_ms"] == pytest.approx(1000 * want, rel=1e-9)
+    assert r["dead_time_ms"] == pytest.approx(10.0) and r["notes"] == ["mass_scaled"]
+    assert r["response_ms"] > 40.0 and r["flight_id"] == "f1"
+    # its own mass given: lighter blades answer sooner, and nothing is scaled
+    light = compare(b, RULES, BIG, None, [MASS], MASS, RHO, DUTY, mass_g=50.0)
+    assert light["response"]["candidate"]["response_ms"] < r["response_ms"]
+    assert light["response"]["candidate"]["notes"] == []
+    assert all(c["ok"] for c in got["checks"] if c["check"] == "response")
+    # far heavier blades: slower than the rules allow
+    heavy = compare(b, RULES, BIG, None, [MASS], MASS, RHO, DUTY, mass_g=400.0)
+    [check] = [c for c in heavy["checks"] if c["check"] == "response"]
+    assert not check["ok"] and check["limit"] == pytest.approx(1.5 * 40.0)
+
+
+def test_the_response_without_a_motor_model_or_masses() -> None:
+    # the inertia all the propeller's, its mass with the diameter cubed; the damping kept
+    b = basis(response=MEASURED, motor=None)
+    r = compare(b, RULES, BIG, None, [MASS], MASS, RHO, DUTY)["response"]["candidate"]
+    assert r["time_constant_ms"] == pytest.approx(30.0 * (24 / 22) ** 5)
+    assert set(r["notes"]) == {"rotor_inertia_left_out", "damping_equal"}
+    # nothing measured on the aircraft: no response, and no check of it
+    got = compare(basis(), RULES, BIG, None, [MASS], MASS, RHO, DUTY)
+    assert got["response"] is None and all(c["check"] != "response" for c in got["checks"])
+
+
+def test_a_candidates_mass() -> None:
+    assert mass({"mass_g": 52}) == 52.0 and mass({}) is None and mass({"mass_g": None}) is None
+    for bad in (0, -5, "heavy", True, 20000):
+        with pytest.raises(CandidateError, match="mass_g"):
+            mass({"mass_g": bad})

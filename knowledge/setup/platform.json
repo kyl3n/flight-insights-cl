@@ -510,6 +510,20 @@
      }
     },
     {
+     "id": "prop_mass_g",
+     "label": {
+      "en": "Mass of one propeller",
+      "uk": "Маса одного пропелера"
+     },
+     "type": "number",
+     "required": false,
+     "why": {
+      "en": "Its inertia, to predict how fast another propeller would answer the motors' commands",
+      "uk": "Його інерція, щоб передбачити, як швидко інший пропелер відповідатиме на команди моторів"
+     },
+     "unit": "g"
+    },
+    {
      "id": "esc_model",
      "label": {
       "en": "ESC model",

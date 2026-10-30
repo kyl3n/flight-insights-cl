@@ -79,7 +79,22 @@
         "params.motor_scaling_cells"
       ]
     },
-    "power_monitoring": {
+    "propellers_motors": {
+   "title": {
+    "en": "Propellers and motors",
+    "uk": "Пропелери та мотори"
+   },
+   "options": [],
+   "also": [
+    "performance.prop_choice",
+    "motor_out.short",
+    "motor_out.no_balance",
+    "motors.saturation",
+    "motors.output_spread",
+    "performance.energy_hover"
+   ]
+  },
+  "power_monitoring": {
       "title": {
         "en": "Power monitoring and the board's supply",
         "uk": "Моніторинг живлення та живлення плати"
