@@ -111,10 +111,12 @@
     "pitch_steps": 10
   },
   "advice": {
-    "about": "Whether the finding performance.prop_choice is raised (spec: 'Propeller and motor choice', 'Validation before advice is given'): off until the local validation (tools/props/validate.py) has met its targets; validated_error is then the hover power's measured error at the 90th percentile, as a share, and a choice is advised only when its predicted gain is more than gain_over_error times it.",
+    "about": "Whether the finding performance.prop_choice is raised (spec: 'Propeller and motor choice', 'Validation before advice is given'): off until the local validation (tools/props/validate.py) has met its targets; validated_error is then the hover power's measured error at the 90th percentile, as a share, and a choice is advised only when its predicted gain is more than gain_over_error times it. The validation counts only with at least least_pairs pairs of propellers on at least least_motors motors.",
     "enabled": false,
     "validated_error": null,
-    "gain_over_error": 2.0
+    "gain_over_error": 2.0,
+    "least_pairs": 10,
+    "least_motors": 3
   },
   "candidate": {
     "about": "A candidate propeller against the one flown (performance/candidate.py): the checks its predicted figures are held to. least_thrust_to_weight: the most thrust at the pack's lowest loaded voltage over the weight; most_tip_mach: the tip's Mach number in hover and at full throttle; least_clearance_mm: the gap between neighbouring propellers' tips, the arms taken evenly round the wheelbase; esc_margin_c: how far below the ESCs' temperature protection the hottest ESC's settled hover temperature stays. App values, uncalibrated.",
