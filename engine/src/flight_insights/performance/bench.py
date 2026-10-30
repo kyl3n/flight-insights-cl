@@ -2,7 +2,9 @@
 "Range, endurance and speed", "What the user gets"; the mock-up's "Build against build").
 
 A bench table is a maker's test of one motor with one prop at one voltage: thrust and
-electrical power at each throttle step. A person enters them for a platform, marking one
+electrical power at each throttle step, and where the maker prints them, each step's
+speed, torque, current and voltage, which the propeller and motor model reads (spec:
+"Propeller and motor choice"). A person enters them for a platform, marking one
 set as the parts it flies (`current`) and one as the parts it may fly (`candidate`); the
 app never fetches or invents them.
 
@@ -62,6 +64,24 @@ class Row:
     throttle_pct: float
     thrust_g: float
     power_w: float
+    rpm: float | None = None
+    torque_nm: float | None = None
+    current_a: float | None = None
+    volts: float | None = None
+
+    def view(self) -> dict[str, float]:
+        """The step's values, leaving out the columns the maker did not print."""
+        return {k: v for k, v in self.__dict__.items() if v is not None}
+
+    @property
+    def shaft_w(self) -> float | None:
+        """The power the motor gives the prop, where the table has speed and torque."""
+        if self.rpm is None or self.torque_nm is None:
+            return None
+        return self.torque_nm * self.rpm * 2 * math.pi / 60
+
+
+EXTRA = ("rpm", "torque_nm", "current_a", "volts")  # the columns a maker may also print
 
 
 @dataclass(frozen=True)
@@ -116,25 +136,41 @@ class Bench:
             "motor": self.motor, "kv": self.kv, "prop_diameter_in": self.prop_diameter_in,
             "prop_pitch_in": self.prop_pitch_in, "volts": self.volts,
             "motor_mass_g": self.motor_mass_g, "source": self.source, "ambient_c": self.ambient_c,
-            "rows": [{"throttle_pct": r.throttle_pct, "thrust_g": r.thrust_g,
-                      "power_w": r.power_w} for r in self.rows],
+            "rows": [r.view() for r in self.rows],
             "max_thrust_g": self.max_thrust_g, "full_throttle": self.full_throttle,
         }  # fmt: skip
 
 
+def _row(r: Mapping[str, Any]) -> Row:
+    extra: dict[str, float | None] = {}
+    for key in EXTRA:
+        v = r.get(key)
+        extra[key] = None if v is None or v == "" else float(v)
+    return Row(float(r["throttle_pct"]), float(r["thrust_g"]), float(r["power_w"]), **extra)
+
+
 def check_rows(rows: Sequence[Mapping[str, Any]]) -> tuple[Row, ...]:
     """A table's steps, checked: at least three, throttle within 0-100 %, thrust and
-    power positive, and both rising with throttle."""
+    power positive, and both rising with throttle. A step's speed, torque, current and
+    voltage, where given, are above zero, and the shaft power its speed and torque make
+    stays below the electrical power it draws (no motor gives more than it takes)."""
     out: list[Row] = []
     for i, r in enumerate(rows):
         try:
-            row = Row(float(r["throttle_pct"]), float(r["thrust_g"]), float(r["power_w"]))
+            row = _row(r)
         except (KeyError, TypeError, ValueError):
             raise BenchError(f"step {i + 1} needs throttle %, thrust in g and power in W") from None
         if not 0 < row.throttle_pct <= 100:
             raise BenchError(f"step {i + 1}: throttle is a percentage, above 0 and up to 100")
         if row.thrust_g <= 0 or row.power_w <= 0:
             raise BenchError(f"step {i + 1}: thrust and power are above zero")
+        if any(v is not None and v <= 0 for v in (row.rpm, row.torque_nm, row.current_a,
+                                                 row.volts)):  # fmt: skip
+            raise BenchError(f"step {i + 1}: speed, torque, current and voltage are above zero")
+        shaft = row.shaft_w
+        if shaft is not None and shaft >= row.power_w:
+            raise BenchError(f"step {i + 1}: torque times speed is more than the power drawn; "
+                             "check the torque's unit (N·m)")  # fmt: skip
         out.append(row)
     if len(out) < 3:
         raise BenchError("a table needs at least three steps")
@@ -166,8 +202,7 @@ def _temperature(values: Mapping[str, Any]) -> float | None:
 
 
 def _from_row(row: Mapping[str, Any]) -> Bench:
-    rows = tuple(Row(float(r["throttle_pct"]), float(r["thrust_g"]), float(r["power_w"]))
-                 for r in json.loads(str(row["rows_json"])))  # fmt: skip
+    rows = tuple(_row(r) for r in json.loads(str(row["rows_json"])))
     return Bench(str(row["id"]), int(row["version"]), str(row["role"]), str(row["label"]),
                  row["motor"], row["kv"], row["prop_diameter_in"], row["prop_pitch_in"],
                  row["volts"], row["motor_mass_g"], row["source"], rows,
@@ -206,7 +241,7 @@ def save(store: Store, platform_id: str, values: Mapping[str, Any], bench_id: st
         "prop_pitch_in": _number(values, "prop_pitch_in"), "volts": _number(values, "volts"),
         "motor_mass_g": _number(values, "motor_mass_g"), "ambient_c": _temperature(values),
         "source": (str(values.get("source") or "").strip()[:300] or None),
-        "rows_json": json.dumps([r.__dict__ for r in check_rows(values.get("rows") or [])]),
+        "rows_json": json.dumps([r.view() for r in check_rows(values.get("rows") or [])]),
     }  # fmt: skip
     with store.transaction():
         if role != "none":

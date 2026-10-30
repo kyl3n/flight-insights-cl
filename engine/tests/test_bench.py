@@ -154,3 +154,42 @@ def test_only_the_propulsion_power_scales() -> None:
 
 def test_bench_tables_sync() -> None:
     assert "bench_table" in synced.RECORDS
+
+
+def test_a_table_keeps_the_columns_the_maker_prints(store: Store, platform: str) -> None:
+    # made-up steps with speed, torque, current and voltage: power is volts times amps and
+    # the shaft power (torque times speed) is under it
+    rows = [{"throttle_pct": t, "thrust_g": g, "power_w": v * a, "rpm": n, "torque_nm": q,
+             "current_a": a, "volts": v}
+            for t, g, n, q, a, v in ((40, 2000, 3400, 0.70, 5.5, 48.0),
+                                     (60, 4000, 4700, 1.35, 16.0, 47.8),
+                                     (100, 9000, 6900, 3.00, 55.0, 47.0))]  # fmt: skip
+    got = bench.save(store, platform, table(0.002, rows=rows))
+    first = got.rows[0]
+    assert (first.rpm, first.torque_nm, first.current_a, first.volts) == (3400, 0.70, 5.5, 48.0)
+    assert first.shaft_w == pytest.approx(0.70 * 3400 * 2 * math.pi / 60)
+    assert got.view()["rows"][0] == rows[0]
+    again = bench.benches(store, platform)[0]  # read back from the store
+    assert again.rows == got.rows
+    # a table without them reads as before, and its rows hold only the three columns
+    plain = bench.save(store, platform, table(0.002, label="plain"))
+    assert set(plain.view()["rows"][0]) == {"throttle_pct", "thrust_g", "power_w"}
+    assert plain.rows[0].shaft_w is None
+
+
+@pytest.mark.parametrize(
+    ("change", "says"),
+    [
+        ({"rpm": -1}, "above zero"),
+        ({"current_a": 0}, "above zero"),
+        # 30 N·m at 3400 rpm is 10.7 kW, past the 264 W drawn: a torque in another unit
+        ({"torque_nm": 30.0}, "torque times speed"),
+    ],
+)
+def test_the_makers_other_columns_are_checked(
+    store: Store, platform: str, change: dict[str, float], says: str
+) -> None:
+    rows = table(0.002)["rows"]
+    rows[0] = rows[0] | {"rpm": 3400.0, "torque_nm": 0.7, "current_a": 5.5, "volts": 48.0} | change
+    with pytest.raises(bench.BenchError, match=says):
+        bench.save(store, platform, table(0.002, rows=rows))

@@ -73,9 +73,9 @@ describe("bench tables", () => {
     ].join("\n");
     expect(parseSteps(sheet)).toEqual({
       steps: [
-        { throttle_pct: 40, thrust_g: 2000, power_w: 240 },
-        { throttle_pct: 50, thrust_g: 3000, power_w: 383.2 },
-        { throttle_pct: 100, thrust_g: 9000, power_w: 2820 },
+        { throttle_pct: 40, thrust_g: 2000, power_w: 240, rpm: 3400, torque_nm: 0.7, current_a: 5, volts: 48 },
+        { throttle_pct: 50, thrust_g: 3000, power_w: 383.2, rpm: 3900, torque_nm: 0.9, current_a: 8, volts: 47.9 },
+        { throttle_pct: 100, thrust_g: 9000, power_w: 2820, rpm: 7000, torque_nm: 3, current_a: 60, volts: 47 },
       ],
       refused: 0,
       tables: 1,
@@ -86,7 +86,19 @@ describe("bench tables", () => {
     expect(parseSteps(two).tables).toBe(2);
     // no power column: volts times amps; thrust in kg
     const noPower = "Throttle;Voltage (V);Current (A);Thrust (kg)\n50%;48;10;3,2\n60%;48;x;4";
-    expect(parseSteps(noPower)).toEqual({ steps: [{ throttle_pct: 50, thrust_g: 3200, power_w: 480 }], refused: 1, tables: 1, ambient_c: null });
+    expect(parseSteps(noPower)).toEqual({ steps: [{ throttle_pct: 50, thrust_g: 3200, power_w: 480, current_a: 10, volts: 48 }], refused: 1, tables: 1, ambient_c: null });
+    // torque in kgf·cm comes to N·m
+    const kgfcm = "Throttle\tThrust(g)\tPower(W)\tTorque(kgf.cm)\tRPM\n50%\t3000\t380\t10\t3900";
+    expect(parseSteps(kgfcm).steps).toEqual([{ throttle_pct: 50, thrust_g: 3000, power_w: 380, torque_nm: 0.980665, rpm: 3900 }]);
+  });
+
+  it("round-trips the maker's other columns through the form", () => {
+    const rows = [
+      { throttle_pct: 40, thrust_g: 2000, power_w: 240, rpm: 3400, torque_nm: 0.7, current_a: 5, volts: 48 },
+      { throttle_pct: 60, thrust_g: 4000, power_w: 760, rpm: 4700, current_a: 16, volts: 47.5 },
+      { throttle_pct: 100, thrust_g: 9000, power_w: 2820, rpm: 7000, torque_nm: 3, current_a: 60, volts: 47 },
+    ];
+    expect(valuesOf(draftOf({ ...TABLE, rows })).rows).toEqual(rows);
   });
 
   it("round-trips a table through the form", () => {
