@@ -27,6 +27,8 @@
     "drift_window_s": 10.0,
     "drift_mps": 0.25,
     "baro_m": 10.0,
+    "baro_dynamic_ratio": 0.5,
+    "baro_speed_window_s": 1.0,
     "time_jump_s": 1.0,
     "receivers_m": 10.0
   },
@@ -41,6 +43,7 @@
     "libraries/AP_NavEKF3/AP_NavEKF3_Logging.cpp at Copter-4.7.0, Log_Write_XKF4: SV, SP, SH, SM and SVT are written as (int16_t)(100*ratio) in a 'c' field whose FMTU multiplier is '-', so the value read by the documented rule (the multiplier applies; the format's own scaling does not) is 100 times the test ratio: logged_ratio_scale. Above 1 the measurement is rejected (AP_NavEKF3_PosVelFusion.cpp). ERR subsystem GPS code 2 is a GPS glitch",
     "libraries/AP_NavEKF3/AP_NavEKF3_MagFusion.cpp at Copter-4.7.0: an emergency yaw reset from the GSF yaw estimator, driven by GPS velocity, announces 'EKF3 IMU<n> emergency yaw reset' or 'EKF3 IMU<n> yaw aligned using GPS'",
     "Local SITL flights at Copter-4.7.0 (SIM_GPS1_JAM, a 60 m SIM_GPS1_GLTCH_X step, an 80 m ramp over 60 s, SIM_GPS1_NUMSATS 5): the step was rejected at a test ratio of about 16 and reset onto GNSS after about 10 s; the ramp was followed at ratios of 0.3 to 0.6 with a one-sided velocity innovation near 0.4 m/s against under 0.03 m/s in calm flight, which sets drift_mps",
-    "Spec: GNSS jamming and spoofing, evidence table and classification (jamming: signal-power evidence with the position consistent; spoofing: consistency failures while the signal looks healthy; obstruction: short, satellites lost, AGC normal; onboard: tied to current or a transmitter; receiver fault: one receiver only)"
+    "Spec: GNSS jamming and spoofing, evidence table and classification (jamming: signal-power evidence with the position consistent; spoofing: consistency failures while the signal looks healthy; obstruction: short, satellites lost, AGC normal; onboard: tied to current or a transmitter; receiver fault: one receiver only)",
+    "BARO1_WCF_FWD, _BCK, _RGT, _LFT, _UP and _DN in the Copter 4.7.0 parameter metadata (libraries/AP_Baro/AP_Baro_Wind.cpp): a barometer's static pressure error is a ratio of the dynamic pressure, from -1 to 1 by axis, uncompensated unless BARO1_WCF_ENABLE is set with drag fusion tuned. Its height is then off by that ratio of v^2/2g: 46 m at 30 m/s for a ratio of 1. baro_dynamic_ratio 0.5 allows half the documented range. A heavy-lift quad's barometer read 12 to 14 m off GNSS at 22 to 35 m/s with the signal healthy (a ratio near 0.2 to 0.25), which the plain baro_m read as spoofing; baro_speed_window_s covers the barometer filter's lag behind the speed"
   ]
 }
