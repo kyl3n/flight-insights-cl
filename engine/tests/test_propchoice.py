@@ -56,8 +56,9 @@ def test_endurance_ranks_by_hover_power() -> None:
 def test_agility_ranks_by_thrust() -> None:
     got = search(basis(families=CALIBRATED), QUICK, "agility", MASS, RHO, DUTY)
     assert got["objective"] == "thrust" and got["best"]["gain"] > 0
-    assert search(basis(motor=None), QUICK, "agility", MASS, RHO, DUTY)["why"].startswith("a motor")
-    assert search(basis(), QUICK, "stability", MASS, RHO, DUTY)["options"] == []
+    assert search(basis(motor=None), QUICK, "agility", MASS, RHO, DUTY)["reason"] == "needs_motor"
+    calm = search(basis(), QUICK, "stability", MASS, RHO, DUTY)
+    assert calm["options"] == [] and calm["reason"] == "no_priority"
 
 
 def test_a_choice_that_fails_a_check_is_never_the_best() -> None:
@@ -86,6 +87,9 @@ def test_when_it_is_advised(advice: dict[str, Any], kw: dict[str, Any], advised:
     assert got["advised"] is advised
     if why:
         assert why in got["why"]
+    reasons = {"twice": "within_error", "validation": "validation", "anchored": "not_calibrated",
+               "calibrated": "not_calibrated", None: None}  # fmt: skip
+    assert got["reason"] == reasons[why]
     f = finding("f1", got, FLOWN, MASS, ["energy:flight", "propeller:anchor"])
     if not advised:
         assert f is None

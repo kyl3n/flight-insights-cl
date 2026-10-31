@@ -35,7 +35,7 @@ export const app = $state({
   importOpen: false, // the import dialog
   pending: [] as PendingFile[], // new files found in watched folders
   trendCard: null as string | null, // the metric@segment the Trends view opens on
-  trendsTab: "metrics" as "metrics" | "history" | "range", // the Trends view's metrics or parameter history
+  trendsTab: "metrics" as "metrics" | "history" | "range" | "propellers", // the Trends view's tab
   recoveryCard: null as string | null, // the airframe whose recovery card is open
   rangeCard: null as string | null, // the airframe whose range card is open
   settingsSection: null as string | null, // the Settings section to bring into view

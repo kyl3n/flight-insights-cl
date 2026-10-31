@@ -162,6 +162,21 @@ def add_performance_methods(server: Server, state: EngineState,
         ctx.progress(1.0, "done")
         return out
 
+    @server.method("airframe.propellers")
+    @guarded
+    def propellers(ctx: Context, params: dict[str, Any]) -> dict[str, Any]:
+        """The Propellers view: the propeller flown as measured, the families' calibration,
+        the track record and the advice's validation."""
+        store, cache = state.require_store(), state.cache
+        assert cache is not None
+        ctx.progress(0.0, "reading the propellers")
+        try:
+            out = perf_report.prop_overview(store, cache, state.pack, _airframe(params))
+        except perf.PerformanceError as e:
+            raise RpcError(BAD_INPUT, str(e)) from None
+        ctx.progress(1.0, "done")
+        return out
+
     @server.method("airframe.prop_search")
     @guarded
     def prop_search(ctx: Context, params: dict[str, Any]) -> dict[str, Any]:
