@@ -294,10 +294,12 @@ def test_an_aircraft_on_two_propellers_calibrates_the_change() -> None:
     both = calibrate(RULES, FAM, TWO_TABLES, flown_two)
     assert (both.tables, both.aircraft, bench_only.aircraft) == (2, 1, 0)
     assert both.flight_noise is not None and both.flight_noise >= RULES["flown"]["noise_floor"]
-    # the aircraft's 15% and 25% are its own offsets: the propellers' stay near the bench's
+    # the aircraft's 15% and 25% are its own offsets: the propellers' stay near the
+    # family's mean, as the bench's do
     assert {o.prop.key for o in both.offsets} == {p.key for p, _ in TWO_TABLES} | {A.key, B.key}
-    assert all(abs(o.thrust) < 0.02 and abs(o.power) < 0.02 for o in both.offsets)
-    assert len(both.covariance) == 5 + 2 * 4  # the aircraft's own offsets are not the family's
+    mt, mp = both.mean
+    assert all(abs(o.thrust - mt) < 0.02 and abs(o.power - mp) < 0.02 for o in both.offsets)
+    assert len(both.covariance) == 5 + 2 + 2 * 4  # the aircraft's own are not the family's
     # B predicted from a hover on A on that aircraft: both measured, the change near exact
     thrust, rho = 60.0, 1.2
     want = true_hover(B, thrust, rho, KT, KP)
@@ -340,3 +342,22 @@ def test_an_aircraft_on_one_propeller_calibrates_nothing() -> None:
     fam = got[FAM]
     assert (fam.tables, fam.aircraft, fam.calibrated) == (0, 1, False)
     assert fam.rms is None and fam.view()["aircraft"] == 1
+
+
+def test_one_propellers_tables_carry_the_familys_offset_to_its_siblings() -> None:
+    # every propeller of the family sits 5% (thrust) and -15% (power at the same thrust)
+    # from the theory; a table of one of them puts that in the family's mean, so a sibling
+    # no table measured is predicted from the first one's hover with it, not without it
+    a, b = Prop(FAM, 30.0, 10.5), Prop(FAM, 32.0, 11.0)
+    ut, uq = 0.05, -0.15
+    fam = calibrate(RULES, FAM, [(a, table(a, ut, uq, noise=0.005, seed=3))])
+    assert fam.mean[1] < -0.05 and fam.index(b) is None  # the theory itself takes the rest
+    thrust, rho = 60.0, 1.2
+    kt, kp = math.exp(ut), math.exp(1.5 * ut + uq)
+    want = true_hover(b, thrust, rho, kt, kp)
+    got = predict(RULES, {FAM: fam}, b, thrust, rho, a, anchor(a, thrust, rho, kt, kp))
+    assert got.shaft_w is not None and abs(got.shaft_w / want[1] - 1) < 0.02
+    assert abs(got.rpm / want[0] - 1) < 0.01
+    # the same theory alone, unanchored, carries the family's mean too
+    alone = predict(RULES, {FAM: fam}, b, thrust, rho)
+    assert alone.shaft_w is not None and abs(alone.shaft_w / want[1] - 1) < 0.05

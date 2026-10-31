@@ -1,0 +1,94 @@
+{
+ "motor": "T-Motor U13 130KV, Flame 180A",
+ "family": "tmotor_g",
+ "diameter_in": 32.0,
+ "pitch_in": 11.0,
+ "blades": 2,
+ "kv": 130,
+ "volts": 50.4,
+ "ambient_c": null,
+ "source": "Piljek 2023, doi:10.7910/DVN/J5L2P4 (CC0 1.0), setup8_measurement_4.2V.csv",
+ "rows": [
+  {
+   "throttle_pct": 20.0,
+   "thrust_g": 321.5,
+   "power_w": 34.38,
+   "rpm": 568.2,
+   "torque_nm": 0.0984,
+   "current_a": 0.695,
+   "volts": 49.48
+  },
+  {
+   "throttle_pct": 30.0,
+   "thrust_g": 1713.4,
+   "power_w": 152.78,
+   "rpm": 1256.8,
+   "torque_nm": 0.6261,
+   "current_a": 3.093,
+   "volts": 49.4
+  },
+  {
+   "throttle_pct": 40.0,
+   "thrust_g": 3767.2,
+   "power_w": 390.08,
+   "rpm": 1849.5,
+   "torque_nm": 1.3958,
+   "current_a": 7.919,
+   "volts": 49.258
+  },
+  {
+   "throttle_pct": 50.0,
+   "thrust_g": 6340.5,
+   "power_w": 776.32,
+   "rpm": 2389.8,
+   "torque_nm": 2.3652,
+   "current_a": 15.831,
+   "volts": 49.039
+  },
+  {
+   "throttle_pct": 60.0,
+   "thrust_g": 10951.9,
+   "power_w": 1734.99,
+   "rpm": 3093.8,
+   "torque_nm": 4.0822,
+   "current_a": 35.715,
+   "volts": 48.578
+  },
+  {
+   "throttle_pct": 70.0,
+   "thrust_g": 14879.4,
+   "power_w": 2684.85,
+   "rpm": 3583.2,
+   "torque_nm": 5.5762,
+   "current_a": 55.824,
+   "volts": 48.095
+  },
+  {
+   "throttle_pct": 80.0,
+   "thrust_g": 18883.5,
+   "power_w": 3837.69,
+   "rpm": 4021.5,
+   "torque_nm": 7.1373,
+   "current_a": 80.766,
+   "volts": 47.516
+  },
+  {
+   "throttle_pct": 90.0,
+   "thrust_g": 22683.9,
+   "power_w": 5064.15,
+   "rpm": 4382.5,
+   "torque_nm": 8.6234,
+   "current_a": 107.951,
+   "volts": 46.912
+  },
+  {
+   "throttle_pct": 100.0,
+   "thrust_g": 24965.3,
+   "power_w": 5868.24,
+   "rpm": 4585.5,
+   "torque_nm": 9.531,
+   "current_a": 126.163,
+   "volts": 46.513
+  }
+ ]
+}

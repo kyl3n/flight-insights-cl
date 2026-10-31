@@ -1,0 +1,94 @@
+{
+ "motor": "T-Motor P80 100KV, Alpha 80A",
+ "family": "tmotor_g",
+ "diameter_in": 30.0,
+ "pitch_in": 10.5,
+ "blades": 2,
+ "kv": 100,
+ "volts": 50.4,
+ "ambient_c": null,
+ "source": "Piljek 2023, doi:10.7910/DVN/J5L2P4 (CC0 1.0), setup3_measurement_4.2V.csv",
+ "rows": [
+  {
+   "throttle_pct": 20.0,
+   "thrust_g": 371.8,
+   "power_w": 21.43,
+   "rpm": 672.5,
+   "torque_nm": 0.1405,
+   "current_a": 0.429,
+   "volts": 49.976
+  },
+  {
+   "throttle_pct": 30.0,
+   "thrust_g": 1193.3,
+   "power_w": 78.38,
+   "rpm": 1164.5,
+   "torque_nm": 0.435,
+   "current_a": 1.57,
+   "volts": 49.931
+  },
+  {
+   "throttle_pct": 40.0,
+   "thrust_g": 2461.9,
+   "power_w": 197.9,
+   "rpm": 1665.0,
+   "torque_nm": 0.8847,
+   "current_a": 3.97,
+   "volts": 49.847
+  },
+  {
+   "throttle_pct": 50.0,
+   "thrust_g": 4163.5,
+   "power_w": 402.94,
+   "rpm": 2151.8,
+   "torque_nm": 1.479,
+   "current_a": 8.105,
+   "volts": 49.717
+  },
+  {
+   "throttle_pct": 60.0,
+   "thrust_g": 6227.9,
+   "power_w": 711.7,
+   "rpm": 2618.8,
+   "torque_nm": 2.2018,
+   "current_a": 14.369,
+   "volts": 49.529
+  },
+  {
+   "throttle_pct": 70.0,
+   "thrust_g": 8639.0,
+   "power_w": 1145.9,
+   "rpm": 3058.5,
+   "torque_nm": 3.059,
+   "current_a": 23.255,
+   "volts": 49.276
+  },
+  {
+   "throttle_pct": 80.0,
+   "thrust_g": 11249.8,
+   "power_w": 1699.18,
+   "rpm": 3462.2,
+   "torque_nm": 3.9984,
+   "current_a": 34.702,
+   "volts": 48.965
+  },
+  {
+   "throttle_pct": 90.0,
+   "thrust_g": 13818.4,
+   "power_w": 2343.1,
+   "rpm": 3831.8,
+   "torque_nm": 4.937,
+   "current_a": 48.193,
+   "volts": 48.619
+  },
+  {
+   "throttle_pct": 100.0,
+   "thrust_g": 14611.3,
+   "power_w": 2539.38,
+   "rpm": 3935.8,
+   "torque_nm": 5.1992,
+   "current_a": 52.359,
+   "volts": 48.5
+  }
+ ]
+}

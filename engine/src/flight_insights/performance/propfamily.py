@@ -15,10 +15,13 @@ rules in `knowledge/rules/props.json`).
   differ in diameter and pitch. Its theory parameters (lift slope, zero-lift angle,
   profile drag and its Reynolds-number exponent) start from literature values and are
   calibrated on every table of the family a person entered, by least squares on the
-  logarithms of the coefficients. Each propeller of the family keeps its own two offsets
-  from the theory (its thrust coefficient's, and its power's at the same thrust), and the
-  spread of those offsets between propellers is measured as tables accumulate: it is
-  how far a propeller nobody has measured may sit from its family's theory.
+  logarithms of the coefficients. The family as a whole keeps a pair of mean offsets from
+  the theory (its thrust coefficient's, and its power's at the same thrust), and each
+  propeller its own pair about that mean; the spread of those offsets between
+  propellers is measured as tables accumulate: it is how far a propeller nobody has
+  measured may sit from its family's mean. A propeller nobody measured takes the family's
+  mean offsets, so even one measured propeller carries what the theory gets wrong for the
+  whole family to its siblings.
 - **Aircraft that flew two or more of a family's propellers** calibrate it too: each
   propeller's hovers measured on the aircraft (its flights' anchors) join the tables, with
   what the aircraft does to every propeller it flies (its arms, its frame, a coaxial
@@ -54,6 +57,7 @@ from flight_insights.performance.propeller import INCH, TablePoint, table_points
 Array = np.ndarray[Any, Any]
 Params = Sequence[float] | Array  # the theory parameters, in NAMES order
 NAMES = ("lift_slope", "zero_lift_deg", "cd0", "cd2", "re_exponent")
+MEAN = len(NAMES)  # where the family's mean offsets sit in its vector and covariance
 CT_ROTOR = math.pi**3 / 4  # C_T(prop) = CT_ROTOR C_T(rotor, on the tip speed)
 CP_ROTOR = math.pi**4 / 4
 
@@ -112,6 +116,7 @@ class Family:
     tables: int
     aircraft: int = 0  # aircraft whose flights on two or more propellers calibrate it
     flight_noise: float | None = None  # a flight's hover's scatter about its curve, log
+    mean: tuple[float, float] = (0.0, 0.0)  # the family's own offsets from the theory, log
 
     @property
     def calibrated(self) -> bool:
@@ -119,20 +124,22 @@ class Family:
 
     def index(self, prop: Prop) -> int | None:
         """The position of the propeller's offsets in the covariance, or None when no
-        table of it was used."""
+        table of it was used (it takes the family's mean offsets, at MEAN)."""
         for i, o in enumerate(self.offsets):
             if o.prop.key == prop.key:
-                return len(NAMES) + 2 * i
+                return MEAN + 2 + 2 * i
         return None
 
     def vector(self) -> Array:
-        return np.array([*self.params, *(v for o in self.offsets for v in (o.thrust, o.power))])
+        return np.array([*self.params, *self.mean,
+                         *(v for o in self.offsets for v in (o.thrust, o.power))])  # fmt: skip
 
     def view(self) -> dict[str, Any]:
         return {
             "id": self.id, "calibrated": self.calibrated, "tables": self.tables,
             "aircraft": self.aircraft, "flight_noise": self.flight_noise,
             "params": dict(zip(NAMES, self.params, strict=True)),
+            "mean": {"thrust": self.mean[0], "power": self.mean[1]},
             "spread_thrust": self.spread_thrust, "spread_power": self.spread_power,
             "noise": self.noise, "rms": self.rms,
             "propellers": [{"diameter_in": o.prop.diameter_in, "pitch_in": o.prop.pitch_in,
@@ -230,12 +237,18 @@ def starting(rules: Mapping[str, Any]) -> tuple[Array, Array, Array]:
 
 
 def uncalibrated(rules: Mapping[str, Any], family: str) -> Family:
-    """A family no table has calibrated: its starting values and their spreads."""
+    """A family no table has calibrated: its starting values and their spreads, its mean
+    offsets nought within their prior."""
     mean, spread, _ = starting(rules)
-    cov = np.diag(spread**2)
+    cov = np.diag([*spread**2, *_family_spread(rules) ** 2])
     return Family(family, tuple(map(float, mean)), (), tuple(map(tuple, cov.tolist())),
                   float(rules["offset_spread"]["thrust"]), float(rules["offset_spread"]["power"]),
                   float(rules["noise_floor"]), None, 0)  # fmt: skip
+
+
+def _family_spread(rules: Mapping[str, Any]) -> Array:
+    s = rules["family_offset_spread"]
+    return np.array([float(s["thrust"]), float(s["power"])])
 
 
 def calibrate(rules: Mapping[str, Any], family: str,
@@ -289,11 +302,17 @@ def calibrate(rules: Mapping[str, Any], family: str,
     log_cp = np.log([t.cp if t.cp is not None and t.cp > 0 else 1.0 for _, t, _ in rows])
     y = np.concatenate([log_ct, log_cp[has_cp]])
 
-    # the offsets each row holds: its propeller's two, and on an aircraft, the aircraft's
-    # two and the propeller's on that aircraft; a power row holds 1.5 of each thrust offset
-    d_t = np.zeros((len(rows), 2 * (k + n_air + n_pair)))
+    # the offsets: the family's mean two, each propeller's two (about the mean), each
+    # aircraft's two, each propeller's on an aircraft two. A row holds its propeller's,
+    # and on an aircraft the aircraft's and the propeller's there; a power row holds 1.5
+    # of each thrust offset
+    d_t = np.zeros((len(rows), 2 * (1 + k + n_air + n_pair)))
     for r, (i, p) in enumerate(zip(which, pair, strict=True)):
-        d_t[r, [2 * i] if p < 0 else [2 * i, 2 * (k + pairs[p][0]), 2 * (k + n_air + p)]] = 1.0
+        cols: list[int] = (
+            [2 * int(i)] if p < 0
+            else [2 * int(i), 2 * (k + pairs[int(p)][0]), 2 * (k + n_air + int(p))]
+        )  # fmt: skip
+        d_t[r, [2 + c for c in cols]] = 1.0
     d_p = 1.5 * d_t
     d_p[:, 1::2] = d_t[:, 0::2]
     design = np.vstack([d_t, d_p[has_cp]])
@@ -316,8 +335,22 @@ def calibrate(rules: Mapping[str, Any], family: str,
     def sigma() -> Array:
         return np.where(on_air, flight_noise, noise)
 
+    family_spread = _family_spread(rules)
+
     def prior() -> Array:
-        return np.concatenate([np.tile(tau, k), held])
+        """The offsets' priors as a matrix: the family's mean about nought, each
+        propeller's about the mean, the aircraft's and the propellers' on them about
+        nought."""
+        n_z = int(design.shape[1])
+        out = np.zeros((n_z, n_z))
+        out[[0, 1], [0, 1]] = 1 / family_spread
+        for i in range(k):
+            for c in (0, 1):
+                out[2 + 2 * i + c, 2 + 2 * i + c] = 1 / tau[c]
+                out[2 + 2 * i + c, c] = -1 / tau[c]
+        rest = np.arange(2 + 2 * k, n_z)
+        out[rest, rest] = 1 / held
+        return out
 
     def model(params: Array) -> Array:
         ct, cp = _theory(params, rules, g, pts)
@@ -329,7 +362,7 @@ def calibrate(rules: Mapping[str, Any], family: str,
         params, z = x[:m], x[m:]
         th = theory if theory is not None else model(params)
         return np.concatenate([(y - th - design @ z) / sigma(), (params - mean) / spread,
-                               z / prior()])  # fmt: skip
+                               prior() @ z])  # fmt: skip
 
     x = np.concatenate([mean, np.zeros(design.shape[1])])
     cov = np.eye(len(x))
@@ -347,21 +380,25 @@ def calibrate(rules: Mapping[str, Any], family: str,
         if n_air:
             r = raw[on_air]
             flight_noise = max(math.sqrt(float(r @ r) / max(len(r) - 2 * n_air, 1)), flight_floor)
-        u = x[m : m + 2 * k].reshape(k, 2)
-        var_u = np.diag(cov)[m : m + 2 * k].reshape(k, 2)
+        # each propeller's offsets about the family's mean, and their variance
+        u = x[m + 2 : m + 2 + 2 * k].reshape(k, 2) - x[m : m + 2]
+        var_u = np.array([[cov[m + 2 + 2 * i + c, m + 2 + 2 * i + c] + cov[m + c, m + c]
+                           - 2 * cov[m + 2 + 2 * i + c, m + c] for c in (0, 1)]
+                          for i in range(k)])  # fmt: skip
         squares = (u**2 + var_u).sum(axis=0)
         tau = np.sqrt((squares + strength * tau0**2) / (k + strength))
         if np.all(np.abs(np.array([noise, flight_noise, *tau]) / was - 1) < 0.01):
             break
-    params, u = x[:m], x[m : m + 2 * k].reshape(k, 2)
+    params, u = x[:m], x[m + 2 : m + 2 + 2 * k].reshape(k, 2)
     raw = y - model(params) - design @ x[m:]
     offsets = tuple(Offsets(order[i], float(u[i, 0]), float(u[i, 1]), int((which == i).sum()))
                     for i in range(k))  # fmt: skip
-    keep = m + 2 * k  # each aircraft's offsets, and each propeller's on it, are its own
+    keep = m + 2 + 2 * k  # each aircraft's offsets, and each propeller's on it, are its own
     return Family(family, tuple(map(float, params)), offsets,
                   tuple(map(tuple, cov[:keep, :keep].tolist())), float(tau[0]), float(tau[1]),
                   noise, float(np.sqrt(np.mean(raw[~on_air] ** 2))) if n_tables else None,
-                  used, n_air, flight_noise if n_air else None)  # fmt: skip
+                  used, n_air, flight_noise if n_air else None,
+                  (float(x[m]), float(x[m + 1])))  # fmt: skip
 
 
 def from_tables(rules: Mapping[str, Any], tables: Sequence[Bench],
@@ -411,11 +448,12 @@ def _least_squares(x: Array, resid: Callable[..., Array], model: Callable[[Array
                    design: Array, sigma: Array, prior: Array, m: int, least: Array,
                    iterations: int) -> tuple[Array, Array]:  # fmt: skip
     """Levenberg-Marquardt; the parameters' Jacobian by differences, the offsets' exact
-    (the residuals are linear in them). Returns the solution and the Jacobian there."""
+    (the residuals are linear in them: the data's through the design, the priors' through
+    the matrix `prior`). Returns the solution and the Jacobian there."""
     n = len(design)
     fixed = np.zeros((n + m + len(prior), design.shape[1]))
     fixed[:n] = -design / sigma[:, None]
-    fixed[n + m :] = np.diag(1 / prior)
+    fixed[n + m :] = prior
 
     def jacobian(x: Array, base: Array) -> Array:
         r0 = resid(x, base)
@@ -513,7 +551,9 @@ class _Change:
         return math.log(float(ct[0])), math.log(float(cp[0]))
 
     def _offsets(self, z: Array, off: int, i: int | None) -> tuple[float, float]:
-        return (0.0, 0.0) if i is None else (float(z[off + i]), float(z[off + i + 1]))
+        """A propeller's offsets: its own where a table measured it, else its family's mean."""
+        j = MEAN if i is None else i
+        return float(z[off + j]), float(z[off + j + 1])
 
     def coefficients(self, z: Array, rpm: float, rho: float) -> tuple[float, float]:
         """The candidate's (log C_T, log C_P) at a speed and air: its family's theory, its
@@ -535,9 +575,12 @@ class _Change:
         out = list(range(self.off_n, self.off_n + m))
         if self.anchored and self.fam_c is not self.fam_n:
             out += list(range(self.off_c, self.off_c + m))
-        for off, i in ((self.off_n, self.i_n), (self.off_c, self.i_c)):
-            if i is not None:
-                out += [off + i, off + i + 1]
+        pairs = [(self.off_n, self.i_n)]
+        if self.anchored:
+            pairs.append((self.off_c, self.i_c))
+        for off, i in pairs:
+            j = MEAN if i is None else i
+            out += [off + j, off + j + 1]
         return sorted(set(out))
 
 
