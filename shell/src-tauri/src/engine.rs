@@ -255,6 +255,7 @@ pub const UI_METHODS: &[&str] = &[
     "airframe.range_card",
     "airframe.prop_candidate",
     "airframe.prop_search",
+    "airframe.propellers",
     "airframe.record_change",
     "airframe.update",
     "airframe.teams",

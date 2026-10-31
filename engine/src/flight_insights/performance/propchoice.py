@@ -76,18 +76,23 @@ def _value(got: Mapping[str, Any], objective: str) -> tuple[float | None, float 
 
 def search(basis: Basis, rules: Mapping[str, Any], priority: str | None, mass_kg: float,
            density: float, duty: float) -> dict[str, Any]:  # fmt: skip
-    """Every propeller tried, best first, and whether the best is advised."""
+    """Every propeller tried, best first, and whether the best is advised, or why not (a
+    reason code and its sentence)."""
     objective = OBJECTIVE.get(priority or "")
     out: dict[str, Any] = {"priority": priority, "objective": objective, "options": [],
-                           "best": None, "advised": False, "why": None}  # fmt: skip
-    if objective is None:
-        out["why"] = "the setup's Priority asks for no propeller change"
+                           "best": None, "advised": False, "why": None,
+                           "reason": None}  # fmt: skip
+
+    def because(reason: str, why: str) -> dict[str, Any]:
+        out["reason"], out["why"] = reason, why
         return out
+
+    if objective is None:
+        return because("no_priority", "the setup's Priority asks for no propeller change")
     flown = assess(basis, rules, basis.flown, basis.motor, mass_kg, density, duty)
     base, _ = _value(flown, objective)
     if base is None:
-        out["why"] = "a motor model is needed for the most thrust"
-        return out
+        return because("needs_motor", "a motor model is needed for the most thrust")
     options: list[Option] = []
     for prop in candidates(basis.flown, rules):
         got = assess(basis, rules, prop, basis.motor, mass_kg, density, duty, None,
@@ -104,17 +109,20 @@ def search(basis: Basis, rules: Mapping[str, Any], priority: str | None, mass_kg
     out["options"] = [_view(o) for o in options]
     best = next((o for o in options if o.ok and o.prop.key != basis.flown.key), None)
     if best is None:
-        out["why"] = "no other propeller passes every check"
-        return out
+        return because("none_pass", "no other propeller passes every check")
     out["best"] = _view(best)
     advice: Mapping[str, Any] = rules["advice"]
     error = advice.get("validated_error")
     if not advice["enabled"] or error is None:
-        out["why"] = "the advice waits for the local validation (labelled theory until then)"
+        because(
+            "validation", "the advice waits for the local validation (labelled theory until then)"
+        )
     elif not (best.calibrated and best.anchored):
-        out["why"] = "the best is not calibrated on tables and anchored on this aircraft"
+        because(
+            "not_calibrated", "the best is not calibrated on tables and anchored on this aircraft"
+        )
     elif best.gain <= float(advice["gain_over_error"]) * float(error):
-        out["why"] = "the gain is within twice the validated error"
+        because("within_error", "the gain is within twice the validated error")
     else:
         out["advised"] = True
     return out
