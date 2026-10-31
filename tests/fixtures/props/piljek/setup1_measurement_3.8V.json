@@ -1,0 +1,94 @@
+{
+ "motor": "T-Motor AG1005 90KV, Flame 60A",
+ "family": "tmotor_g",
+ "diameter_in": 30.0,
+ "pitch_in": 10.5,
+ "blades": 2,
+ "kv": 90,
+ "volts": 45.6,
+ "ambient_c": null,
+ "source": "Piljek 2023, doi:10.7910/DVN/J5L2P4 (CC0 1.0), setup1_measurement_3.8V.csv",
+ "rows": [
+  {
+   "throttle_pct": 20.0,
+   "thrust_g": 362.7,
+   "power_w": 17.38,
+   "rpm": 695.2,
+   "torque_nm": 0.1381,
+   "current_a": 0.382,
+   "volts": 45.53
+  },
+  {
+   "throttle_pct": 30.0,
+   "thrust_g": 876.7,
+   "power_w": 49.65,
+   "rpm": 1050.0,
+   "torque_nm": 0.3211,
+   "current_a": 1.091,
+   "volts": 45.504
+  },
+  {
+   "throttle_pct": 40.0,
+   "thrust_g": 1524.1,
+   "power_w": 102.8,
+   "rpm": 1375.5,
+   "torque_nm": 0.5498,
+   "current_a": 2.261,
+   "volts": 45.464
+  },
+  {
+   "throttle_pct": 50.0,
+   "thrust_g": 2368.7,
+   "power_w": 186.15,
+   "rpm": 1698.0,
+   "torque_nm": 0.8341,
+   "current_a": 4.1,
+   "volts": 45.404
+  },
+  {
+   "throttle_pct": 60.0,
+   "thrust_g": 3365.4,
+   "power_w": 306.76,
+   "rpm": 2014.5,
+   "torque_nm": 1.1768,
+   "current_a": 6.768,
+   "volts": 45.321
+  },
+  {
+   "throttle_pct": 70.0,
+   "thrust_g": 4482.5,
+   "power_w": 473.76,
+   "rpm": 2332.0,
+   "torque_nm": 1.577,
+   "current_a": 10.479,
+   "volts": 45.212
+  },
+  {
+   "throttle_pct": 80.0,
+   "thrust_g": 5614.1,
+   "power_w": 660.1,
+   "rpm": 2597.8,
+   "torque_nm": 1.9629,
+   "current_a": 14.639,
+   "volts": 45.091
+  },
+  {
+   "throttle_pct": 90.0,
+   "thrust_g": 6872.6,
+   "power_w": 885.09,
+   "rpm": 2847.2,
+   "torque_nm": 2.4019,
+   "current_a": 19.689,
+   "volts": 44.953
+  },
+  {
+   "throttle_pct": 100.0,
+   "thrust_g": 7693.9,
+   "power_w": 1054.66,
+   "rpm": 3007.0,
+   "torque_nm": 2.6987,
+   "current_a": 23.514,
+   "volts": 44.852
+  }
+ ]
+}

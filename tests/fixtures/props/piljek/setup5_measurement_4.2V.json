@@ -1,0 +1,94 @@
+{
+ "motor": "T-Motor U13 130KV, Alpha 120A",
+ "family": "tmotor_g",
+ "diameter_in": 30.0,
+ "pitch_in": 10.5,
+ "blades": 2,
+ "kv": 130,
+ "volts": 50.4,
+ "ambient_c": null,
+ "source": "Piljek 2023, doi:10.7910/DVN/J5L2P4 (CC0 1.0), setup5_measurement_4.2V.csv",
+ "rows": [
+  {
+   "throttle_pct": 20.0,
+   "thrust_g": 610.4,
+   "power_w": 56.84,
+   "rpm": 875.5,
+   "torque_nm": 0.2152,
+   "current_a": 1.145,
+   "volts": 49.645
+  },
+  {
+   "throttle_pct": 30.0,
+   "thrust_g": 1885.5,
+   "power_w": 176.19,
+   "rpm": 1490.8,
+   "torque_nm": 0.6556,
+   "current_a": 3.555,
+   "volts": 49.565
+  },
+  {
+   "throttle_pct": 40.0,
+   "thrust_g": 3533.0,
+   "power_w": 378.5,
+   "rpm": 2041.0,
+   "torque_nm": 1.2301,
+   "current_a": 7.656,
+   "volts": 49.438
+  },
+  {
+   "throttle_pct": 50.0,
+   "thrust_g": 5892.4,
+   "power_w": 740.31,
+   "rpm": 2636.5,
+   "torque_nm": 2.0521,
+   "current_a": 15.038,
+   "volts": 49.23
+  },
+  {
+   "throttle_pct": 60.0,
+   "thrust_g": 9054.0,
+   "power_w": 1320.65,
+   "rpm": 3213.5,
+   "torque_nm": 3.1642,
+   "current_a": 26.999,
+   "volts": 48.916
+  },
+  {
+   "throttle_pct": 70.0,
+   "thrust_g": 12687.5,
+   "power_w": 2118.69,
+   "rpm": 3763.5,
+   "torque_nm": 4.4356,
+   "current_a": 43.689,
+   "volts": 48.495
+  },
+  {
+   "throttle_pct": 80.0,
+   "thrust_g": 16432.4,
+   "power_w": 3132.4,
+   "rpm": 4282.0,
+   "torque_nm": 5.8176,
+   "current_a": 65.295,
+   "volts": 47.973
+  },
+  {
+   "throttle_pct": 90.0,
+   "thrust_g": 20161.7,
+   "power_w": 4201.98,
+   "rpm": 4672.8,
+   "torque_nm": 7.1649,
+   "current_a": 88.583,
+   "volts": 47.436
+  },
+  {
+   "throttle_pct": 100.0,
+   "thrust_g": 20237.2,
+   "power_w": 4246.28,
+   "rpm": 4690.2,
+   "torque_nm": 7.2155,
+   "current_a": 89.642,
+   "volts": 47.369
+  }
+ ]
+}

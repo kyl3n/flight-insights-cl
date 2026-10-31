@@ -52,6 +52,8 @@ All of them are committed for 4.7.0, the oldest supported firmware. For the newe
 
 SITL always logs its own state (`SIM`, `SIM2`), which real logs do not have. That is the larger part of some of these files.
 
+`props/<source>/` holds measured propeller and motor bench tables from open sources, in the propeller validation runner's format (`tools/props/validate.py`), each with a README giving its source, licence and credit, how it was converted and the SHA-256 of the source files. They are bench measurements, not flight data: no positions. `props/piljek/` is Piljek 2023 (CC0 1.0), T-Motor G30×10.5 and G32×11 on three motors.
+
 ## How the scrubbing works
 
 Positions are found from what the files say about themselves, not from message names: in DataFlash logs, every field whose FMTU unit is a latitude or longitude; in tlogs, every MAVLink field in `degE7` or degrees named as a latitude or longitude, plus command coordinates whose `MAV_CMD` definition says so. All of them, and parameters named `*_LAT`, `*_LNG` or `*_LON`, move by one random shift per session. The shift is never printed or stored. Values at or within about 1 km of 0,0 (no fix yet) are left alone, so they cannot give the shift away.

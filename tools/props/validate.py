@@ -24,6 +24,10 @@ predicted from each other one as the app predicts a candidate from the propeller
 - the most thrust at the predicted table's top step's voltage against that step, where
   the table reaches full throttle with its voltage and a motor model is fitted.
 
+A motor's tables at several voltages are each predicted from each of its other
+propellers' (`table_pairs`); `pairs` counts the propellers, each predicted from each other
+one on the same motor, as the app's Propellers view counts the bench tables entered.
+
 Prints aggregates only: the counts, the hover power error's median, 90th percentile and
 largest, the most thrust's error, the interval's coverage, and each against the plan's
 targets (5%, 10%, 8%), and whether the corpus is big enough to count (the rules'
@@ -140,21 +144,25 @@ def validate(paths: Sequence[Path]) -> dict[str, Any]:
     hover: list[float] = []
     z: list[float] = []
     most: list[float] = []
-    pairs = 0
+    table_pairs = 0
+    pairs = 0  # each propeller predicted from each other one on the same motor
     for group in by_motor.values():
-        if len({p.key for _, p in group}) < 2:
+        n = len({p.key for _, p in group})
+        if n < 2:
             continue
+        pairs += n * (n - 1)
         for held in group:
             for other in group:
                 if other[1].key == held[1].key:
                     continue
                 got = pair(held, other, all_tables, [b for b, _ in group], props, perf)
-                pairs += 1
+                table_pairs += 1
                 hover += got["hover"]
                 z += got["z"]
                 most += got["most"]
     out: dict[str, Any] = {"tables": len(tables), "motors": len(by_motor), "pairs": pairs,
-                           "steps": len(hover), "targets": TARGETS}  # fmt: skip
+                           "table_pairs": table_pairs, "steps": len(hover),
+                           "targets": TARGETS}  # fmt: skip
     if hover:
         e = np.abs(np.expm1(np.array(hover)))  # as shares of the measured power
         out["hover"] = {"median": float(np.median(e)), "p90": float(np.percentile(e, 90)),
