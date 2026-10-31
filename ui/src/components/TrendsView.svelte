@@ -4,7 +4,8 @@
   // point per flight against its zones and the airframe's own baseline, with every
   // change on the same axis, the platform's other airframes on request, and the same
   // subsystem's other metrics over the same flights. Its History tab is the airframe's
-  // parameter history (HistoryView), with the measured effect of every change.
+  // parameter history (HistoryView), with the measured effect of every change; Range and
+  // speed (RangeView) and Propellers (PropellersView) are the airframe's performance.
   import { app, t } from "../lib/app.svelte";
   import { getRegistry } from "../lib/data";
   import type { MessageKey } from "../lib/i18n";
@@ -36,6 +37,7 @@
   } from "../lib/trends";
   import AirframePicker from "./AirframePicker.svelte";
   import HistoryView from "./HistoryView.svelte";
+  import PropellersView from "./PropellersView.svelte";
   import RangeView from "./RangeView.svelte";
   import PlatformMultiples from "./PlatformMultiples.svelte";
   import TrendChart from "./TrendChart.svelte";
@@ -192,6 +194,7 @@
       {#if !airframe}{t("nav.trends")}
       {:else if app.trendsTab === "history"}{t("history.heading", { airframe: airframe.name })}
       {:else if app.trendsTab === "range"}{t("range.heading", { airframe: airframe.name })}
+      {:else if app.trendsTab === "propellers"}{t("props.heading", { airframe: airframe.name })}
       {:else}{t("trends.title", { airframe: airframe.name })}{/if}
     </h1>
     <AirframePicker />
@@ -200,12 +203,23 @@
     <button type="button" aria-pressed={app.trendsTab === "metrics"} onclick={() => (app.trendsTab = "metrics")}>{t("trends.tab.metrics")}</button>
     <button type="button" aria-pressed={app.trendsTab === "history"} onclick={() => (app.trendsTab = "history")}>{t("trends.tab.history")}</button>
     <button type="button" aria-pressed={app.trendsTab === "range"} onclick={() => (app.trendsTab = "range")}>{t("trends.tab.range")}</button>
+    <button type="button" aria-pressed={app.trendsTab === "propellers"} onclick={() => (app.trendsTab = "propellers")}>{t("trends.tab.props")}</button>
   </div>
-  <p class="faint">{app.trendsTab === "history" ? t("history.about") : app.trendsTab === "range" ? t("range.about") : t("trends.about")}</p>
+  <p class="faint">
+    {app.trendsTab === "history"
+      ? t("history.about")
+      : app.trendsTab === "range"
+        ? t("range.about")
+        : app.trendsTab === "propellers"
+          ? t("props.about")
+          : t("trends.about")}
+  </p>
   {#if error}<p class="error">{error}</p>{/if}
 
   {#if app.trendsTab === "range"}
     {#if app.scope.airframe !== null}<RangeView airframeId={app.scope.airframe} />{/if}
+  {:else if app.trendsTab === "propellers"}
+    {#if app.scope.airframe !== null}<PropellersView airframeId={app.scope.airframe} />{/if}
   {:else if app.trendsTab === "history"}
     {#if app.scope.airframe !== null}
       <HistoryView airframeId={app.scope.airframe} platformId={airframe?.platform.id ?? null} onopentrend={openTrend} />
