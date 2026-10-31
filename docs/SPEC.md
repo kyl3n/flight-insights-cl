@@ -1672,7 +1672,7 @@ Each event records its start and end, class and confidence, the evidence behind 
   - the primary estimator core rejecting GNSS: a position, velocity or height test ratio (`XKF4`) above 1, or a GPS glitch error. 4.7.0 writes each ratio as 100 times its value in a field whose multiplier says 1 (`Log_Write_XKF4`). The decoder follows the log's own units as always, and the rules hold the scale with its source;
   - a receiver more than 15 m from the estimator's position, as local tracks from one origin;
   - **a one-sided velocity innovation** (`XKF3`) averaging over 0.25 m/s for 10 s. This catches the slow drift the estimator follows, which no test ratio trips. In SITL, an 80 m ramp over 60 s was followed at test ratios of 0.3 to 0.6, with an innovation near 0.4 m/s against under 0.03 m/s in calm flight;
-  - GNSS altitude moving 10 m from the barometer's, against their usual offset;
+  - GNSS altitude moving 10 m from the barometer's, against their usual offset, plus the barometer's own error at the aircraft's speed. A static port's pressure error is a ratio of the dynamic pressure (ArduPilot's `BARO1_WCF_*` coefficients, −1 to 1), so its height drifts by that ratio of v²/2g in fast flight. The check allows half the documented range, 0.5 × v²/2g, at the fastest speed within 1 s. Found on a heavy-lift quad's real flight: its barometer read 12 to 14 m off GNSS at 22 to 35 m/s with the signal healthy, which the plain 10 m check reported as spoofing four times;
   - GPS time jumping more than 1 s against the log's clock (not counting the catch-up after it stood still);
   - two receivers more than 10 m apart.
 - **Drills are left out:** trips that begin during a GNSS-off drill (aux function 65) are the no-GNSS analyzer's to measure, not disturbances.

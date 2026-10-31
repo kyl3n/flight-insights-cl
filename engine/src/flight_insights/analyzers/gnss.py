@@ -22,7 +22,10 @@ Consistency, checks a spoofer cannot fake all at once:
 - a one-sided horizontal velocity innovation (XKF3) averaging over `drift_mps` for
   `drift_window_s`: the estimator being dragged by a drifting position, the dangerous
   slow spoof that the test ratios miss;
-- GNSS altitude moving `baro_m` away from the barometer against their usual offset;
+- GNSS altitude moving `baro_m` away from the barometer against their usual offset, plus
+  what the barometer's own error can reach at the aircraft's speed: its static pressure
+  is off by up to `baro_dynamic_ratio` of the dynamic pressure, so in fast flight its
+  height drifts by that share of v²/2g (12 to 14 m at 22 to 35 m/s on a heavy-lift quad);
 - GPS time jumping against the log's clock by `time_jump_s`;
 - two receivers more than `receivers_m` apart.
 
@@ -72,6 +75,7 @@ from flight_insights.dataflash import si
 from flight_insights.dataflash.formats import text
 
 Array = np.ndarray[Any, Any]
+GRAVITY = 9.80665  # m/s²
 SIGNAL = ("fix", "sats", "accuracy", "cw", "jam_state", "agc", "time_stopped")
 UBLOX = ("cw", "jam_state", "agc")
 LOST = ("fix", "accuracy", "time_stopped")
@@ -502,8 +506,8 @@ def positions(flight: FlightData, rules: Mapping[str, Any], found: Mapping[int, 
 
 def baro(flight: FlightData, rules: Mapping[str, Any], found: Mapping[int, Receiver]) -> list[Trip]:
     """The first receiver's altitude against the first barometer's, around their usual
-    offset over the armed flight."""
-    gps = flight.table("GPS", ["TimeUS", "I", "Alt"])
+    offset over the armed flight, with the barometer's error at speed allowed for."""
+    gps = flight.table("GPS")
     bar = flight.table("BARO", ["TimeUS", "I", "Alt"])
     r = found.get(0)
     if (
@@ -527,9 +531,29 @@ def baro(flight: FlightData, rules: Mapping[str, Any], found: Mapping[int, Recei
         return []
     off = alt - baro_alt
     dev = np.abs(off - float(np.median(off[armed])))
-    return _trips(
-        "baro", t, ok & (dev > float(rules["consistency"]["baro_m"])), dev, np.max, rules, 0
-    )
+    spec = rules["consistency"]
+    speed = _nearby_max(t, _speed(gps, rows), float(spec["baro_speed_window_s"]) * 1e6)
+    allowed = float(spec["baro_m"]) + float(spec["baro_dynamic_ratio"]) * speed**2 / (2 * GRAVITY)
+    return _trips("baro", t, ok & (dev > allowed), dev, np.max, rules, 0)
+
+
+def _speed(gps: pa.Table, rows: Array) -> Array:
+    """The receiver's speed over the ground, horizontal and vertical, in m/s (0 where the
+    log has no speed: the barometer is then held to the plain gap)."""
+    out = np.zeros(int(np.count_nonzero(rows)))
+    for name in ("Spd", "VZ"):
+        if name in gps.column_names:
+            v = si.values(gps, name)[rows]
+            out += np.where(np.isfinite(v), v, 0.0) ** 2
+    return np.sqrt(out)
+
+
+def _nearby_max(t: Array, values: Array, within_us: float) -> Array:
+    """Each sample's largest value within `within_us` either side: the barometer's
+    filter lags the speed that moves it."""
+    lo = np.searchsorted(t, t - within_us, "left")
+    hi = np.searchsorted(t, t + within_us, "right")
+    return np.array([values[a:b].max() for a, b in zip(lo, hi, strict=True)])
 
 
 # --- events -------------------------------------------------------------------------------
@@ -879,7 +903,7 @@ def _gnss(flight: FlightData, reg: Registry) -> Result:
 
 GNSS = Analyzer(
     name="gnss",
-    version=2,
+    version=3,
     run=_gnss,
     metrics=("gnss.disturbed_s", "gnss.sats_min", "gnss.hacc_p95"),
     findings=("gnss.jamming", "gnss.spoofing", "gnss.obstruction", "gnss.onboard",

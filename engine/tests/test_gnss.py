@@ -48,7 +48,8 @@ def sky(receivers: int = 1, ublox: bool = False) -> dict[str, Columns]:
         "Status": np.full(n * receivers, 3), "NSats": np.full(n * receivers, 14),
         "GWk": np.full(n * receivers, 2400), "GMS": np.repeat(g // 1000 + 100_000, receivers),
         "Lat": np.full(n * receivers, LAT), "Lng": np.full(n * receivers, LON),
-        "Alt": np.full(n * receivers, 110.0),
+        "Alt": np.full(n * receivers, 110.0), "Spd": np.zeros(n * receivers),
+        "VZ": np.zeros(n * receivers),
     }  # fmt: skip
     out = {
         "GPS": gps,
@@ -225,6 +226,32 @@ def test_independent_checks_agreeing_make_spoofing_likely(reg: Registry) -> None
     assert codes(out) == [("gnss.spoofing", "high")]
     assert out.evidence[2].id == "gnss:event:1:altitude"
     assert out.evidence[2].values["largest_altitude_gap_m"] == 30
+
+
+def test_the_barometer_reading_high_in_fast_flight_is_not_spoofing(reg: Registry) -> None:
+    """A static port's error grows with the dynamic pressure: a heavy-lift quad's barometer
+    read 12 to 14 m off GNSS at 22 to 35 m/s, with the signal healthy throughout."""
+    cols = sky()
+    edit(cols, "GPS", "Spd", 18, 36, 33.0)
+    edit(cols, "GPS", "Alt", 20, 34, 124.0)  # 14 m above the usual offset
+    assert codes(run(cols, reg)) == []
+
+
+def test_the_same_gap_in_a_hover_is_spoofing(reg: Registry) -> None:
+    cols = sky()
+    edit(cols, "GPS", "Alt", 20, 34, 124.0)
+    out = run(cols, reg)
+    assert codes(out) == [("gnss.spoofing", "medium")]
+    assert out.findings[0].params["channels"] == "altitude left the barometer's"
+
+
+def test_a_jump_beyond_the_barometer_error_at_speed_still_counts(reg: Registry) -> None:
+    cols = sky()
+    edit(cols, "GPS", "Spd", 18, 36, 33.0)  # allows 10 + 0.5 x 33^2 / 2g, about 38 m
+    edit(cols, "GPS", "Alt", 20, 34, 160.0)  # 50 m
+    out = run(cols, reg)
+    assert codes(out) == [("gnss.spoofing", "medium")]
+    assert out.evidence[1].values["largest_altitude_gap_m"] == 50
 
 
 def test_a_slow_drift_the_estimator_follows(reg: Registry) -> None:
