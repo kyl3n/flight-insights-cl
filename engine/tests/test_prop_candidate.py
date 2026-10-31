@@ -103,7 +103,9 @@ def test_over_rpc(tmp_path: Path) -> None:
     e = call(server, out, 4, "airframe.prop_candidate", airframe_id="x", candidate=FLOWN,
              air="thin")  # fmt: skip
     assert e["error"]["code"] == -32602
-    call(server, out, 5, "engine.shutdown")
+    e = call(server, out, 5, "airframe.propellers", airframe_id="x")
+    assert e["error"]["code"] == -32003
+    call(server, out, 6, "engine.shutdown")
 
 
 def test_the_search_for_the_priority(fleet: dict[str, Any]) -> None:
@@ -114,7 +116,46 @@ def test_the_search_for_the_priority(fleet: dict[str, Any]) -> None:
     assert found["best"] is not None and found["best"]["gain"] > 0
     # labelled theory: the simulator's flights anchor nothing, and advice is off
     assert not found["advised"] and not found["best"]["anchored"]
+    assert found["reason"] == "validation"
     assert {o["diameter_in"] for o in found["options"]} == {28, 29, 30, 31, 32}
+
+
+def test_the_propellers_view(fleet: dict[str, Any]) -> None:
+    from flight_insights.performance import bench
+    from flight_insights.performance.report import prop_overview
+
+    store, af = fleet["store"], fleet["airframe"]
+    got = prop_overview(store, fleet["cache"], PACK, af)
+    assert got["missing"] == {} and got["priority"] == "endurance"
+    assert got["prop"] == {"family": "carbon", "diameter_in": 30, "pitch_in": 10, "blades": 2}
+    # every family, none calibrated: no table names one, no aircraft flew two
+    fams = {f["id"]: f for f in got["families"]}
+    assert set(fams) == {"tmotor_p", "tmotor_g", "tmotor_ns", "tmotor_mf", "carbon"}
+    assert not any(f["calibrated"] or f["aircraft"] for f in fams.values())
+    m = got["measured"]
+    assert m["flights"] == [] and sum(m["without"].values()) == 2
+    assert got["track"]["record"]["changes"] == 0
+    a = got["advice"]
+    assert not a["enabled"] and (a["least_pairs"], a["least_motors"]) == (10, 3)
+    assert (a["pairs"], a["motors"]) == (0, 0)
+    # three propellers' tables on one motor, one on another: 6 pairs on 1 motor
+    platform = store.get("airframe", af)["platform_id"]
+
+    def made_up(d: float, p: float, motor: str) -> dict[str, Any]:
+        rows = [{"throttle_pct": 25.0 * k, "thrust_g": 1000.0 * k, "power_w": 90.0 * k**1.5,
+                 "rpm": 2000.0 * k**0.5} for k in (1, 2, 3, 4)]  # fmt: skip
+        return {"label": f"{motor} {d}x{p}", "motor": motor, "kv": 170, "volts": 48,
+                "prop_family": "tmotor_p", "prop_diameter_in": d, "prop_pitch_in": p,
+                "rows": rows}  # fmt: skip
+
+    families = {"tmotor_p"}
+    for d, p, motor in ((20, 6, "MN605"), (22, 6.6, "MN605"), (24, 7.6, "mn605 "),
+                        (22, 6.6, "U10")):  # fmt: skip
+        bench.save(store, platform, made_up(d, p, motor), families=families)
+    a = prop_overview(store, fleet["cache"], PACK, af)["advice"]
+    assert (a["pairs"], a["motors"]) == (6, 1)
+    fams = {f["id"]: f for f in prop_overview(store, fleet["cache"], PACK, af)["families"]}
+    assert fams["tmotor_p"]["calibrated"] and fams["tmotor_p"]["tables"] == 4
 
 
 def test_the_plan_waits_for_the_validation(fleet: dict[str, Any]) -> None:

@@ -86,7 +86,7 @@ from flight_insights.performance.project import (
     what_ifs,
     worst_trip,
 )
-from flight_insights.performance.propeller import Anchor, anchor_view
+from flight_insights.performance.propeller import Anchor, anchor_view, table_points
 from flight_insights.performance.radius import standard
 from flight_insights.performance.thermal import Thermal, from_flight
 from flight_insights.performance.top_speed import Basis, lowest_volts, top_speed
@@ -857,6 +857,62 @@ def _candidate_basis(store: Store, airframe_id: str, i: Inputs, rules: Mapping[s
         prop_mass_g=_number(i.answers, "prop_mass_g"),
     )  # fmt: skip
     return basis, drive
+
+
+def _corpus(store: Store) -> tuple[int, int]:
+    """How far the bench tables entered go toward the local validation the advice waits on
+    (tools/props/validate.py counts its corpus the same way): each propeller predicted
+    from each other one on the same motor, and the motors with two or more propellers."""
+    by: dict[tuple[str, float | None], set[str]] = {}
+    for (platform,) in store.conn.execute("SELECT id FROM platform").fetchall():
+        for b in bench.benches(store, str(platform)):
+            if not (b.prop_family and b.prop_diameter_in and b.prop_pitch_in):
+                continue
+            if not table_points(b)[0]:
+                continue
+            prop = propfamily.Prop(b.prop_family, b.prop_diameter_in, b.prop_pitch_in,
+                                   b.prop_blades or 2)  # fmt: skip
+            by.setdefault(((b.motor or "").strip().lower(), b.kv), set()).add(prop.key)
+    groups = [len(keys) for keys in by.values() if len(keys) >= 2]
+    return sum(n * (n - 1) for n in groups), len(groups)
+
+
+def prop_overview(store: Store, cache: ColumnCache, pack: KnowledgePack,
+                  airframe_id: str) -> dict[str, Any]:  # fmt: skip
+    """The Propellers view: the propeller flown as each weighed hover measured it, every
+    family's calibration (the families no table or aircraft has calibrated at their
+    starting values), the track record on propeller changes, and how far the advice's
+    validation has got."""
+    reg = Registry.load(pack)
+    rules: Mapping[str, Any] = reg.rules["performance"]
+    props: Mapping[str, Any] = reg.rules["props"]
+    i = gather(store, cache, pack, airframe_id)
+    row = store.get("airframe", airframe_id)
+    assert row is not None
+    tables = bench.benches(store, str(row["platform_id"]))
+    flown = propfamily.flown(props, i.answers)
+    calibrated = _families(store, airframe_id, i, props, rules, tables)
+    advice: Mapping[str, Any] = props["advice"]
+    pairs, motors = _corpus(store)
+    priority = i.answers.get("priority")
+    out: dict[str, Any] = {
+        "airframe_id": airframe_id, "missing": dict(i.missing),
+        "prop": None if flown is None else asdict(flown),
+        "priority": priority if isinstance(priority, str) else None,
+        "measured": _measured(i, tables, rules),
+        "families": [(calibrated.get(f["id"]) or propfamily.uncalibrated(props, f["id"])).view()
+                     for f in props["families"]],
+        "track": _track(store, airframe_id, i, props, rules, tables),
+        "advice": {"enabled": bool(advice["enabled"]),
+                   "validated_error": advice.get("validated_error"),
+                   "gain_over_error": float(advice["gain_over_error"]),
+                   "least_pairs": int(advice["least_pairs"]),
+                   "least_motors": int(advice["least_motors"]),
+                   "pairs": pairs, "motors": motors},
+    }  # fmt: skip
+    if flown is None:
+        out["missing"]["prop"] = "enter the propeller's diameter and pitch in the setup"
+    return _round(out)
 
 
 def prop_search(
