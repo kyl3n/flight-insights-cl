@@ -31,7 +31,7 @@ pub struct State {
     codes: BTreeMap<String, String>,                            // code -> PKCE challenge
     pub refresh_tokens: Vec<String>,
     pub access_tokens: Vec<String>,
-    /// Failures to serve next: "429", "500", "drop-chunk", "expire".
+    /// Failures to serve next: "429", "500", "drop-chunk", "500-chunk", "expire".
     pub fail: Vec<&'static str>,
     pub requests: Vec<String>,
 }
@@ -325,6 +325,13 @@ fn serve(mut stream: TcpStream, state: &Arc<Mutex<State>>, base: &str) -> std::i
     if method == "PUT" && path.starts_with("/upload/session/") {
         let session = path.trim_start_matches("/upload/session/").to_string();
         let range = headers.get("content-range").cloned().unwrap_or_default();
+        // a chunk Google answers with a server error, as in a burst of 502s, keeping nothing
+        if !body.is_empty()
+            && let Some(i) = s.fail.iter().position(|f| *f == "500-chunk")
+        {
+            s.fail.remove(i);
+            return json_reply(&mut stream, 500, &json!({ "error": { "code": 500 } }));
+        }
         let drop = !body.is_empty()
             && s.fail
                 .iter()

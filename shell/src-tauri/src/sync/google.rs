@@ -362,18 +362,10 @@ impl GoogleDrive {
                     .body(chunk.clone())
             });
             let reply = match reply {
-                Ok(r) => r,
-                Err(_) => {
-                    // the connection dropped: ask the session what it holds
-                    stalls += 1;
-                    if stalls > TRIES {
-                        return Err(other("the upload kept failing"));
-                    }
-                    let status = format!("bytes */{total}");
-                    self.send(&session, &|h, u| {
-                        h.put(u).header("Content-Range", status.clone())
-                    })?
-                }
+                Ok(r) if !r.status().is_server_error() => r,
+                // the connection dropped, or Google stayed busy past the request's own
+                // retries: ask the session what it holds and go on from there
+                _ => self.held(&session, total, &mut stalls)?,
             };
             match reply.status().as_u16() {
                 200 | 201 => {
@@ -393,6 +385,27 @@ impl GoogleDrive {
                         .map_or(0, |end| end + 1);
                 }
                 s => return Err(other(format!("Google Drive refused a chunk ({s})"))),
+            }
+        }
+    }
+
+    /// How much an upload session holds, asked after a dropped connection or a server
+    /// error that outlasted `send`'s retries, as Google advises for resumable uploads:
+    /// wait, ask, resume. Each ask waits longer; past TRIES the upload fails, and the
+    /// next sync round starts it again.
+    fn held(&self, session: &str, total: u64, stalls: &mut u32) -> io::Result<Response> {
+        let status = format!("bytes */{total}");
+        loop {
+            *stalls += 1;
+            if *stalls > TRIES {
+                return Err(other("the upload kept failing"));
+            }
+            thread::sleep(self.backoff * 2u32.pow(*stalls));
+            match self.send(session, &|h, u| {
+                h.put(u).header("Content-Range", status.clone())
+            }) {
+                Ok(r) if !r.status().is_server_error() => return Ok(r),
+                _ => {} // still busy or out of reach: wait longer and ask again
             }
         }
     }
@@ -591,6 +604,28 @@ mod tests {
         );
         assert_eq!(d.list("devices/").unwrap().len(), 1);
         for p in [&src, &back, &empty] {
+            let _ = std::fs::remove_file(p);
+        }
+    }
+
+    #[test]
+    fn a_chunk_google_keeps_refusing_past_the_retries_resumes_from_the_session() {
+        // Google answered a chunk with 502 for longer than the request's own retries on
+        // the nightly soak (11 Nov): the upload asks the session what it holds and goes on
+        let fake = FakeGoogle::start();
+        let d = drive(&fake);
+        let src = temp("busy");
+        let data: Vec<u8> = (0..(CHUNK + 4321)).map(|i| (i % 241) as u8).collect();
+        std::fs::write(&src, &data).unwrap();
+        for _ in 0..TRIES + 2 {
+            fake.fail("500-chunk");
+        }
+        let sum = d.upload("devices/ab/000000000002-ef.fio", &src).unwrap();
+        assert_eq!(sum, sodium::sha256(&data));
+        let back = temp("busy-back");
+        d.download("devices/ab/000000000002-ef.fio", &back).unwrap();
+        assert_eq!(std::fs::read(&back).unwrap(), data);
+        for p in [&src, &back] {
             let _ = std::fs::remove_file(p);
         }
     }
