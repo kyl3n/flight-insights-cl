@@ -156,7 +156,11 @@ fn serve(mut stream: TcpStream, state: &Arc<Mutex<State>>, base: &str) -> std::i
             break;
         }
         if let Some((k, v)) = h.split_once(':') {
-            headers.insert(k.trim().to_lowercase(), v.trim().to_string());
+            let k = k.trim().to_lowercase();
+            if k == "content-length" && headers.contains_key(&k) {
+                headers.insert("x-twice".to_string(), k.clone()); // Google refuses it (400)
+            }
+            headers.insert(k, v.trim().to_string());
         }
     }
     let len: usize = headers
@@ -323,6 +327,14 @@ fn serve(mut stream: TcpStream, state: &Arc<Mutex<State>>, base: &str) -> std::i
         return respond(&mut stream, 200, &[("Location", location)], b"");
     }
     if method == "PUT" && path.starts_with("/upload/session/") {
+        // as Google answers: a PUT to an upload session must state its length, even the
+        // status query that carries no bytes ("Content-Length: 0")
+        if !headers.contains_key("content-length") {
+            return json_reply(&mut stream, 411, &json!({ "error": { "code": 411 } }));
+        }
+        if headers.contains_key("x-twice") {
+            return json_reply(&mut stream, 400, &json!({ "error": { "code": 400 } }));
+        }
         let session = path.trim_start_matches("/upload/session/").to_string();
         let range = headers.get("content-range").cloned().unwrap_or_default();
         // a chunk Google answers with a server error, as in a burst of 502s, keeping nothing
