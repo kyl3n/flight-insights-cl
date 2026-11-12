@@ -401,8 +401,11 @@ impl GoogleDrive {
                 return Err(other("the upload kept failing"));
             }
             thread::sleep(self.backoff * 2u32.pow(*stalls));
+            // Google refuses a PUT that does not state its length (411), even one with no bytes
             match self.send(session, &|h, u| {
-                h.put(u).header("Content-Range", status.clone())
+                h.put(u)
+                    .header("Content-Range", status.clone())
+                    .header("Content-Length", "0")
             }) {
                 Ok(r) if !r.status().is_server_error() => return Ok(r),
                 _ => {} // still busy or out of reach: wait longer and ask again
